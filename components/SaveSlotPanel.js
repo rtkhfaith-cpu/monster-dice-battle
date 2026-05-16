@@ -38,6 +38,7 @@ export default function SaveSlotPanel({
   onUpdateName,
   compact = false,
   embedInScroll = false,
+  isMobile = false,
 }) {
   const [isCreating, setIsCreating] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -115,8 +116,15 @@ export default function SaveSlotPanel({
         };
 
   return (
-    <View style={[styles.panel, compact && styles.panelCompact, embedInScroll && styles.panelEmbed]}>
-      <Text style={styles.panelTitle}>Save Slots</Text>
+    <View
+      style={[
+        styles.panel,
+        compact && styles.panelCompact,
+        embedInScroll && styles.panelEmbed,
+        isMobile && styles.panelMobile,
+      ]}
+    >
+      <Text style={[styles.panelTitle, isMobile && styles.panelTitleMobile]}>Save Slots</Text>
 
       {profiles.length === 0 && !isCreating ? (
         <View style={styles.emptyState}>
@@ -137,25 +145,34 @@ export default function SaveSlotPanel({
             return (
               <TouchableOpacity
                 key={p.id}
-                style={[styles.slot, compact && styles.slotCompact, selected && styles.slotOn]}
+                style={[
+                  styles.slot,
+                  compact && styles.slotCompact,
+                  isMobile && styles.slotMobile,
+                  selected && styles.slotOn,
+                ]}
                 onPress={() => onSelectProfile?.(p.id)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
                 accessibilityLabel={`Select ${p.name}`}
               >
                 {fighter ? (
-                  <MonsterPreview parts={fighter.monsterParts} size={compact ? 40 : 52} mood="happy" />
+                  <MonsterPreview
+                    parts={fighter.monsterParts}
+                    size={isMobile ? 44 : compact ? 40 : 52}
+                    mood="happy"
+                  />
                 ) : (
                   <Text style={styles.fallbackEmoji}>👾</Text>
                 )}
                 <View style={styles.slotMeta}>
-                  <Text style={styles.slotName} numberOfLines={1}>
+                  <Text style={[styles.slotName, isMobile && styles.slotNameMobile]} numberOfLines={1}>
                     {p.name}
                   </Text>
-                  <Text style={styles.slotLine}>
+                  <Text style={[styles.slotLine, isMobile && styles.slotLineMobile]}>
                     Lv {om?.level ?? 1} · 🪙 {p.coins ?? 0}
                   </Text>
-                  <Text style={styles.slotMon} numberOfLines={1}>
+                  <Text style={[styles.slotMon, isMobile && styles.slotMonMobile]} numberOfLines={1}>
                     {om ? om.nickname || tpl?.name : 'No monster'}
                   </Text>
                   {sessionSelected ? <Text style={styles.selTag}>★ SELECTED</Text> : null}
@@ -283,6 +300,10 @@ const styles = StyleSheet.create({
     flex: 0,
     flexGrow: 0,
   },
+  panelMobile: {
+    padding: 14,
+    borderRadius: 16,
+  },
   slotListWrap: {
     flexGrow: 0,
   },
@@ -295,6 +316,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
+  panelTitleMobile: { fontSize: 14, marginBottom: 10 },
   emptyState: {
     backgroundColor: LOBBY.chipAlt,
     borderRadius: 12,
@@ -342,6 +364,11 @@ const styles = StyleSheet.create({
     minHeight: 56,
     paddingVertical: 5,
   },
+  slotMobile: {
+    minHeight: 60,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
   slotOn: {
     borderColor: LOBBY.cardActiveBorder,
     backgroundColor: LOBBY.cardActive,
@@ -350,8 +377,11 @@ const styles = StyleSheet.create({
   fallbackEmoji: { fontSize: 36, width: 48, textAlign: 'center' },
   slotMeta: { flex: 1, marginLeft: 8, minWidth: 0 },
   slotName: { fontWeight: '900', fontSize: 16, color: '#1b1b2f' },
+  slotNameMobile: { fontSize: 15 },
   slotLine: { fontWeight: '800', fontSize: 13, color: '#4a5568', marginTop: 2 },
+  slotLineMobile: { fontSize: 12 },
   slotMon: { fontWeight: '700', fontSize: 12, color: '#636e72', marginTop: 2 },
+  slotMonMobile: { fontSize: 11 },
   selTag: { fontWeight: '900', fontSize: 11, color: '#27ae60', marginTop: 4 },
   badge: { fontWeight: '900', fontSize: 11, color: '#c0392b', marginTop: 2 },
   nameRow: {

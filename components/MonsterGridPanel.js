@@ -7,7 +7,7 @@ import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemp
 import { LOBBY, panelShadow } from '../utils/gameTheme';
 
 /**
- * Compact monster grid for lobby right column.
+ * Monster roster grid — mobile: 2 equal columns; desktop: flexible wrap.
  */
 export default function MonsterGridPanel({
   wallet,
@@ -17,24 +17,26 @@ export default function MonsterGridPanel({
   selectedP2Id,
   onSelectMonster,
   embedInScroll = false,
+  isMobile = false,
 }) {
   const monsters = wallet?.ownedMonsters ?? [];
   const is1P = gameMode === 'onePlayer';
+  const previewSize = isMobile ? 58 : 72;
   const GridWrap = embedInScroll ? View : ScrollView;
   const gridWrapProps = embedInScroll
-    ? { style: styles.gridEmbed }
+    ? { style: [styles.gridEmbed, isMobile && styles.gridMobile] }
     : {
         style: styles.scroll,
-        contentContainerStyle: styles.grid,
+        contentContainerStyle: [styles.grid, isMobile && styles.gridMobile],
         showsVerticalScrollIndicator: false,
         nestedScrollEnabled: true,
         keyboardShouldPersistTaps: 'handled',
       };
 
   return (
-    <View style={[styles.panel, embedInScroll && styles.panelEmbed]}>
-      <Text style={styles.panelTitle}>Your Monsters</Text>
-      <Text style={styles.subTitle} numberOfLines={1}>
+    <View style={[styles.panel, embedInScroll && styles.panelEmbed, isMobile && styles.panelMobile]}>
+      <Text style={[styles.panelTitle, isMobile && styles.panelTitleMobile]}>Your Monsters</Text>
+      <Text style={[styles.subTitle, isMobile && styles.subTitleMobile]} numberOfLines={2}>
         {is1P ? (
           <>
             <Text style={styles.subStrong}>Pick your fighter</Text>
@@ -50,7 +52,9 @@ export default function MonsterGridPanel({
       {monsters.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyEmoji}>🥚</Text>
-          <Text style={styles.emptyTxt}>No monsters yet! Open Monster Mart from the top menu.</Text>
+          <Text style={[styles.emptyTxt, isMobile && styles.emptyTxtMobile]}>
+            No monsters yet! Open Monster Mart from the shop section below.
+          </Text>
         </View>
       ) : (
         <GridWrap {...gridWrapProps}>
@@ -76,20 +80,24 @@ export default function MonsterGridPanel({
             return (
               <TouchableOpacity
                 key={om.id}
-                style={[styles.tile, picked && styles.tileOn]}
+                style={[styles.tile, isMobile && styles.tileMobile, picked && styles.tileOn]}
                 onPress={() => onSelectMonster(om.id)}
                 activeOpacity={0.9}
               >
-                <View style={styles.visWrap}>
-                  <MonsterPreview parts={f.monsterParts} size={72} mood="happy" />
+                <View style={[styles.visWrap, isMobile && styles.visWrapMobile]}>
+                  <MonsterPreview parts={f.monsterParts} size={previewSize} mood="happy" />
                 </View>
-                <Text style={styles.monName} numberOfLines={1}>
+                <Text style={[styles.monName, isMobile && styles.monNameMobile]} numberOfLines={1}>
                   {om.nickname || t.name}
                 </Text>
-                <Text style={styles.stat}>HP {hp} · MP {f.stats.mp}</Text>
-                <Text style={styles.stat}>{ROLE_LABELS[t.role] ?? t.role}</Text>
-                <Text style={styles.stat}>
-                  Lv {om.level} · EXP {om.exp ?? 0}/{expNeed}
+                <Text style={[styles.stat, isMobile && styles.statMobile]}>
+                  HP {hp} · MP {f.stats.mp}
+                </Text>
+                <Text style={[styles.stat, isMobile && styles.statMobile]} numberOfLines={1}>
+                  {ROLE_LABELS[t.role] ?? t.role}
+                </Text>
+                <Text style={[styles.stat, isMobile && styles.statMobile]} numberOfLines={1}>
+                  Lv {om.level} · {om.exp ?? 0}/{expNeed} EXP
                 </Text>
                 <Text style={[styles.rarity, { color: RARITY_UI[t.rarity].color || '#6c5ce7' }]}>
                   {RARITY_UI[t.rarity].label}
@@ -113,8 +121,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: LOBBY.panelBorder,
-    padding: 8,
+    padding: 10,
     ...panelShadow,
+  },
+  panelMobile: {
+    flex: 0,
+    flexGrow: 0,
+    padding: 14,
+    borderRadius: 16,
   },
   panelTitle: {
     fontWeight: '900',
@@ -124,13 +138,16 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
+  panelTitleMobile: { fontSize: 14 },
   subTitle: {
     fontWeight: '700',
     fontSize: 12,
     color: '#4a5568',
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
+    paddingHorizontal: 4,
   },
+  subTitleMobile: { fontSize: 12, marginBottom: 10, lineHeight: 17 },
   subStrong: { fontWeight: '900', color: LOBBY.coin },
   panelEmbed: {
     flex: 0,
@@ -141,28 +158,40 @@ const styles = StyleSheet.create({
   gridEmbed: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: 10,
     paddingBottom: 4,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
     paddingBottom: 4,
+  },
+  gridMobile: {
+    justifyContent: 'space-between',
+    gap: 12,
   },
   tile: {
     width: '47%',
     maxWidth: 168,
     minWidth: 130,
-    minHeight: 44,
     backgroundColor: LOBBY.card,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: LOBBY.cardBorder,
-    padding: 6,
+    padding: 8,
     alignItems: 'center',
+  },
+  tileMobile: {
+    width: '48%',
+    maxWidth: undefined,
+    minWidth: 0,
+    flexGrow: 0,
+    flexShrink: 0,
+    padding: 8,
+    paddingBottom: 10,
   },
   tileOn: {
     borderColor: LOBBY.accentStrong,
@@ -179,20 +208,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  visWrapMobile: {
+    height: 64,
+  },
   monName: {
     fontWeight: '900',
     fontSize: 14,
     color: '#1b1b2f',
-    marginTop: 2,
+    marginTop: 4,
     textAlign: 'center',
+    width: '100%',
   },
+  monNameMobile: { fontSize: 13 },
   stat: {
     fontWeight: '700',
     fontSize: 11,
     color: '#4a5568',
     textAlign: 'center',
     marginTop: 2,
+    width: '100%',
   },
+  statMobile: { fontSize: 10, lineHeight: 14 },
   rarity: {
     fontWeight: '900',
     fontSize: 11,
@@ -201,15 +237,16 @@ const styles = StyleSheet.create({
   pickTag: {
     marginTop: 4,
     fontWeight: '900',
-    fontSize: 11,
+    fontSize: 10,
     color: '#fff',
     backgroundColor: LOBBY.accentStrong,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
     overflow: 'hidden',
   },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
-  emptyEmoji: { fontSize: 48 },
+  empty: { alignItems: 'center', justifyContent: 'center', padding: 20 },
+  emptyEmoji: { fontSize: 44 },
   emptyTxt: { fontWeight: '800', fontSize: 14, color: '#4a5568', textAlign: 'center', marginTop: 8 },
+  emptyTxtMobile: { fontSize: 13, lineHeight: 19, paddingHorizontal: 8 },
 });

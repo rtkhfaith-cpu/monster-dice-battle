@@ -13,9 +13,17 @@ import GameSetupPanel from './GameSetupPanel';
 import MonsterGridPanel from './MonsterGridPanel';
 import OnlineRoomBanner from './OnlineRoomBanner';
 import { LOBBY } from '../utils/gameTheme';
+import {
+  getLayoutTier,
+  isDesktopLayout,
+  MOBILE_GAP,
+  MOBILE_PAD,
+  MOBILE_SECTION_GAP,
+  scrollBottomInset,
+} from '../utils/responsive';
 
 /**
- * Handheld-style game lobby — 3-column layout on desktop, scrollable stack on mobile.
+ * Lobby — desktop: 3 columns · tablet/mobile: vertical scroll stack (no overlap).
  */
 export default function HomeSetupScreen({
   profiles,
@@ -50,9 +58,10 @@ export default function HomeSetupScreen({
   coins,
 }) {
   const { width } = useWindowDimensions();
-  const layout = width >= 960 ? 'wide' : width >= 640 ? 'mid' : 'narrow';
-  // Phone + tablet portrait: one vertical scroll (no nested scroll traps).
-  const usePageScroll = width < 960;
+  const layoutTier = getLayoutTier(width);
+  const isMobile = layoutTier === 'mobile';
+  const isTablet = layoutTier === 'tablet';
+  const usePageScroll = !isDesktopLayout(width);
 
   const summary = useMemo(() => {
     const row = (ownedId, w) => {
@@ -77,6 +86,8 @@ export default function HomeSetupScreen({
     return '';
   }, [summary, gameMode]);
 
+  const panelLayout = { layoutTier, isMobile, isTablet };
+
   const saveProps = {
     profiles,
     activeProfileId,
@@ -89,6 +100,7 @@ export default function HomeSetupScreen({
     onUpdateName: onUpdateProfileName,
     compact: usePageScroll,
     embedInScroll: usePageScroll,
+    ...panelLayout,
   };
 
   const setupProps = {
@@ -106,19 +118,56 @@ export default function HomeSetupScreen({
     onOpenMonsterGear,
     onEnterMultiplayer,
     embedInScroll: usePageScroll,
+    ...panelLayout,
   };
 
   const gridProps = {
     wallet: gameMode === 'onePlayer' ? walletP1 || wallet : wallet,
-    slotLabel: gameMode === 'onePlayer' ? slotProfileName : slotProfileName,
+    slotLabel: slotProfileName,
     gameMode,
     selectedP1Id,
     selectedP2Id: gameMode === 'onePlayer' ? null : selectedP2Id,
     onSelectMonster,
     embedInScroll: usePageScroll,
+    ...panelLayout,
   };
 
-  const topBar = (
+  const shopButtons = (
+    <View style={[styles.shopRow, isMobile && styles.shopRowMobile]}>
+      <TouchableOpacity
+        style={[styles.shopBtn, isMobile && styles.shopBtnFull, styles.shopBtnAlt]}
+        onPress={onOpenGearMart}
+        activeOpacity={0.88}
+      >
+        <Text style={styles.shopBtnTxt}>🛒 Gear Mart</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.shopBtn, isMobile && styles.shopBtnFull]}
+        onPress={onOpenMonsterGearShop}
+        activeOpacity={0.88}
+      >
+        <Text style={styles.shopBtnTxt}>⚔ Equip Gear</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.shopBtn, isMobile && styles.shopBtnFull]}
+        onPress={onOpenMonsterMart}
+        activeOpacity={0.88}
+      >
+        <Text style={styles.shopBtnTxt}>🥚 Monsters</Text>
+      </TouchableOpacity>
+      {onResetSave ? (
+        <TouchableOpacity
+          style={[styles.shopBtn, isMobile && styles.shopBtnFull, styles.shopBtnWarn]}
+          onPress={onResetSave}
+          activeOpacity={0.88}
+        >
+          <Text style={styles.shopBtnTxt}>Reset Save</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+
+  const topBarDesktop = (
     <View style={styles.topBar}>
       <Text style={styles.title} numberOfLines={1}>
         Monster Dice Battle
@@ -145,6 +194,19 @@ export default function HomeSetupScreen({
     </View>
   );
 
+  const topBarMobile = (
+    <View style={styles.topBarMobile}>
+      <Text style={styles.titleMobile} numberOfLines={2}>
+        Monster Dice Battle
+      </Text>
+      <View style={styles.coinsPill}>
+        <Text style={styles.coinsMobile}>
+          🪙 <Text style={styles.coinsAmt}>{coins}</Text>
+        </Text>
+      </View>
+    </View>
+  );
+
   const onlineBanner =
     onlineRoom?.roomCode ? (
       <OnlineRoomBanner
@@ -156,17 +218,32 @@ export default function HomeSetupScreen({
     ) : null;
 
   const startSection = (
-    <View style={styles.bottom}>
+    <View style={[styles.bottom, isMobile && styles.bottomMobile]}>
       {missingMsg && !canStart ? <Text style={styles.missing}>{missingMsg}</Text> : null}
       <TouchableOpacity
-        style={[styles.startBtn, !canStart && styles.startOff]}
+        style={[styles.startBtn, isMobile && styles.startBtnMobile, !canStart && styles.startOff]}
         disabled={!canStart}
         onPress={onStartGame}
         activeOpacity={0.9}
       >
-        <Text style={styles.startTxt}>⚔ START BATTLE</Text>
+        <Text style={[styles.startTxt, isMobile && styles.startTxtMobile]}>⚔ START BATTLE</Text>
       </TouchableOpacity>
     </View>
+  );
+
+  const section = (key, child) => (
+    <View key={key} style={[styles.section, isMobile && styles.sectionMobile]}>
+      {child}
+    </View>
+  );
+
+  const scrollBody = (
+    <>
+      {section('save', <SaveSlotPanel {...saveProps} />)}
+      {section('setup', <GameSetupPanel {...setupProps} />)}
+      {section('monsters', <MonsterGridPanel {...gridProps} />)}
+      {usePageScroll ? section('shop', shopButtons) : null}
+    </>
   );
 
   const wideBody = (
@@ -185,30 +262,23 @@ export default function HomeSetupScreen({
     </View>
   );
 
-  const scrollBody = (
-    <View style={styles.stack}>
-      <SaveSlotPanel {...saveProps} />
-      <GameSetupPanel {...setupProps} />
-      <MonsterGridPanel {...gridProps} />
-    </View>
-  );
-
   if (usePageScroll) {
     return (
       <ScrollView
         style={[styles.pageScroll, Platform.OS === 'web' && styles.pageScrollWeb]}
-        contentContainerStyle={styles.pageScrollContent}
+        contentContainerStyle={[
+          styles.pageScrollContent,
+          isMobile && styles.pageScrollContentMobile,
+        ]}
         keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator
-        nestedScrollEnabled
+        nestedScrollEnabled={false}
         scrollEnabled
         bounces
-        alwaysBounceVertical={false}
-        overScrollMode="always"
       >
-        {topBar}
-        {onlineBanner}
-        {scrollBody}
+        {isMobile ? topBarMobile : topBarDesktop}
+        {onlineBanner ? <View style={styles.bannerWrap}>{onlineBanner}</View> : null}
+        <View style={[styles.stack, isMobile && styles.stackMobile]}>{scrollBody}</View>
         {startSection}
       </ScrollView>
     );
@@ -216,7 +286,7 @@ export default function HomeSetupScreen({
 
   return (
     <View style={styles.root}>
-      {topBar}
+      {topBarDesktop}
       {onlineBanner}
       {wideBody}
       {startSection}
@@ -242,8 +312,14 @@ const styles = StyleSheet.create({
     overscrollBehavior: 'contain',
   },
   pageScrollContent: {
-    paddingBottom: 48,
-    paddingTop: 2,
+    paddingBottom: scrollBottomInset(32),
+    paddingTop: 4,
+    flexGrow: 1,
+  },
+  pageScrollContentMobile: {
+    paddingHorizontal: MOBILE_PAD,
+    paddingTop: 8,
+    paddingBottom: scrollBottomInset(40),
   },
   topBar: {
     flexShrink: 0,
@@ -251,17 +327,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
-    gap: 6,
-    paddingBottom: 8,
+    gap: 8,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: LOBBY.panelBorder,
-    marginBottom: 6,
+    marginBottom: 8,
+  },
+  topBarMobile: {
+    flexShrink: 0,
+    gap: 10,
+    marginBottom: MOBILE_SECTION_GAP,
   },
   title: {
     fontWeight: '900',
     fontSize: 22,
     color: LOBBY.textStrong,
     flexShrink: 1,
+  },
+  titleMobile: {
+    fontWeight: '900',
+    fontSize: 20,
+    lineHeight: 24,
+    color: LOBBY.textStrong,
   },
   topActions: {
     flexDirection: 'row',
@@ -272,30 +359,46 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   coins: { fontWeight: '800', fontSize: 15, color: LOBBY.textStrong },
+  coinsPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: LOBBY.chip,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: LOBBY.cardBorder,
+  },
+  coinsMobile: { fontWeight: '800', fontSize: 15, color: LOBBY.textStrong },
   coinsAmt: { fontWeight: '900', color: LOBBY.coin },
   menuChip: {
     backgroundColor: LOBBY.chip,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: LOBBY.cardBorder,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   menuChipAlt: {
     backgroundColor: LOBBY.chipAlt,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: LOBBY.cardBorder,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   menuChipWarn: {
     backgroundColor: LOBBY.warn,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: LOBBY.cardBorder,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   menuChipTxt: { fontWeight: '900', fontSize: 12, color: LOBBY.textStrong },
   body: {
@@ -305,29 +408,86 @@ const styles = StyleSheet.create({
   row3: {
     flex: 1,
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
     minHeight: 0,
   },
   colLeft: { flex: 0.26, minWidth: 0, minHeight: 0 },
   colMid: { flex: 0.3, minWidth: 0, minHeight: 0 },
   colRight: { flex: 0.44, minWidth: 0, minHeight: 0 },
   stack: {
-    gap: 8,
+    gap: 10,
     flexGrow: 0,
+  },
+  stackMobile: {
+    gap: MOBILE_SECTION_GAP,
+  },
+  section: {
+    width: '100%',
+    flexShrink: 0,
+  },
+  sectionMobile: {
+    marginBottom: 0,
+  },
+  bannerWrap: {
+    marginBottom: MOBILE_GAP,
+  },
+  shopRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  shopRowMobile: {
+    flexDirection: 'column',
+    gap: 10,
+  },
+  shopBtn: {
+    flexGrow: 1,
+    flexBasis: '30%',
+    minWidth: 100,
+    minHeight: 48,
+    backgroundColor: LOBBY.chip,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: LOBBY.cardBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  shopBtnAlt: {
+    backgroundColor: LOBBY.chipAlt,
+  },
+  shopBtnWarn: {
+    backgroundColor: LOBBY.warn,
+  },
+  shopBtnFull: {
+    width: '100%',
+    flexBasis: 'auto',
+    minWidth: 0,
+  },
+  shopBtnTxt: {
+    fontWeight: '900',
+    fontSize: 14,
+    color: LOBBY.textStrong,
+    textAlign: 'center',
   },
   bottom: {
     flexShrink: 0,
-    paddingTop: 12,
-    marginTop: 8,
+    paddingTop: 14,
+    marginTop: 10,
     borderTopWidth: 1,
     borderTopColor: LOBBY.panelBorder,
+  },
+  bottomMobile: {
+    paddingTop: 16,
+    marginTop: MOBILE_SECTION_GAP,
   },
   missing: {
     fontWeight: '800',
     fontSize: 13,
     color: '#b85450',
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: 10,
   },
   startBtn: {
     backgroundColor: LOBBY.start,
@@ -336,11 +496,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: LOBBY.startBorder,
     alignItems: 'center',
+    minHeight: 52,
+    justifyContent: 'center',
     shadowColor: LOBBY.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 4,
+  },
+  startBtnMobile: {
+    width: '100%',
+    minHeight: 56,
+    paddingVertical: 16,
   },
   startOff: { opacity: 0.45 },
   startTxt: {
@@ -348,5 +515,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#fff',
     letterSpacing: 1,
+  },
+  startTxtMobile: {
+    fontSize: 18,
+    letterSpacing: 0.5,
   },
 });

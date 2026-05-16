@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 /**
- * Compact online room status on the home screen.
+ * Compact online room status on the home screen — battle-lobby style.
  */
 export default function OnlineRoomBanner({ roomState, mySlot, onOpenLobby, onLeaveRoom }) {
   if (!roomState?.roomCode) return null;
@@ -15,7 +15,10 @@ export default function OnlineRoomBanner({ roomState, mySlot, onOpenLobby, onLea
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.title}>Online room {roomState.roomCode}</Text>
+      <View style={styles.header}>
+        <Text style={styles.liveDot}>●</Text>
+        <Text style={styles.title}>Online · Room {roomState.roomCode}</Text>
+      </View>
       <Text style={styles.line}>
         You: {me?.profile?.name ?? '—'}
         {me?.profile?.monsterName ? ` · ${me.profile.monsterName}` : ''}
@@ -24,18 +27,18 @@ export default function OnlineRoomBanner({ roomState, mySlot, onOpenLobby, onLea
         {leftMsg
           ? leftMsg
           : !bothJoined
-            ? 'Waiting for opponent…'
+            ? '⏳ Waiting for opponent…'
             : `Opponent: ${opp?.profile?.name ?? 'Joined'}${
                 opp?.profile?.monsterName ? ` · ${opp.profile.monsterName}` : ''
               }`}
       </Text>
-      {inBattle ? <Text style={styles.battle}>Battle in progress — tap to rejoin</Text> : null}
+      {inBattle ? <Text style={styles.battle}>⚔ Battle in progress — tap to rejoin</Text> : null}
       <View style={styles.row}>
         <TouchableOpacity style={styles.openBtn} onPress={onOpenLobby}>
-          <Text style={styles.openTxt}>{inBattle ? 'Rejoin battle' : 'Open waiting room'}</Text>
+          <Text style={styles.openTxt}>{inBattle ? 'Rejoin' : 'Open Lobby'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.leaveBtn} onPress={onLeaveRoom}>
-          <Text style={styles.leaveTxt}>Leave Room</Text>
+          <Text style={styles.leaveTxt}>Leave</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -44,17 +47,24 @@ export default function OnlineRoomBanner({ roomState, mySlot, onOpenLobby, onLea
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: '#e8f8ff',
-    borderWidth: 3,
+    backgroundColor: 'rgba(232, 244, 255, 0.98)',
+    borderWidth: 2,
     borderColor: '#0984e3',
     borderRadius: 14,
-    padding: 10,
-    marginBottom: 10,
+    padding: 12,
+    marginBottom: 12,
+    shadowColor: '#0984e3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  title: { fontWeight: '900', fontSize: 16, color: '#1a5276', marginBottom: 4 },
-  line: { fontWeight: '800', fontSize: 14, color: '#2d3436', marginBottom: 2 },
-  battle: { fontWeight: '900', fontSize: 14, color: '#c0392b', marginBottom: 6 },
-  row: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  liveDot: { color: '#2ecc71', fontWeight: '900', fontSize: 12 },
+  title: { fontWeight: '900', fontSize: 15, color: '#1a5276' },
+  line: { fontWeight: '800', fontSize: 13, color: '#2d3436', marginBottom: 3 },
+  battle: { fontWeight: '900', fontSize: 13, color: '#c0392b', marginBottom: 8 },
+  row: { flexDirection: 'row', gap: 8, marginTop: 6 },
   openBtn: {
     flex: 1,
     backgroundColor: '#74b9ff',
@@ -63,6 +73,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#2d2d44',
     alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
   },
   openTxt: { fontWeight: '900', fontSize: 14, color: '#1b1b2f' },
   leaveBtn: {
@@ -73,6 +85,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#2d2d44',
     alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
   },
   leaveTxt: { fontWeight: '900', fontSize: 14, color: '#fff' },
 });

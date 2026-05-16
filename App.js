@@ -8,8 +8,10 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { isMobileLayout as isLobbyMobileWidth } from './utils/responsive';
 import BattleScreen from './components/BattleScreen';
 import MonsterGearScreen from './components/MonsterGearScreen';
 import GearMartModal from './components/GearMartModal';
@@ -76,6 +78,8 @@ function buildEncourageLines(gameData, winner, summary) {
 }
 
 export default function App() {
+  const { width } = useWindowDimensions();
+  const lobbyMobile = isLobbyMobileWidth(width);
   const [gameData, setGameData] = useState(null);
   const [phase, setPhase] = useState('menu');
   const [gameMode, setGameMode] = useState(/** @type {'twoPlayer'|'onePlayer'|'online'} */ ('onePlayer'));
@@ -202,6 +206,9 @@ export default function App() {
           html, body { margin: 0; height: 100%; overflow: hidden; }
           #root { height: 100%; overflow: hidden; display: flex; flex-direction: column; }
           #root > div { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+          @supports (padding: env(safe-area-inset-bottom)) {
+            #root > div { padding-bottom: env(safe-area-inset-bottom); }
+          }
         `;
         document.head.appendChild(tag);
       }
@@ -587,10 +594,14 @@ export default function App() {
 
   return (
     <SafeAreaView
-      style={[styles.safe, phase === 'battle' ? styles.safeBattle : phase === 'menu' ? styles.safeMenu : null]}
+      style={[
+        styles.safe,
+        phase === 'battle' ? styles.safeBattle : phase === 'menu' ? styles.safeMenu : null,
+        phase === 'menu' && lobbyMobile && styles.safeMenuMobile,
+      ]}
     >
       <StatusBar style="dark" />
-      {phase !== 'menu' && phase !== 'battle' ? (
+      {phase !== 'menu' && phase !== 'battle' && phase !== 'online' ? (
         <>
           <Text style={styles.gameTitle}>Monster Dice Battle</Text>
           <View style={styles.coinsRow}>
@@ -614,8 +625,10 @@ export default function App() {
         style={
           phase === 'battle'
             ? styles.cardShellBattle
+            : phase === 'online'
+              ? styles.cardShellOnline
             : phase === 'menu'
-              ? styles.cardShellMenu
+              ? [styles.cardShellMenu, lobbyMobile && styles.cardShellMenuMobile]
               : styles.cardShell
         }
       >
@@ -803,6 +816,11 @@ const styles = StyleSheet.create({
     minHeight: 0,
     overflow: 'hidden',
   },
+  safeMenuMobile: {
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    paddingBottom: 0,
+  },
   safeBattle: {
     paddingHorizontal: 6,
     paddingTop: 4,
@@ -881,6 +899,21 @@ const styles = StyleSheet.create({
           flexDirection: 'column',
         }
       : {}),
+  },
+  cardShellMenuMobile: {
+    borderRadius: 12,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+  },
+  cardShellOnline: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    borderRadius: 0,
   },
   cardShellBattle: {
     flex: 1,

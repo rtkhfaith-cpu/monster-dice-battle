@@ -2,17 +2,18 @@ import React, { useId, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 import { ThemedMonsterBody } from './themedMonsterBodies';
+import MonsterGearLayers from './MonsterGearLayers';
 
-/** Kid-friendly body colours — index via `parts.colorIdx`. */
+/** Pastel-vibrant cartoon palette */
 export const MONSTER_PALETTE = [
-  '#FF6B6B',
-  '#4ECDC4',
-  '#FFD93D',
-  '#6BCB77',
-  '#A66CFF',
-  '#FF922B',
-  '#4D96FF',
-  '#FF85E4',
+  '#FF7B7B',
+  '#5ED4D0',
+  '#FFE066',
+  '#7AD99A',
+  '#B794F6',
+  '#FFA94D',
+  '#74C0FC',
+  '#FF9ECE',
 ];
 
 export const PART_KEYS = ['body', 'head', 'eyes', 'mouth', 'horn', 'tail', 'hands', 'legs'];
@@ -61,8 +62,9 @@ function BodyGrad({ children, gid, light, dark }) {
   return (
     <G>
       <Defs>
-        <LinearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+        <LinearGradient id={gid} x1="0" y1="0" x2="0.2" y2="1">
           <Stop offset="0" stopColor={light} stopOpacity={1} />
+          <Stop offset="0.55" stopColor={light} stopOpacity={0.98} />
           <Stop offset="1" stopColor={dark} stopOpacity={1} />
         </LinearGradient>
       </Defs>
@@ -80,8 +82,8 @@ function BodyGrad({ children, gid, light, dark }) {
 export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) {
   const instanceId = useId().replace(/:/g, '');
   const safe = parts && typeof parts === 'object' ? parts : null;
-  const ST = 6;
-  const stroke = '#1a1a2e';
+  const ST = 5;
+  const stroke = '#2d3561';
   const cheek = '#ff8fb188';
   const eyeWhite = '#fffef8';
   const pupil = '#1a1a2e';
@@ -167,14 +169,12 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
           width: size * 0.76,
           height: size * 0.1,
           borderRadius: size,
-          backgroundColor: 'rgba(0,0,0,0.18)',
+          backgroundColor: 'rgba(45, 53, 97, 0.14)',
         }}
       />
       <Svg width={size} height={size} viewBox="0 0 200 200">
         <G>
-          {cosmetics.includes('fireAura') ? (
-            <Circle cx={100} cy={118} r={72} fill="#ff6b35" opacity={0.22} stroke={stroke} strokeWidth={3} />
-          ) : null}
+          <MonsterGearLayers cosmetics={cosmetics} stroke={stroke} ST={ST} />
           {renderCapeLayer(cosmetics, fillUrl, stroke, ST)}
           {hasThemedSilhouette ? (
             <ThemedMonsterBody

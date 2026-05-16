@@ -1,8 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { isMobileLayout } from '../utils/battleLayout';
 import BattleProjectileLayer from './BattleProjectileLayer';
 import RpgBattleArena from './RpgBattleArena';
 import { pickProjectile } from '../utils/battleProjectiles';
+import { getSkillAnimMeta } from '../utils/skillAnimations';
+import { playSound, playSoundForSkill } from '../utils/sounds';
 import {
   maybeApplySkillStatus,
   resolveMagicBattleDamage,
@@ -22,7 +35,7 @@ import {
   toggleBattleMuted,
   unlockBattleAudio,
 } from '../utils/battleAudio';
-import { playSound, playUiSfx } from '../utils/sounds';
+import { playUiSfx } from '../utils/sounds';
 import { BATTLE } from '../utils/gameTheme';
 
 const ATTACK_WINDUP_MS = 420;
@@ -124,7 +137,11 @@ export default function BattleScreen({
   const [currentEffect, setCurrentEffect] = useState(null);
   const [activeAttackEffect, setActiveAttackEffect] = useState(null);
   const [defendGlowP1, setDefendGlowP1] = useState(false);
+  const [defendGlowP2, setDefendGlowP2] = useState(false);
   const [defenderFlash, setDefenderFlash] = useState(0);
+  const [sicklyFlash, setSicklyFlash] = useState(0);
+  const [flyStrikeP1, setFlyStrikeP1] = useState(false);
+  const [flyStrikeP2, setFlyStrikeP2] = useState(false);
   const [p1Pose, setP1Pose] = useState('idle');
   const [p2Pose, setP2Pose] = useState('idle');
   const [p1Emotion, setP1Emotion] = useState('neutral');
@@ -186,6 +203,9 @@ export default function BattleScreen({
   function clearAttackEffects() {
     setActiveAttackEffect(null);
     setCurrentEffect(null);
+    setFlyStrikeP1(false);
+    setFlyStrikeP2(false);
+    setSicklyFlash(0);
   }
 
   function doShake(strength) {
@@ -214,7 +234,11 @@ export default function BattleScreen({
     setP1Pose('idle');
     setP2Pose('idle');
     setDefendGlowP1(false);
+    setDefendGlowP2(false);
     setDefenderFlash(0);
+    setSicklyFlash(0);
+    setFlyStrikeP1(false);
+    setFlyStrikeP2(false);
     setP1Emotion('neutral');
     setP2Emotion('neutral');
   }
@@ -294,6 +318,10 @@ export default function BattleScreen({
 
   function handleProjectileImpact(defId, fx) {
     setDefenderFlash(defId);
+    if (fx?.sicklyFlash) {
+      setSicklyFlash(defId);
+      schedule(500, () => setSicklyFlash(0));
+    }
     schedule(400, () => setDefenderFlash(0));
     if (fx?.damage > 0) {
       duckBgm(fx?.critical ? 480 : 380);
@@ -303,7 +331,8 @@ export default function BattleScreen({
       playSound('critical');
       doShake('crit');
     } else if (fx?.damage > 0) {
-      playSound('hit', { effectType: fx?.effectType });
+      if (fx?.sfxKey) playSound(fx.sfxKey);
+      else playSound('hit', { effectType: fx?.effectType });
       doShake('normal');
     }
   }
@@ -414,12 +443,21 @@ export default function BattleScreen({
     p1Ref.current = np1;
     p2Ref.current = np2;
 
+    const animMeta = getSkillAnimMeta(skill);
+    const isFly = animMeta.animKind === 'fly_lunge';
+    setFlyStrikeP1(attackerId === PLAYER_ID && isFly);
+    setFlyStrikeP2(attackerId === CPU_ID && isFly);
+
     effectSeqRef.current += 1;
     const effectPayload = {
       type: strikeKind === 'magic' ? 'magic' : 'normal',
       moveName: skill?.name ?? 'Attack',
       effectType: skill?.effectType ?? 'normal',
       emoji: skill?.emoji,
+      skillId: skill?.id,
+      animKind: animMeta.animKind,
+      sfxKey: animMeta.sfxKey,
+      sicklyFlash: animMeta.sicklyFlash,
       critical: resolved.critical,
       weak: resolved.weak,
       dodged: false,
@@ -432,6 +470,7 @@ export default function BattleScreen({
       projectileId: pickProjectile({
         templateId: atk.monsterTemplateId,
         effectType: skill?.effectType ?? 'normal',
+        projectileId: animMeta.projectileId,
       }),
       useProjectileAnim: true,
       seq: effectSeqRef.current,
@@ -460,7 +499,10 @@ export default function BattleScreen({
     };
 
     clearAttackEffects();
-    schedule(ATTACK_WINDUP_MS, () => setActiveAttackEffect(effectPayload));
+    schedule(ATTACK_WINDUP_MS, () => {
+      if (!defending) playSoundForSkill(skill, strikeKind);
+      setActiveAttackEffect(effectPayload);
+    });
   }
 
   function runCpuCounter(np1, np2) {
@@ -488,7 +530,6 @@ export default function BattleScreen({
     if (busy || battlePhase !== 'chooseAction') return;
     unlockBattleAudio();
     startBattleMusic();
-    playSound('physical');
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     const skill = attacker?.skills?.physical ?? getPhysicalSkill(attacker?.monsterTemplateId);
     const banner =
@@ -530,7 +571,6 @@ export default function BattleScreen({
     }
     unlockBattleAudio();
     startBattleMusic();
-    playSound('magic');
     runAttack({
       attackerId,
       defenderId,
@@ -547,7 +587,8 @@ export default function BattleScreen({
     unlockBattleAudio();
     startBattleMusic();
     const p2Turn = !opponentIsAi && activeBattler === CPU_ID;
-    if (!p2Turn) setDefendGlowP1(true);
+    if (p2Turn) setDefendGlowP2(true);
+    else setDefendGlowP1(true);
     playSound('defend');
 
     const { skill, strikeKind } = opponentIsAi
@@ -592,6 +633,8 @@ export default function BattleScreen({
   const magicSkills =
     actingFighter?.skills?.magic ?? getMagicSkills(actingFighter?.monsterTemplateId ?? '');
   const actingElementUi = ELEMENT_UI[actingFighter?.element] ?? ELEMENT_UI.earth;
+  const { width, height } = useWindowDimensions();
+  const battleMobile = isMobileLayout(width, height);
 
   return (
     <View style={styles.root}>
@@ -624,9 +667,13 @@ export default function BattleScreen({
             shakeX={new Animated.Value(0)}
             stageZoom={stageZoom}
             defendGlowP1={defendGlowP1}
-            defendGlowP2={false}
+            defendGlowP2={defendGlowP2}
             defenderFlashP1={defenderFlash === PLAYER_ID}
             defenderFlashP2={defenderFlash === CPU_ID}
+            sicklyFlashP1={sicklyFlash === PLAYER_ID}
+            sicklyFlashP2={sicklyFlash === CPU_ID}
+            flyStrikeP1={flyStrikeP1}
+            flyStrikeP2={flyStrikeP2}
           />
           {battlePhase === 'resolveAttack' && activeAttackEffect ? (
             <BattleProjectileLayer
@@ -639,7 +686,7 @@ export default function BattleScreen({
           </Animated.View>
         </View>
 
-        <View style={styles.actionDock}>
+        <View style={[styles.actionDock, battleMobile && styles.actionDockMobile]}>
           {menuMode === 'magic' ? (
             <View style={styles.magicPanel}>
               <View style={styles.magicHeader}>
@@ -680,10 +727,11 @@ export default function BattleScreen({
               </View>
             </View>
           ) : (
-            <View style={styles.menuRow}>
+            <View style={[styles.menuRow, battleMobile && styles.menuRowMobile]}>
               <Pressable
                 style={({ pressed }) => [
                   styles.arcadeBtn,
+                  battleMobile && styles.arcadeBtnMobile,
                   styles.fightBtn,
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
@@ -694,14 +742,17 @@ export default function BattleScreen({
                 handleFight();
               }}
             >
-                <View style={[styles.btnFace, styles.fightFace]} pointerEvents="none">
+                <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.fightFace]} pointerEvents="none">
                   <View style={styles.fightBtnShine} />
-                  <Text style={[styles.arcadeBtnTxt, styles.fightBtnTxt]}>Fight</Text>
+                  <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.fightBtnTxt]}>
+                    Fight
+                  </Text>
                 </View>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
                   styles.arcadeBtn,
+                  battleMobile && styles.arcadeBtnMobile,
                   styles.magicBtnOuter,
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
@@ -709,14 +760,17 @@ export default function BattleScreen({
                 disabled={!actionsEnabled}
                 onPress={handleMagicOpen}
               >
-                <View style={[styles.btnFace, styles.magicFace]} pointerEvents="none">
+                <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.magicFace]} pointerEvents="none">
                   <View style={styles.magicBtnShine} />
-                  <Text style={[styles.arcadeBtnTxt, styles.magicBtnTxt]}>Magic</Text>
+                  <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.magicBtnTxt]}>
+                    Magic
+                  </Text>
                 </View>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
                   styles.arcadeBtn,
+                  battleMobile && styles.arcadeBtnMobile,
                   styles.defendBtn,
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
@@ -727,14 +781,17 @@ export default function BattleScreen({
                 handleDefend();
               }}
             >
-                <View style={[styles.btnFace, styles.defendFace]} pointerEvents="none">
+                <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.defendFace]} pointerEvents="none">
                   <View style={styles.defendBtnShine} />
-                  <Text style={[styles.arcadeBtnTxt, styles.defendBtnTxt]}>Defend</Text>
+                  <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.defendBtnTxt]}>
+                    Defend
+                  </Text>
                 </View>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
                   styles.arcadeBtn,
+                  battleMobile && styles.arcadeBtnMobile,
                   styles.runBtnOuter,
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
@@ -745,8 +802,10 @@ export default function BattleScreen({
                 handleRun();
               }}
             >
-                <View style={[styles.btnFace, styles.runFace]} pointerEvents="none">
-                  <Text style={[styles.arcadeBtnTxt, styles.runBtnTxt]}>Run</Text>
+                <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.runFace]} pointerEvents="none">
+                  <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.runBtnTxt]}>
+                    Run
+                  </Text>
                 </View>
               </Pressable>
             </View>
@@ -790,7 +849,16 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 10,
   },
+  actionDockMobile: {
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: Platform.OS === 'web' ? 12 : 10,
+  },
   menuRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap' },
+  menuRowMobile: {
+    gap: 8,
+    flexWrap: 'nowrap',
+  },
   magicPanel: { gap: 6 },
   magicHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   magicBackBtn: {
@@ -847,6 +915,11 @@ const styles = StyleSheet.create({
     paddingBottom: 5,
     overflow: 'visible',
   },
+  arcadeBtnMobile: {
+    minWidth: 0,
+    flex: 1,
+    maxWidth: '25%',
+  },
   arcadeBtnPressed: {
     paddingBottom: 1,
     transform: [{ translateY: 4 }],
@@ -862,6 +935,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 6,
     elevation: 8,
+  },
+  btnFaceMobile: {
+    minHeight: 46,
+    borderRadius: 10,
+    borderWidth: 2,
+    paddingHorizontal: 2,
+  },
+  arcadeBtnTxtMobile: {
+    fontSize: 13,
+    letterSpacing: 0,
   },
   fightBtn: {
     flex: 1,
@@ -926,6 +1009,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   fightBtnTxt: { color: '#fff9f0', fontSize: 18 },
+  fightBtnTxtMobile: { fontSize: 14 },
   defendBtnTxt: { color: '#f0fbff' },
   runBtnTxt: { color: '#3d4a5c', fontSize: 15, fontWeight: '800' },
   disabledBtn: { opacity: 0.42 },

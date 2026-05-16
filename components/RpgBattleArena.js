@@ -7,16 +7,16 @@ import { ELEMENT_UI } from '../utils/elements';
 import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
 import { BATTLE } from '../utils/gameTheme';
 
-function MicroBar({ ratio, color }) {
+function MicroBar({ ratio, color, compact }) {
   const pct = Math.max(0, Math.min(1, ratio));
   return (
-    <View style={styles.microTrack}>
+    <View style={[styles.microTrack, compact && styles.microTrackCompact]}>
       <View style={[styles.microFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
     </View>
   );
 }
 
-function BattlerInfoPanel({ title, fighter, active, side, panelWidth }) {
+function BattlerInfoPanel({ title, fighter, active, side, panelWidth, compact }) {
   const level = fighter?.level ?? 1;
   const exp = fighter?.battleExp ?? 0;
   const expNeed = fighter?.battleExpToNext ?? expToAdvanceFrom(level);
@@ -35,35 +35,40 @@ function BattlerInfoPanel({ title, fighter, active, side, panelWidth }) {
     <View
       style={[
         styles.infoPanel,
-        { width: panelWidth, maxWidth: panelWidth, minHeight: 118 },
+        { width: panelWidth, maxWidth: panelWidth, minHeight: compact ? 92 : 118 },
         active ? styles.infoPanelActive : styles.infoPanelIdle,
+        compact && styles.infoPanelCompact,
       ]}
     >
-      <Text style={styles.infoTitle} numberOfLines={1}>
+      <Text style={[styles.infoTitle, compact && styles.infoTitleCompact]} numberOfLines={1}>
         {title}
       </Text>
       <View style={styles.nameRow}>
-        <Text style={styles.elementBadge}>{elUi.emoji}</Text>
-        <Text style={[styles.monName, styles.monNameFlex]} numberOfLines={1}>
+        <Text style={[styles.elementBadge, compact && styles.elementBadgeCompact]}>{elUi.emoji}</Text>
+        <Text style={[styles.monName, styles.monNameFlex, compact && styles.monNameCompact]} numberOfLines={1}>
           {fighter?.displayName || 'Monster'}
         </Text>
       </View>
-      <Text style={styles.lvLine}>Lv {level}</Text>
-      <Text style={styles.statInline}>
+      <Text style={[styles.lvLine, compact && styles.lvLineCompact]}>Lv {level}</Text>
+      <Text style={[styles.statInline, compact && styles.statInlineCompact]}>
         HP {fighter.hp}/{maxHp}
       </Text>
-      <MicroBar ratio={hpRatio} color={hpColor} />
-      <Text style={styles.statInline}>
+      <MicroBar ratio={hpRatio} color={hpColor} compact={compact} />
+      <Text style={[styles.statInline, compact && styles.statInlineCompact]}>
         MP {fighter.mp}/{maxMp}
       </Text>
-      <MicroBar ratio={mpRatio} color="#6366f1" />
-      <Text style={styles.statInline}>
-        EXP {exp}/{expNeed}
-      </Text>
-      <MicroBar ratio={expRatio} color="#ffd166" />
-      <Text style={styles.statInline}>
-        Combo <Text style={styles.val}>{combo}</Text>
-      </Text>
+      <MicroBar ratio={mpRatio} color="#6366f1" compact={compact} />
+      {!compact ? (
+        <>
+          <Text style={styles.statInline}>
+            EXP {exp}/{expNeed}
+          </Text>
+          <MicroBar ratio={expRatio} color="#ffd166" />
+          <Text style={styles.statInline}>
+            Combo <Text style={styles.val}>{combo}</Text>
+          </Text>
+        </>
+      ) : null}
       {statusTag ? <Text style={styles.statusTag}>{statusTag}</Text> : null}
       {rage ? <Text style={styles.rageTag}>LOW HP</Text> : null}
     </View>
@@ -96,35 +101,40 @@ export default function RpgBattleArena({
   defendGlowP2 = false,
   defenderFlashP1 = false,
   defenderFlashP2 = false,
+  sicklyFlashP1 = false,
+  sicklyFlashP2 = false,
+  flyStrikeP1 = false,
+  flyStrikeP2 = false,
 }) {
   const p1Flash = useRef(new Animated.Value(0)).current;
   const p2Flash = useRef(new Animated.Value(0)).current;
+  const shieldPulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!defenderFlashP1) {
+    if (!defenderFlashP1 && !sicklyFlashP1) {
       p1Flash.setValue(0);
       return undefined;
     }
     p1Flash.setValue(0);
     Animated.sequence([
       Animated.timing(p1Flash, { toValue: 1, duration: 70, useNativeDriver: true }),
-      Animated.timing(p1Flash, { toValue: 0, duration: 220, useNativeDriver: true }),
+      Animated.timing(p1Flash, { toValue: 0, duration: sicklyFlashP1 ? 320 : 220, useNativeDriver: true }),
     ]).start();
     return undefined;
-  }, [defenderFlashP1, p1Flash]);
+  }, [defenderFlashP1, sicklyFlashP1, p1Flash]);
 
   useEffect(() => {
-    if (!defenderFlashP2) {
+    if (!defenderFlashP2 && !sicklyFlashP2) {
       p2Flash.setValue(0);
       return undefined;
     }
     p2Flash.setValue(0);
     Animated.sequence([
       Animated.timing(p2Flash, { toValue: 1, duration: 70, useNativeDriver: true }),
-      Animated.timing(p2Flash, { toValue: 0, duration: 220, useNativeDriver: true }),
+      Animated.timing(p2Flash, { toValue: 0, duration: sicklyFlashP2 ? 320 : 220, useNativeDriver: true }),
     ]).start();
     return undefined;
-  }, [defenderFlashP2, p2Flash]);
+  }, [defenderFlashP2, sicklyFlashP2, p2Flash]);
 
   const { width, height } = useWindowDimensions();
   const narrow = width < 520;
@@ -146,6 +156,8 @@ export default function RpgBattleArena({
   const p2Opacity = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] });
 
   const cloudDrift = useRef(new Animated.Value(0)).current;
+  const grassSway = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     cloudDrift.setValue(0);
     const loop = Animated.loop(
@@ -157,7 +169,38 @@ export default function RpgBattleArena({
     loop.start();
     return () => loop.stop();
   }, [cloudDrift]);
+
+  useEffect(() => {
+    grassSway.setValue(0);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(grassSway, { toValue: 1, duration: 2400, useNativeDriver: true }),
+        Animated.timing(grassSway, { toValue: 0, duration: 2400, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [grassSway]);
+
+  useEffect(() => {
+    if (!defendGlowP1 && !defendGlowP2) {
+      shieldPulse.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shieldPulse, { toValue: 1, duration: 520, useNativeDriver: true }),
+        Animated.timing(shieldPulse, { toValue: 0, duration: 520, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [defendGlowP1, defendGlowP2, shieldPulse]);
+
   const cloudTx = cloudDrift.interpolate({ inputRange: [0, 1], outputRange: [0, 24] });
+  const grassSkew = grassSway.interpolate({ inputRange: [0, 1], outputRange: ['-2deg', '2deg'] });
+  const shieldScale = shieldPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const shieldOp = shieldPulse.interpolate({ inputRange: [0, 1], outputRange: [0.75, 1] });
 
   const roundLabel = narrow ? `R${round}` : `Round ${round}`;
   const turnShort = turnBadge || '';
@@ -190,9 +233,9 @@ export default function RpgBattleArena({
       <View style={styles.rockB} />
       <View style={styles.rockC} />
       <View style={styles.rockD} />
-      <View style={styles.grassTuftA} />
-      <View style={styles.grassTuftB} />
-      <View style={styles.grassTuftC} />
+      <Animated.View style={[styles.grassTuftA, { transform: [{ rotate: grassSkew }] }]} />
+      <Animated.View style={[styles.grassTuftB, { transform: [{ rotate: grassSkew }] }]} />
+      <Animated.View style={[styles.grassTuftC, { transform: [{ rotate: grassSkew }] }]} />
       <View style={styles.flowerA} />
       <View style={styles.flowerB} />
       <View style={styles.flowerC} />
@@ -227,6 +270,7 @@ export default function RpgBattleArena({
           active={activeTurn === 1}
           side="left"
           panelWidth={L.statsP1W}
+          compact={L.compactHud}
         />
       </View>
       <View style={[styles.enemyStats, { width: L.statsP2W }]}>
@@ -236,6 +280,7 @@ export default function RpgBattleArena({
           active={activeTurn === 2}
           side="right"
           panelWidth={L.statsP2W}
+          compact={L.compactHud}
         />
       </View>
 
@@ -246,9 +291,24 @@ export default function RpgBattleArena({
           { bottom: L.monsterBottom, opacity: p1Opacity, transform: [{ scale: p1Scale }] },
         ]}
       >
-        <Animated.View pointerEvents="none" style={[styles.hitFlash, { opacity: p1Flash }]} />
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.hitFlash,
+            sicklyFlashP1 && styles.hitFlashSickly,
+            { opacity: p1Flash },
+          ]}
+        />
         <View style={[styles.monsterWrap, { width: L.p1Monster }]}>
-          {defendGlowP1 ? <View style={styles.shieldRing} pointerEvents="none" /> : null}
+          {defendGlowP1 ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.shieldRing,
+                { opacity: shieldOp, transform: [{ scale: shieldScale }] },
+              ]}
+            />
+          ) : null}
           <AnimatedMonster
             parts={p1.monsterParts}
             size={L.p1Monster}
@@ -257,6 +317,7 @@ export default function RpgBattleArena({
             mood={p1Mood}
             rage={p1Rage}
             superJump={superJumpSide === 'left'}
+            flyStrike={flyStrikeP1}
           />
         </View>
       </Animated.View>
@@ -267,9 +328,24 @@ export default function RpgBattleArena({
           { bottom: L.monsterBottom, opacity: p2Opacity, transform: [{ scale: p2Scale }] },
         ]}
       >
-        <Animated.View pointerEvents="none" style={[styles.hitFlash, { opacity: p2Flash }]} />
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.hitFlash,
+            sicklyFlashP2 && styles.hitFlashSickly,
+            { opacity: p2Flash },
+          ]}
+        />
         <View style={[styles.faceLeft, styles.monsterWrap, { width: L.p2Monster }]}>
-          {defendGlowP2 ? <View style={styles.shieldRing} pointerEvents="none" /> : null}
+          {defendGlowP2 ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.shieldRing,
+                { opacity: shieldOp, transform: [{ scale: shieldScale }] },
+              ]}
+            />
+          ) : null}
           <AnimatedMonster
             parts={p2.monsterParts}
             size={L.p2Monster}
@@ -278,6 +354,7 @@ export default function RpgBattleArena({
             mood={p2Mood}
             rage={p2Rage}
             superJump={superJumpSide === 'right'}
+            flyStrike={flyStrikeP2}
           />
         </View>
       </Animated.View>
@@ -292,13 +369,13 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 0,
     overflow: 'hidden',
-    backgroundColor: '#9ad4f0',
+    backgroundColor: '#8ecdf5',
   },
   arenaDim: { opacity: 0.9 },
 
   skyGrad: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#a8daf5',
+    backgroundColor: '#b8e4fa',
     zIndex: 0,
   },
   skyFade: {
@@ -306,18 +383,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    height: '42%',
-    backgroundColor: 'rgba(120, 175, 220, 0.18)',
+    height: '48%',
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
     zIndex: 0,
   },
   sunGlow: {
     position: 'absolute',
     top: '3%',
     right: '10%',
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255, 236, 160, 0.5)',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 244, 180, 0.65)',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 220, 120, 0.35)',
     zIndex: 0,
   },
   cloudA: {
@@ -735,17 +814,24 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     zIndex: 5,
   },
+  hitFlashSickly: {
+    backgroundColor: 'rgba(140, 230, 120, 0.55)',
+  },
   shieldRing: {
     position: 'absolute',
     alignSelf: 'center',
-    width: '115%',
+    width: '118%',
     aspectRatio: 1,
     borderRadius: 999,
-    borderWidth: 4,
-    borderColor: '#48cae4',
-    backgroundColor: 'rgba(72, 202, 228, 0.22)',
-    bottom: '8%',
+    borderWidth: 5,
+    borderColor: '#74c0fc',
+    backgroundColor: 'rgba(116, 192, 252, 0.28)',
+    bottom: '6%',
     zIndex: 3,
+    shadowColor: '#4dabf7',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
   },
   infoPanel: {
     backgroundColor: 'rgba(255,255,255,0.92)',
@@ -765,15 +851,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 249, 230, 0.96)',
   },
   infoPanelIdle: { borderColor: '#95a5a6' },
+  infoPanelCompact: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
   infoTitle: {
     fontSize: 10,
     fontWeight: '900',
     color: '#636e72',
     textTransform: 'uppercase',
   },
+  infoTitleCompact: { fontSize: 9 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
   elementBadge: { fontSize: 14 },
+  elementBadgeCompact: { fontSize: 12 },
   monName: { fontSize: 12, fontWeight: '900', color: '#1a1a2e' },
+  monNameCompact: { fontSize: 11 },
   monNameFlex: { flex: 1, minWidth: 0 },
   statusTag: {
     marginTop: 2,
@@ -788,7 +881,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   lvLine: { fontSize: 11, fontWeight: '800', color: '#c0392b' },
+  lvLineCompact: { fontSize: 10 },
   statInline: { fontSize: 11, fontWeight: '800', color: '#2d3436', marginTop: 1 },
+  statInlineCompact: { fontSize: 10, marginTop: 0 },
   microTrack: {
     height: 5,
     borderRadius: 4,
@@ -799,6 +894,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
     marginBottom: 1,
   },
+  microTrackCompact: { height: 4, marginTop: 0, marginBottom: 0 },
   microFill: { height: '100%', borderRadius: 3 },
   diceCombo: { fontSize: 11, fontWeight: '800', color: '#4a5568', marginTop: 2 },
   val: { fontWeight: '900', color: '#c1121f' },

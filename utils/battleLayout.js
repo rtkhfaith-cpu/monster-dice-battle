@@ -1,25 +1,34 @@
+import { BREAKPOINT_MOBILE } from './responsive';
+
 /** Symmetrical arcade battle layout — mirrored left/right fighters. */
 
 export function isMobileLayout(width, height) {
-  return width < 520 || height < 680;
+  return width < BREAKPOINT_MOBILE || height < 640;
+}
+
+export function isPhoneLayout(width) {
+  return width < 400;
 }
 
 export function getStrictLayout(width, height) {
   const mobile = isMobileLayout(width, height);
-  const monster = mobile ? 255 : 345;
-  const statsW = mobile ? 158 : 188;
+  const phone = isPhoneLayout(width);
+  const monster = phone ? 188 : mobile ? 210 : 345;
+  const statsW = phone ? 118 : mobile ? 132 : 188;
   return {
     /** Both fighters same scale — arcade mirror match */
     p1Monster: monster,
     p2Monster: monster,
     statsP1W: statsW,
     statsP2W: statsW,
-    hudBannerW: mobile ? 180 : 260,
-    diceActive: mobile ? 72 : 92,
-    diceInactive: mobile ? 52 : 64,
+    hudBannerW: mobile ? Math.min(160, width * 0.42) : 260,
+    diceActive: mobile ? 68 : 92,
+    diceInactive: mobile ? 48 : 64,
     /** Shared ground line (% from bottom) */
-    monsterBottom: '10%',
+    monsterBottom: mobile ? '11%' : '10%',
     monsterLaneY: 0.48,
+    compactHud: mobile,
+    phone,
   };
 }
 

@@ -125,9 +125,10 @@ export function ensureOnlineSocket() {
   return new Promise((resolve) => {
     const url = getSocketServerUrl();
     if (!url) {
+      devLog('Online server not configured (set EXPO_PUBLIC_SOCKET_SERVER_URL in dev)');
       resolve({
         socket: null,
-        error: 'Online server not configured. Set EXPO_PUBLIC_SOCKET_SERVER_URL and rebuild.',
+        error: 'Online server unavailable',
         url: '',
       });
       return;
@@ -135,7 +136,8 @@ export function ensureOnlineSocket() {
 
     const { socket: sock, error } = connectOnlineSocket();
     if (error || !sock) {
-      resolve({ socket: null, error: error || 'Could not connect', url });
+      devLog('socket connect failed', error, url);
+      resolve({ socket: null, error: error || 'Unable to connect', url });
       return;
     }
 

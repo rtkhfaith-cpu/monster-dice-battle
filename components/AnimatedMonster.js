@@ -14,6 +14,7 @@ export default function AnimatedMonster({
   mood = 'neutral',
   rage = false,
   superJump = false,
+  flyStrike = false,
 }) {
   const bob = useRef(new Animated.Value(0)).current;
   const sway = useRef(new Animated.Value(0)).current;
@@ -26,6 +27,7 @@ export default function AnimatedMonster({
   const shake = useRef(new Animated.Value(0)).current;
   const dodgeOp = useRef(new Animated.Value(1)).current;
   const ragePulse = useRef(new Animated.Value(0)).current;
+  const flyTx = useRef(new Animated.Value(0)).current;
 
   const toward = side === 'left' ? 1 : -1;
 
@@ -81,6 +83,36 @@ export default function AnimatedMonster({
     r.start();
     return () => r.stop();
   }, [rage, ragePulse]);
+
+  useEffect(() => {
+    if (!flyStrike) {
+      flyTx.setValue(0);
+      return undefined;
+    }
+    flyTx.setValue(0);
+    const arc = toward * (size * 0.95);
+    const flyAnim = Animated.sequence([
+      Animated.timing(flyTx, {
+        toValue: arc,
+        duration: 340,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(flyTx, {
+        toValue: arc * 0.15,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.spring(flyTx, {
+        toValue: 0,
+        friction: 6,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+    ]);
+    flyAnim.start();
+    return () => flyAnim.stop();
+  }, [flyStrike, flyTx, toward, size]);
 
   useEffect(() => {
     poseTx.stopAnimation();
@@ -178,7 +210,7 @@ export default function AnimatedMonster({
           {
             opacity: blink,
             transform: [
-              { translateX: Animated.add(swayX, Animated.add(poseTx, jolt)) },
+              { translateX: Animated.add(flyTx, Animated.add(swayX, Animated.add(poseTx, jolt))) },
               { translateY: Animated.add(bobY, poseTy) },
               { rotate: swayR },
               { scale: poseScale },

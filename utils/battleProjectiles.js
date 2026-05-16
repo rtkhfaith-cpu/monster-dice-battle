@@ -8,8 +8,10 @@ export const PROJECTILES = {
   toiletRoll: { emoji: '🧻', splat: '✨' },
   slipper: { emoji: '🩴', splat: '💢' },
   rottenEgg: { emoji: '🥚', splat: '🍳' },
+  eggBomb: { emoji: '🥚', splat: '🍳', crack: '🥚💥', spin: true },
   socks: { emoji: '🧦', splat: '💨' },
   waterSpray: { emoji: '💦', splat: '💧' },
+  waterWave: { emoji: '🌊', splat: '💧', wide: true },
   cactus: { emoji: '🌵', splat: '🌵' },
   burger: { emoji: '🍔', splat: '💥' },
   pencil: { emoji: '✏️', splat: '✨', spin: true },
@@ -17,6 +19,9 @@ export const PROJECTILES = {
   feather: { emoji: '🪶', splat: '✨' },
   stinkCloud: { emoji: '💨', splat: '☁️' },
   fireball: { emoji: '🔥', splat: '💥' },
+  fireBlast: { emoji: '🔥', splat: '💥', trail: true },
+  bacteria: { emoji: '🦠', splat: '☁️', cloud: true },
+  flyBug: { emoji: '🪰', splat: '💥' },
   phone: { emoji: '📱', splat: '⚡' },
   crocs: { emoji: '🐊', splat: '💢' },
   homework: { emoji: '📚', splat: '📄' },
@@ -63,7 +68,9 @@ export function getProjectile(id) {
 /**
  * Pick a projectile style from move effect + attacker monster.
  */
-export function pickProjectile({ templateId, effectType }) {
+export function pickProjectile({ templateId, effectType, projectileId }) {
+  if (projectileId && PROJECTILES[projectileId]) return projectileId;
+
   const fromEffect = EFFECT_TO_PROJECTILE[effectType];
   if (fromEffect && PROJECTILES[fromEffect]) return fromEffect;
 
