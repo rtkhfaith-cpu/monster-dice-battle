@@ -111,6 +111,28 @@ export default function RpgBattleArena({
   const p2Opacity = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
   const p2Ty = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] });
 
+  const turnPulse = useRef(new Animated.Value(1)).current;
+  const turnFlash = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    turnFlash.setValue(0);
+    Animated.sequence([
+      Animated.timing(turnFlash, { toValue: 1, duration: 160, useNativeDriver: true }),
+      Animated.timing(turnFlash, { toValue: 0, duration: 480, useNativeDriver: true }),
+    ]).start();
+    turnPulse.setValue(1);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(turnPulse, { toValue: 1.05, duration: 580, useNativeDriver: true }),
+        Animated.timing(turnPulse, { toValue: 1, duration: 580, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [turnBadge, turnPulse, turnFlash]);
+
+  const ribbonScale = turnPulse;
+
   return (
     <Animated.View
       style={[
@@ -129,12 +151,16 @@ export default function RpgBattleArena({
       <View style={styles.treeR} />
       <View style={styles.grass} />
 
-      <View style={styles.turnRibbon}>
+      <Animated.View style={[styles.turnRibbon, { transform: [{ scale: ribbonScale }] }]}>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.turnRibbonFlash, { opacity: turnFlash }]}
+        />
         <Text style={styles.roundTxt}>Round {round}</Text>
         <Text style={styles.turnBadge} numberOfLines={1}>
           {turnBadge}
         </Text>
-      </View>
+      </Animated.View>
 
       <View style={styles.topZone}>
         <BattlerInfoPanel
@@ -316,20 +342,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: 'rgba(255,248,220,0.96)',
-    borderWidth: 2,
-    borderColor: '#2d2d44',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderWidth: 3,
+    borderColor: '#ff9f1c',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    overflow: 'hidden',
+    shadowColor: '#ffd166',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.95,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  roundTxt: { fontWeight: '900', fontSize: 14, color: '#c0392b' },
+  turnRibbonFlash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#ffeaa7',
+    borderRadius: 8,
+  },
+  roundTxt: { fontWeight: '900', fontSize: 13, color: '#c0392b' },
   turnBadge: {
     fontWeight: '900',
-    fontSize: 15,
-    color: '#1a1a2e',
+    fontSize: 16,
+    color: '#c0392b',
     flex: 1,
     textAlign: 'center',
     marginLeft: 6,
+    letterSpacing: 0.3,
   },
   topZone: {
     flex: 0.36,
@@ -400,8 +438,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   infoPanelActive: {
-    borderColor: '#ffd166',
-    backgroundColor: '#fffef5',
+    borderColor: '#ff9f1c',
+    borderWidth: 3,
+    backgroundColor: '#fff9e6',
+    shadowColor: '#ffd166',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.85,
+    shadowRadius: 8,
+    elevation: 5,
   },
   infoPanelIdle: {
     borderColor: '#95a5a6',

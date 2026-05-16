@@ -89,13 +89,7 @@ export default function BattleEffect({ currentEffect, instruction }) {
   const superPhase = ce?.superPhase || 'boom';
 
   if (!ce) {
-    return (
-      <View style={[styles.wrap, styles.wrapIdle]}>
-        <Text style={styles.instr} numberOfLines={3}>
-          {instruction}
-        </Text>
-      </View>
-    );
+    return null;
   }
 
   return (
@@ -106,12 +100,6 @@ export default function BattleEffect({ currentEffect, instruction }) {
 
       {ce?.rageTag ? (
         <Text style={styles.rageLbl}>RAGE MODE!</Text>
-      ) : null}
-
-      {!ce?.superBomb ? (
-        <Text style={styles.instr} numberOfLines={3}>
-          {instruction}
-        </Text>
       ) : null}
 
       {ce?.superBomb ? (
@@ -199,23 +187,11 @@ export default function BattleEffect({ currentEffect, instruction }) {
 
 const styles = StyleSheet.create({
   wrap: {
-    minHeight: 120,
-    maxHeight: 220,
-    paddingVertical: 6,
-    paddingHorizontal: 6,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    backgroundColor: 'rgba(253,239,227,0.78)',
-    borderRadius: 14,
-    borderWidth: 3,
-    borderColor: '#ff6b35',
-    width: '100%',
-    overflow: 'hidden',
-  },
-  wrapIdle: {
-    minHeight: 56,
-    maxHeight: 80,
     justifyContent: 'center',
+    width: '100%',
+    overflow: 'visible',
+    backgroundColor: 'transparent',
   },
   flashLayer: {
     ...StyleSheet.absoluteFillObject,

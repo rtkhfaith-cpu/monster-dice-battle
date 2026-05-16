@@ -891,6 +891,13 @@ export default function BattleScreen({
   const { height: vh, width: vw } = useWindowDimensions();
   const diceSize = vh < 680 || vw < 520 ? 64 : 72;
 
+  const floaterMessage =
+    (log.length ? log[log.length - 1] : '') ||
+    instruction ||
+    resultBlurb ||
+    diceShoutText ||
+    '';
+
   return (
     <View style={styles.root}>
       <View style={styles.battleFrame}>
@@ -925,15 +932,16 @@ export default function BattleScreen({
             p1Rage={isRage(p1)}
             p2Rage={isRage(p2)}
           />
-          <View style={styles.fxStrip} pointerEvents="none">
-            <BattleEffect
-              currentEffect={battlePhase === 'resolveAttack' ? currentEffect : null}
-              instruction=""
-            />
-          </View>
-          {diceShoutText ? (
-            <View style={styles.diceShoutWrap} pointerEvents="none">
-              <Text style={styles.diceShout}>{diceShoutText}</Text>
+          {floaterMessage ? (
+            <View style={styles.battleFloater} pointerEvents="none">
+              <Text style={styles.battleFloaterTxt} numberOfLines={2}>
+                {floaterMessage}
+              </Text>
+            </View>
+          ) : null}
+          {battlePhase === 'resolveAttack' && currentEffect ? (
+            <View style={styles.fxStrip} pointerEvents="none">
+              <BattleEffect currentEffect={currentEffect} instruction="" />
             </View>
           ) : null}
         </View>
@@ -968,6 +976,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     width: '100%',
+    flexDirection: 'column',
     borderRadius: 12,
     borderWidth: 2,
     borderColor: BATTLE.dockBorder,
@@ -988,13 +997,41 @@ const styles = StyleSheet.create({
     right: 4,
     zIndex: 30,
   },
+  battleFloater: {
+    position: 'absolute',
+    top: '18%',
+    left: '8%',
+    right: '8%',
+    zIndex: 18,
+    alignItems: 'center',
+    alignSelf: 'center',
+    maxWidth: '84%',
+    backgroundColor: 'rgba(26, 26, 46, 0.88)',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#ffd166',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  battleFloaterTxt: {
+    fontWeight: '800',
+    fontSize: 13,
+    color: '#fff8e8',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
   fxStrip: {
     position: 'absolute',
     left: 0,
     right: 0,
-    top: '28%',
+    top: '24%',
     alignItems: 'center',
-    zIndex: 20,
+    zIndex: 19,
     pointerEvents: 'none',
   },
   diceDock: {
@@ -1036,14 +1073,15 @@ const styles = StyleSheet.create({
   },
   actionDock: {
     flexShrink: 0,
+    marginTop: 'auto',
     backgroundColor: BATTLE.dock,
     borderTopWidth: 2,
     borderColor: BATTLE.dockBorder,
     paddingHorizontal: 6,
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 6,
+    paddingBottom: 8,
     width: '100%',
-    maxHeight: 118,
+    maxHeight: 124,
   },
   logWrap: {
     maxHeight: 44,
