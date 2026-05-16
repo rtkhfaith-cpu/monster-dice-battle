@@ -22,6 +22,7 @@ export const PROJECTILES = {
   fireBlast: { emoji: '🔥', splat: '💥', trail: true },
   bacteria: { emoji: '🦠', splat: '☁️', cloud: true },
   flyBug: { emoji: '🪰', splat: '💥' },
+  bite: { emoji: '🦷', splat: '💢', spin: false },
   phone: { emoji: '📱', splat: '⚡' },
   crocs: { emoji: '🐊', splat: '💢' },
   homework: { emoji: '📚', splat: '📄' },

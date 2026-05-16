@@ -3,10 +3,26 @@ import {
   destroyOnlineSocket,
   getSocketServerUrl,
 } from './socketClient';
+import {
+  loadSocketConfig,
+  pingSocketServer,
+  validateSocketUrl,
+  getSocketConfigDebug,
+} from './socketConfig';
 import { clearOnlineSession, loadOnlineSession, saveOnlineSession } from './onlineSession';
 
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 const CONNECT_TIMEOUT_MS = 12000;
+
+function isLocalhostUrl(url) {
+  return /localhost|127\.0\.0\.1/i.test(String(url || ''));
+}
+
+function pageIsLocalDev() {
+  if (typeof window === 'undefined') return DEV;
+  const h = window.location?.hostname || '';
+  return h === 'localhost' || h === '127.0.0.1';
+}
 const REJOIN_ACK_MS = 6000;
 
 function devLog(...args) {
@@ -131,8 +147,33 @@ export function getConfiguredServerUrl() {
 }
 
 export function ensureOnlineSocket() {
+  return loadSocketConfig().then((loadedUrl) => {
+    const url = loadedUrl || getSocketServerUrl();
+    const validationErr = validateSocketUrl(url);
+    if (validationErr) {
+      devLog('socket URL invalid', validationErr);
+      return Promise.resolve({ socket: null, error: validationErr, url: url || '' });
+    }
+
+    return pingSocketServer(url).then((ping) => {
+      if (!ping.ok) {
+        devLog('health check failed', ping.error, url, getSocketConfigDebug());
+        if (DEV) {
+          return connectOnlineSocketFlow(url);
+        }
+        const hint =
+          pageIsLocalDev() && isLocalhostUrl(url)
+            ? 'Start the game server: npm run server'
+            : ping.error || 'Server offline or unreachable';
+        return { socket: null, error: hint, url };
+      }
+      return connectOnlineSocketFlow(url);
+    });
+  });
+}
+
+function connectOnlineSocketFlow(url) {
   return new Promise((resolve) => {
-    const url = getSocketServerUrl();
     if (!url) {
       devLog('Online server not configured');
       resolve({

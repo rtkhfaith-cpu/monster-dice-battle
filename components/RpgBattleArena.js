@@ -223,9 +223,9 @@ export default function RpgBattleArena({
       <Animated.View style={[styles.cloudA, { transform: [{ translateX: cloudTx }] }]} />
       <Animated.View style={[styles.cloudB, { transform: [{ translateX: Animated.multiply(cloudTx, -0.5) }] }]} />
       <Animated.View style={[styles.cloudC, { transform: [{ translateX: Animated.multiply(cloudTx, 0.35) }] }]} />
-      <View style={styles.hillFar} />
-      <View style={styles.hillMid} />
-      <View style={styles.hillNear} />
+      <Animated.View style={[styles.hillFar, { transform: [{ translateX: Animated.multiply(cloudTx, 0.08) }] }]} />
+      <Animated.View style={[styles.hillMid, { transform: [{ translateX: Animated.multiply(cloudTx, 0.14) }] }]} />
+      <Animated.View style={[styles.hillNear, { transform: [{ translateX: Animated.multiply(cloudTx, 0.2) }] }]} />
       <View style={styles.grassPatchA} />
       <View style={styles.grassPatchB} />
       <View style={styles.grassPatchC} />
@@ -248,6 +248,7 @@ export default function RpgBattleArena({
       <View style={styles.groundStrip} />
       <View style={styles.foreGrass} />
       <View style={styles.battlePlatform} />
+      <View style={styles.platformEdge} pointerEvents="none" />
       <View style={styles.centerCombatZone} />
       <View style={styles.shadowP1} />
       <View style={styles.shadowP2} />
@@ -717,6 +718,16 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 2,
     borderColor: 'rgba(58, 130, 82, 0.35)',
+    zIndex: 1,
+  },
+  platformEdge: {
+    position: 'absolute',
+    left: '4%',
+    right: '4%',
+    bottom: '7%',
+    height: '3%',
+    borderRadius: 20,
+    backgroundColor: 'rgba(45, 53, 97, 0.14)',
     zIndex: 1,
   },
   centerCombatZone: {

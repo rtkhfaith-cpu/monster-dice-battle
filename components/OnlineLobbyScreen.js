@@ -27,6 +27,7 @@ import {
   subscribeOnline,
   syncOnlineProfile,
 } from '../utils/onlineSocketManager';
+import { getSocketConfigDebug, loadSocketConfig } from '../utils/socketConfig';
 import { loadOnlineSession } from '../utils/onlineSession';
 import {
   devOnlineLog,
@@ -169,11 +170,12 @@ export default function OnlineLobbyScreen({
 }) {
   const { width } = useWindowDimensions();
   const mobile = isMobileLayout(width);
-  const configured = getConfiguredServerUrl().length > 5;
+  const [serverUrl, setServerUrl] = useState(() => getConfiguredServerUrl());
+  const configured = serverUrl.length > 5;
 
   const [view, setView] = useState(initialView);
   const [joinOpen, setJoinOpen] = useState(false);
-  const [status, setStatus] = useState(configured ? 'connecting' : 'no_env');
+  const [status, setStatus] = useState('connecting');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomState, setRoomState] = useState(null);
   const [mySlot, setMySlot] = useState(mySlotProp || loadOnlineSession()?.playerSlot || null);
@@ -210,31 +212,34 @@ export default function OnlineLobbyScreen({
   }, [waitDots]);
 
   const runConnect = useCallback(() => {
-    if (!configured) {
-      setStatus('no_env');
-      return;
-    }
     setStatus('connecting');
     setErr('');
-    ensureOnlineSocket().then(({ error, url }) => {
-      if (error) {
-        devOnlineLog('connect failed', error, url);
-        setStatus('fail');
-        setErr(toUserOnlineError(error));
+    loadSocketConfig().then((url) => {
+      setServerUrl(url || '');
+      if (!url || url.length <= 5) {
+        setStatus('no_env');
         return;
       }
-      setStatus('connected');
-      setErr('');
-      refreshProfile();
-      playUiSfx();
-      const session = loadOnlineSession();
-      if (session?.roomCode) {
-        setView('waiting');
-        setRoomCodeInput(session.roomCode);
-        setMySlot(session.playerSlot);
-      }
+      ensureOnlineSocket().then(({ error, url: resolved }) => {
+        if (error) {
+          devOnlineLog('connect failed', error, resolved, getSocketConfigDebug());
+          setStatus('fail');
+          setErr(toUserOnlineError(error));
+          return;
+        }
+        setStatus('connected');
+        setErr('');
+        refreshProfile();
+        playUiSfx();
+        const session = loadOnlineSession();
+        if (session?.roomCode) {
+          setView('waiting');
+          setRoomCodeInput(session.roomCode);
+          setMySlot(session.playerSlot);
+        }
+      });
     });
-  }, [configured, refreshProfile]);
+  }, [refreshProfile]);
 
   useEffect(() => {
     runConnect();

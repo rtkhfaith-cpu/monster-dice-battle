@@ -31,7 +31,11 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# local socket URL (Amplify build writes this at deploy time)
+public/socket-config.json
 
 # typescript
 *.tsbuildinfo

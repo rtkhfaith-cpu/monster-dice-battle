@@ -26,7 +26,8 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
   const startY = laneY;
   const endY = laneY;
   const horizSpan = fx(animKind === 'water_wave' ? 165 : 150);
-  const arcLift = fx(animKind === 'egg_bomb' ? 28 : animKind === 'fly_lunge' ? 8 : 14);
+  const isLunge = animKind === 'fly_lunge' || animKind === 'bite_lunge';
+  const arcLift = fx(animKind === 'egg_bomb' ? 28 : isLunge ? 8 : 14);
 
   const finish = () => {
     if (typeof onComplete === 'function') onComplete();
@@ -38,12 +39,13 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
     : animKind === 'water_wave' ? 640
     : animKind === 'fire_blast' ? 520
     : animKind === 'egg_bomb' ? 580
-    : animKind === 'fly_lunge' ? 0
+    : isLunge ? 0
+    : animKind === 'metal_slash' ? 420
     : 380;
 
   useEffect(() => {
     if (!active || !effect || effect.superBomb) return undefined;
-    if (animKind === 'fly_lunge') {
+    if (isLunge) {
       const id = ++runId.current;
       const impactT = setTimeout(() => {
         if (runId.current !== id) return;
@@ -144,7 +146,7 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
 
   if (!active || !effect || effect.superBomb) return null;
 
-  if (animKind === 'fly_lunge') {
+  if (isLunge) {
     const showDmgFly = !effect.dodged && typeof effect.damage === 'number' && effect.damage > 0;
     const dmgYFly = dmgUp.interpolate({ inputRange: [0, 1], outputRange: [0, -fx(36)] });
     const dmgOpFly = dmgUp.interpolate({ inputRange: [0, 0.15, 0.65, 1], outputRange: [0, 1, 1, 0] });

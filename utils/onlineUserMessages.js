@@ -49,9 +49,13 @@ export function toUserOnlineError(raw) {
   ) {
     return 'Online server unavailable';
   }
-  if (s.includes('timeout') || s.includes('timed out')) return 'Connection timed out';
+  if (s.includes('https') && s.includes('http')) return 'Server must use HTTPS';
+  if (s.includes('placeholder')) return 'Multiplayer not configured on this build';
+  if (s.includes('timeout') || s.includes('timed out') || s.includes('unreachable')) {
+    return 'Game server offline — start it or check the URL';
+  }
   if (s.includes('network') || s.includes('failed to fetch') || s.includes('could not connect')) {
-    return 'Unable to connect';
+    return 'Unable to reach game server';
   }
   if (s.includes('room not found') || s.includes('invalid room') || s.includes('no room')) {
     return 'Room not found — check the code';

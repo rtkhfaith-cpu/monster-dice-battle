@@ -1,6 +1,7 @@
 import React, { useId, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
+import MonsterLayerStack from './monsters/MonsterLayerStack';
 import { ThemedMonsterBody } from './themedMonsterBodies';
 import MonsterGearLayers from './MonsterGearLayers';
 import { ART } from '../utils/artDirection';
@@ -162,6 +163,7 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
           {themeEmoji}
         </Text>
       ) : null}
+      {!hasThemedSilhouette ? (
       <View
         style={{
           position: 'absolute',
@@ -174,27 +176,27 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
           opacity: 0.28,
         }}
       />
+      ) : null}
+      {hasThemedSilhouette ? (
+        <MonsterLayerStack
+          size={size}
+          themeBody={themeBody}
+          themeAura={themeAura}
+          stroke={stroke}
+          ST={ST}
+          e={e}
+          m={m}
+          mood={mood}
+          eyeWhite={eyeWhite}
+          pupil={pupil}
+          cosmetics={cosmetics}
+        />
+      ) : null}
       <Svg width={size} height={size} viewBox="0 0 200 200">
         <G>
-          <MonsterGearLayers cosmetics={cosmetics} stroke={stroke} ST={ST} />
+          {!hasThemedSilhouette ? <MonsterGearLayers cosmetics={cosmetics} stroke={stroke} ST={ST} /> : null}
           {renderCapeLayer(cosmetics, fillUrl, stroke, ST)}
-          {hasThemedSilhouette ? (
-            <ThemedMonsterBody
-              themeBody={themeBody}
-              stroke={stroke}
-              ST={ST}
-              e={e}
-              m={m}
-              mood={mood}
-              eyeWhite={eyeWhite}
-              pupil={pupil}
-              fillUrl={fillUrl}
-              gid={gid}
-              bodyLight={bodyLight}
-              bodyDark={bodyDark}
-              cheek={cheek}
-            />
-          ) : null}
+          {hasThemedSilhouette ? null : null}
           {!hasThemedSilhouette && species === 0 ? (
             <>
               {renderTail(t, fillUrl, stroke, ST)}

@@ -1,5 +1,14 @@
 import { Platform } from 'react-native';
 import { playSfx } from './gameSounds';
+import {
+  duckBgm as duckBgmChannel,
+  playFileSfx,
+  setBattleMusicIntensity,
+  startBattleMusicLoop,
+  stopBattleMusic as stopMusicChannels,
+  unlockAudio,
+  loadAudioSettings,
+} from './audioManager';
 
 let unlocked = false;
 let muted = false;
@@ -31,6 +40,7 @@ const SFX_VOLUME_BOOST = {
   bacteria: 1.28,
   magic: 1.22,
   fly: 1.3,
+  bite: 1.28,
   egg: 1.25,
   metal: 1.32,
   roar: 1.2,
@@ -72,6 +82,11 @@ const SFX_PROFILES = {
     { noise: true, d: 0.08, vol: 0.7, filter: 800 },
     { f: 140, d: 0.05, type: 'triangle', vol: 0.9 },
     { f: 80, d: 0.1, type: 'square', vol: 1 },
+  ],
+  bite: [
+    { f: 220, d: 0.03, type: 'square', vol: 1 },
+    { f: 95, d: 0.06, type: 'triangle', vol: 0.95 },
+    { noise: true, d: 0.04, vol: 0.35, filter: 400 },
   ],
   magic: [
     { f: 523, d: 0.05, type: 'sine', vol: 1 },
@@ -236,28 +251,51 @@ function synthTone(freq, durationSec, type = 'triangle', volume = 0.1, bus = 'sf
   }
 }
 
+const FILE_SFX_MAP = {
+  fly: 'fly_whoosh',
+  bite: 'hit_heavy',
+  water: 'water_splash',
+  fire: 'fire_blast',
+  metal: 'metal_clang',
+  bacteria: 'bacteria_squish',
+  egg: 'egg_crack',
+  poop: 'poop_splat',
+  defend: 'defend_shield',
+  critical: 'hit_crit',
+  hit: 'hit_light',
+  button: 'ui_click',
+};
+
 function playProfile(name, volScale = 1, bus = 'sfx') {
-  duckBgm(380);
+  duckBgmChannel(380);
+  const fileKey = FILE_SFX_MAP[name];
+  if (fileKey && playFileSfx(fileKey, volScale, bus === 'music' ? 'sfx' : bus === 'ui' ? 'ui' : 'impact')) {
+    return;
+  }
   const steps = SFX_PROFILES[name];
   if (!steps) return;
   const boost = SFX_VOLUME_BOOST[name] ?? 1;
+  const pitch = 0.95 + Math.random() * 0.1;
   steps.forEach((s, i) => {
     setTimeout(() => {
       const vol = SFX_BASE * volScale * boost * (s.vol ?? 1);
       if (s.noise) {
         synthNoise(s.d, vol * 0.35, s.filter ?? 600);
       } else {
-        synthTone(s.f, s.d, s.type || 'triangle', vol, bus);
+        synthTone((s.f || 440) * pitch, s.d, s.type || 'triangle', vol, bus);
       }
     }, i * 38);
   });
 }
 
 export function duckBgm(ms = 400) {
+  duckBgmChannel(ms);
   duckUntil = Date.now() + ms;
   updateMusicGain();
   setTimeout(updateMusicGain, ms + 20);
 }
+
+export { setBattleMusicIntensity };
 
 function playBgmStep() {
   if (muted || !unlocked) return;
@@ -303,6 +341,10 @@ function preloadSynthProfiles() {
 
 export function unlockBattleAudio() {
   unlocked = true;
+  unlockAudio();
+  const s = loadAudioSettings();
+  muted = s.muted;
+  musicTargetVol = s.bgm;
   const audio = getCtx();
   if (!audio) return;
   if (audio.state === 'suspended') {
@@ -376,6 +418,7 @@ export async function playBattleSfx(key, opts = {}) {
     milk: 'water',
     bottle: 'water',
     fly: 'fly',
+    bite: 'bite',
     egg: 'egg',
     metal: 'metal',
     roar: 'roar',
@@ -406,23 +449,24 @@ export function playUiSfx() {
   return playBattleSfx('button');
 }
 
+let bgmStarted = false;
+
 export function startBattleMusic() {
-  if (!unlocked || muted || musicTimer) return;
+  if (!unlocked || muted || bgmStarted) return;
+  bgmStarted = true;
   musicStep = 0;
   fadeMusicIn();
-  const tick = () => {
+  startBattleMusicLoop(() => {
     if (muted) return;
     playBgmStep();
-    musicTimer = setTimeout(tick, 300);
-  };
-  tick();
+  });
 }
 
 export function stopBattleMusic() {
-  if (musicTimer) clearTimeout(musicTimer);
-  musicTimer = null;
+  bgmStarted = false;
   if (fadeTimer) clearInterval(fadeTimer);
   fadeTimer = null;
+  stopMusicChannels();
   musicTargetVol = 0;
   updateMusicGain();
 }

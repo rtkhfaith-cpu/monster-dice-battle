@@ -97,6 +97,12 @@ export function MonsterGearLayers({ cosmetics = [], stroke = '#2d3561', ST = 6 }
       ) : null}
 
       {/* Head gear — above eyes */}
+      {has('slapHand') || has('powerBand') ? (
+        <G>
+          <Ellipse cx={158} cy={118} rx={14} ry={10} fill="#ff922b" stroke={stroke} strokeWidth={ST - 2} />
+          <Path d="M 168 112 L 178 108 L 172 122 Z" fill="#ffd43b" stroke={stroke} strokeWidth={2} />
+        </G>
+      ) : null}
       {has('durianHelm') ? (
         <G>
           <Ellipse cx={100} cy={62} rx={52} ry={28} fill="#8bc34a" stroke={stroke} strokeWidth={ST - 1} />

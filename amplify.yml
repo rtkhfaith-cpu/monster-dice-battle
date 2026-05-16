@@ -9,7 +9,10 @@ frontend:
         - npm ci --cache .npm --prefer-offline
     build:
       commands:
+        - node scripts/write-socket-config.js
         - npm run build
+        # SPA refresh: Amplify serves 404.html for unknown paths (same as index)
+        - cp dist/index.html dist/404.html
   artifacts:
     baseDirectory: dist
     files:

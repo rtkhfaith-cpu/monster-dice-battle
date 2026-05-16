@@ -42,9 +42,17 @@ npm run server    # listens on 0.0.0.0:PORT (default 3000)
 npm run start     # Expo
 ```
 
-### AWS Lightsail (later)
+### Ubuntu VPS + Nginx (fix 502 Bad Gateway)
 
-Deploy `server/index.js` to a small Node VM, open TCP **3000** (or set `PORT`), set Amplify `VITE_SOCKET_SERVER_URL` to that server’s public URL.
+See **`server/deploy/DEPLOY-UBUNTU.md`** — nginx configs in **`server/deploy/`**.
+
+Quick test on the server:
+
+```bash
+curl http://127.0.0.1:3000/health
+```
+
+If that works but the public URL shows **502**, nginx `proxy_pass` or the Node systemd service is misconfigured.
 
 ## Profiles & PIN API (saved, UI optional)
 

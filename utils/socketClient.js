@@ -22,7 +22,7 @@ export function connectOnlineSocket() {
         reconnection: true,
         reconnectionAttempts: 8,
         reconnectionDelay: 800,
-        forceNew: false,
+        forceNew: true,
       });
     }
     return { socket: sharedSocket, error: null };

@@ -7,9 +7,11 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "expo export -p web",
+    "web:local": "expo start --web --port 8081",
+    "prebuild": "node scripts/write-socket-config.js",
+    "build": "npm run prebuild && expo export -p web",
     "server": "npm run start --prefix server",
-    "dev:all": "concurrently \"npm run start\" \"npm run server\""
+    "dev:all": "concurrently \"npm run web:local\" \"npm run server\""
   },
   "engines": {
     "node": ">=20"

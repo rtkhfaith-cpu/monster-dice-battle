@@ -30,6 +30,7 @@ import {
 import { tickStatus } from '../utils/statusEffects';
 import {
   duckBgm,
+  setBattleMusicIntensity,
   startBattleMusic,
   stopBattleMusic,
   toggleBattleMuted,
@@ -165,6 +166,15 @@ export default function BattleScreen({
     p1Ref.current = p1;
     p2Ref.current = p2;
   }, [p1, p2]);
+
+  useEffect(() => {
+    const max1 = p1?.maxHp ?? p1?.stats?.hp ?? 1;
+    const max2 = p2?.maxHp ?? p2?.stats?.hp ?? 1;
+    setBattleMusicIntensity({
+      playerHpRatio: max1 > 0 ? p1.hp / max1 : 1,
+      opponentHpRatio: max2 > 0 ? p2.hp / max2 : 1,
+    });
+  }, [p1?.hp, p2?.hp, p1?.maxHp, p2?.maxHp]);
 
   useEffect(() => {
     activeBattlerRef.current = activeBattler;
@@ -453,7 +463,7 @@ export default function BattleScreen({
     p2Ref.current = np2;
 
     const animMeta = getSkillAnimMeta(skill);
-    const isFly = animMeta.animKind === 'fly_lunge';
+    const isFly = animMeta.animKind === 'fly_lunge' || animMeta.animKind === 'bite_lunge';
     setFlyStrikeP1(attackerId === PLAYER_ID && isFly);
     setFlyStrikeP2(attackerId === CPU_ID && isFly);
 

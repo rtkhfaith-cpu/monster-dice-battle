@@ -3,7 +3,7 @@
  * Gameplay unchanged — presentation only.
  */
 
-/** @typedef {'fly_lunge'|'projectile'|'cloud_spread'|'water_wave'|'fire_blast'|'egg_bomb'|'rush'|'sparkle'} AnimKind */
+/** @typedef {'fly_lunge'|'projectile'|'cloud_spread'|'water_wave'|'fire_blast'|'egg_bomb'|'rush'|'sparkle'|'metal_slash'|'bite_lunge'} AnimKind */
 
 /**
  * @param {{ id?: string, name?: string, effectType?: string, kind?: string }} [skill]
@@ -17,6 +17,7 @@ export function getSkillAnimMeta(skill) {
   /** @type {Record<string, Partial<ReturnType<typeof getSkillAnimMeta>>>} */
   const BY_ID = {
     fly_face: { animKind: 'fly_lunge', projectileId: 'flyBug', sfxKey: 'fly' },
+    dirty_bite: { animKind: 'bite_lunge', projectileId: 'bite', sfxKey: 'bite' },
     spread_bacteria: { animKind: 'cloud_spread', projectileId: 'bacteria', sfxKey: 'bacteria', sicklyFlash: true },
     egg_bomb: { animKind: 'egg_bomb', projectileId: 'eggBomb', sfxKey: 'egg' },
     cold_splash: { animKind: 'water_wave', projectileId: 'waterWave', sfxKey: 'water' },
@@ -28,8 +29,8 @@ export function getSkillAnimMeta(skill) {
     spicy_noodles: { animKind: 'fire_blast', projectileId: 'fireBlast', sfxKey: 'fire' },
     screen_glare: { animKind: 'fire_blast', projectileId: 'fireBlast', sfxKey: 'fire' },
     dumpster_explosion: { animKind: 'fire_blast', projectileId: 'fireBlast', sfxKey: 'fire' },
-    app_crash: { animKind: 'sparkle', projectileId: 'phone', sfxKey: 'metal' },
-    locker_slam: { animKind: 'sparkle', projectileId: 'phone', sfxKey: 'metal' },
+    app_crash: { animKind: 'metal_slash', projectileId: 'phone', sfxKey: 'metal' },
+    locker_slam: { animKind: 'metal_slash', projectileId: 'phone', sfxKey: 'metal' },
     goblin_rush: { animKind: 'rush', projectileId: 'slipper', sfxKey: 'fly' },
     feather_storm: { animKind: 'cloud_spread', projectileId: 'feather', sfxKey: 'fly' },
     tp_tornado: { animKind: 'cloud_spread', projectileId: 'toiletRoll', sfxKey: 'fly' },
@@ -47,8 +48,20 @@ export function getSkillAnimMeta(skill) {
     };
   }
 
-  if (name.includes('fly') || name.includes('rush') || name.includes('face')) {
+  if (name.includes('bite') || name.includes('chomp')) {
+    return { animKind: 'bite_lunge', projectileId: 'bite', sfxKey: 'bite' };
+  }
+  if (name.includes('fly') || name.includes('face')) {
     return { animKind: 'fly_lunge', projectileId: 'flyBug', sfxKey: 'fly' };
+  }
+  if (name.includes('rush') || name.includes('slam')) {
+    return { animKind: 'rush', projectileId: 'slipper', sfxKey: 'fly' };
+  }
+  if (name.includes('metal') || name.includes('clang') || name.includes('slash')) {
+    return { animKind: 'metal_slash', projectileId: 'phone', sfxKey: 'metal' };
+  }
+  if (name.includes('poop') || name.includes('splat') || name.includes('stink')) {
+    return { animKind: 'projectile', projectileId: 'poop', sfxKey: 'poop' };
   }
   if (name.includes('bacteria') || name.includes('poison') || effectType === 'poison') {
     return { animKind: 'cloud_spread', projectileId: 'bacteria', sfxKey: 'bacteria', sicklyFlash: true };

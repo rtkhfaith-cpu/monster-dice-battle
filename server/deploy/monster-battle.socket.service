@@ -1,0 +1,16 @@
+[Unit]
+Description=Monster Dice Battle Socket.io server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/monster-dice-battle/server
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/node index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -30,7 +30,7 @@ function Leg({ hipX, hipY, footX, footY, stroke, fill, sw = ST - 2 }) {
   );
 }
 
-function Face({ cx, cy, e, m, mood, stroke, eyeWhite, pupil, ST: sw, scale = 1 }) {
+function Face({ cx, cy, e, m, mood, stroke, eyeWhite, pupil, ST: sw, scale = 1.12 }) {
   const eyeL = cx - 18 * scale;
   const eyeR = cx + 18 * scale;
   const eyeY = cy - 4 * scale;
@@ -121,6 +121,12 @@ function BodyCockroach({ stroke, e, m, mood, eyeWhite, pupil }) {
   const hi = '#a1887f';
   return (
     <G>
+      <Path
+        d="M 28 118 Q 12 108 8 92 Q 18 100 26 112 L 34 124 Z"
+        fill="#6d4c41"
+        stroke={stroke}
+        strokeWidth={ST - 1}
+      />
       <Path
         d="M 54 130 Q 28 124 22 100 Q 30 112 48 120 L 58 132 Z"
         fill={shell}
