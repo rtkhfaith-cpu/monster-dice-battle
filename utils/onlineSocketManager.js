@@ -10,19 +10,11 @@ import {
   getSocketConfigDebug,
 } from './socketConfig';
 import { clearOnlineSession, loadOnlineSession, saveOnlineSession } from './onlineSession';
+import { countPlayersInRoom } from './onlineUserMessages';
 
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 const CONNECT_TIMEOUT_MS = 12000;
-
-function isLocalhostUrl(url) {
-  return /localhost|127\.0\.0\.1/i.test(String(url || ''));
-}
-
-function pageIsLocalDev() {
-  if (typeof window === 'undefined') return DEV;
-  const h = window.location?.hostname || '';
-  return h === 'localhost' || h === '127.0.0.1';
-}
+const ACK_TIMEOUT_MS = 10000;
 const REJOIN_ACK_MS = 6000;
 
 function devLog(...args) {
@@ -36,14 +28,69 @@ let roomState = null;
 /** @type {string | null} */
 let opponentLeftMsg = null;
 const listeners = new Set();
+/** @type {import('socket.io-client').Socket | null} */
+let listenersAttachedTo = null;
 
-function applyRoomPayload(payload) {
-  roomState = payload;
-  if (payload?.lobbyMessage?.includes('left')) {
-    opponentLeftMsg = payload.lobbyMessage;
-  } else if (payload?.bothJoined) {
+/**
+ * Merge server room payloads — never drop players/battle accidentally.
+ * @param {object|null|undefined} incoming
+ */
+function mergeRoomPayload(incoming) {
+  if (!incoming || typeof incoming !== 'object') return;
+  const prev = roomState || {};
+  roomState = {
+    ...prev,
+    ...incoming,
+    players:
+      incoming.players && typeof incoming.players === 'object'
+        ? incoming.players
+        : prev.players,
+    battle: incoming.battle !== undefined ? incoming.battle : prev.battle,
+    missingRequirements: Array.isArray(incoming.missingRequirements)
+      ? incoming.missingRequirements
+      : prev.missingRequirements,
+  };
+  if (typeof incoming.playerCount === 'number') {
+    roomState.playerCount = incoming.playerCount;
+  } else if (roomState.players) {
+    roomState.playerCount = countPlayersInRoom(roomState);
+  }
+  if (incoming.bothJoined !== undefined) {
+    roomState.bothJoined = !!incoming.bothJoined;
+  } else if (typeof roomState.playerCount === 'number') {
+    roomState.bothJoined = roomState.playerCount >= 2;
+  }
+  if (payloadSaysOpponentLeft(incoming)) {
+    opponentLeftMsg = incoming.lobbyMessage;
+  } else if (roomState.bothJoined) {
     opponentLeftMsg = null;
   }
+}
+
+function payloadSaysOpponentLeft(payload) {
+  return typeof payload?.lobbyMessage === 'string' && payload.lobbyMessage.includes('left');
+}
+
+function logRoomPayload(label, payload) {
+  const count =
+    typeof payload?.playerCount === 'number'
+      ? payload.playerCount
+      : countPlayersInRoom(payload);
+  devLog(
+    label,
+    payload?.roomCode,
+    'status',
+    payload?.status,
+    'playerCount',
+    count,
+    '/2',
+    'bothJoined',
+    payload?.bothJoined,
+    'p1.connected',
+    payload?.players?.p1?.connected,
+    'p2.connected',
+    payload?.players?.p2?.connected,
+  );
 }
 
 function notify() {
@@ -56,12 +103,38 @@ function notify() {
   });
 }
 
+function detachSocketListeners(sock) {
+  if (!sock) return;
+  sock.off('connect');
+  sock.off('disconnect');
+  sock.off('connect_error');
+  sock.off('roomUpdate');
+  sock.off('opponentJoined');
+  sock.off('opponentDisconnected');
+  sock.off('battleStarted');
+  sock.off('battleUpdate');
+  sock.off('battleEnded');
+  sock.off('errorMessage');
+  if (listenersAttachedTo === sock) listenersAttachedTo = null;
+}
+
 function attachSocket(sock) {
-  if (socket === sock) return;
+  if (!sock) return;
+  if (listenersAttachedTo === sock) return;
+
+  if (listenersAttachedTo && listenersAttachedTo !== sock) {
+    detachSocketListeners(listenersAttachedTo);
+  }
+
+  listenersAttachedTo = sock;
   socket = sock;
 
   sock.on('connect', () => {
     devLog('socket connected', sock.id, getSocketServerUrl());
+    const session = loadOnlineSession();
+    if (session?.roomCode) {
+      void requestRoomState(session.roomCode);
+    }
     notify();
   });
   sock.on('disconnect', (reason) => {
@@ -71,53 +144,103 @@ function attachSocket(sock) {
   sock.on('connect_error', (err) => devLog('connect_error', err?.message || err));
 
   sock.on('roomUpdate', (payload) => {
-    applyRoomPayload(payload);
-    devLog('room state updated', payload?.roomCode, payload?.status, 'bothJoined', payload?.bothJoined);
+    mergeRoomPayload(payload);
+    logRoomPayload('roomUpdate received', payload);
     notify();
   });
 
   sock.on('opponentJoined', (p) => {
-    devLog('opponent joined', p?.roomCode, p?.slot);
+    devLog('opponentJoined event', p?.roomCode, p?.slot);
     opponentLeftMsg = null;
-    notify();
+    if (p?.roomCode && sock.connected) {
+      requestRoomState(p.roomCode);
+    } else {
+      notify();
+    }
   });
 
   sock.on('opponentDisconnected', (p) => {
     opponentLeftMsg = p?.message || 'Opponent left the room.';
-    devLog('opponent disconnected', opponentLeftMsg);
+    devLog('opponentDisconnected', opponentLeftMsg);
     notify();
   });
 
   sock.on('battleStarted', (p) => {
-    devLog('battle auto-started', p?.roomCode);
-    applyRoomPayload({
-      ...(roomState || {}),
-      roomCode: p?.roomCode || roomState?.roomCode,
-      status: 'battle',
-      battle: p?.battle,
-      bothJoined: true,
-      canStart: true,
-    });
+    devLog('battleStarted event', p?.roomCode);
+    if (p?.room) {
+      mergeRoomPayload(p.room);
+    } else {
+      mergeRoomPayload({
+        roomCode: p?.roomCode || roomState?.roomCode,
+        status: 'battle',
+        battle: p?.battle,
+        bothJoined: true,
+        canStart: true,
+      });
+    }
+    logRoomPayload('battleStarted merged', roomState);
     notify();
   });
 
   sock.on('battleUpdate', (p) => {
-    devLog('battle state synced', p?.battle?.phase, 'seq', p?.battle?.seq);
-    if (roomState) {
-      roomState = { ...roomState, status: 'battle', battle: p.battle };
-      notify();
-    }
+    devLog('battleUpdate', p?.battle?.phase, 'seq', p?.battle?.seq);
+    mergeRoomPayload({
+      status: 'battle',
+      battle: p?.battle,
+    });
+    notify();
   });
 
   sock.on('battleEnded', (p) => {
-    devLog('battle ended', p?.winner);
-    if (roomState) {
-      roomState = { ...roomState, status: 'finished', battle: p.battle, winner: p.winner };
-      notify();
-    }
+    devLog('battleEnded', p?.winner);
+    mergeRoomPayload({
+      status: 'finished',
+      battle: p?.battle,
+      winner: p?.winner,
+    });
+    notify();
   });
 
   sock.on('errorMessage', (msg) => devLog('server error', msg));
+}
+
+function emitWithAck(sock, event, payload) {
+  return new Promise((resolve) => {
+    if (!sock?.connected) {
+      resolve({ error: 'Not connected' });
+      return;
+    }
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      devLog('ack timeout', event);
+      resolve({ error: 'Server did not respond in time' });
+    }, ACK_TIMEOUT_MS);
+
+    sock.emit(event, payload, (res) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(res || {});
+    });
+  });
+}
+
+function requestRoomState(roomCode) {
+  if (!socket?.connected || !roomCode) return Promise.resolve(null);
+  return emitWithAck(socket, 'requestRoomState', { roomCode }).then((res) => {
+    if (res?.error) {
+      devLog('requestRoomState failed', res.error);
+      return null;
+    }
+    if (res?.room) {
+      mergeRoomPayload(res.room);
+      logRoomPayload('requestRoomState', res.room);
+      notify();
+    }
+    return res?.room ?? null;
+  });
 }
 
 export function subscribeOnline(listener) {
@@ -188,66 +311,53 @@ function connectOnlineSocketFlow(url) {
     let settled = false;
     /** @type {ReturnType<typeof setTimeout> | null} */
     let connectTimer = null;
-    /** @type {ReturnType<typeof setTimeout> | null} */
-    let rejoinTimer = null;
 
     const finish = (result) => {
       if (settled) return;
       settled = true;
       if (connectTimer) clearTimeout(connectTimer);
-      if (rejoinTimer) clearTimeout(rejoinTimer);
-      sock.off('connect', onConnect);
-      sock.off('connect_error', onConnectError);
       if (!result.socket || result.error) {
         try {
           destroyOnlineSocket();
         } catch {
           /* ignore */
         }
+        detachSocketListeners(sock);
         socket = null;
       }
       resolve(result);
     };
 
-    const onConnectError = (err) => {
-      devLog('connect_error', err?.message || err);
-      finish({ socket: null, error: err?.message || 'Unable to connect', url });
-    };
-
     const session = loadOnlineSession();
 
-    const onConnect = () => {
-      devLog('socket connected', sock.id, '→', url);
+    const onReady = () => {
+      devLog('socket ready', sock.id, '→', url);
 
       if (session?.roomCode && session?.playerSlot) {
-        devLog('rejoining room', session.roomCode);
-        rejoinTimer = setTimeout(() => {
-          devLog('rejoin ack timeout — clearing stale session');
-          clearOnlineSession();
-          finish({ socket: sock, error: null, url });
-        }, REJOIN_ACK_MS);
-
-        sock.emit(
-          'rejoinRoom',
-          { roomCode: session.roomCode, playerSlot: session.playerSlot },
-          (res) => {
-            if (rejoinTimer) clearTimeout(rejoinTimer);
-            if (res?.error) {
-              devLog('rejoin failed', res.error);
-              clearOnlineSession();
-            } else {
-              if (res.room) applyRoomPayload(res.room);
-              saveOnlineSession({
-                roomCode: res.roomCode,
-                playerSlot: res.playerSlot,
-                profileId: session.profileId,
-                playerName: session.playerName,
-              });
-              notify();
-            }
+        devLog('rejoining room', session.roomCode, session.playerSlot);
+        emitWithAck(sock, 'rejoinRoom', {
+          roomCode: session.roomCode,
+          playerSlot: session.playerSlot,
+        }).then((res) => {
+          if (res?.error) {
+            devLog('rejoin failed', res.error);
+            clearOnlineSession();
             finish({ socket: sock, error: null, url });
-          },
-        );
+            return;
+          }
+          if (res?.room) {
+            mergeRoomPayload(res.room);
+            logRoomPayload('rejoinRoom ack', res.room);
+          }
+          saveOnlineSession({
+            roomCode: res.roomCode || session.roomCode,
+            playerSlot: res.playerSlot || session.playerSlot,
+            profileId: session.profileId,
+            playerName: session.playerName,
+          });
+          notify();
+          finish({ socket: sock, error: null, url });
+        });
         return;
       }
 
@@ -260,55 +370,62 @@ function connectOnlineSocketFlow(url) {
     }, CONNECT_TIMEOUT_MS);
 
     if (sock.connected) {
-      onConnect();
+      onReady();
     } else {
-      sock.once('connect', onConnect);
-      sock.once('connect_error', onConnectError);
+      sock.once('connect', onReady);
+      sock.once('connect_error', (err) => {
+        devLog('connect_error', err?.message || err);
+        finish({ socket: null, error: err?.message || 'Unable to connect', url });
+      });
     }
   });
 }
 
 export function createOnlineRoom() {
   return new Promise((resolve) => {
-    ensureOnlineSocket().then(({ socket: sock, error, url }) => {
+    ensureOnlineSocket().then(async ({ socket: sock, error, url }) => {
       if (error || !sock) {
         resolve({ error, url });
         return;
       }
-      sock.emit('createRoom', {}, (res) => {
-        if (res?.error) {
-          resolve({ error: res.error, url });
-          return;
-        }
-        devLog('room created', res.roomCode);
-        saveOnlineSession({ roomCode: res.roomCode, playerSlot: res.playerSlot });
-        if (res.room) applyRoomPayload(res.room);
-        notify();
-        resolve({ roomCode: res.roomCode, playerSlot: res.playerSlot, url });
-      });
+      const res = await emitWithAck(sock, 'createRoom', {});
+      if (res?.error) {
+        resolve({ error: res.error, url });
+        return;
+      }
+      devLog('room created', res.roomCode, 'slot', res.playerSlot);
+      saveOnlineSession({ roomCode: res.roomCode, playerSlot: res.playerSlot });
+      if (res.room) {
+        mergeRoomPayload(res.room);
+        logRoomPayload('createRoom ack', res.room);
+      }
+      notify();
+      resolve({ roomCode: res.roomCode, playerSlot: res.playerSlot, url });
     });
   });
 }
 
 export function joinOnlineRoom(roomCode) {
   return new Promise((resolve) => {
-    ensureOnlineSocket().then(({ socket: sock, error, url }) => {
+    ensureOnlineSocket().then(async ({ socket: sock, error, url }) => {
       if (error || !sock) {
         resolve({ error, url });
         return;
       }
       const code = String(roomCode || '').trim().toUpperCase();
-      sock.emit('joinRoom', { roomCode: code }, (res) => {
-        if (res?.error) {
-          resolve({ error: res.error, url });
-          return;
-        }
-        devLog('room joined', res.roomCode, res.playerSlot);
-        saveOnlineSession({ roomCode: res.roomCode, playerSlot: res.playerSlot });
-        if (res.room) applyRoomPayload(res.room);
-        notify();
-        resolve({ roomCode: res.roomCode, playerSlot: res.playerSlot, url });
-      });
+      const res = await emitWithAck(sock, 'joinRoom', { roomCode: code });
+      if (res?.error) {
+        resolve({ error: res.error, url });
+        return;
+      }
+      devLog('room joined', res.roomCode, 'slot', res.playerSlot);
+      saveOnlineSession({ roomCode: res.roomCode, playerSlot: res.playerSlot });
+      if (res.room) {
+        mergeRoomPayload(res.room);
+        logRoomPayload('joinRoom ack', res.room);
+      }
+      notify();
+      resolve({ roomCode: res.roomCode, playerSlot: res.playerSlot, url });
     });
   });
 }
@@ -346,6 +463,7 @@ export function emitBattleAction(action, payload = {}) {
 }
 
 export function disconnectOnline() {
+  if (socket) detachSocketListeners(socket);
   destroyOnlineSocket();
   socket = null;
   roomState = null;

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +16,62 @@ import { MAX_PLAYER_PROFILES } from '../utils/gameStorage';
 import { gamePanelStyle } from '../utils/artDirection';
 import { LOBBY } from '../utils/gameTheme';
 import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
+
+function formatSavedAt(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '—';
+  }
+}
+
+function ProfileActionRow({ deleteBusy, onSelect, onDelete }) {
+  return (
+    <View style={styles.slotActionsRow} pointerEvents="box-none">
+      <Pressable
+        style={({ pressed }) => [
+          styles.actionBtn,
+          styles.selectBtn,
+          pressed && !deleteBusy && styles.actionPressed,
+          deleteBusy && styles.actionDisabled,
+        ]}
+        onPress={() => {
+          if (!deleteBusy) onSelect?.();
+        }}
+        disabled={deleteBusy}
+        accessibilityRole="button"
+        accessibilityLabel="Select player"
+      >
+        <Text style={styles.selectBtnTxt}>Select</Text>
+      </Pressable>
+      {onDelete ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.actionBtn,
+            styles.deleteBtn,
+            pressed && !deleteBusy && styles.actionPressed,
+            deleteBusy && styles.actionDisabled,
+          ]}
+          onPress={() => {
+            if (!deleteBusy) onDelete();
+          }}
+          disabled={deleteBusy}
+          accessibilityRole="button"
+          accessibilityLabel="Delete player"
+        >
+          <Text style={styles.deleteBtnTxt}>{deleteBusy ? '…' : 'Delete'}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
 
 function profileMonster(profile) {
   const om =
@@ -39,7 +96,13 @@ export default function SaveSlotPanel({
   onRequestSelectProfile,
   onCreateProfile,
   onRequestDeleteProfile,
+  onRequestDeleteCloudProfile,
   deleteBusyProfileId = null,
+  cloudPlayers = [],
+  cloudFetchLoading = false,
+  cloudFetchError = null,
+  onFetchCloudPlayers,
+  onRequestSelectCloudProfile,
   onUpdateName,
   compact = false,
   embedInScroll = false,
@@ -153,12 +216,18 @@ export default function SaveSlotPanel({
         isMobile && styles.panelMobile,
       ]}
     >
-      <Text style={[styles.panelTitle, isMobile && styles.panelTitleMobile]}>Save Slots</Text>
+      <Text style={[styles.panelTitle, isMobile && styles.panelTitleMobile]}>Player Login</Text>
+
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>Local saved players</Text>
+      </View>
 
       {profiles.length === 0 && !isCreating ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No players yet</Text>
-          <Text style={styles.emptySub}>Tap Create Player to add a profile with a 4-digit Player Key.</Text>
+          <Text style={styles.emptyTitle}>No local players found.</Text>
+          <Text style={styles.emptySub}>
+            Create a new player or fetch your cloud saves from DynamoDB.
+          </Text>
         </View>
       ) : null}
 
@@ -183,14 +252,7 @@ export default function SaveSlotPanel({
                   selected && styles.slotOn,
                 ]}
               >
-                <TouchableOpacity
-                  style={styles.slotMain}
-                  onPress={() => pickProfile?.(p.id)}
-                  activeOpacity={0.85}
-                  disabled={deleteBusy}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Select ${p.name}`}
-                >
+                <View style={styles.slotTop}>
                   {fighter ? (
                     <MonsterPreview
                       parts={fighter.monsterParts}
@@ -213,19 +275,16 @@ export default function SaveSlotPanel({
                     {sessionSelected ? <Text style={styles.selTag}>★ SELECTED</Text> : null}
                     {badge ? <Text style={styles.badge}>{badge}</Text> : null}
                   </View>
-                </TouchableOpacity>
-                {onRequestDeleteProfile ? (
-                  <TouchableOpacity
-                    style={[styles.deleteBtn, deleteBusy && styles.deleteBtnDisabled]}
-                    onPress={() => onRequestDeleteProfile(p.id)}
-                    disabled={deleteBusy}
-                    activeOpacity={0.85}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Delete ${p.name}`}
-                  >
-                    <Text style={styles.deleteBtnTxt}>{deleteBusy ? '…' : 'Delete'}</Text>
-                  </TouchableOpacity>
-                ) : null}
+                </View>
+                <ProfileActionRow
+                  deleteBusy={deleteBusy}
+                  onSelect={() => pickProfile?.(p.id)}
+                  onDelete={
+                    onRequestDeleteProfile
+                      ? () => onRequestDeleteProfile(p.id, { playerName: p.name })
+                      : undefined
+                  }
+                />
               </View>
             );
           })}
@@ -302,9 +361,70 @@ export default function SaveSlotPanel({
         </View>
       ) : canCreate ? (
         <TouchableOpacity style={styles.createPrimaryBtn} onPress={handleStartCreate} activeOpacity={0.85}>
-          <Text style={styles.createPrimaryTxt}>+ Create Player</Text>
+          <Text style={styles.createPrimaryTxt}>+ Create New Player</Text>
         </TouchableOpacity>
       ) : null}
+
+      <View style={[styles.sectionHead, styles.sectionHeadSpaced]}>
+        <Text style={styles.sectionTitle}>Cloud players</Text>
+      </View>
+
+      {onFetchCloudPlayers ? (
+        <TouchableOpacity
+          style={[styles.fetchCloudBtn, cloudFetchLoading && styles.fetchCloudBtnBusy]}
+          onPress={onFetchCloudPlayers}
+          disabled={cloudFetchLoading}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.fetchCloudTxt}>
+            {cloudFetchLoading ? 'Fetching…' : '☁ Fetch Cloud Players'}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {cloudFetchError ? <Text style={styles.cloudErr}>{cloudFetchError}</Text> : null}
+
+      {cloudPlayers.length > 0 ? (
+        <View style={styles.cloudList}>
+          {cloudPlayers.map((cp) => {
+            const deleteBusy = deleteBusyProfileId === cp.profileID;
+            const sessionSelected = cp.profileID === activeProfileId;
+            const cloudTpl = cp.monsterTemplateId ? getMonsterTemplate(cp.monsterTemplateId) : null;
+            return (
+              <View
+                key={cp.profileID}
+                style={[styles.slot, isMobile && styles.slotMobile, sessionSelected && styles.slotOn]}
+              >
+                <View style={styles.slotTop}>
+                  <Text style={styles.fallbackEmoji}>☁</Text>
+                  <View style={styles.slotMeta}>
+                    <Text style={styles.slotName} numberOfLines={1}>
+                      {cp.playerName || 'Player'}
+                    </Text>
+                    <Text style={styles.slotLine}>
+                      Lv {cp.level ?? 1} · 🪙 {cp.coins ?? 0}
+                    </Text>
+                    <Text style={styles.slotMon} numberOfLines={1}>
+                      {cloudTpl?.name ?? (cp.selectedMonsterId ? 'Monster saved' : 'Cloud save')}
+                    </Text>
+                    <Text style={styles.savedAt}>Saved {formatSavedAt(cp.updatedAt)}</Text>
+                    {sessionSelected ? <Text style={styles.selTag}>★ SELECTED</Text> : null}
+                  </View>
+                </View>
+                <ProfileActionRow
+                  deleteBusy={deleteBusy}
+                  onSelect={() => onRequestSelectCloudProfile?.(cp)}
+                  onDelete={
+                    onRequestDeleteCloudProfile ? () => onRequestDeleteCloudProfile(cp) : undefined
+                  }
+                />
+              </View>
+            );
+          })}
+        </View>
+      ) : cloudFetchLoading ? null : (
+        <Text style={styles.cloudHint}>Tap Fetch Cloud Players to load saves from the cloud.</Text>
+      )}
 
       {editProfile && !isCreating && !editingName ? (
         <View style={styles.nameRow}>
@@ -367,6 +487,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     minWidth: 0,
     padding: 10,
+    overflow: 'visible',
     ...gamePanelStyle(LOBBY.panelBorder),
   },
   panelCompact: {
@@ -396,6 +517,54 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   panelTitleMobile: { fontSize: 14, marginBottom: 10 },
+  sectionHead: { marginTop: 4, marginBottom: 8 },
+  sectionHeadSpaced: { marginTop: 14 },
+  sectionTitle: {
+    fontWeight: '900',
+    fontSize: 13,
+    color: LOBBY.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  fetchCloudBtn: {
+    backgroundColor: '#74b9ff',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#2d2d44',
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  fetchCloudBtnBusy: { opacity: 0.65 },
+  fetchCloudTxt: { fontWeight: '900', fontSize: 16, color: '#1b1b2f' },
+  cloudErr: {
+    fontWeight: '800',
+    fontSize: 13,
+    color: '#c0392b',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  cloudHint: {
+    fontWeight: '700',
+    fontSize: 13,
+    color: LOBBY.textMuted,
+    textAlign: 'center',
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  cloudList: { marginBottom: 8 },
+  savedAt: {
+    fontWeight: '700',
+    fontSize: 11,
+    color: '#636e72',
+    marginTop: 2,
+  },
+  selectBtn: {
+    borderWidth: 2,
+    borderColor: '#2d2d44',
+    backgroundColor: '#8ac926',
+  },
+  selectBtnTxt: { fontWeight: '900', fontSize: 14, color: '#1b1b2f' },
   emptyState: {
     backgroundColor: LOBBY.chipAlt,
     borderRadius: 12,
@@ -423,52 +592,68 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   slotScrollLimited: {
-    maxHeight: 220,
+    maxHeight: 360,
   },
   slotList: {
     paddingBottom: 4,
   },
   slot: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'stretch',
     backgroundColor: LOBBY.card,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: LOBBY.cardBorder,
-    padding: 6,
-    marginBottom: 6,
-    minHeight: 64,
+    padding: 10,
+    marginBottom: 8,
+    overflow: 'visible',
+    ...(Platform.OS === 'web' ? { position: 'relative', zIndex: 1 } : {}),
   },
-  slotMain: {
-    flex: 1,
+  slotTop: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: '100%',
     minWidth: 0,
   },
-  deleteBtn: {
-    marginLeft: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e74c3c',
-    backgroundColor: '#fdecea',
-    minHeight: 40,
-    justifyContent: 'center',
+  slotActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 8,
+    marginTop: 10,
+    width: '100%',
+    zIndex: 2,
   },
-  deleteBtnDisabled: { opacity: 0.5 },
+  actionBtn: {
+    flex: 1,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  actionPressed: {
+    opacity: 0.88,
+  },
+  actionDisabled: {
+    opacity: 0.5,
+  },
+  deleteBtn: {
+    borderWidth: 2,
+    borderColor: '#c0392b',
+    backgroundColor: '#fdecea',
+  },
   deleteBtnTxt: {
     fontWeight: '900',
-    fontSize: 12,
+    fontSize: 14,
     color: '#c0392b',
   },
   slotCompact: {
-    minHeight: 56,
-    paddingVertical: 5,
+    paddingVertical: 8,
   },
   slotMobile: {
-    minHeight: 60,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 8,
   },
   slotOn: {

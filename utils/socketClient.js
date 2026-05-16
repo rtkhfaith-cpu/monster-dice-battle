@@ -20,9 +20,9 @@ export function connectOnlineSocket() {
         upgrade: true,
         timeout: 12000,
         reconnection: true,
-        reconnectionAttempts: 8,
-        reconnectionDelay: 800,
-        forceNew: true,
+        reconnectionAttempts: 12,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
       });
     }
     return { socket: sharedSocket, error: null };

@@ -87,14 +87,35 @@ export function scheduleCommitSave(reason, gameData, profileIDs) {
 }
 
 /**
+ * Delete cloud first (key verified on server), then update local cache.
  * @param {string} profileID
+ * @param {string} playerKey
+ * @param {object} gameData
  */
-export async function commitProfileDeleted(profileID, gameData) {
-  await commitSave({ reason: 'player_deleted', gameData, profileIDs: [], skipCloud: true });
+export async function commitProfileDeleted(profileID, playerKey, gameData) {
+  const del = await deleteCloudProfile(profileID, playerKey);
+  if (!del.ok && !del.skipped) {
+    if (del.status === 401) {
+      return { ok: false, error: 'Incorrect key. Player was not deleted.' };
+    }
+    return { ok: false, error: del.error || 'Cloud delete failed' };
+  }
+
+  if (del.skipped) {
+    const { getPlayerProfile } = await import('../../utils/gameStorage');
+    const { verifyPlayerKeyForProfile } = await import('../../utils/playerKey');
+    const profile = getPlayerProfile(gameData, profileID);
+    if (!verifyPlayerKeyForProfile(profile, playerKey)) {
+      return { ok: false, error: 'Incorrect key. Player was not deleted.' };
+    }
+  }
+
+  const { deletePlayer } = await import('../../utils/gameStorage');
+  const next = deletePlayer(gameData, profileID);
+  await commitSave({ reason: 'player_deleted', gameData: next, profileIDs: [], skipCloud: true });
   emitSaveStatus('player_deleted');
-  const del = await deleteCloudProfile(profileID);
-  if (del.ok) emitSaveStatus('cloud_synced');
-  else if (!del.skipped) emitSaveStatus('cloud_delete_failed');
+  if (del.ok && !del.skipped) emitSaveStatus('cloud_synced');
+  return { ok: true, gameData: next };
 }
 
 /**

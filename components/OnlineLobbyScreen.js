@@ -244,6 +244,9 @@ export default function OnlineLobbyScreen({
 
   useEffect(() => {
     runConnect();
+  }, [connectKey, runConnect]);
+
+  useEffect(() => {
     return subscribeOnline((st, meta) => {
       setRoomState(st);
       if (st?.roomCode) {
@@ -253,11 +256,20 @@ export default function OnlineLobbyScreen({
       const session = loadOnlineSession();
       if (session?.playerSlot) setMySlot(session.playerSlot);
       if (meta?.opponentLeft) setOpponentLeft(meta.opponentLeft);
-      if (st?.status === 'battle' && st.battle && onBattleStart) {
+      const count =
+        typeof st?.playerCount === 'number' ? st.playerCount : null;
+      if (count !== null) {
+        devOnlineLog('room state from server', st?.roomCode, 'players', count, '/2', 'status', st?.status);
+      }
+      const inBattle =
+        st?.status === 'battle' &&
+        st.battle &&
+        (typeof st.playerCount === 'number' ? st.playerCount >= 2 : !!st.bothJoined);
+      if (inBattle && onBattleStart) {
         onBattleStart(st);
       }
     });
-  }, [configured, connectKey, onBattleStart, runConnect]);
+  }, [onBattleStart]);
 
   useEffect(() => {
     const sock = getOnlineSocket();

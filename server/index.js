@@ -128,11 +128,13 @@ function roomPayload(room) {
   if (room.battle && room.status === 'battle') {
     activeTurn = activeTurnFromPhase(room.battle);
   }
-  const bothJoined = !!(room.players.p1?.socketId && room.players.p2?.socketId);
+  const playerCount = [room.players.p1, room.players.p2].filter((p) => p?.socketId).length;
+  const bothJoined = playerCount >= 2;
   const missing = lobbyMissing(room);
   return {
     roomCode: room.roomCode,
     status: room.status,
+    playerCount,
     players: {
       p1: publicPlayer(room.players.p1),
       p2: publicPlayer(room.players.p2),
@@ -150,8 +152,26 @@ function emitRoomUpdate(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
   const payload = roomPayload(room);
+  console.log(
+    '[room] roomUpdate',
+    roomCode,
+    'players',
+    payload.playerCount,
+    '/2',
+    'status',
+    payload.status,
+    'bothJoined',
+    payload.bothJoined,
+  );
   io.to(roomCode).emit('roomUpdate', payload);
   return payload;
+}
+
+function joinSocketToRoom(socket, roomCode, cb) {
+  socket.join(roomCode, (err) => {
+    if (err) console.error('[room] socket.join failed', roomCode, err.message || err);
+    cb?.(err);
+  });
 }
 
 function clearBattleTimer(room) {
@@ -178,7 +198,9 @@ function tryAutoStartBattle(roomCode) {
   console.log('[battle] auto-started', roomCode, p1.profile.name, 'vs', p2.profile.name);
 
   const snap = snapshotForClient(room.battle);
-  io.to(roomCode).emit('battleStarted', { roomCode, battle: snap });
+  const roomSnap = roomPayload(room);
+  console.log('[battle] auto-started', roomCode, 'playerCount', roomSnap.playerCount);
+  io.to(roomCode).emit('battleStarted', { roomCode, battle: snap, room: roomSnap });
   emitRoomUpdate(roomCode);
   return true;
 }
@@ -253,11 +275,23 @@ io.on('connection', (socket) => {
     }
 
     ensurePlayerRecord(room, slot, socket);
-    socket.join(roomCode);
-    console.log('[room] rejoined', roomCode, slot);
+    joinSocketToRoom(socket, roomCode, () => {
+      console.log('[room] rejoined', roomCode, slot, socket.id);
+      const state = emitRoomUpdate(roomCode);
+      if (typeof ack === 'function') ack({ roomCode, playerSlot: slot, room: state });
+      tryAutoStartBattle(roomCode);
+    });
+  });
+
+  socket.on('requestRoomState', (payload = {}, ack) => {
+    const roomCode = normalizeCode(payload.roomCode);
+    const room = rooms[roomCode];
+    if (!room) {
+      if (typeof ack === 'function') ack({ error: 'Room not found' });
+      return;
+    }
     const state = emitRoomUpdate(roomCode);
-    if (typeof ack === 'function') ack({ roomCode, playerSlot: slot, room: state });
-    tryAutoStartBattle(roomCode);
+    if (typeof ack === 'function') ack({ room: state });
   });
 
   socket.on('createRoom', (_payload, ack) => {
@@ -267,10 +301,11 @@ io.on('connection', (socket) => {
     const room = createEmptyRoom(roomCode);
     ensurePlayerRecord(room, 'p1', socket);
     rooms[roomCode] = room;
-    socket.join(roomCode);
-    console.log('[room] created', roomCode);
-    const state = emitRoomUpdate(roomCode);
-    if (typeof ack === 'function') ack({ roomCode, playerSlot: 'p1', room: state });
+    joinSocketToRoom(socket, roomCode, () => {
+      console.log('[room] created', roomCode, 'host', socket.id);
+      const state = emitRoomUpdate(roomCode);
+      if (typeof ack === 'function') ack({ roomCode, playerSlot: 'p1', room: state });
+    });
   });
 
   socket.on('joinRoom', (payload = {}, ack) => {
@@ -296,16 +331,18 @@ io.on('connection', (socket) => {
     }
 
     ensurePlayerRecord(room, slot, socket);
-    socket.join(roomCode);
     room.opponentLeftMessage = null;
-    console.log('[room] joined', roomCode, slot);
 
-    const state = emitRoomUpdate(roomCode);
-    io.to(roomCode).emit('opponentJoined', { roomCode, slot });
-    if (typeof ack === 'function') ack({ roomCode, playerSlot: slot, room: state });
+    joinSocketToRoom(socket, roomCode, () => {
+      console.log('[room] joined', roomCode, slot, socket.id);
 
-    const started = tryAutoStartBattle(roomCode);
-    if (started) console.log('[battle] auto-start after join', roomCode);
+      const state = emitRoomUpdate(roomCode);
+      io.to(roomCode).emit('opponentJoined', { roomCode, slot });
+      if (typeof ack === 'function') ack({ roomCode, playerSlot: slot, room: state });
+
+      const started = tryAutoStartBattle(roomCode);
+      if (started) console.log('[battle] auto-start after join', roomCode);
+    });
   });
 
   socket.on('syncProfile', (payload = {}) => {

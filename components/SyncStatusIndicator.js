@@ -9,7 +9,9 @@ const LABELS = {
   cloud_failed: 'Cloud sync failed',
   player_created: 'Player created ✓',
   player_deleted: 'Player deleted ✓',
-  cloud_delete_failed: 'Player deleted on this device. Cloud delete failed.',
+  cloud_delete_failed: 'Cloud delete failed',
+  player_loaded: 'Player loaded ✓',
+  cloud_list_failed: 'Could not fetch cloud players',
 };
 
 export default function SyncStatusIndicator() {

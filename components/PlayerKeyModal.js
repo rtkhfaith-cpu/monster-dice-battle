@@ -28,7 +28,7 @@ const KEY_INPUT_PROPS = {
  * Player Key entry — unlock, migrate, or delete confirmation.
  * @param {{
  *   visible: boolean,
- *   mode: 'unlock'|'migrate'|'delete',
+ *   mode: 'unlock'|'migrate'|'delete'|'login',
  *   playerName?: string,
  *   error?: string|null,
  *   busy?: boolean,
@@ -62,14 +62,18 @@ export default function PlayerKeyModal({
       ? `Delete ${playerName}`
       : mode === 'migrate'
         ? 'Create Player Key'
-        : playerName;
+        : mode === 'login'
+          ? `Enter key for ${playerName}`
+          : playerName;
 
   const subtitle =
     mode === 'delete'
       ? 'Enter the 4-digit Player Key to confirm deletion.'
       : mode === 'migrate'
         ? 'Create a 4-digit Player Key for this player.'
-        : 'Enter your 4-digit Player Key to open this player.';
+        : mode === 'login'
+          ? 'Enter the 4-digit Player Key for this player.'
+          : 'Enter your 4-digit Player Key to open this player.';
 
   const hint =
     mode === 'migrate'
@@ -145,7 +149,13 @@ export default function PlayerKeyModal({
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={[styles.primaryBtnTxt, mode === 'delete' && styles.primaryBtnTxtLight]}>
-                  {mode === 'delete' ? 'Delete Player' : mode === 'migrate' ? 'Save Key' : 'Unlock'}
+                  {mode === 'delete'
+                    ? 'Delete Player'
+                    : mode === 'migrate'
+                      ? 'Save Key'
+                      : mode === 'login'
+                        ? 'Load Player'
+                        : 'Unlock'}
                 </Text>
               )}
             </TouchableOpacity>

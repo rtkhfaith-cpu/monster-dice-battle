@@ -38,7 +38,6 @@ import {
   buyGearItem,
   buyMonster as purchaseMonsterRow,
   createPlayerProfile,
-  deletePlayer,
   equipOwnedGear,
   getPlayerProfile,
   mergeMonsterParts,
@@ -52,12 +51,15 @@ import {
   walletForProfile,
 } from './utils/gameStorage';
 import { loadGameSave } from './src/services/saveService';
+import { listCloudPlayers, loginCloudProfile } from './src/services/cloudSaveService';
+import { applyCloudProfile } from './src/services/cloudSaveMapper';
 import { commitProfileDeleted, commitSave, setCloudSyncProfileID } from './src/services/syncCoordinator';
+import { emitSaveStatus } from './src/services/saveStatusBus';
+import ConfirmDialog from './components/ConfirmDialog';
 import {
   hashPlayerKey,
   profileNeedsPlayerKeyMigration,
   validatePlayerKeyPair,
-  verifyPlayerKeyForProfile,
 } from './utils/playerKey';
 import PlayerKeyModal from './components/PlayerKeyModal';
 import { loadSaveApiConfig } from './utils/saveApiConfig';
@@ -117,6 +119,10 @@ export default function App() {
   const [keyModalError, setKeyModalError] = useState('');
   const [keyModalBusy, setKeyModalBusy] = useState(false);
   const [deleteBusyProfileId, setDeleteBusyProfileId] = useState(null);
+  const [cloudPlayers, setCloudPlayers] = useState([]);
+  const [cloudFetchLoading, setCloudFetchLoading] = useState(false);
+  const [cloudFetchError, setCloudFetchError] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   function syncSetupMonstersFromProfiles(gd, p1ProfileId, p2ProfileId, mode = gameMode) {
     const w1 = walletForProfile(gd, p1ProfileId);
@@ -186,12 +192,17 @@ export default function App() {
 
   useEffect(() => {
     if (onlineRoom?.status !== 'battle') return;
+    const playerCount =
+      typeof onlineRoom.playerCount === 'number'
+        ? onlineRoom.playerCount
+        : (onlineRoom.players?.p1?.connected ? 1 : 0) + (onlineRoom.players?.p2?.connected ? 1 : 0);
+    if (playerCount < 2) return;
     const f1 = onlineRoom.players?.p1?.profile?.fighter;
     const f2 = onlineRoom.players?.p2?.profile?.fighter;
     if (!f1 || !f2) return;
     if (phase === 'battle') return;
     if (phase === 'menu' || phase === 'online') handleOnlineBattleStart(onlineRoom);
-  }, [onlineRoom?.status, onlineRoom?.battle?.seq, phase]);
+  }, [onlineRoom?.status, onlineRoom?.battle?.seq, onlineRoom?.playerCount, phase]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
@@ -348,7 +359,31 @@ export default function App() {
     }
 
     setKeyModalError('');
-    setKeyModal({ mode: 'unlock', profileId, playerName: profile.name });
+    setKeyModal({ mode: 'login', profileId, playerName: profile.name });
+  }
+
+  function handleRequestSelectCloudProfile(cloudItem) {
+    if (!cloudItem?.profileID) return;
+    setKeyModalError('');
+    setKeyModal({
+      mode: 'login',
+      profileId: cloudItem.profileID,
+      playerName: cloudItem.playerName || 'Player',
+    });
+  }
+
+  async function handleFetchCloudPlayers() {
+    setCloudFetchLoading(true);
+    setCloudFetchError(null);
+    const res = await listCloudPlayers();
+    setCloudFetchLoading(false);
+    if (!res.ok) {
+      const msg = res.skipped ? 'Cloud save is not configured.' : res.error || 'Could not fetch cloud players.';
+      setCloudFetchError(msg);
+      if (!res.skipped) emitSaveStatus('cloud_list_failed');
+      return;
+    }
+    setCloudPlayers(res.players || []);
   }
 
   function closeKeyModal() {
@@ -358,22 +393,20 @@ export default function App() {
   }
 
   function handleKeyModalSubmit({ key, confirmKey }) {
-    if (!gameData || !keyModal?.profileId) return;
+    if (!keyModal?.profileId) return;
     const { mode, profileId } = keyModal;
-    const profile = getPlayerProfile(gameData, profileId);
-    if (!profile) {
-      closeKeyModal();
-      return;
-    }
 
     if (mode === 'migrate') {
+      if (!gameData) return;
+      const profile = getPlayerProfile(gameData, profileId);
+      if (!profile) return;
       const pairErr = validatePlayerKeyPair(key, confirmKey ?? '');
       if (pairErr) {
         setKeyModalError(pairErr);
         return;
       }
       const hash = hashPlayerKey(key);
-      let next = setPlayerKeyForProfile(gameData, profileId, hash);
+      const next = setPlayerKeyForProfile(gameData, profileId, hash);
       markProfileUnlocked(profileId);
       persistSave(next, 'player_key_migrated', profileId);
       setKeyModal(null);
@@ -382,81 +415,104 @@ export default function App() {
       return;
     }
 
-    if (mode === 'unlock' || mode === 'delete') {
+    if (mode === 'login') {
       if (!key || key.length !== 4) {
         setKeyModalError('Enter your 4-digit Player Key.');
         return;
       }
-      if (!verifyPlayerKeyForProfile(profile, key)) {
-        setKeyModalError(
-          mode === 'delete'
-            ? 'Incorrect key. Player was not deleted.'
-            : 'Incorrect key. Please try again.',
-        );
+      void finalizeCloudLogin(profileId, key);
+      return;
+    }
+
+    if (mode === 'delete') {
+      if (!key || key.length !== 4) {
+        setKeyModalError('Enter your 4-digit Player Key.');
         return;
       }
-
-      if (mode === 'unlock') {
-        markProfileUnlocked(profileId);
-        setKeyModal(null);
-        setKeyModalError('');
-        handleSelectProfile(profileId);
-        return;
-      }
-
-      void finalizeProfileDelete(profileId);
+      void finalizeProfileDelete(profileId, key);
     }
   }
 
-  async function finalizeProfileDelete(profileId) {
-    if (!gameData || deleteBusyProfileId) return;
+  async function finalizeCloudLogin(profileId, playerKey) {
+    if (keyModalBusy) return;
     setKeyModalBusy(true);
-    setDeleteBusyProfileId(profileId);
+    setKeyModalError('');
 
-    const next = deletePlayer(gameData, profileId);
-    unlockedProfileIdsRef.current.delete(profileId);
-
-    const remaining = next.players.map((p) => p.id);
-    const fallback = next.session?.activeProfileId ?? remaining[0] ?? null;
-
-    let nextP1 = setupP1ProfileId;
-    let nextP2 = setupP2ProfileId;
-    if (nextP1 === profileId) nextP1 = fallback;
-    if (nextP2 === profileId) {
-      nextP2 = remaining.find((id) => id !== nextP1) ?? fallback;
+    const login = await loginCloudProfile(profileId, playerKey);
+    if (!login.ok) {
+      setKeyModalBusy(false);
+      setKeyModalError(
+        login.status === 401 ? 'Incorrect key. Please try again.' : login.error || 'Could not load player.',
+      );
+      return;
     }
-    setSetupP1ProfileId(nextP1);
-    setSetupP2ProfileId(nextP2);
-    syncSetupMonstersFromProfiles(next, nextP1, nextP2);
+
+    const baseGd = gameData || (await loadGameSave());
+    const next = applyCloudProfile(baseGd, login.data);
+    next.session = next.session || {};
+    next.session.activeProfileId = profileId;
 
     setGameData(next);
+    markProfileUnlocked(profileId);
     setKeyModal(null);
+    setKeyModalError('');
+    setKeyModalBusy(false);
+
+    persistSave(next, 'profile_loaded', profileId);
+    emitSaveStatus('player_loaded');
+    applyProfileSelection(profileId, next);
+  }
+
+  async function finalizeProfileDelete(profileId, playerKey) {
+    if (deleteBusyProfileId) return;
+    setKeyModalBusy(true);
+    setDeleteBusyProfileId(profileId);
     setKeyModalError('');
 
     try {
-      await commitProfileDeleted(profileId, next);
+      const gd = gameData || (await loadGameSave());
+      const res = await commitProfileDeleted(profileId, playerKey, gd);
+      if (!res.ok) {
+        setKeyModalError(res.error || 'Incorrect key. Player was not deleted.');
+        return;
+      }
+
+      const next = res.gameData;
+      unlockedProfileIdsRef.current.delete(profileId);
+      setCloudPlayers((list) => list.filter((p) => p.profileID !== profileId));
+
+      const remaining = next.players.map((p) => p.id);
+      const fallback = next.session?.activeProfileId ?? remaining[0] ?? null;
+      let nextP1 = setupP1ProfileId;
+      let nextP2 = setupP2ProfileId;
+      if (nextP1 === profileId) nextP1 = fallback;
+      if (nextP2 === profileId) {
+        nextP2 = remaining.find((id) => id !== nextP1) ?? fallback;
+      }
+      setSetupP1ProfileId(nextP1);
+      setSetupP2ProfileId(nextP2);
+      syncSetupMonstersFromProfiles(next, nextP1, nextP2);
+      setGameData(next);
+      setKeyModal(null);
     } finally {
       setKeyModalBusy(false);
       setDeleteBusyProfileId(null);
     }
   }
 
-  function handleRequestDeleteProfile(profileId) {
-    if (!gameData || deleteBusyProfileId) return;
-    const profile = getPlayerProfile(gameData, profileId);
-    if (!profile) return;
+  function handleRequestDeleteProfile(profileId, meta = {}) {
+    if (deleteBusyProfileId) return;
+    const profile = gameData ? getPlayerProfile(gameData, profileId) : null;
+    const name = profile?.name ?? meta.playerName ?? 'Player';
+    setPendingDelete({ profileId, playerName: name });
+  }
 
-    Alert.alert(`Delete ${profile.name}?`, 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Continue',
-        style: 'destructive',
-        onPress: () => {
-          setKeyModalError('');
-          setKeyModal({ mode: 'delete', profileId, playerName: profile.name });
-        },
-      },
-    ]);
+  function handleRequestDeleteCloudProfile(cloudItem) {
+    if (!cloudItem?.profileID || deleteBusyProfileId) return;
+    setPendingDelete({
+      profileId: cloudItem.profileID,
+      playerName: cloudItem.playerName || 'Player',
+    });
   }
 
   function handleCreateProfile(name, playerKey, confirmKey) {
@@ -786,12 +842,27 @@ export default function App() {
       <SyncStatusIndicator />
       <PlayerKeyModal
         visible={!!keyModal}
-        mode={keyModal?.mode ?? 'unlock'}
+        mode={keyModal?.mode ?? 'login'}
         playerName={keyModal?.playerName}
         error={keyModalError}
         busy={keyModalBusy}
         onCancel={closeKeyModal}
         onSubmit={handleKeyModalSubmit}
+      />
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title={pendingDelete ? `Delete ${pendingDelete.playerName}?` : ''}
+        message="This cannot be undone."
+        confirmLabel="Continue"
+        destructive
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const pd = pendingDelete;
+          setPendingDelete(null);
+          if (!pd) return;
+          setKeyModalError('');
+          setKeyModal({ mode: 'delete', profileId: pd.profileId, playerName: pd.playerName });
+        }}
       />
       {phase !== 'menu' && phase !== 'battle' && phase !== 'online' ? (
         <>
@@ -863,7 +934,13 @@ export default function App() {
             onSelectProfile={handleRequestSelectProfile}
             onCreateProfile={handleCreateProfile}
             onRequestDeleteProfile={handleRequestDeleteProfile}
+            onRequestDeleteCloudProfile={handleRequestDeleteCloudProfile}
             deleteBusyProfileId={deleteBusyProfileId}
+            cloudPlayers={cloudPlayers}
+            cloudFetchLoading={cloudFetchLoading}
+            cloudFetchError={cloudFetchError}
+            onFetchCloudPlayers={handleFetchCloudPlayers}
+            onRequestSelectCloudProfile={handleRequestSelectCloudProfile}
             onUpdateProfileName={handleUpdateProfileName}
             onStartGame={startGameFromSetup}
             onOpenMonsterGear={openMonsterGear}

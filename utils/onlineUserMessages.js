@@ -74,7 +74,11 @@ export function toUserOnlineError(raw) {
  */
 /** @param {object|null|undefined} roomState */
 export function countPlayersInRoom(roomState) {
-  if (!roomState?.players) return 0;
+  if (!roomState) return 0;
+  if (typeof roomState.playerCount === 'number') {
+    return Math.max(0, Math.min(2, roomState.playerCount));
+  }
+  if (!roomState.players) return 0;
   let n = 0;
   if (roomState.players.p1?.connected) n += 1;
   if (roomState.players.p2?.connected) n += 1;
