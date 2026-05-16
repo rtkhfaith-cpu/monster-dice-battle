@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path, Rect } from 'react-native-svg';
+import { ATTACK_EFFECT_SCALE } from '../utils/battleEffectScale';
 
 /** Move-specific doodles (coded — no bitmaps). */
 export default function MoveEffect({ effectType, emoji, animate = true, rageBoost = false }) {
@@ -22,8 +23,13 @@ export default function MoveEffect({ effectType, emoji, animate = true, rageBoos
   const op = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] });
 
   return (
-    <Animated.View style={{ transform: [{ scale: sc }], opacity: op }} accessibilityLabel={`Move effect ${effectType}`}>
-      {renderEffect(effectType, emoji, rageBoost)}
+    <Animated.View
+      style={{ transform: [{ scale: sc }], opacity: op }}
+      accessibilityLabel={`Move effect ${effectType}`}
+    >
+      <View style={{ transform: [{ scale: ATTACK_EFFECT_SCALE }] }}>
+        {renderEffect(effectType, emoji, rageBoost)}
+      </View>
     </Animated.View>
   );
 }

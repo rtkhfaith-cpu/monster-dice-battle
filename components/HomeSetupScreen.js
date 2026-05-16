@@ -1,5 +1,13 @@
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import SaveSlotPanel from './SaveSlotPanel';
 import GameSetupPanel from './GameSetupPanel';
 import MonsterGridPanel from './MonsterGridPanel';
@@ -27,12 +35,13 @@ export default function HomeSetupScreen({
   onSelectMonster,
   onStartGame,
   onOpenMonsterGear,
-  onOnline,
+  onEnterMultiplayer,
   onlineRoom,
   onlineSlot,
   onLeaveOnlineRoom,
   onOpenOnlineLobby,
   onOpenMonsterGearShop,
+  onOpenGearMart,
   onOpenMonsterMart,
   onSelectProfile,
   onCreateProfile,
@@ -42,7 +51,8 @@ export default function HomeSetupScreen({
 }) {
   const { width } = useWindowDimensions();
   const layout = width >= 960 ? 'wide' : width >= 640 ? 'mid' : 'narrow';
-  const usePageScroll = layout !== 'wide';
+  // Phone + tablet portrait: one vertical scroll (no nested scroll traps).
+  const usePageScroll = width < 960;
 
   const summary = useMemo(() => {
     const row = (ownedId, w) => {
@@ -94,6 +104,7 @@ export default function HomeSetupScreen({
     selectedP1Id,
     selectedP2Id,
     onOpenMonsterGear,
+    onEnterMultiplayer,
     embedInScroll: usePageScroll,
   };
 
@@ -116,8 +127,11 @@ export default function HomeSetupScreen({
         <Text style={styles.coins}>
           🪙 <Text style={styles.coinsAmt}>{coins}</Text>
         </Text>
+        <TouchableOpacity style={styles.menuChipAlt} onPress={onOpenGearMart}>
+          <Text style={styles.menuChipTxt}>Gear Mart</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.menuChip} onPress={onOpenMonsterGearShop}>
-          <Text style={styles.menuChipTxt}>Gear</Text>
+          <Text style={styles.menuChipTxt}>Equip</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuChip} onPress={onOpenMonsterMart}>
           <Text style={styles.menuChipTxt}>Monsters</Text>
@@ -127,9 +141,6 @@ export default function HomeSetupScreen({
             <Text style={styles.menuChipTxt}>Reset</Text>
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity style={styles.menuChipAlt} onPress={onOnline}>
-          <Text style={styles.menuChipTxt}>Online</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -139,7 +150,7 @@ export default function HomeSetupScreen({
       <OnlineRoomBanner
         roomState={onlineRoom}
         mySlot={onlineSlot}
-        onOpenLobby={onOpenOnlineLobby || onOnline}
+        onOpenLobby={onOpenOnlineLobby || onEnterMultiplayer}
         onLeaveRoom={onLeaveOnlineRoom}
       />
     ) : null;
@@ -185,11 +196,15 @@ export default function HomeSetupScreen({
   if (usePageScroll) {
     return (
       <ScrollView
-        style={styles.pageScroll}
+        style={[styles.pageScroll, Platform.OS === 'web' && styles.pageScrollWeb]}
         contentContainerStyle={styles.pageScrollContent}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator
         nestedScrollEnabled
+        scrollEnabled
+        bounces
+        alwaysBounceVertical={false}
+        overScrollMode="always"
       >
         {topBar}
         {onlineBanner}
@@ -217,10 +232,18 @@ const styles = StyleSheet.create({
   pageScroll: {
     flex: 1,
     minHeight: 0,
+    width: '100%',
+  },
+  pageScrollWeb: {
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    WebkitOverflowScrolling: 'touch',
+    touchAction: 'pan-y',
+    overscrollBehavior: 'contain',
   },
   pageScrollContent: {
-    flexGrow: 1,
-    paddingBottom: 28,
+    paddingBottom: 48,
+    paddingTop: 2,
   },
   topBar: {
     flexShrink: 0,

@@ -139,11 +139,16 @@ export default function AnimatedMonster({
 
   const tier = Math.min(5, Math.max(0, Number(parts.evolutionTierIndex) || 0));
   const scaledSize = size * (1 + tier * 0.036);
+  const themed = !!parts?.themeBody;
 
-  const bobAmp = -4.2 - tier * 1.25;
+  const bobAmp = (themed ? -5.2 : -4.2) - tier * 1.25;
   const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, bobAmp] });
-  const swayX = sway.interpolate({ inputRange: [0, 1], outputRange: [0, 2.5 * toward * -1] });
-  const swayR = twist.interpolate({ inputRange: [0, 1], outputRange: ['-2.5deg', '2.5deg'] });
+  const swayMag = themed ? 3.2 : 2.5;
+  const swayX = sway.interpolate({ inputRange: [0, 1], outputRange: [0, swayMag * toward * -1] });
+  const swayR = twist.interpolate({
+    inputRange: [0, 1],
+    outputRange: themed ? ['-3.5deg', '3.5deg'] : ['-2.5deg', '2.5deg'],
+  });
   const jolt = shake.interpolate({ inputRange: [-1, 0, 1], outputRange: [-7, 0, 9] });
   const squashX = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
   const squashY = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 0.93] });

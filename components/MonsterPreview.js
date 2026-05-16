@@ -1,6 +1,7 @@
 import React, { useId, useMemo } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
+import { ThemedMonsterBody } from './themedMonsterBodies';
 
 /** Kid-friendly body colours — index via `parts.colorIdx`. */
 export const MONSTER_PALETTE = [
@@ -111,8 +112,53 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
 
   const fillUrl = `url(#${gid})`;
 
+  const themeEmoji = safe.themeEmoji || null;
+  const themeAura = safe.themeAura || null;
+  const themeBody = safe.themeBody || null;
+  const hasThemedSilhouette = !!themeBody;
+
   return (
     <View style={{ width: size, height: size * 1.06, alignSelf: 'center', justifyContent: 'flex-start' }}>
+      {themeAura && !hasThemedSilhouette ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: size * 0.12,
+            left: size * 0.1,
+            width: size * 0.8,
+            height: size * 0.72,
+            borderRadius: size,
+            backgroundColor: themeAura,
+            opacity: 0.22,
+          }}
+        />
+      ) : null}
+      {themeEmoji && !hasThemedSilhouette ? (
+        <Text
+          style={{
+            position: 'absolute',
+            top: size * 0.02,
+            right: size * 0.02,
+            fontSize: Math.max(14, size * 0.22),
+            opacity: 0.95,
+          }}
+        >
+          {themeEmoji}
+        </Text>
+      ) : null}
+      {themeEmoji && hasThemedSilhouette ? (
+        <Text
+          style={{
+            position: 'absolute',
+            top: size * 0.02,
+            right: size * 0.02,
+            fontSize: Math.max(12, size * 0.16),
+            opacity: 0.75,
+          }}
+        >
+          {themeEmoji}
+        </Text>
+      ) : null}
       <View
         style={{
           position: 'absolute',
@@ -130,7 +176,24 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
             <Circle cx={100} cy={118} r={72} fill="#ff6b35" opacity={0.22} stroke={stroke} strokeWidth={3} />
           ) : null}
           {renderCapeLayer(cosmetics, fillUrl, stroke, ST)}
-          {species === 0 ? (
+          {hasThemedSilhouette ? (
+            <ThemedMonsterBody
+              themeBody={themeBody}
+              stroke={stroke}
+              ST={ST}
+              e={e}
+              m={m}
+              mood={mood}
+              eyeWhite={eyeWhite}
+              pupil={pupil}
+              fillUrl={fillUrl}
+              gid={gid}
+              bodyLight={bodyLight}
+              bodyDark={bodyDark}
+              cheek={cheek}
+            />
+          ) : null}
+          {!hasThemedSilhouette && species === 0 ? (
             <>
               {renderTail(t, fillUrl, stroke, ST)}
               {renderLegs(lg, fillUrl, stroke, ST)}
@@ -142,7 +205,7 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
               {renderHands(ha, fillUrl, stroke, ST, cosmetics)}
             </>
           ) : null}
-          {species === 1 ? (
+          {!hasThemedSilhouette && species === 1 ? (
             <SpeciesKaiju
               gid={gid}
               fillUrl={fillUrl}
@@ -158,7 +221,7 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
               pupil={pupil}
             />
           ) : null}
-          {species === 2 ? (
+          {!hasThemedSilhouette && species === 2 ? (
             <SpeciesTrex
               gid={gid}
               fillUrl={fillUrl}
@@ -175,7 +238,7 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
               cosmetics={cosmetics}
             />
           ) : null}
-          {species === 3 ? (
+          {!hasThemedSilhouette && species === 3 ? (
             <SpeciesMech
               gid={gid}
               fillUrl={fillUrl}

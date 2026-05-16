@@ -1,31 +1,33 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import BattleEffect from './BattleEffect';
+import { Animated, Easing, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import BattleProjectileLayer from './BattleProjectileLayer';
-import BattleLog from './BattleLog';
-import ChaosEventBanner from './ChaosEventBanner';
-import BattleDiceButton from './BattleDiceButton';
 import RpgBattleArena from './RpgBattleArena';
-import { CHAOS_EVENT_IDS, pickRandomChaosEvent, rulesForChaosEvent } from '../utils/chaosEvents';
-import { pickRandomMagic, pickRandomNormal } from '../utils/moves';
 import { pickProjectile } from '../utils/battleProjectiles';
-import { resolveDiceBattleDamage, resolveSuperStrike } from '../utils/battleLogic';
-import { playSfx } from '../utils/gameSounds';
-import { rollDice } from '../utils/random';
-import { playSound } from '../utils/sounds';
-import { pickRandomTaunt } from '../utils/taunts';
+import {
+  maybeApplySkillStatus,
+  resolveMagicBattleDamage,
+  resolvePhysicalBattleDamage,
+} from '../utils/battleLogic';
+import { elementBannerText, ELEMENT_UI } from '../utils/elements';
+import {
+  canAffordSkill,
+  getMagicSkills,
+  getPhysicalSkill,
+} from '../utils/monsterSkills';
+import { tickStatus } from '../utils/statusEffects';
+import {
+  duckBgm,
+  startBattleMusic,
+  stopBattleMusic,
+  toggleBattleMuted,
+  unlockBattleAudio,
+} from '../utils/battleAudio';
+import { playSound, playUiSfx } from '../utils/sounds';
 import { BATTLE } from '../utils/gameTheme';
 
-const MAGIC_COST = 10;
-const SUPER_MP = 20;
-const SUPER_NEED_DEFAULT = 3;
-const RESOLVE_MS = 2200;
-const LOG_MAX = 3;
-
-function superNeedFor(fighter) {
-  const n = fighter?.superNeedThreshold;
-  return typeof n === 'number' && n >= 1 ? Math.floor(n) : SUPER_NEED_DEFAULT;
-}
+const ATTACK_WINDUP_MS = 420;
+const PLAYER_ID = 1;
+const CPU_ID = 2;
 
 function seedFighter(p) {
   if (!p?.stats) return null;
@@ -33,23 +35,13 @@ function seedFighter(p) {
   return {
     monsterParts: {
       ...parts,
-      species: parts.species ?? 0,
-      body: parts.body ?? 0,
-      head: parts.head ?? 0,
-      eyes: parts.eyes ?? 0,
-      mouth: parts.mouth ?? 0,
-      horn: parts.horn ?? 0,
-      tail: parts.tail ?? 0,
-      hands: parts.hands ?? 0,
-      legs: parts.legs ?? 0,
-      colorIdx: parts.colorIdx ?? 0,
       cosmetics: Array.isArray(parts.cosmetics) ? parts.cosmetics : [],
     },
     stats: p.stats,
-    hp: p.stats.hp,
-    mp: p.stats.mp,
-    combo: 0,
-    superNeedThreshold: p.superNeedThreshold,
+    hp: typeof p.hp === 'number' ? p.hp : p.stats.hp,
+    maxHp: p.stats.hp,
+    mp: typeof p.mp === 'number' ? p.mp : p.stats.mp,
+    maxMp: p.stats.mp,
     monsterTemplateId: p.monsterTemplateId,
     ownedMonsterId: p.ownedMonsterId,
     displayName: p.displayName,
@@ -57,6 +49,12 @@ function seedFighter(p) {
     level: p.level ?? 1,
     battleExp: p.battleExp ?? 0,
     battleExpToNext: p.battleExpToNext ?? 36,
+    combo: p.combo ?? 0,
+    element: p.element ?? 'earth',
+    skills: p.skills ?? null,
+    status: p.status ?? null,
+    isAiOpponent: !!p.isAiOpponent,
+    aiPowerRatio: p.aiPowerRatio ?? null,
   };
 }
 
@@ -65,9 +63,9 @@ function snapshotFight(f) {
     monsterParts: { ...f.monsterParts, cosmetics: [...(f.monsterParts?.cosmetics || [])] },
     stats: f.stats,
     hp: f.hp,
+    maxHp: f.maxHp ?? f.stats?.hp,
     mp: f.mp,
-    combo: f.combo,
-    superNeedThreshold: f.superNeedThreshold,
+    maxMp: f.maxMp ?? f.stats?.mp,
     monsterTemplateId: f.monsterTemplateId,
     ownedMonsterId: f.ownedMonsterId,
     displayName: f.displayName,
@@ -75,59 +73,31 @@ function snapshotFight(f) {
     level: f.level,
     battleExp: f.battleExp,
     battleExpToNext: f.battleExpToNext,
+    combo: f.combo ?? 0,
+    element: f.element,
+    skills: f.skills,
+    status: f.status ?? null,
+    isAiOpponent: f.isAiOpponent,
+    aiPowerRatio: f.aiPowerRatio,
   };
 }
 
-function isRage(fighter) {
-  if (!fighter?.stats?.hp) return false;
-  return fighter.hp / fighter.stats.hp <= 0.3 && fighter.hp > 0;
+function pickCpuStrike(atk) {
+  const physical = atk.skills?.physical ?? getPhysicalSkill(atk.monsterTemplateId);
+  const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId);
+  const affordable = magicList.filter((s) => canAffordSkill(atk, s));
+  if (affordable.length > 0 && Math.random() < 0.42) {
+    const skill = affordable[Math.floor(Math.random() * affordable.length)];
+    return { skill, strikeKind: 'magic' };
+  }
+  return { skill: physical, strikeKind: 'physical' };
 }
 
 function moodFor(fighter, emotional) {
-  if (isRage(fighter)) return 'dizzy';
+  if (fighter?.stats?.hp && fighter.hp / fighter.stats.hp <= 0.3 && fighter.hp > 0) return 'dizzy';
   if (emotional === 'happy') return 'happy';
   if (emotional === 'angry') return 'angry';
   return 'neutral';
-}
-
-function applyChaosImmediate(ev, f1, f2) {
-  const a = { ...f1 };
-  const b = { ...f2 };
-  switch (ev.id) {
-    case CHAOS_EVENT_IDS.TOILET:
-      a.hp = Math.max(0, a.hp - 10);
-      b.hp = Math.max(0, b.hp - 10);
-      break;
-    case CHAOS_EVENT_IDS.AH_MA:
-      a.mp = Math.max(0, a.mp - 5);
-      b.mp = Math.max(0, b.mp - 5);
-      break;
-    case CHAOS_EVENT_IDS.SNACK:
-      a.hp = Math.min(a.stats.hp, a.hp + 10);
-      b.hp = Math.min(b.stats.hp, b.hp + 10);
-      break;
-    default:
-      break;
-  }
-  return [a, b];
-}
-
-function diceShout(val) {
-  if (val === 6) {
-    const o = ['BIG ROLL!', 'HUGE NUMBER!', 'CLUTCH!'];
-    return o[Math.floor(Math.random() * o.length)];
-  }
-  if (val === 1) return 'OH NO!';
-  if (val >= 5) return 'BIG ROLL!';
-  if (val >= 4) return 'Nice!';
-  return '';
-}
-
-function elementScaleDmg(dmg, effectType, rain) {
-  if (!rain || !dmg) return dmg;
-  if (effectType === 'fire') return Math.max(1, Math.round(dmg * 0.8));
-  if (effectType === 'water') return Math.max(1, Math.round(dmg * 1.3));
-  return dmg;
 }
 
 export default function BattleScreen({
@@ -135,109 +105,61 @@ export default function BattleScreen({
   fighter2,
   onFinish,
   onExitBattle,
-  battleIntroSubtitle = '',
-  player1Name = 'Player 1',
-  player2Name = 'Player 2',
-  opponentLabel = 'Player 2',
-  opponentIsAi = false,
+  player1Name = '',
+  player2Name = '',
+  opponentIsAi = true,
   battleExtras = {},
-  onlineBattle = null,
 }) {
-  const isOnline = !!onlineBattle?.mySlot;
-  const myPlayerId = onlineBattle?.mySlot === 'p2' ? 2 : 1;
-  const labelP1 = player1Name || 'Player 1';
-  const labelP2 = opponentIsAi ? player2Name || 'CPU' : player2Name || opponentLabel || 'Player 2';
+  const labelP1 = player1Name || fighter1?.displayName || 'You';
+  const labelCpu = opponentIsAi ? 'CPU' : player2Name || fighter2?.displayName || 'CPU';
 
-  function nameFor(side) {
-    return side === 1 ? labelP1 : labelP2;
-  }
   const [round, setRound] = useState(1);
-  const [battlePhase, setBattlePhase] = useState('player1Dice');
-  const [diceP1, setDiceP1] = useState(null);
-  const [diceP2, setDiceP2] = useState(null);
-  const [diceSession, setDiceSession] = useState({ active: false, player: null, value: 1 });
-  const [diceShoutText, setDiceShoutText] = useState('');
-  const [attackerId, setAttackerId] = useState(null);
-  const [strikeKind, setStrikeKind] = useState(null);
+  const [battlePhase, setBattlePhase] = useState('chooseAction');
+  const [menuMode, setMenuMode] = useState('main');
+  const [activeBattler, setActiveBattler] = useState(PLAYER_ID);
   const [p1, setP1] = useState(() => seedFighter(fighter1));
   const [p2, setP2] = useState(() => seedFighter(fighter2));
-  const [log, setLog] = useState([]);
-  const [instruction, setInstruction] = useState('');
-  const [currentEffect, setCurrentEffect] = useState(null);
+  const [bannerMessage, setBannerMessage] = useState('Choose your move');
   const [busy, setBusy] = useState(false);
-  const [resultBlurb, setResultBlurb] = useState('');
-  const [bannerMessage, setBannerMessage] = useState('');
-  const [defendGlowSide, setDefendGlowSide] = useState(null);
+  const [currentEffect, setCurrentEffect] = useState(null);
+  const [activeAttackEffect, setActiveAttackEffect] = useState(null);
+  const [defendGlowP1, setDefendGlowP1] = useState(false);
   const [defenderFlash, setDefenderFlash] = useState(0);
-  const effectSeqRef = useRef(0);
   const [p1Pose, setP1Pose] = useState('idle');
   const [p2Pose, setP2Pose] = useState('idle');
   const [p1Emotion, setP1Emotion] = useState('neutral');
   const [p2Emotion, setP2Emotion] = useState('neutral');
-  const [p1Bubble, setP1Bubble] = useState('');
-  const [p2Bubble, setP2Bubble] = useState('');
-  const [chaosBanner, setChaosBanner] = useState(null);
-  const [chaosRules, setChaosRules] = useState({ mummyNext: false, rain: false, skipAttackerTurn: false });
-  const [chaosFx, setChaosFx] = useState(null);
-  const [battleDim, setBattleDim] = useState(false);
+  const [battleDim] = useState(false);
   const [stageZoom] = useState(() => new Animated.Value(1));
-  const [superJumpSide, setSuperJumpSide] = useState(null);
+  const [audioMuted, setAudioMuted] = useState(false);
 
+  const effectSeqRef = useRef(0);
   const timerRef = useRef(null);
   const extraTimersRef = useRef([]);
-  const diceP1Ref = useRef(null);
-  const pendingDicePlayerRef = useRef(null);
-  const chaosRulesRef = useRef(chaosRules);
   const shakeX = useRef(new Animated.Value(0)).current;
-  const attackerRef = useRef(1);
-  const battleExtrasRef = useRef(battleExtras);
-  const throwP2Ref = useRef(() => {});
-  const pickStrikeRef = useRef(() => {});
-  const pickDefenseRef = useRef(() => {});
+  const hitStopScale = useRef(new Animated.Value(1)).current;
+  const pendingStrikeRef = useRef(null);
+  const p1Ref = useRef(p1);
+  const p2Ref = useRef(p2);
+  const activeBattlerRef = useRef(PLAYER_ID);
 
   useEffect(() => {
-    battleExtrasRef.current = battleExtras;
-  }, [battleExtras]);
+    p1Ref.current = p1;
+    p2Ref.current = p2;
+  }, [p1, p2]);
 
   useEffect(() => {
-    if (attackerId) attackerRef.current = attackerId;
-  }, [attackerId]);
+    activeBattlerRef.current = activeBattler;
+  }, [activeBattler]);
+
+  useEffect(() => () => stopBattleMusic(), []);
 
   useEffect(() => {
-    chaosRulesRef.current = chaosRules;
-  }, [chaosRules]);
-
-  useEffect(() => {
-    diceP1Ref.current = diceP1;
-  }, [diceP1]);
-
-  useEffect(() => {
-    if (!chaosBanner) return undefined;
-    const t = setTimeout(() => setChaosBanner(null), 2600);
-    return () => clearTimeout(t);
-  }, [chaosBanner]);
-
-  useEffect(() => {
-    if (!diceShoutText) return undefined;
-    const t = setTimeout(() => setDiceShoutText(''), 1600);
-    return () => clearTimeout(t);
-  }, [diceShoutText]);
-
-  useEffect(() => {
-    let t;
-    if (p1Bubble) t = setTimeout(() => setP1Bubble(''), 2400);
-    return () => clearTimeout(t);
-  }, [p1Bubble]);
-
-  useEffect(() => {
-    let t;
-    if (p2Bubble) t = setTimeout(() => setP2Bubble(''), 2400);
-    return () => clearTimeout(t);
-  }, [p2Bubble]);
-
-  const pushLine = useCallback((line) => {
-    setLog((prev) => [...prev, line].slice(-LOG_MAX));
-  }, []);
+    if (battlePhase !== 'resolveAttack') {
+      setActiveAttackEffect(null);
+      setCurrentEffect(null);
+    }
+  }, [battlePhase]);
 
   const showBanner = useCallback((msg) => {
     if (msg) setBannerMessage(msg);
@@ -261,508 +183,184 @@ export default function BattleScreen({
 
   useEffect(() => () => clearTimers(), []);
 
-  useEffect(() => {
-    if (isOnline) return;
-    const msg = `${labelP1}'s Turn — tap your dice`;
-    setInstruction(msg);
-    setBannerMessage(msg);
-  }, [labelP1, isOnline]);
-
-  const lastSyncSeq = useRef(0);
-  const onlineFinishedRef = useRef(false);
-  useEffect(() => {
-    if (!isOnline || !onlineBattle?.snapshot) return;
-    const s = onlineBattle.snapshot;
-    if (s.seq === lastSyncSeq.current) return;
-    lastSyncSeq.current = s.seq;
-
-    setRound(s.round ?? 1);
-    setBattlePhase(s.phase || 'player1Dice');
-    setDiceP1(s.diceP1 ?? null);
-    setDiceP2(s.diceP2 ?? null);
-    setAttackerId(s.attackerId ?? null);
-    setStrikeKind(s.strikeKind ?? null);
-    if (s.p1) setP1(s.p1);
-    if (s.p2) setP2(s.p2);
-    if (Array.isArray(s.log)) setLog(s.log);
-    if (s.bannerMessage) setBannerMessage(s.bannerMessage);
-    if (s.currentEffect !== undefined) setCurrentEffect(s.currentEffect);
-    setDiceSession({ active: false, player: null, value: 1 });
-    setBusy(s.phase === 'resolveAttack');
-
-    if (s.winner && !onlineFinishedRef.current) {
-      onlineFinishedRef.current = true;
-      schedule(800, () => {
-        const np1 = s.p1;
-        const np2 = s.p2;
-        onFinish({
-          winner: s.winner,
-          player1Snapshot: snapshotFight(np1),
-          player2Snapshot: snapshotFight(np2),
-          battleExtras: { ...battleExtrasRef.current, online: true },
-        });
-      });
-    }
-  }, [isOnline, onlineBattle?.snapshot, onFinish]);
+  function clearAttackEffects() {
+    setActiveAttackEffect(null);
+    setCurrentEffect(null);
+  }
 
   function doShake(strength) {
-    const mag = strength === 'super' ? 22 : strength === 'crit' ? 16 : 9;
+    const mag = strength === 'crit' ? 14 : 8;
     Animated.sequence([
       Animated.timing(shakeX, { toValue: mag, duration: 40, easing: Easing.linear, useNativeDriver: true }),
       Animated.timing(shakeX, { toValue: -mag, duration: 42, easing: Easing.linear, useNativeDriver: true }),
-      Animated.timing(shakeX, { toValue: mag * 0.55, duration: 36, useNativeDriver: true }),
       Animated.timing(shakeX, { toValue: 0, duration: 50, useNativeDriver: true }),
     ]).start();
   }
 
-  useEffect(() => {
-    if (!currentEffect || currentEffect.superBomb || currentEffect.dodged) return;
-    if (currentEffect.useProjectileAnim) return;
-    if (currentEffect.critical && currentEffect.damage > 0) {
-      playSound('critical');
-      void playSfx(attackerRef.current === 1 ? 'attackP1' : 'attackP2', { volume: 1 });
-      doShake('crit');
-      return;
-    }
-    if (currentEffect.damage > 0) {
-      playSound('hit');
-      void playSfx(attackerRef.current === 1 ? 'attackP1' : 'attackP2');
-      doShake('normal');
-    }
-  }, [currentEffect]);
+  function triggerHitStop(ms = 80) {
+    hitStopScale.setValue(0.985);
+    Animated.sequence([
+      Animated.delay(Math.max(40, ms - 30)),
+      Animated.timing(hitStopScale, {
+        toValue: 1,
+        duration: 50,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }
 
-  const wrapUpBattle = useCallback(
-    (np1, np2) => {
-      let winner;
-      if (np1.hp <= 0 && np2.hp <= 0) winner = 'draw';
-      else if (np1.hp <= 0) winner = 2;
-      else winner = 1;
-      pushLine(winner === 'draw' ? 'Double KO!' : `${nameFor(winner)} wins!`);
-      onFinish({
-        winner,
-        player1Snapshot: snapshotFight(np1),
-        player2Snapshot: snapshotFight(np2),
-        battleExtras: battleExtrasRef.current,
-      });
-    },
-    [onFinish, pushLine, labelP1, labelP2],
-  );
-
-  function resetMonstersIdle() {
+  function resetPoses() {
     setP1Pose('idle');
     setP2Pose('idle');
-    setSuperJumpSide(null);
+    setDefendGlowP1(false);
     setDefenderFlash(0);
+    setP1Emotion('neutral');
+    setP2Emotion('neutral');
+  }
+
+  function wrapUpBattle(winnerSide, np1, np2) {
+    clearTimers();
+    clearAttackEffects();
+    setBusy(false);
+    resetPoses();
+    const winner = winnerSide === PLAYER_ID ? PLAYER_ID : winnerSide === CPU_ID ? CPU_ID : 'draw';
+    if (winner === PLAYER_ID) playSound('win');
+    else if (winner === CPU_ID) playSound('lose');
+    onFinish({
+      winner,
+      player1Snapshot: snapshotFight(np1),
+      player2Snapshot: snapshotFight(np2),
+      battleExtras: { ...battleExtras, mode: 'onePlayer' },
+    });
+  }
+
+  function tickBothStatuses(np1, np2) {
+    let a = np1;
+    let b = np2;
+    let msg = null;
+    const t1 = tickStatus(a);
+    a = t1.fighter;
+    if (t1.message) msg = t1.message;
+    const t2 = tickStatus(b);
+    b = t2.fighter;
+    if (t2.message && !msg) msg = t2.message;
+    if (a.hp <= 0 || b.hp <= 0) {
+      return { np1: a, np2: b, ko: true, message: msg };
+    }
+    return { np1: a, np2: b, ko: false, message: msg };
+  }
+
+  function endRound(np1, np2, bannerOverride) {
+    const ticked = tickBothStatuses(np1, np2);
+    if (ticked.ko) {
+      if (ticked.np1.hp <= 0) wrapUpBattle(CPU_ID, ticked.np1, ticked.np2);
+      else wrapUpBattle(PLAYER_ID, ticked.np1, ticked.np2);
+      return;
+    }
+    setP1(ticked.np1);
+    setP2(ticked.np2);
+    p1Ref.current = ticked.np1;
+    p2Ref.current = ticked.np2;
+    clearAttackEffects();
+    resetPoses();
+    setRound((r) => r + 1);
+    setBattlePhase('chooseAction');
+    setMenuMode('main');
+    setBusy(false);
+    showBanner(bannerOverride || ticked.message || 'Choose your move');
+  }
+
+  /** After a strike ends: CPU counter in 1P, pass turn in 2P local. */
+  function strikeAftermath(cpuCounterFn) {
+    if (opponentIsAi) return cpuCounterFn ?? null;
+    return (np1, np2) => {
+      const prev = activeBattlerRef.current;
+      const next = prev === PLAYER_ID ? CPU_ID : PLAYER_ID;
+      setActiveBattler(next);
+      const name = next === PLAYER_ID ? labelP1 : labelCpu;
+      endRound(np1, np2, `${name}'s turn`);
+    };
+  }
+
+  function attackSidesForActiveBattler() {
+    const p2Turn = !opponentIsAi && activeBattler === CPU_ID;
+    return {
+      attackerId: p2Turn ? CPU_ID : PLAYER_ID,
+      defenderId: p2Turn ? PLAYER_ID : CPU_ID,
+      attacker: p2Turn ? p2Ref.current : p1Ref.current,
+    };
   }
 
   function handleProjectileImpact(defId, fx) {
     setDefenderFlash(defId);
-    schedule(450, () => setDefenderFlash(0));
-    if (fx?.critical && fx?.damage > 0) doShake('crit');
-    else if (fx?.damage > 0) doShake('normal');
-  }
-
-  function applyMonsterPosesForStrike({ atkId, strike, dodged, defendMode, isSuper }) {
-    if (isSuper) {
-      if (atkId === 1) {
-        setP1Pose('superWindup');
-        setP2Pose('hit');
-      } else {
-        setP2Pose('superWindup');
-        setP1Pose('hit');
-      }
-      return;
+    schedule(400, () => setDefenderFlash(0));
+    if (fx?.damage > 0) {
+      duckBgm(fx?.critical ? 480 : 380);
+      triggerHitStop(fx?.critical ? 100 : 75);
     }
-    const atkPose = strike === 'magic' ? 'cast' : 'lunge';
-    let defPose = 'hit';
-    if (dodged) defPose = 'dodge';
-    else if (defendMode === 'defend') defPose = 'defend';
-    if (atkId === 1) {
-      setP1Pose(atkPose);
-      setP2Pose(defPose);
-    } else {
-      setP2Pose(atkPose);
-      setP1Pose(defPose);
+    if (fx?.critical && fx?.damage > 0) {
+      playSound('critical');
+      doShake('crit');
+    } else if (fx?.damage > 0) {
+      playSound('hit', { effectType: fx?.effectType });
+      doShake('normal');
     }
   }
 
-  function beginResolveCooldown(np1, np2, endingDead, blurb) {
-    clearTimers();
-    setP1(np1);
-    setP2(np2);
-    setBusy(true);
-    timerRef.current = setTimeout(() => {
-      timerRef.current = null;
-      setCurrentEffect(null);
+  function handleProjectileComplete() {
+    clearAttackEffects();
+    const pending = pendingStrikeRef.current;
+    pendingStrikeRef.current = null;
+    if (pending?.safetyId) clearTimeout(pending.safetyId);
+    if (pending?.onDone) pending.onDone(pending.np1, pending.np2);
+  }
+
+  function runAttack({
+    attackerId,
+    defenderId,
+    defending,
+    bannerText,
+    onComplete,
+    skill: skillIn,
+    strikeKind: strikeKindIn,
+  }) {
+    const curP1 = p1Ref.current;
+    const curP2 = p2Ref.current;
+    const atk = attackerId === PLAYER_ID ? curP1 : curP2;
+    const def = defenderId === PLAYER_ID ? curP1 : curP2;
+    if (!atk || !def) return;
+
+    const strikeKind =
+      strikeKindIn ?? (skillIn?.kind === 'magic' ? 'magic' : 'physical');
+    const skill =
+      skillIn ??
+      (strikeKind === 'magic'
+        ? (atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId))[0]
+        : atk.skills?.physical ?? getPhysicalSkill(atk.monsterTemplateId));
+
+    if (strikeKind === 'magic' && !canAffordSkill(atk, skill)) {
+      showBanner('Not enough MP!');
       setBusy(false);
-      resetMonstersIdle();
-      setP1Emotion('neutral');
-      setP2Emotion('neutral');
-      setDefendGlowSide(null);
-      if (endingDead) wrapUpBattle(np1, np2);
-      else {
-        if (blurb) showBanner(blurb);
-        if (!isOnline) schedule(1100, () => handleNextRound());
-      }
-    }, RESOLVE_MS);
-  }
-
-  const onDiceRollFinished = useCallback(
-    (val) => {
-      const playerId = pendingDicePlayerRef.current;
-      setDiceShoutText(diceShout(val));
-      if (playerId === 1) {
-        setDiceP1(val);
-        const rollMsg = `${labelP1} rolled ${val}!`;
-        pushLine(rollMsg);
-        showBanner(rollMsg);
-        setBattlePhase('player2Dice');
-        setInstruction(opponentIsAi ? `${labelP2} is rolling…` : `${labelP2}'s Turn — tap your dice`);
-      } else if (playerId === 2) {
-        setDiceP2(val);
-        const rollMsg = `${labelP2} rolled ${val}!`;
-        pushLine(rollMsg);
-        showBanner(rollMsg);
-        const p1v = diceP1Ref.current;
-        if (val === p1v) {
-          pushLine('Draw! Throw again.');
-          showBanner('Draw — roll again!');
-          setDiceP1(null);
-          setDiceP2(null);
-          setBattlePhase('player1Dice');
-          setInstruction(`${labelP1}'s Turn — tap your dice`);
-        } else {
-          const atk = val > p1v ? 2 : 1;
-          setAttackerId(atk);
-          if (chaosRulesRef.current.skipAttackerTurn) {
-            setChaosRules((r) => {
-              const n = { ...r, skipAttackerTurn: false };
-              chaosRulesRef.current = n;
-              return n;
-            });
-            pushLine('Homework Monster stole the turn!');
-            showBanner('Everyone studies…');
-            setBusy(false);
-            setDiceSession({ active: false, player: null, value: 1 });
-            schedule(1400, () => handleNextRound());
-            return;
-          }
-          setBattlePhase('chooseAttack');
-          const fightMsg = `${nameFor(atk)} — Fight, Defend, or Run`;
-          setInstruction(fightMsg);
-          showBanner(fightMsg);
-        }
-      }
-      setDiceSession({ active: false, player: null, value: 1 });
-      setBusy(false);
-    },
-    [pushLine, labelP1, labelP2, opponentIsAi, showBanner],
-  );
-
-  useEffect(() => {
-    if (isOnline || !opponentIsAi || battlePhase !== 'player2Dice' || busy || diceSession.active || diceP1 == null) return undefined;
-    const t = setTimeout(() => throwP2Ref.current(), 680);
-    return () => clearTimeout(t);
-  }, [battlePhase, opponentIsAi, busy, diceSession.active, diceP1]);
-
-  useEffect(() => {
-    if (isOnline || !opponentIsAi || battlePhase !== 'chooseAttack' || attackerId !== 2 || busy || strikeKind != null) return undefined;
-    const t = setTimeout(() => {
-      const atk = p2;
-      const need = superNeedFor(atk);
-      const choices = ['normal'];
-      if (atk.mp >= MAGIC_COST) choices.push('magic');
-      if (atk.combo >= need && atk.mp >= SUPER_MP) choices.push('super');
-      const pick = choices[Math.floor(Math.random() * choices.length)];
-      pickStrikeRef.current(pick);
-    }, 720);
-    return () => clearTimeout(t);
-  }, [battlePhase, attackerId, opponentIsAi, busy, strikeKind, p2.combo, p2.mp]);
-
-  useEffect(() => {
-    if (isOnline || !opponentIsAi || battlePhase !== 'chooseDefense' || attackerId !== 1 || busy || strikeKind == null) return undefined;
-    const t = setTimeout(() => {
-      const mode = Math.random() < 0.42 ? 'dodge' : 'defend';
-      pickDefenseRef.current(mode);
-    }, 680);
-    return () => clearTimeout(t);
-  }, [battlePhase, attackerId, opponentIsAi, busy, strikeKind]);
-
-  function handleThrowPlayer1Dice() {
-    if (isOnline) {
-      if (myPlayerId !== 1 || battlePhase !== 'player1Dice' || busy) return;
-      onlineBattle.emitAction('rollDice');
+      setBattlePhase('chooseAction');
+      setMenuMode('magic');
       return;
     }
-    if (battlePhase !== 'player1Dice' || busy || diceSession.active) return;
-    playSound('dice');
-    void playSfx('dice');
-    const v = rollDice();
-    pendingDicePlayerRef.current = 1;
-    setDiceShoutText('');
-    setBusy(true);
-    setDiceSession({ active: true, player: 1, value: v });
-  }
 
-  function handleThrowPlayer2Dice() {
-    if (isOnline) {
-      if (myPlayerId !== 2 || battlePhase !== 'player2Dice' || busy) return;
-      onlineBattle.emitAction('rollDice');
-      return;
-    }
-    if (battlePhase !== 'player2Dice' || busy || diceP1 == null || diceSession.active) return;
-    playSound('dice');
-    void playSfx('dice');
-    const v = rollDice();
-    pendingDicePlayerRef.current = 2;
-    setDiceShoutText('');
-    setBusy(true);
-    setDiceSession({ active: true, player: 2, value: v });
-  }
-
-  function fireTaunt(side, text) {
-    if (side === 1) setP1Bubble(text);
-    else setP2Bubble(text);
-  }
-
-  function handlePickDefense(mode) {
-    if (isOnline) {
-      const defId = attackerId === 1 ? 2 : 1;
-      if (myPlayerId !== defId || battlePhase !== 'chooseDefense') return;
-      onlineBattle.emitAction('pickDefense', { mode });
-      return;
-    }
-    if (battlePhase !== 'chooseDefense' || busy || attackerId == null || !strikeKind) return;
-
-    const movePick = strikeKind === 'magic' ? pickRandomMagic() : pickRandomNormal();
-    const defId = attackerId === 1 ? 2 : 1;
-    const defName = nameFor(defId);
-
-    let atkPaid = attackerId === 1 ? p1 : p2;
-    const defSnap = attackerId === 1 ? p2 : p1;
-
-    if (strikeKind === 'magic') {
-      if (atkPaid.mp < MAGIC_COST) return;
-      atkPaid = { ...atkPaid, mp: atkPaid.mp - MAGIC_COST };
-    }
-
-    const atkRage = isRage(atkPaid);
-    if (atkRage) playSound('rage');
-
-    const atkDice = attackerId === 1 ? diceP1 : diceP2;
-    const defDice = attackerId === 1 ? diceP2 : diceP1;
-
-    if (mode === 'defend') {
-      setDefendGlowSide(defId);
-      if (defId === 1) setP1Pose('defend');
-      else setP2Pose('defend');
-    }
-
-    const resolved = resolveDiceBattleDamage({
-      attacker: atkPaid,
-      defender: defSnap,
-      attackerDice: atkDice ?? 1,
-      defenderDice: defDice ?? 1,
-      defenseChoice: mode,
-      strikeKind: strikeKind === 'magic' ? 'magic' : 'normal',
-      rageMode: atkRage,
-    });
-
-    const dodged = resolved.dodged;
-    let dmgFinal = dodged ? 0 : resolved.damage;
-
-    if (!dodged && chaosRules.mummyNext && dmgFinal > 0) {
-      dmgFinal = Math.max(1, Math.round(dmgFinal * 0.7));
-      setChaosRules((r) => ({ ...r, mummyNext: false }));
-    }
-    if (!dodged) {
-      dmgFinal = elementScaleDmg(dmgFinal, movePick.effectType, chaosRules.rain);
-    }
-
-    const atkName = nameFor(attackerId);
-    pushLine(`${atkName} uses ${movePick.name}!`);
-    pushLine(`${defName} chooses ${mode === 'defend' ? 'Defend' : 'Dodge'}!`);
-    if (mode === 'defend') {
-      showBanner(`${defName} is defending!`);
-    } else {
-      showBanner(`${defName} tries to dodge!`);
-    }
-    if (mode === 'dodge' && dodged) {
-      pushLine('Dodge succeeded!');
-      playSound('dodge');
-      fireTaunt(defId, pickRandomTaunt());
-    }
-    if (mode === 'dodge' && !dodged) pushLine('Dodge failed!');
-    if (!dodged) {
-      const dmgMsg = `${defName} took ${dmgFinal} damage!`;
-      pushLine(dmgMsg);
-      showBanner(dmgMsg);
-    }
-    if (resolved.critical && !dodged && dmgFinal > 0) {
-      pushLine('Critical hit!');
-      showBanner('Critical hit!');
-      fireTaunt(attackerId, pickRandomTaunt());
-    }
-    if (resolved.weak && !dodged && dmgFinal > 0) {
-      pushLine('Weak hit!');
-      showBanner('Weak hit!');
-    }
-
-    let nextAtk = { ...atkPaid };
-    let nextDef = { ...defSnap };
-
-    if (dodged) nextAtk.combo = 0;
-    else {
-      nextAtk.combo = atkPaid.combo + 1;
-      nextDef.hp = Math.max(0, defSnap.hp - dmgFinal);
-      nextDef.combo = 0;
-    }
-
-    let np1;
-    let np2;
-    if (attackerId === 1) {
-      np1 = nextAtk;
-      np2 = nextDef;
-    } else {
-      np2 = nextAtk;
-      np1 = nextDef;
-    }
-
-    if (!dodged && dmgFinal > 0 && movePick.effectType === 'smellySocks' && nextDef.hp <= 0) {
-      pushLine(`${defName} is destroyed by stink cloud!`);
-    }
-
-    const atkComboEnd = attackerId === 1 ? np1.combo : np2.combo;
-    const atkSnapForSuper = attackerId === 1 ? np1 : np2;
-    const needHits = superNeedFor(atkSnapForSuper);
-    if (!dodged && dmgFinal > 0 && atkComboEnd === needHits) {
-      pushLine(`${nameFor(attackerId)} — SUPER READY`);
-      fireTaunt(attackerId, pickRandomTaunt());
-    }
-
-    if (!dodged && dmgFinal > 0) {
-      if (attackerId === 1) {
-        setP1Emotion('happy');
-        setP2Emotion('angry');
-      } else {
-        setP2Emotion('happy');
-        setP1Emotion('angry');
-      }
-    } else if (dodged) {
-      if (defId === 1) setP1Emotion('happy');
-      else setP2Emotion('happy');
-    }
-
-    applyMonsterPosesForStrike({
-      atkId: attackerId,
-      strike: strikeKind,
-      dodged,
-      defendMode: mode,
-      isSuper: false,
-    });
-
-    effectSeqRef.current += 1;
-    setCurrentEffect({
-      type: strikeKind === 'magic' ? 'magic' : 'normal',
-      moveName: movePick.name,
-      effectType: movePick.effectType,
-      emoji: movePick.emoji,
-      critical: !!(resolved.critical && !dodged && dmgFinal > 0),
-      weak: !!(resolved.weak && !dodged && dmgFinal > 0),
-      dodged,
-      dodgeFailed: mode === 'dodge' && !dodged,
-      defended: mode === 'defend',
-      damage: dodged ? 0 : dmgFinal,
-      superBomb: false,
-      rageTag: atkRage && !dodged && dmgFinal > 0,
-      rageBoost: atkRage && movePick.effectType === 'fire' && !dodged && dmgFinal > 0,
-      attackerId,
-      defenderId: defId,
-      attackerTemplateId: atkPaid.monsterTemplateId,
-      projectileId: pickProjectile({
-        templateId: atkPaid.monsterTemplateId,
-        effectType: movePick.effectType,
-      }),
-      useProjectileAnim: true,
-      seq: effectSeqRef.current,
-    });
+    showBanner(bannerText);
     setBattlePhase('resolveAttack');
-    setInstruction(dodged ? 'Smoke escape!' : 'Battle clash!');
-    setStrikeKind(null);
-
-    const dead = np1.hp <= 0 || np2.hp <= 0;
-    beginResolveCooldown(np1, np2, dead, dodged ? 'Dodge superstar!' : '');
-  }
-
-  function handlePickStrike(kind) {
-    if (isOnline) {
-      if (myPlayerId !== attackerId || battlePhase !== 'chooseAttack' || busy) return;
-      onlineBattle.emitAction('pickStrike', { kind });
-      return;
-    }
-    if (battlePhase !== 'chooseAttack' || busy || attackerId == null) return;
-
-    const atkNow = attackerId === 1 ? p1 : p2;
-
-    if (kind === 'super') {
-      const need = superNeedFor(atkNow);
-      if (atkNow.combo < need || atkNow.mp < SUPER_MP) return;
-      runSuperAttack(attackerId, atkNow, attackerId === 1 ? p2 : p1);
-      return;
-    }
-
-    if (kind === 'magic' && atkNow.mp < MAGIC_COST) return;
-
-    fireTaunt(attackerId, pickRandomTaunt());
-
-    setStrikeKind(kind);
-    const defId = attackerId === 1 ? 2 : 1;
-    setBattlePhase('chooseDefense');
-    const defMsg = `${nameFor(defId)} — Defend or Dodge`;
-    setInstruction(defMsg);
-    showBanner(defMsg);
-  }
-
-  function runSuperAttack(attkId, atk, def) {
-    attackerRef.current = attkId;
-    const { damage } = resolveSuperStrike(atk.stats.attack, atk.stats.magic);
-    const nextAtk = { ...atk, mp: atk.mp - SUPER_MP, combo: 0 };
-
-    clearTimers();
+    setMenuMode('main');
     setBusy(true);
-    setBattleDim(true);
-    Animated.spring(stageZoom, { toValue: 1.08, friction: 6, useNativeDriver: true }).start();
-    setSuperJumpSide(attkId === 1 ? 'left' : 'right');
 
-    pushLine(`${nameFor(attkId)} unleashes Super Power!`);
-    void playSfx('super');
-    playSound('super');
+    if (attackerId === PLAYER_ID) {
+      setP1Pose('lunge');
+      setP2Pose(defending ? 'defend' : 'hit');
+    } else {
+      setP2Pose('lunge');
+      setP1Pose(defending ? 'defend' : 'hit');
+    }
 
-    applyMonsterPosesForStrike({
-      atkId: attkId,
-      strike: 'magic',
-      dodged: false,
-      defendMode: null,
-      isSuper: true,
-    });
-
-    setCurrentEffect({
-      type: 'super',
-      moveName: 'Super Power',
-      effectType: 'super',
-      emoji: '💣',
-      critical: false,
-      dodged: false,
-      dodgeFailed: false,
-      defended: false,
-      damage,
-      superBomb: true,
-      superPhase: 'windup',
-    });
-    setBattlePhase('resolveAttack');
-    setInstruction('Charging mega strike…');
-
-    if (attkId === 1) {
+    if (attackerId === PLAYER_ID) {
       setP1Emotion('happy');
       setP2Emotion('angry');
     } else {
@@ -770,366 +368,397 @@ export default function BattleScreen({
       setP1Emotion('angry');
     }
 
-    schedule(700, () => {
-      const nextDef = { ...def, hp: Math.max(0, def.hp - damage), combo: 0 };
-      const np1 = attkId === 1 ? nextAtk : nextDef;
-      const np2 = attkId === 1 ? nextDef : nextAtk;
-      setP1(np1);
-      setP2(np2);
-      setCurrentEffect((prev) => (prev ? { ...prev, superPhase: 'boom' } : prev));
-      playSound('hit');
-      doShake('super');
-      pushLine(`BOOOOM! ${nameFor(attkId === 1 ? 2 : 1)} blasted for ${damage} damage!`);
+    const resolved =
+      strikeKind === 'magic'
+        ? resolveMagicBattleDamage({
+            attacker: atk,
+            defender: def,
+            defending,
+            skill,
+            atkElement: skill?.element ?? atk.element,
+            defElement: def.element,
+          })
+        : resolvePhysicalBattleDamage({ attacker: atk, defender: def, defending, skill });
 
-      const dead = np1.hp <= 0 || np2.hp <= 0;
-      schedule(3000, () => {
-        setBattleDim(false);
-        Animated.spring(stageZoom, { toValue: 1, friction: 7, useNativeDriver: true }).start();
-        setCurrentEffect(null);
-        setBusy(false);
-        resetMonstersIdle();
-        setP1Emotion('neutral');
-        setP2Emotion('neutral');
-        if (dead) wrapUpBattle(np1, np2);
-        else {
-          showBanner('Super fallout clears.');
-          schedule(1100, () => handleNextRound());
+    const dmg = resolved.damage;
+    const mpCost = strikeKind === 'magic' ? skill?.mpCost ?? 0 : 0;
+
+    if (resolved.critical) showBanner('Critical Hit!');
+    else if (resolved.weak) showBanner('Weak Hit!');
+    else if (strikeKind === 'magic') {
+      const elMsg = elementBannerText(resolved.elementRelation);
+      if (elMsg) showBanner(elMsg);
+    }
+
+    let nextAtk = { ...atk, mp: Math.max(0, atk.mp - mpCost) };
+    let nextDef = { ...def, hp: Math.max(0, def.hp - dmg) };
+    if (dmg > 0 && strikeKind === 'magic') {
+      nextDef = maybeApplySkillStatus(nextDef, skill);
+    }
+
+    const np1 =
+      attackerId === PLAYER_ID
+        ? nextAtk
+        : defenderId === PLAYER_ID
+          ? nextDef
+          : { ...curP1 };
+    const np2 =
+      attackerId === CPU_ID
+        ? nextAtk
+        : defenderId === CPU_ID
+          ? nextDef
+          : { ...curP2 };
+
+    setP1(np1);
+    setP2(np2);
+    p1Ref.current = np1;
+    p2Ref.current = np2;
+
+    effectSeqRef.current += 1;
+    const effectPayload = {
+      type: strikeKind === 'magic' ? 'magic' : 'normal',
+      moveName: skill?.name ?? 'Attack',
+      effectType: skill?.effectType ?? 'normal',
+      emoji: skill?.emoji,
+      critical: resolved.critical,
+      weak: resolved.weak,
+      dodged: false,
+      defended: defending,
+      damage: dmg,
+      superBomb: false,
+      attackerId,
+      defenderId,
+      attackerTemplateId: atk.monsterTemplateId,
+      projectileId: pickProjectile({
+        templateId: atk.monsterTemplateId,
+        effectType: skill?.effectType ?? 'normal',
+      }),
+      useProjectileAnim: true,
+      seq: effectSeqRef.current,
+    };
+
+    const safetyId = schedule(5000, () => {
+      if (pendingStrikeRef.current) handleProjectileComplete();
+    });
+
+    pendingStrikeRef.current = {
+      np1,
+      np2,
+      safetyId,
+      onDone: () => {
+        if (np1.hp <= 0) {
+          wrapUpBattle(CPU_ID, np1, np2);
+          return;
         }
+        if (np2.hp <= 0) {
+          wrapUpBattle(PLAYER_ID, np1, np2);
+          return;
+        }
+        if (onComplete) onComplete(np1, np2);
+        else endRound(np1, np2);
+      },
+    };
+
+    clearAttackEffects();
+    schedule(ATTACK_WINDUP_MS, () => setActiveAttackEffect(effectPayload));
+  }
+
+  function runCpuCounter(np1, np2) {
+    schedule(400, () => {
+      const cpu = p2Ref.current;
+      const { skill, strikeKind } = pickCpuStrike(cpu);
+      runAttack({
+        attackerId: CPU_ID,
+        defenderId: PLAYER_ID,
+        defending: false,
+        bannerText: strikeKind === 'magic' ? `CPU used ${skill.name}!` : 'CPU attacks!',
+        skill,
+        strikeKind,
+        onComplete: null,
       });
     });
   }
 
-  function handleNextRound() {
+  function tapUi() {
+    unlockBattleAudio();
+    playUiSfx();
+  }
+
+  function handleFight() {
+    if (busy || battlePhase !== 'chooseAction') return;
+    unlockBattleAudio();
+    startBattleMusic();
+    playSound('physical');
+    const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
+    const skill = attacker?.skills?.physical ?? getPhysicalSkill(attacker?.monsterTemplateId);
+    const banner =
+      attackerId === PLAYER_ID
+        ? `${skill?.name ?? 'Attack'}!`
+        : `${labelCpu}: ${skill?.name ?? 'Attack'}!`;
+
+    runAttack({
+      attackerId,
+      defenderId,
+      defending: false,
+      bannerText: banner,
+      skill,
+      strikeKind: 'physical',
+      onComplete: strikeAftermath(runCpuCounter),
+    });
+  }
+
+  function handleMagicOpen() {
+    if (busy || battlePhase !== 'chooseAction') return;
+    tapUi();
+    setMenuMode('magic');
+    showBanner('Pick a magic skill');
+  }
+
+  function handleMagicBack() {
     if (busy) return;
-    const nextR = round + 1;
-    let n1 = p1;
-    let n2 = p2;
-    let newRules = { mummyNext: false, rain: false, skipAttackerTurn: false };
-    if (nextR > 0 && nextR % 3 === 0) {
-      const ev = pickRandomChaosEvent();
-      setChaosBanner(ev);
-      newRules = { mummyNext: false, rain: false, skipAttackerTurn: false, ...rulesForChaosEvent(ev) };
-      const [a, b] = applyChaosImmediate(ev, n1, n2);
-      n1 = a;
-      n2 = b;
-      pushLine(`CHAOS! ${ev.title}!`);
-      if (ev.id === CHAOS_EVENT_IDS.TOILET) {
-        setChaosFx('toilet');
-        setTimeout(() => setChaosFx(null), 1400);
-      }
-    }
-    setChaosRules(newRules);
-    chaosRulesRef.current = newRules;
-    setP1(n1);
-    setP2(n2);
-    setRound(nextR);
-    setDiceP1(null);
-    setDiceP2(null);
-    setDiceSession({ active: false, player: null, value: 1 });
-    setAttackerId(null);
-    setStrikeKind(null);
-    setCurrentEffect(null);
-    setResultBlurb('');
-    setBannerMessage('');
-    setDefendGlowSide(null);
-    setP1Emotion('neutral');
-    setP2Emotion('neutral');
-    resetMonstersIdle();
-    setBattlePhase('player1Dice');
-    setInstruction(`${labelP1}'s Turn — tap your dice`);
-    showBanner(`${labelP1}'s Turn — tap your dice`);
+    tapUi();
+    setMenuMode('main');
+    showBanner('Choose your move');
   }
 
-  const atkBtn = attackerId === 1 ? p1 : attackerId === 2 ? p2 : null;
-
-  const activeTurn = (() => {
-    if (battlePhase === 'player1Dice') return 1;
-    if (battlePhase === 'player2Dice') return 2;
-    if (battlePhase === 'chooseAttack') return attackerId ?? 1;
-    if (battlePhase === 'chooseDefense') return attackerId === 1 ? 2 : 1;
-    if (battlePhase === 'resolveAttack') return attackerId ?? 1;
-    return 1;
-  })();
-
-  function turnPromptText() {
-    if (battlePhase === 'player1Dice') return `${labelP1}'s Turn — tap your dice`;
-    if (battlePhase === 'player2Dice') {
-      if (isOnline && myPlayerId !== 2) return `${labelP2} is rolling…`;
-      if (opponentIsAi) return `${labelP2} is rolling…`;
-      return `${labelP2}'s Turn — tap your dice`;
-    }
-    if (isOnline && battlePhase === 'player1Dice' && myPlayerId !== 1) {
-      return `${labelP1} is rolling…`;
-    }
-    if (battlePhase === 'chooseAttack') return `${nameFor(attackerId)} — pick Fight`;
-    if (battlePhase === 'chooseDefense') return `${nameFor(attackerId === 1 ? 2 : 1)} — Defend or Dodge`;
-    return '';
-  }
-
-  const turnBadge = turnPromptText() || `${nameFor(activeTurn)}'s Turn`;
-
-  function handleFightPress() {
-    if (busy || diceSession.active) return;
-    if (battlePhase === 'chooseAttack') {
-      handlePickStrike('normal');
-    }
-  }
-
-  function handleDefendPress() {
-    if (busy || diceSession.active) return;
-    if (battlePhase === 'chooseDefense') {
-      handlePickDefense('defend');
-    }
-  }
-
-  function handleRunPress() {
-    if (busy || diceSession.active) return;
-    if (isOnline) {
-      onlineBattle.emitAction('run');
+  function handleMagicSkill(skill) {
+    if (busy || battlePhase !== 'chooseAction' || !skill) return;
+    const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
+    if (!canAffordSkill(attacker, skill)) {
+      showBanner('Not enough MP!');
       return;
     }
+    unlockBattleAudio();
+    startBattleMusic();
+    playSound('magic');
+    runAttack({
+      attackerId,
+      defenderId,
+      defending: false,
+      bannerText: `${skill.name}!`,
+      skill,
+      strikeKind: 'magic',
+      onComplete: strikeAftermath(runCpuCounter),
+    });
+  }
+
+  function handleDefend() {
+    if (busy || battlePhase !== 'chooseAction') return;
+    unlockBattleAudio();
+    startBattleMusic();
+    const p2Turn = !opponentIsAi && activeBattler === CPU_ID;
+    if (!p2Turn) setDefendGlowP1(true);
+    playSound('defend');
+
+    const { skill, strikeKind } = opponentIsAi
+      ? pickCpuStrike(p2Ref.current)
+      : pickCpuStrike(p2Turn ? p1Ref.current : p2Ref.current);
+
+    runAttack({
+      attackerId: p2Turn ? PLAYER_ID : CPU_ID,
+      defenderId: p2Turn ? CPU_ID : PLAYER_ID,
+      defending: true,
+      bannerText: p2Turn ? `${labelCpu} is defending!` : `${labelP1} is defending!`,
+      skill,
+      strikeKind,
+      onComplete: strikeAftermath(null),
+    });
+  }
+
+  function handleRun() {
+    if (busy) return;
     if (typeof onExitBattle === 'function') {
       onExitBattle();
       return;
     }
-    pushLine('You fled from battle!');
     onFinish({
-      winner: 2,
+      winner: CPU_ID,
       player1Snapshot: snapshotFight(p1),
       player2Snapshot: snapshotFight(p2),
-      battleExtras: { ...battleExtrasRef.current, fled: true },
+      battleExtras: { ...battleExtras, mode: 'onePlayer', fled: true },
     });
   }
 
-  function renderMenuBtn(key, label, onPress, tone, disabled = false) {
-    return (
-      <TouchableOpacity
-        key={key}
-        style={[styles.menuBtn, styles[tone], disabled && styles.disabledBtn]}
-        disabled={disabled || busy || diceSession.active}
-        onPress={onPress}
-      >
-        <Text style={styles.menuBtnTxt}>{label}</Text>
-      </TouchableOpacity>
-    );
-  }
-
-  function renderDiceControl() {
-    const isP1Roll = battlePhase === 'player1Dice';
-    const isP2Roll = battlePhase === 'player2Dice';
-    const p1CanRoll =
-      isP1Roll && !busy && !diceSession.active && (!isOnline || myPlayerId === 1);
-    const p2CanRoll =
-      isP2Roll && !busy && !diceSession.active && diceP1 != null && (!isOnline || myPlayerId === 2);
-    const p1Rolling = diceSession.active && diceSession.player === 1;
-    const p2Rolling = diceSession.active && diceSession.player === 2;
-    const p1Active =
-      isP1Roll || (activeTurn === 1 && (battlePhase === 'chooseAttack' || battlePhase === 'chooseDefense'));
-    const p2Active =
-      isP2Roll || (activeTurn === 2 && (battlePhase === 'chooseAttack' || battlePhase === 'chooseDefense'));
-    const prompt = turnPromptText();
-
-    return (
-      <View style={styles.diceDock}>
-        {prompt ? (
-          <Text style={styles.dicePrompt} numberOfLines={2}>
-            {prompt}
-          </Text>
-        ) : null}
-        <View style={styles.dualDiceRow}>
-          <BattleDiceButton
-            sideLabel={labelP1}
-            rolling={p1Rolling}
-            rollValue={diceSession.value}
-            shownValue={p1Rolling ? null : diceP1}
-            canRoll={p1CanRoll}
-            active={p1Active}
-            dimmed={!p1Active && !p1CanRoll}
-            onPress={handleThrowPlayer1Dice}
-            onRollComplete={onDiceRollFinished}
-            size={diceSize}
-            durationMs={1000}
-            compact
-          />
-          <BattleDiceButton
-            sideLabel={labelP2}
-            rolling={p2Rolling}
-            rollValue={diceSession.value}
-            shownValue={p2Rolling ? null : diceP2}
-            canRoll={p2CanRoll}
-            active={p2Active}
-            dimmed={!p2Active && !p2CanRoll}
-            onPress={handleThrowPlayer2Dice}
-            onRollComplete={onDiceRollFinished}
-            size={diceSize}
-            durationMs={1000}
-            compact
-          />
-        </View>
-      </View>
-    );
-  }
-
-  function renderActionDock() {
-    const sub = [];
-    const fightEnabled =
-      !busy &&
-      !diceSession.active &&
-      battlePhase === 'chooseAttack' &&
-      (!isOnline || myPlayerId === attackerId);
-    const defendEnabled =
-      !busy &&
-      !diceSession.active &&
-      battlePhase === 'chooseDefense' &&
-      (!isOnline || myPlayerId === (attackerId === 1 ? 2 : 1));
-
-    if (battlePhase === 'chooseAttack' && atkBtn) {
-      const magLocked = atkBtn.mp < MAGIC_COST;
-      const needHits = superNeedFor(atkBtn);
-      const superLocked = atkBtn.combo < needHits || atkBtn.mp < SUPER_MP;
-      sub.push(
-        renderMenuBtn('n', 'Normal', () => handlePickStrike('normal'), 'grass'),
-        renderMenuBtn('m', 'Magic', () => handlePickStrike('magic'), 'violet', magLocked),
-        renderMenuBtn('su', 'Super', () => handlePickStrike('super'), 'pink', superLocked),
-      );
-    }
-    if (battlePhase === 'chooseDefense') {
-      sub.push(renderMenuBtn('dd', 'Dodge', () => handlePickDefense('dodge'), 'smoke'));
-    }
-
-    const fightLabel = 'Fight';
-
-    return (
-      <View style={styles.actionDock}>
-        <View style={styles.menuRow}>
-          {renderMenuBtn('fight', fightLabel, handleFightPress, 'fight', !fightEnabled)}
-          {renderMenuBtn('defend', 'Defend', handleDefendPress, 'shield', !defendEnabled)}
-          {renderMenuBtn('run', 'Run', handleRunPress, 'run')}
-        </View>
-        {sub.length ? <View style={styles.subMenuRow}>{sub}</View> : null}
-
-        <View style={styles.logWrap}>
-          <BattleLog lines={log} maxLines={LOG_MAX} compact />
-        </View>
-
-        {instruction ? (
-          <Text style={styles.miniNote} numberOfLines={1}>
-            {instruction}
-          </Text>
-        ) : null}
-        {resultBlurb ? (
-          <Text style={styles.miniNote} numberOfLines={1}>
-            {resultBlurb}
-          </Text>
-        ) : null}
-      </View>
-    );
+  function handleMutePress() {
+    unlockBattleAudio();
+    const muted = toggleBattleMuted();
+    setAudioMuted(muted);
   }
 
   const p1Mood = moodFor(p1, p1Emotion);
   const p2Mood = moodFor(p2, p2Emotion);
-
-  throwP2Ref.current = handleThrowPlayer2Dice;
-  pickStrikeRef.current = handlePickStrike;
-  pickDefenseRef.current = handlePickDefense;
-
-  const { height: vh, width: vw } = useWindowDimensions();
-  const diceSize = vh < 680 || vw < 520 ? 58 : 66;
-
-  const floaterMessage =
-    diceShoutText ||
-    (log.length && !bannerMessage ? log[log.length - 1] : '') ||
-    instruction ||
-    resultBlurb ||
-    '';
+  const actionsEnabled = !busy && battlePhase === 'chooseAction';
+  const actingFighter = activeBattler === CPU_ID ? p2 : p1;
+  const magicSkills =
+    actingFighter?.skills?.magic ?? getMagicSkills(actingFighter?.monsterTemplateId ?? '');
+  const actingElementUi = ELEMENT_UI[actingFighter?.element] ?? ELEMENT_UI.earth;
 
   return (
     <View style={styles.root}>
       <View style={styles.battleFrame}>
-        {chaosBanner ? (
-          <View style={styles.chaosWrap}>
-            <ChaosEventBanner event={chaosBanner} />
-          </View>
-        ) : null}
-
         <View style={styles.arenaField} pointerEvents="box-none">
+          <Animated.View
+            style={[
+              styles.arenaInner,
+              { transform: [{ translateX: shakeX }, { scale: hitStopScale }] },
+            ]}
+          >
           <RpgBattleArena
+            topHudExtra={
+              <TouchableOpacity style={styles.muteBtn} onPress={handleMutePress}>
+                <Text style={styles.muteBtnTxt}>{audioMuted ? '🔇' : '🔊'}</Text>
+              </TouchableOpacity>
+            }
             p1={p1}
             p2={p2}
             p1Mood={p1Mood}
             p2Mood={p2Mood}
             p1Pose={p1Pose}
             p2Pose={p2Pose}
-            p1Bubble={p1Bubble}
-            p2Bubble={p2Bubble}
-            diceP1={diceP1}
-            diceP2={diceP2}
-            activeTurn={activeTurn}
+            activeTurn={busy ? CPU_ID : activeBattler}
             round={round}
-            turnBadge={turnBadge}
+            turnBadge={bannerMessage}
             player1Label={labelP1}
-            player2Label={labelP2}
-            centerDock={renderDiceControl()}
+            player2Label={labelCpu}
             battleDim={battleDim}
-            shakeX={shakeX}
+            shakeX={new Animated.Value(0)}
             stageZoom={stageZoom}
-            superJumpSide={superJumpSide}
-            p1Rage={isRage(p1)}
-            p2Rage={isRage(p2)}
-            defendGlowP1={defendGlowSide === 1}
-            defendGlowP2={defendGlowSide === 2}
-            defenderFlashP1={defenderFlash === 1}
-            defenderFlashP2={defenderFlash === 2}
+            defendGlowP1={defendGlowP1}
+            defendGlowP2={false}
+            defenderFlashP1={defenderFlash === PLAYER_ID}
+            defenderFlashP2={defenderFlash === CPU_ID}
           />
-          {battlePhase === 'resolveAttack' && currentEffect && !currentEffect.superBomb ? (
-            <BattleProjectileLayer effect={currentEffect} onImpact={handleProjectileImpact} />
+          {battlePhase === 'resolveAttack' && activeAttackEffect ? (
+            <BattleProjectileLayer
+              effect={activeAttackEffect}
+              active
+              onImpact={handleProjectileImpact}
+              onComplete={handleProjectileComplete}
+            />
           ) : null}
-          {bannerMessage ? (
-            <View style={styles.battleBanner} pointerEvents="none">
-              <Text style={styles.battleBannerTxt} numberOfLines={3}>
-                {bannerMessage}
-              </Text>
-            </View>
-          ) : floaterMessage ? (
-            <View style={styles.battleFloater} pointerEvents="none">
-              <Text style={styles.battleFloaterTxt} numberOfLines={2}>
-                {floaterMessage}
-              </Text>
-            </View>
-          ) : null}
-          {battlePhase === 'resolveAttack' && currentEffect ? (
-            <View style={styles.fxStrip} pointerEvents="none">
-              <BattleEffect currentEffect={currentEffect} instruction="" />
-            </View>
-          ) : null}
+          </Animated.View>
         </View>
 
-        {renderActionDock()}
+        <View style={styles.actionDock}>
+          {menuMode === 'magic' ? (
+            <View style={styles.magicPanel}>
+              <View style={styles.magicHeader}>
+                <Pressable style={styles.magicBackBtn} onPress={handleMagicBack} disabled={busy}>
+                  <Text style={styles.magicBackTxt}>← Back</Text>
+                </Pressable>
+                <Text style={styles.magicMp}>
+                  MP {actingFighter?.mp ?? 0}/{actingFighter?.maxMp ?? actingFighter?.stats?.mp ?? 0}
+                </Text>
+              </View>
+              <View style={styles.skillList}>
+                {magicSkills.map((sk) => {
+                  const ok = canAffordSkill(actingFighter, sk);
+                  const el = ELEMENT_UI[sk.element] ?? actingElementUi;
+                  return (
+                    <Pressable
+                      key={sk.id}
+                      style={({ pressed }) => [
+                        styles.skillBtn,
+                        !ok && styles.skillBtnDisabled,
+                        pressed && ok && styles.skillBtnPressed,
+                      ]}
+                      disabled={!actionsEnabled || !ok}
+                      onPress={() => handleMagicSkill(sk)}
+                    >
+                      <Text style={styles.skillEmoji}>{sk.emoji ?? el.emoji}</Text>
+                      <View style={styles.skillTextCol}>
+                        <Text style={styles.skillName} numberOfLines={1}>
+                          {sk.name}
+                        </Text>
+                        <Text style={styles.skillMeta}>
+                          {el.emoji} {sk.mpCost} MP
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : (
+            <View style={styles.menuRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.arcadeBtn,
+                  styles.fightBtn,
+                  pressed && actionsEnabled && styles.arcadeBtnPressed,
+                  !actionsEnabled && styles.disabledBtn,
+                ]}
+                disabled={!actionsEnabled}
+              onPress={() => {
+                tapUi();
+                handleFight();
+              }}
+            >
+                <View style={[styles.btnFace, styles.fightFace]} pointerEvents="none">
+                  <View style={styles.fightBtnShine} />
+                  <Text style={[styles.arcadeBtnTxt, styles.fightBtnTxt]}>Fight</Text>
+                </View>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.arcadeBtn,
+                  styles.magicBtnOuter,
+                  pressed && actionsEnabled && styles.arcadeBtnPressed,
+                  !actionsEnabled && styles.disabledBtn,
+                ]}
+                disabled={!actionsEnabled}
+                onPress={handleMagicOpen}
+              >
+                <View style={[styles.btnFace, styles.magicFace]} pointerEvents="none">
+                  <View style={styles.magicBtnShine} />
+                  <Text style={[styles.arcadeBtnTxt, styles.magicBtnTxt]}>Magic</Text>
+                </View>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.arcadeBtn,
+                  styles.defendBtn,
+                  pressed && actionsEnabled && styles.arcadeBtnPressed,
+                  !actionsEnabled && styles.disabledBtn,
+                ]}
+                disabled={!actionsEnabled}
+              onPress={() => {
+                tapUi();
+                handleDefend();
+              }}
+            >
+                <View style={[styles.btnFace, styles.defendFace]} pointerEvents="none">
+                  <View style={styles.defendBtnShine} />
+                  <Text style={[styles.arcadeBtnTxt, styles.defendBtnTxt]}>Defend</Text>
+                </View>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.arcadeBtn,
+                  styles.runBtnOuter,
+                  pressed && actionsEnabled && styles.arcadeBtnPressed,
+                  !actionsEnabled && styles.disabledBtn,
+                ]}
+                disabled={!actionsEnabled}
+              onPress={() => {
+                tapUi();
+                handleRun();
+              }}
+            >
+                <View style={[styles.btnFace, styles.runFace]} pointerEvents="none">
+                  <Text style={[styles.arcadeBtnTxt, styles.runBtnTxt]}>Run</Text>
+                </View>
+              </Pressable>
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    width: '100%',
-    minHeight: 0,
-    overflow: 'hidden',
-  },
-  introTiny: {
-    backgroundColor: 'rgba(255,243,224,0.95)',
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#ff9f1c',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginBottom: 3,
-    fontWeight: '800',
-    fontSize: 12,
-    color: '#4a2800',
-    textAlign: 'center',
-  },
+  root: { flex: 1, width: '100%', minHeight: 0, overflow: 'hidden' },
   battleFrame: {
     flex: 1,
     minHeight: 0,
@@ -1141,222 +770,163 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: BATTLE.dockBorder,
   },
-  arenaField: {
-    flex: 1,
-    minHeight: 0,
-    width: '100%',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  chaosWrap: {
-    position: 'absolute',
-    top: 2,
-    left: 4,
-    right: 4,
-    zIndex: 30,
-  },
-  battleFloater: {
-    position: 'absolute',
-    top: '18%',
-    left: '8%',
-    right: '8%',
-    zIndex: 18,
-    alignItems: 'center',
-    alignSelf: 'center',
-    maxWidth: '84%',
-    backgroundColor: 'rgba(26, 26, 46, 0.88)',
-    borderRadius: 10,
+  arenaField: { flex: 1, minHeight: 0, width: '100%', position: 'relative', overflow: 'hidden' },
+  arenaInner: { flex: 1, width: '100%', minHeight: 0 },
+  muteBtn: {
+    backgroundColor: 'rgba(26, 26, 46, 0.82)',
     borderWidth: 2,
-    borderColor: '#ffd166',
-    paddingHorizontal: 12,
+    borderColor: 'rgba(255, 209, 102, 0.65)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  muteBtnTxt: { fontSize: 16 },
+  actionDock: {
+    flexShrink: 0,
+    backgroundColor: 'rgba(18, 22, 36, 0.98)',
+    borderTopWidth: 4,
+    borderColor: '#3d4a6a',
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 10,
+  },
+  menuRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap' },
+  magicPanel: { gap: 6 },
+  magicHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  magicBackBtn: {
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 6,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 8,
   },
-  battleFloaterTxt: {
-    fontWeight: '800',
-    fontSize: 16,
-    color: '#fff8e8',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  battleBanner: {
-    position: 'absolute',
-    top: '14%',
-    left: '5%',
-    right: '5%',
-    zIndex: 20,
+  magicBackTxt: { color: '#dfe6e9', fontWeight: '800', fontSize: 13 },
+  magicMp: { color: '#a29bfe', fontWeight: '900', fontSize: 14 },
+  skillList: { gap: 6 },
+  skillBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'center',
-    maxWidth: '92%',
-    backgroundColor: 'rgba(26, 26, 46, 0.94)',
+    gap: 10,
+    backgroundColor: 'rgba(108, 92, 231, 0.35)',
+    borderWidth: 2,
+    borderColor: '#6c5ce7',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 4,
+    borderBottomColor: '#4834d4',
+  },
+  skillBtnPressed: { opacity: 0.9, transform: [{ translateY: 2 }] },
+  skillBtnDisabled: { opacity: 0.38, borderColor: '#636e72' },
+  skillEmoji: { fontSize: 22 },
+  skillTextCol: { flex: 1, minWidth: 0 },
+  skillName: { fontWeight: '900', fontSize: 15, color: '#fff' },
+  skillMeta: { fontWeight: '700', fontSize: 12, color: '#dfe6e9', marginTop: 2 },
+  magicBtnOuter: { flex: 1 },
+  magicFace: {
+    backgroundColor: '#9b59b6',
+    borderColor: '#6c3483',
+    borderBottomWidth: 5,
+    borderBottomColor: '#5b2c6f',
+    shadowColor: '#a29bfe',
+  },
+  magicBtnShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderTopLeftRadius: 9,
+    borderTopRightRadius: 9,
+  },
+  magicBtnTxt: { color: '#f8f0ff', fontSize: 15 },
+  arcadeBtn: {
+    flex: 1,
+    minWidth: 76,
     borderRadius: 14,
+    paddingBottom: 5,
+    overflow: 'visible',
+  },
+  arcadeBtnPressed: {
+    paddingBottom: 1,
+    transform: [{ translateY: 4 }],
+  },
+  btnFace: {
+    minHeight: 50,
+    borderRadius: 12,
     borderWidth: 3,
-    borderColor: '#ffd166',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
     shadowRadius: 6,
     elevation: 8,
   },
-  battleBannerTxt: {
-    fontWeight: '900',
-    fontSize: 22,
-    color: '#fff8e8',
-    textAlign: 'center',
-    lineHeight: 28,
-  },
-  dualDiceRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    gap: 10,
-    width: '100%',
-    paddingHorizontal: 4,
-  },
-  fxStrip: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: '24%',
-    alignItems: 'center',
-    zIndex: 19,
-    pointerEvents: 'none',
-  },
-  diceDock: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 2,
-    width: '100%',
-  },
-  dicePrompt: {
-    fontWeight: '900',
-    fontSize: 14,
-    color: '#1a1a2e',
-    textAlign: 'center',
-    marginBottom: 4,
-    backgroundColor: 'rgba(255,248,220,0.92)',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2d2d44',
-    overflow: 'hidden',
-    maxWidth: '95%',
-  },
-  dicePairTxt: {
-    fontWeight: '800',
-    fontSize: 11,
-    color: '#1a1a2e',
-    textAlign: 'center',
-    marginTop: 4,
-    maxWidth: '100%',
-  },
-  diceShoutWrap: {
-    position: 'absolute',
-    top: '32%',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 25,
-  },
-  actionDock: {
-    flexShrink: 0,
-    marginTop: 'auto',
-    backgroundColor: BATTLE.dock,
-    borderTopWidth: 2,
-    borderColor: BATTLE.dockBorder,
-    paddingHorizontal: 6,
-    paddingTop: 6,
-    paddingBottom: 8,
-    width: '100%',
-    maxHeight: 132,
-  },
-  logWrap: {
-    maxHeight: 44,
-    overflow: 'hidden',
-    marginTop: 3,
-  },
-  menuRow: {
-    flexDirection: 'row',
-    gap: 6,
-    justifyContent: 'space-between',
-  },
-  subMenuRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  menuBtn: {
+  fightBtn: {
     flex: 1,
-    minWidth: 72,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: BATTLE.dockBorder,
-    paddingVertical: 10,
-    paddingHorizontal: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingBottom: 6,
+    shadowColor: '#ff6b35',
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    elevation: 12,
   },
-  menuBtnTxt: {
-    fontSize: 15,
+  fightFace: {
+    backgroundColor: '#ff4757',
+    borderColor: '#c0392b',
+    borderBottomWidth: 5,
+    borderBottomColor: '#922b21',
+    shadowColor: '#ff6348',
+  },
+  fightBtnShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '46%',
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    borderTopLeftRadius: 9,
+    borderTopRightRadius: 9,
+  },
+  defendBtn: { paddingBottom: 5 },
+  defendFace: {
+    backgroundColor: '#48cae4',
+    borderColor: '#1d7a9e',
+    borderBottomWidth: 5,
+    borderBottomColor: '#15627d',
+    shadowColor: '#2a9d8f',
+  },
+  defendBtnShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderTopLeftRadius: 9,
+    borderTopRightRadius: 9,
+  },
+  runBtnOuter: { flex: 0.88, paddingBottom: 4 },
+  runFace: {
+    backgroundColor: '#b8c5d6',
+    borderColor: '#7f8c9a',
+    borderBottomWidth: 4,
+    borderBottomColor: '#6b7a88',
+    shadowColor: '#636e72',
+    shadowOpacity: 0.25,
+    elevation: 4,
+  },
+  arcadeBtnTxt: {
+    fontSize: 17,
     fontWeight: '900',
-    color: '#1a1a2e',
     textAlign: 'center',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  fight: { backgroundColor: '#ff6b6b' },
-  run: { backgroundColor: '#ffd166' },
-  diceShout: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#fff8e8',
-    textAlign: 'center',
-    backgroundColor: 'rgba(61, 74, 92, 0.85)',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  hero: {
-    borderRadius: 14,
-    borderWidth: 3,
-    borderColor: '#252540',
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    elevation: 2,
-  },
-  heroTxt: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#19192b',
-    textAlign: 'center',
-    paddingHorizontal: 2,
-  },
-  grass: { backgroundColor: '#8ac926' },
-  ice: { backgroundColor: '#48cae4' },
-  fire: { backgroundColor: '#ff9650' },
-  violet: { backgroundColor: '#b794f6' },
-  pink: { backgroundColor: '#ff6b9d' },
-  shield: { backgroundColor: '#94d2bd' },
-  smoke: { backgroundColor: '#ccd5e0' },
-  sun: { backgroundColor: '#ffc300' },
-  disabledBtn: { opacity: 0.4 },
-  miniNote: {
-    marginTop: 3,
-    textAlign: 'center',
-    fontWeight: '800',
-    color: '#ffeaa7',
-    fontSize: 13,
-  },
+  fightBtnTxt: { color: '#fff9f0', fontSize: 18 },
+  defendBtnTxt: { color: '#f0fbff' },
+  runBtnTxt: { color: '#3d4a5c', fontSize: 15, fontWeight: '800' },
+  disabledBtn: { opacity: 0.42 },
 });

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import BattleScreen from './components/BattleScreen';
 import MonsterGearScreen from './components/MonsterGearScreen';
+import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
 import HomeSetupScreen from './components/HomeSetupScreen';
 import OnlineLobbyScreen from './components/OnlineLobbyScreen';
@@ -32,6 +33,7 @@ import {
   activeWallet,
   awardBattleRewards,
   buyGearForMonster,
+  buyGearItem,
   buyMonster as purchaseMonsterRow,
   createPlayerProfile,
   equipOwnedGear,
@@ -42,6 +44,7 @@ import {
   setActiveProfile,
   setProfileSelectedMonster,
   unequipOwnedGear,
+  unlockGearSlotForMonster,
   updatePlayer,
   walletForProfile,
 } from './utils/gameStorage';
@@ -75,7 +78,7 @@ function buildEncourageLines(gameData, winner, summary) {
 export default function App() {
   const [gameData, setGameData] = useState(null);
   const [phase, setPhase] = useState('menu');
-  const [gameMode, setGameMode] = useState(/** @type {'twoPlayer'|'onePlayer'|'online'} */ ('twoPlayer'));
+  const [gameMode, setGameMode] = useState(/** @type {'twoPlayer'|'onePlayer'|'online'} */ ('onePlayer'));
   const [onlineRoom, setOnlineRoom] = useState(null);
   const [onlineSlot, setOnlineSlot] = useState(() => loadOnlineSession()?.playerSlot ?? null);
   const [player1, setPlayer1] = useState(null);
@@ -83,6 +86,7 @@ export default function App() {
   const [winner, setWinner] = useState(null);
   const [battleKey, setBattleKey] = useState(0);
   const [gearOpen, setGearOpen] = useState(false);
+  const [gearMartOpen, setGearMartOpen] = useState(false);
   const [gearMonsterId, setGearMonsterId] = useState(null);
   const [monsterMartOpen, setMonsterMartOpen] = useState(false);
   const [rewardTitle, setRewardTitle] = useState('');
@@ -119,15 +123,14 @@ export default function App() {
   }
 
   const buildOnlineProfilePayload = useCallback(() => {
-    if (!gameData || !setupP1ProfileId || !setupP1Id) return null;
+    if (!gameData || !setupP1ProfileId) return null;
     const prof = gameData.players.find((p) => p.id === setupP1ProfileId);
-    const f = fighterFromSetupId(setupP1Id, setupP1ProfileId);
-    if (!f) return null;
+    const f = setupP1Id ? fighterFromSetupId(setupP1Id, setupP1ProfileId) : null;
     return {
       name: prof?.name ?? 'Player',
       profileId: setupP1ProfileId,
       ownedMonsterId: setupP1Id,
-      monsterName: f.displayName,
+      monsterName: f?.displayName ?? 'Monster',
       fighter: f,
     };
   }, [gameData, setupP1ProfileId, setupP1Id]);
@@ -176,22 +179,38 @@ export default function App() {
     const root = document.getElementById('root');
     const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'gameOver';
     if (scrollableLobby) {
-      html.style.overflow = 'auto';
-      html.style.height = 'auto';
+      // Lobby scrolls inside the app (ScrollView), not the document — fixed viewport + inner overflow.
+      html.style.overflow = 'hidden';
+      html.style.height = '100%';
       html.style.minHeight = '100%';
-      body.style.overflow = 'auto';
-      body.style.height = 'auto';
+      body.style.overflow = 'hidden';
+      body.style.height = '100%';
       body.style.minHeight = '100%';
+      body.style.touchAction = 'manipulation';
       if (root) {
-        root.style.overflow = 'auto';
-        root.style.height = 'auto';
+        root.style.overflow = 'hidden';
+        root.style.height = '100%';
         root.style.minHeight = '100%';
+        root.style.display = 'flex';
+        root.style.flexDirection = 'column';
+      }
+      let tag = document.getElementById('mdb-lobby-scroll');
+      if (!tag) {
+        tag = document.createElement('style');
+        tag.id = 'mdb-lobby-scroll';
+        tag.textContent = `
+          html, body { margin: 0; height: 100%; overflow: hidden; }
+          #root { height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+          #root > div { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        `;
+        document.head.appendChild(tag);
       }
     } else if (phase === 'battle') {
       html.style.overflow = 'hidden';
       html.style.height = '100%';
       body.style.overflow = 'hidden';
       body.style.height = '100%';
+      body.style.touchAction = 'none';
       if (root) {
         root.style.overflow = 'hidden';
         root.style.height = '100%';
@@ -347,9 +366,20 @@ export default function App() {
     setGameData(res.gameData);
   }
 
-  function handleEquipGear(gearId) {
+  function handleBuyGearMart(gearId) {
+    if (!gameData) return;
+    const profileId = activeProfileId || setupP1ProfileId || null;
+    const res = buyGearItem(gameData, profileId, gearId);
+    if (res.error) {
+      Alert.alert('Gear Mart', res.error);
+      return;
+    }
+    setGameData(res.gameData);
+  }
+
+  function handleEquipGear(gearId, slotIndex = null) {
     if (!gameData || !gearMonsterId) return;
-    const res = equipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId);
+    const res = equipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId, slotIndex);
     if (res.error) {
       Alert.alert('Monster Gear', res.error);
       return;
@@ -357,14 +387,27 @@ export default function App() {
     setGameData(res.gameData);
   }
 
-  function handleUnequipGear(gearId) {
+  function handleUnequipGear(gearId, slotIndex = null) {
     if (!gameData || !gearMonsterId) return;
-    const res = unequipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId);
+    const res = unequipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId, slotIndex);
     if (res.error) {
       Alert.alert('Monster Gear', res.error);
       return;
     }
     setGameData(res.gameData);
+  }
+
+  function handleUnlockGearSlot() {
+    if (!gameData || !gearMonsterId) return;
+    const res = unlockGearSlotForMonster(gameData, gearProfileId || null, gearMonsterId);
+    if (res.error) {
+      Alert.alert('Unlock slot', res.error);
+      return;
+    }
+    setGameData(res.gameData);
+    if (res.newSlotCount) {
+      Alert.alert('Slot unlocked!', `This monster now has ${res.newSlotCount} gear slots.`);
+    }
   }
 
   function startGameFromSetup() {
@@ -375,6 +418,10 @@ export default function App() {
     const f1 = fighterFromSetupId(setupP1Id, setupP1ProfileId);
     if (!f1) {
       Alert.alert('Player setup', 'Player 1 needs a monster.');
+      return;
+    }
+    if (gameMode === 'twoPlayer' && setupP1ProfileId === setupP2ProfileId) {
+      Alert.alert('Invalid matchup', 'Pick two different player profiles — you cannot battle yourself.');
       return;
     }
     if (gameMode === 'onePlayer') {
@@ -414,7 +461,9 @@ export default function App() {
               : [],
         },
         hp: p.stats.hp,
+        maxHp: p.stats.hp,
         mp: p.stats.mp,
+        maxMp: p.stats.mp,
         combo: 0,
       };
     };
@@ -537,7 +586,9 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, phase === 'battle' && styles.safeBattle]}>
+    <SafeAreaView
+      style={[styles.safe, phase === 'battle' ? styles.safeBattle : phase === 'menu' ? styles.safeMenu : null]}
+    >
       <StatusBar style="dark" />
       {phase !== 'menu' && phase !== 'battle' ? (
         <>
@@ -546,8 +597,11 @@ export default function App() {
             <Text style={styles.coinsStripText}>
               Coins 🪙 <Text style={styles.coinsAmt}>{coins}</Text>
             </Text>
+            <TouchableOpacity style={styles.miniShop} onPress={() => setGearMartOpen(true)} accessibilityLabel="Gear mart">
+              <Text style={styles.miniShopTxt}>Gear Mart</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.miniShop} onPress={openMonsterGearForActiveSlot} accessibilityLabel="Monster gear">
-              <Text style={styles.miniShopTxt}>Monster Gear</Text>
+              <Text style={styles.miniShopTxt}>Equip</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.miniShop} onPress={() => setMonsterMartOpen(true)} accessibilityLabel="Monster mart">
               <Text style={styles.miniShopTxt}>Monsters</Text>
@@ -604,7 +658,11 @@ export default function App() {
             onOpenMonsterGear={openMonsterGear}
             onlineRoom={onlineRoom}
             onlineSlot={onlineSlot}
-            onOnline={() => setPhase('online')}
+            onEnterMultiplayer={() => {
+              const payload = buildOnlineProfilePayload();
+              if (payload) syncOnlineProfile(payload);
+              setPhase('online');
+            }}
             onLeaveOnlineRoom={() => {
               leaveOnlineRoom();
               setOnlineRoom(null);
@@ -615,6 +673,7 @@ export default function App() {
               else setPhase('online');
             }}
             onOpenMonsterGearShop={openMonsterGearForActiveSlot}
+            onOpenGearMart={() => setGearMartOpen(true)}
             onOpenMonsterMart={() => setMonsterMartOpen(true)}
             onResetSave={handleResetSave}
           />
@@ -705,6 +764,19 @@ export default function App() {
         onBuy={handleBuyGear}
         onEquip={handleEquipGear}
         onUnequip={handleUnequipGear}
+        onUnlockSlot={handleUnlockGearSlot}
+        onOpenGearMart={() => {
+          setGearOpen(false);
+          setGearMartOpen(true);
+        }}
+      />
+
+      <GearMartModal
+        visible={gearMartOpen}
+        coins={coins}
+        ownedGearIds={cosmeticsOwned}
+        onClose={() => setGearMartOpen(false)}
+        onBuy={handleBuyGearMart}
       />
 
       <MonsterMarketModal
@@ -726,11 +798,19 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 8,
   },
+  safeMenu: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+  },
   safeBattle: {
     paddingHorizontal: 6,
     paddingTop: 4,
     paddingBottom: 4,
+    flex: 1,
+    minHeight: 0,
     maxHeight: '100vh',
+    overflow: 'hidden',
   },
   loading: { fontWeight: '900', fontSize: 18, color: '#273043' },
   gameTitle: {
@@ -794,7 +874,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#8eb8dc',
     padding: 6,
-    overflow: 'visible',
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? {
+          display: 'flex',
+          flexDirection: 'column',
+        }
+      : {}),
   },
   cardShellBattle: {
     flex: 1,

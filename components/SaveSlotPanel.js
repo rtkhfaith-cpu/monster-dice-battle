@@ -263,7 +263,8 @@ export default function SaveSlotPanel({
 
 const styles = StyleSheet.create({
   panel: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 0,
     minWidth: 0,
     backgroundColor: LOBBY.panel,
     borderRadius: 14,

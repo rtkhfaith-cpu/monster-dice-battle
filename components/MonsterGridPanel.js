@@ -156,6 +156,7 @@ const styles = StyleSheet.create({
     width: '47%',
     maxWidth: 168,
     minWidth: 130,
+    minHeight: 44,
     backgroundColor: LOBBY.card,
     borderRadius: 12,
     borderWidth: 1,

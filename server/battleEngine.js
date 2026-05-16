@@ -96,11 +96,15 @@ function isRage(fighter) {
 function createBattle(fighterP1, fighterP2) {
   const p1 = cloneFighter(fighterP1);
   const p2 = cloneFighter(fighterP2);
-  p1.hp = p1.stats.hp;
-  p1.mp = p1.stats.mp;
+  p1.maxHp = p1.stats.hp;
+  p1.hp = p1.maxHp;
+  p1.maxMp = p1.stats.mp;
+  p1.mp = p1.maxMp;
   p1.combo = 0;
-  p2.hp = p2.stats.hp;
-  p2.mp = p2.stats.mp;
+  p2.maxHp = p2.stats.hp;
+  p2.hp = p2.maxHp;
+  p2.maxMp = p2.stats.mp;
+  p2.mp = p2.maxMp;
   p2.combo = 0;
 
   return {
@@ -294,7 +298,9 @@ function applyBattleAction(battle, playerSlot, action, payload = {}) {
     } else {
       battle.diceP2 = val;
       pushLog(battle, `P2 rolled ${val}`);
-      if (val === battle.diceP1) {
+      const p1Roll = Number(battle.diceP1);
+      const p2Roll = Number(val);
+      if (!Number.isNaN(p1Roll) && !Number.isNaN(p2Roll) && p1Roll === p2Roll) {
         battle.diceP1 = null;
         battle.diceP2 = null;
         battle.phase = 'player1Dice';
@@ -302,7 +308,7 @@ function applyBattleAction(battle, playerSlot, action, payload = {}) {
         bump(battle);
         return { ok: true, battle };
       }
-      const atk = val > battle.diceP1 ? 2 : 1;
+      const atk = p2Roll > p1Roll ? 2 : 1;
       battle.attackerId = atk;
       battle.phase = 'chooseAttack';
       battle.bannerMessage = `Player ${atk} attacks — pick Fight`;

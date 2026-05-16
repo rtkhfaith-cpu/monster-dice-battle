@@ -9,31 +9,30 @@ export default function OnlineRoomBanner({ roomState, mySlot, onOpenLobby, onLea
 
   const me = mySlot === 'p2' ? roomState.players?.p2 : roomState.players?.p1;
   const opp = mySlot === 'p2' ? roomState.players?.p1 : roomState.players?.p2;
-  const oppJoined = !!opp?.profile;
-  const oppConnected = !!opp?.connected;
+  const bothJoined = !!roomState.bothJoined;
   const inBattle = roomState.status === 'battle';
+  const leftMsg = roomState.lobbyMessage?.includes('left') ? roomState.lobbyMessage : null;
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>Online room {roomState.roomCode}</Text>
       <Text style={styles.line}>
-        You: {me?.profile?.name ?? '—'} · {me?.ready ? 'Ready' : 'Not ready'}
+        You: {me?.profile?.name ?? '—'}
+        {me?.profile?.monsterName ? ` · ${me.profile.monsterName}` : ''}
       </Text>
       <Text style={styles.line}>
-        Opponent:{' '}
-        {!oppConnected && !oppJoined
-          ? 'Waiting for opponent…'
-          : `${opp?.profile?.name ?? 'Joined'} · ${opp?.ready ? 'Ready' : 'Not ready'}`}
+        {leftMsg
+          ? leftMsg
+          : !bothJoined
+            ? 'Waiting for opponent…'
+            : `Opponent: ${opp?.profile?.name ?? 'Joined'}${
+                opp?.profile?.monsterName ? ` · ${opp.profile.monsterName}` : ''
+              }`}
       </Text>
-      {oppJoined && opp?.profile ? (
-        <Text style={styles.mon}>
-          {opp.profile.monsterName} Lv{opp.profile.level} · HP {opp.profile.hp}/{opp.profile.maxHp}
-        </Text>
-      ) : null}
       {inBattle ? <Text style={styles.battle}>Battle in progress — tap to rejoin</Text> : null}
       <View style={styles.row}>
         <TouchableOpacity style={styles.openBtn} onPress={onOpenLobby}>
-          <Text style={styles.openTxt}>{inBattle ? 'Rejoin battle' : 'Open lobby'}</Text>
+          <Text style={styles.openTxt}>{inBattle ? 'Rejoin battle' : 'Open waiting room'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.leaveBtn} onPress={onLeaveRoom}>
           <Text style={styles.leaveTxt}>Leave Room</Text>
@@ -54,7 +53,6 @@ const styles = StyleSheet.create({
   },
   title: { fontWeight: '900', fontSize: 16, color: '#1a5276', marginBottom: 4 },
   line: { fontWeight: '800', fontSize: 14, color: '#2d3436', marginBottom: 2 },
-  mon: { fontWeight: '700', fontSize: 13, color: '#636e72', marginBottom: 4 },
   battle: { fontWeight: '900', fontSize: 14, color: '#c0392b', marginBottom: 6 },
   row: { flexDirection: 'row', gap: 8, marginTop: 4 },
   openBtn: {

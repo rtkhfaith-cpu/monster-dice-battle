@@ -78,6 +78,7 @@ export default function GameSetupPanel({
   selectedP1Id,
   selectedP2Id,
   onOpenMonsterGear,
+  onEnterMultiplayer,
   embedInScroll = false,
 }) {
   const p1Name = profiles.find((p) => p.id === setupP1ProfileId)?.name ?? 'Player 1';
@@ -110,19 +111,31 @@ export default function GameSetupPanel({
       <Text style={styles.panelTitle}>Battle Setup</Text>
 
       <BodyWrap {...bodyProps}>
-        <View style={styles.modeRow}>
-          <TouchableOpacity
-            style={[styles.modeBtn, gameMode === 'onePlayer' && styles.modeOn]}
-            onPress={() => onGameModeChange('onePlayer')}
-          >
-            <Text style={styles.modeTxt}>1P vs CPU</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeBtn, gameMode === 'twoPlayer' && styles.modeOn]}
-            onPress={() => onGameModeChange('twoPlayer')}
-          >
-            <Text style={styles.modeTxt}>2 Players</Text>
-          </TouchableOpacity>
+        <View style={styles.modeCol}>
+          <View style={styles.modeRow}>
+            <TouchableOpacity
+              style={[styles.modeBtn, styles.modeBtnFlex, gameMode === 'onePlayer' && styles.modeOn]}
+              onPress={() => onGameModeChange('onePlayer')}
+            >
+              <Text style={styles.modeTxt}>1P vs CPU</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeBtn, styles.modeBtnFlex, gameMode === 'twoPlayer' && styles.modeOn]}
+              onPress={() => onGameModeChange('twoPlayer')}
+            >
+              <Text style={styles.modeTxt}>2P Local</Text>
+            </TouchableOpacity>
+          </View>
+          {onEnterMultiplayer ? (
+            <TouchableOpacity style={styles.modeBtnOnline} onPress={onEnterMultiplayer}>
+              <Text style={styles.modeTxtOnline}>🌐 Online Multiplayer</Text>
+            </TouchableOpacity>
+          ) : null}
+          <Text style={styles.modeHint}>
+            {gameMode === 'twoPlayer'
+              ? 'Two players on this device — pick monsters for each profile'
+              : '1P trains vs CPU · 2P battles a friend locally · Online uses a room code'}
+          </Text>
         </View>
 
         {gameMode === 'twoPlayer' ? (
@@ -200,18 +213,36 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1, minHeight: 0 },
   scrollContent: { paddingBottom: 4 },
-  modeRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
+  modeCol: { gap: 6, marginBottom: 8 },
+  modeRow: { flexDirection: 'row', gap: 6 },
+  modeBtnFlex: { flex: 1, minWidth: 0 },
   modeBtn: {
-    flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: LOBBY.cardBorder,
     backgroundColor: LOBBY.chip,
     alignItems: 'center',
   },
+  modeBtnOnline: {
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#0984e3',
+    backgroundColor: '#74b9ff',
+    alignItems: 'center',
+  },
   modeOn: { backgroundColor: LOBBY.accent, borderColor: LOBBY.accentStrong },
-  modeTxt: { fontWeight: '900', fontSize: 12, color: LOBBY.textStrong },
+  modeTxt: { fontWeight: '900', fontSize: 13, color: LOBBY.textStrong },
+  modeHint: {
+    fontWeight: '700',
+    fontSize: 11,
+    color: LOBBY.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
+    paddingHorizontal: 4,
+  },
+  modeTxtOnline: { fontWeight: '900', fontSize: 13, color: '#1b1b2f' },
   rosterRow: { flexDirection: 'row', gap: 6, marginBottom: 4 },
   rosterCard: {
     backgroundColor: LOBBY.card,

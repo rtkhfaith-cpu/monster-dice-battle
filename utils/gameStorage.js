@@ -9,15 +9,22 @@ import {
   expLossPenalty,
 } from './expLevel';
 import { coinWinForEnemyLevel, LOSER_COINS, DRAW_COINS_EACH } from './rewards';
-import { equipGearInSlot, getGear } from './cosmetics';
+import { compactGearIds, equipToFirstEmptySlot, getGear, setGearAtSlot } from './cosmetics';
+import {
+  DEFAULT_GEAR_SLOTS,
+  getUnlockedSlotCount,
+  nextSlotUnlockCost,
+  normalizeEquippedSlots,
+} from './gearSlots';
 import { expMultiplierFromGear } from './gearStats';
 import { evolutionStageFromLevel } from './evolution';
+import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
 
 export const SAVE_KEY = 'MONSTER_DICE_BATTLE_SAVE';
 const LEGACY_KEY_V2 = 'monster_dice_battle_v2';
 
-/** @typedef {{ id: string, templateId: string, nickname: string, level: number, exp: number, monsterParts: object, equippedGear?: string[], unlockedVisualTags?: string[] }} OwnedMonster */
+/** @typedef {{ id: string, templateId: string, nickname: string, level: number, exp: number, monsterParts: object, equippedGear?: (string|null)[], gearSlotCount?: number, unlockedVisualTags?: string[] }} OwnedMonster */
 
 /** @typedef {{
  * id: string,
@@ -133,7 +140,7 @@ export function mergeMonsterParts(templateId, overrides = {}) {
     ...overrides,
   };
   if (!Array.isArray(merged.cosmetics)) merged.cosmetics = [];
-  return merged;
+  return applyMonsterTheme(templateId, merged);
 }
 
 /** @param {string} templateId */
@@ -148,13 +155,21 @@ export function generateOwnedMonster(templateId, nickname = '') {
     exp: 0,
     monsterParts: mergeMonsterParts(templateId),
     equippedGear: [],
+    gearSlotCount: DEFAULT_GEAR_SLOTS,
     unlockedVisualTags: [],
   };
 }
 
 function normalizeOwnedMonster(om) {
-  if (!Array.isArray(om.equippedGear)) om.equippedGear = [];
-  om.equippedGear = om.equippedGear.filter((id) => typeof id === 'string' && getGear(id));
+  if (typeof om.gearSlotCount !== 'number' || om.gearSlotCount < DEFAULT_GEAR_SLOTS) {
+    om.gearSlotCount = DEFAULT_GEAR_SLOTS;
+  }
+  if (om.gearSlotCount > 6) om.gearSlotCount = 6;
+  om.equippedGear = normalizeEquippedSlots(om.equippedGear, om.gearSlotCount);
+  for (let i = 0; i < om.equippedGear.length; i += 1) {
+    const id = om.equippedGear[i];
+    if (id && !getGear(id)) om.equippedGear[i] = null;
+  }
   if (!om.monsterParts) om.monsterParts = mergeMonsterParts(om.templateId);
 }
 
@@ -164,9 +179,12 @@ function migrateLegacyWalletGear(wallet) {
     if (!Array.isArray(list) || !list.length) return;
     const om = wallet.ownedMonsters[index];
     if (!om || (om.equippedGear && om.equippedGear.length > 0)) return;
-    let eq = [];
+    let eq = normalizeEquippedSlots([], om.gearSlotCount ?? DEFAULT_GEAR_SLOTS);
     for (const id of list) {
-      if (getGear(id)) eq = equipGearInSlot(eq, id);
+      if (getGear(id)) {
+        const next = equipToFirstEmptySlot(eq, id, getUnlockedSlotCount(om));
+        if (next) eq = next;
+      }
     }
     om.equippedGear = eq;
     const owned = new Set(wallet.cosmeticsOwned || []);
@@ -447,6 +465,20 @@ export function buyMonster(gameData, playerId, monsterTypeId) {
   return { gameData: gd, ownedMonster: om };
 }
 
+/** Buy gear into profile inventory only (no equip). */
+export function buyGearItem(gameData, playerId, gearId) {
+  const gd = cloneGameData(gameData);
+  const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const item = getGear(gearId);
+  if (!item) return { gameData: gd, error: 'Unknown gear' };
+  if (wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Already owned' };
+  if (wallet.coins < item.price) return { gameData: gd, error: 'Not enough coins' };
+  wallet.coins -= item.price;
+  wallet.cosmeticsOwned = [...new Set([...wallet.cosmeticsOwned, gearId])];
+  return { gameData: gd };
+}
+
 /**
  * Buy gear, add to wallet owned list, equip on target monster (replaces same slot).
  */
@@ -463,31 +495,66 @@ export function buyGearForMonster(gameData, playerId, ownedMonsterId, gearId) {
 
   wallet.coins -= item.price;
   wallet.cosmeticsOwned = [...new Set([...wallet.cosmeticsOwned, gearId])];
-  om.equippedGear = equipGearInSlot(om.equippedGear || [], gearId);
+  const maxSlots = getUnlockedSlotCount(om);
+  const next = equipToFirstEmptySlot(om.equippedGear || [], gearId, maxSlots);
+  if (!next) return { gameData: gd, error: 'All gear slots full — remove an item first' };
+  om.equippedGear = next;
   normalizeOwnedMonster(om);
   return { gameData: gd };
 }
 
-/** Equip owned gear onto monster (must already own item). */
-export function equipOwnedGear(gameData, playerId, ownedMonsterId, gearId) {
+/** Equip owned gear onto monster (optional slot index). */
+export function equipOwnedGear(gameData, playerId, ownedMonsterId, gearId, slotIndex = null) {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
   if (!wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Not owned yet' };
   const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
   if (!om) return { gameData: gd, error: 'Monster not found' };
-  om.equippedGear = equipGearInSlot(om.equippedGear || [], gearId);
+  const maxSlots = getUnlockedSlotCount(om);
+  if (typeof slotIndex === 'number' && slotIndex >= 0 && slotIndex < maxSlots) {
+    om.equippedGear = setGearAtSlot(om.equippedGear || [], gearId, slotIndex, maxSlots);
+  } else {
+    const next = equipToFirstEmptySlot(om.equippedGear || [], gearId, maxSlots);
+    if (!next) return { gameData: gd, error: 'All gear slots full' };
+    om.equippedGear = next;
+  }
+  normalizeOwnedMonster(om);
   return { gameData: gd };
 }
 
-export function unequipOwnedGear(gameData, playerId, ownedMonsterId, gearId) {
+export function unequipOwnedGear(gameData, playerId, ownedMonsterId, gearId, slotIndex = null) {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
   const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
   if (!om) return { gameData: gd, error: 'Monster not found' };
-  om.equippedGear = (om.equippedGear || []).filter((id) => id !== gearId);
+  const maxSlots = getUnlockedSlotCount(om);
+  if (typeof slotIndex === 'number') {
+    const slots = normalizeEquippedSlots(om.equippedGear, maxSlots);
+    if (slotIndex >= 0 && slotIndex < maxSlots) slots[slotIndex] = null;
+    om.equippedGear = slots;
+  } else {
+    om.equippedGear = (om.equippedGear || []).map((id) => (id === gearId ? null : id));
+    normalizeOwnedMonster(om);
+  }
   return { gameData: gd };
+}
+
+/** Unlock next gear slot for one owned monster (permanent, costs coins). */
+export function unlockGearSlotForMonster(gameData, playerId, ownedMonsterId) {
+  const gd = cloneGameData(gameData);
+  const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
+  if (!om) return { gameData: gd, error: 'Monster not found' };
+  const cost = nextSlotUnlockCost(om);
+  if (cost == null) return { gameData: gd, error: 'All slots unlocked' };
+  if (wallet.coins < cost) return { gameData: gd, error: `Need ${cost} coins` };
+  wallet.coins -= cost;
+  om.gearSlotCount = getUnlockedSlotCount(om) + 1;
+  om.equippedGear = normalizeEquippedSlots(om.equippedGear, om.gearSlotCount);
+  return { gameData: gd, newSlotCount: om.gearSlotCount };
 }
 
 export function updateOwnedMonster(gameData, playerId, ownedMonsterId, updates) {
@@ -631,43 +698,62 @@ export function awardBattleRewards(gameData, payload) {
 
   let coinsAwarded = 0;
   let bonusUnderdog = false;
-  if (payload.outcome !== 'draw' && payload.p1TemplateId && payload.p2TemplateId) {
-    const winTid = payload.outcome === 1 ? payload.p1TemplateId : payload.p2TemplateId;
-    const loseTid = payload.outcome === 1 ? payload.p2TemplateId : payload.p1TemplateId;
-    const wt = getMonsterTemplate(winTid);
-    const lt = getMonsterTemplate(loseTid);
-    if (wt && lt && rarityRank(wt.rarity) < rarityRank(lt.rarity)) {
-      bonusUnderdog = true;
-    }
-  }
-
-  if (payload.outcome === 'draw') {
-    walletP1.coins += DRAW_COINS_EACH;
-    if (walletP2) walletP2.coins += DRAW_COINS_EACH;
-    coinsAwarded = DRAW_COINS_EACH * (walletP2 ? 2 : 1);
-  } else if (payload.outcome === 1) {
-    const winCoins = coinWinForEnemyLevel(oppLevelForP1) + (bonusUnderdog ? 3 : 0);
-    walletP1.coins += winCoins;
-    if (walletP2) walletP2.coins += LOSER_COINS;
-    coinsAwarded = winCoins + (walletP2 ? LOSER_COINS : 0);
-  } else if (payload.outcome === 2) {
-    walletP1.coins += LOSER_COINS;
-    const winCoins = coinWinForEnemyLevel(oppLevelForP2) + (bonusUnderdog ? 3 : 0);
-    if (walletP2) walletP2.coins += winCoins;
-    coinsAwarded = LOSER_COINS + winCoins;
-  }
-
   let expP1 = 12;
   let expP2 = 12;
-  if (payload.outcome === 'draw') {
-    expP1 = 12;
-    expP2 = 12;
-  } else if (payload.outcome === 1) {
-    expP1 = expWinForEnemyLevel(oppLevelForP1) + (bonusUnderdog ? EXP_UNDERDOG_BONUS : 0);
-    expP2 = -expLossPenalty(p2Level);
-  } else if (payload.outcome === 2) {
-    expP1 = -expLossPenalty(p1Level);
-    expP2 = expWinForEnemyLevel(oppLevelForP2) + (bonusUnderdog ? EXP_UNDERDOG_BONUS : 0);
+
+  if (payload.mode === 'onePlayer') {
+    if (payload.outcome === 1) {
+      const winCoins = 5 + Math.floor(Math.random() * 4);
+      walletP1.coins += winCoins;
+      coinsAwarded = winCoins;
+      expP1 = 12 + Math.floor(Math.random() * 9);
+      expP2 = 0;
+    } else if (payload.outcome === 2) {
+      expP1 = -(5 + Math.floor(Math.random() * 6));
+      expP2 = 0;
+    } else {
+      walletP1.coins += 3;
+      coinsAwarded = 3;
+      expP1 = 8;
+      expP2 = 0;
+    }
+  } else {
+    if (payload.outcome !== 'draw' && payload.p1TemplateId && payload.p2TemplateId) {
+      const winTid = payload.outcome === 1 ? payload.p1TemplateId : payload.p2TemplateId;
+      const loseTid = payload.outcome === 1 ? payload.p2TemplateId : payload.p1TemplateId;
+      const wt = getMonsterTemplate(winTid);
+      const lt = getMonsterTemplate(loseTid);
+      if (wt && lt && rarityRank(wt.rarity) < rarityRank(lt.rarity)) {
+        bonusUnderdog = true;
+      }
+    }
+
+    if (payload.outcome === 'draw') {
+      walletP1.coins += DRAW_COINS_EACH;
+      if (walletP2) walletP2.coins += DRAW_COINS_EACH;
+      coinsAwarded = DRAW_COINS_EACH * (walletP2 ? 2 : 1);
+    } else if (payload.outcome === 1) {
+      const winCoins = coinWinForEnemyLevel(oppLevelForP1) + (bonusUnderdog ? 3 : 0);
+      walletP1.coins += winCoins;
+      if (walletP2) walletP2.coins += LOSER_COINS;
+      coinsAwarded = winCoins + (walletP2 ? LOSER_COINS : 0);
+    } else if (payload.outcome === 2) {
+      walletP1.coins += LOSER_COINS;
+      const winCoins = coinWinForEnemyLevel(oppLevelForP2) + (bonusUnderdog ? 3 : 0);
+      if (walletP2) walletP2.coins += winCoins;
+      coinsAwarded = LOSER_COINS + winCoins;
+    }
+
+    if (payload.outcome === 'draw') {
+      expP1 = 12;
+      expP2 = 12;
+    } else if (payload.outcome === 1) {
+      expP1 = expWinForEnemyLevel(oppLevelForP1) + (bonusUnderdog ? EXP_UNDERDOG_BONUS : 0);
+      expP2 = -expLossPenalty(p2Level);
+    } else if (payload.outcome === 2) {
+      expP1 = -expLossPenalty(p1Level);
+      expP2 = expWinForEnemyLevel(oppLevelForP2) + (bonusUnderdog ? EXP_UNDERDOG_BONUS : 0);
+    }
   }
 
   const r1 = grantExpInWallet(walletP1, payload.p1OwnedId, expP1);

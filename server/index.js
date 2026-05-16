@@ -9,7 +9,6 @@ const {
   createBattle,
   applyBattleAction,
   snapshotForClient,
-  slotToId,
   activeTurnFromPhase,
 } = require('./battleEngine');
 
@@ -60,6 +59,7 @@ function createEmptyRoom(roomCode) {
     players: { p1: null, p2: null },
     battle: null,
     battleResolveTimer: null,
+    opponentLeftMessage: null,
   };
 }
 
@@ -79,9 +79,9 @@ function playerSlot(room, socketId) {
   return null;
 }
 
-function removePlayerFromRoom(room, socketId) {
-  if (room.players.p1?.socketId === socketId) room.players.p1 = null;
-  if (room.players.p2?.socketId === socketId) room.players.p2 = null;
+function removePlayerSlot(room, slot) {
+  if (slot === 'p1') room.players.p1 = null;
+  if (slot === 'p2') room.players.p2 = null;
 }
 
 function isRoomEmpty(room) {
@@ -92,7 +92,6 @@ function publicPlayer(p) {
   if (!p) return null;
   return {
     slot: p.slot,
-    ready: !!p.ready,
     connected: !!p.socketId,
     profile: p.profile
       ? {
@@ -112,12 +111,25 @@ function publicPlayer(p) {
   };
 }
 
+function lobbyMissing(room) {
+  const missing = [];
+  if (!room.players.p1?.socketId) missing.push('Waiting for Player A to join…');
+  else if (!room.players.p1?.profile?.fighter) missing.push('Player A needs a monster (pick on Home)');
+
+  if (!room.players.p2?.socketId) missing.push('Waiting for Player B to join…');
+  else if (!room.players.p2?.profile?.fighter) missing.push('Player B needs a monster (pick on Home)');
+
+  return missing;
+}
+
 function roomPayload(room) {
   const battleSnap = room.battle ? snapshotForClient(room.battle) : null;
   let activeTurn = null;
   if (room.battle && room.status === 'battle') {
     activeTurn = activeTurnFromPhase(room.battle);
   }
+  const bothJoined = !!(room.players.p1?.socketId && room.players.p2?.socketId);
+  const missing = lobbyMissing(room);
   return {
     roomCode: room.roomCode,
     status: room.status,
@@ -127,19 +139,19 @@ function roomPayload(room) {
     },
     battle: battleSnap,
     activeTurn,
-    canStart:
-      room.status === 'lobby' &&
-      room.players.p1?.profile?.fighter &&
-      room.players.p2?.profile?.fighter &&
-      room.players.p1?.ready &&
-      room.players.p2?.ready,
+    bothJoined,
+    canStart: room.status === 'lobby' && bothJoined && missing.length === 0,
+    missingRequirements: missing,
+    lobbyMessage: room.opponentLeftMessage || (bothJoined ? (missing[0] || 'Starting battle…') : 'Waiting for opponent…'),
   };
 }
 
 function emitRoomUpdate(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
-  io.to(roomCode).emit('roomUpdate', roomPayload(room));
+  const payload = roomPayload(room);
+  io.to(roomCode).emit('roomUpdate', payload);
+  return payload;
 }
 
 function clearBattleTimer(room) {
@@ -149,21 +161,26 @@ function clearBattleTimer(room) {
   }
 }
 
-function tryStartBattle(roomCode) {
+function tryAutoStartBattle(roomCode) {
   const room = rooms[roomCode];
-  if (!room || room.status !== 'lobby') return;
+  if (!room || room.status !== 'lobby') return false;
+
   const p1 = room.players.p1;
   const p2 = room.players.p2;
-  if (!p1?.ready || !p2?.ready) return;
-  if (!p1.profile?.fighter || !p2.profile?.fighter) return;
+  if (!p1?.socketId || !p2?.socketId) return false;
+  if (!p1.profile?.fighter || !p2.profile?.fighter) return false;
 
   clearBattleTimer(room);
+  room.opponentLeftMessage = null;
   room.battle = createBattle(p1.profile.fighter, p2.profile.fighter);
   room.status = 'battle';
-  room.battle.bannerMessage = `${p1.profile.name || 'P1'} — roll your dice!`;
-  console.log('[battle] started', roomCode);
-  io.to(roomCode).emit('battleStarted', { roomCode, battle: snapshotForClient(room.battle) });
+  room.battle.bannerMessage = `${p1.profile.name || 'Player A'} — roll your dice!`;
+  console.log('[battle] auto-started', roomCode, p1.profile.name, 'vs', p2.profile.name);
+
+  const snap = snapshotForClient(room.battle);
+  io.to(roomCode).emit('battleStarted', { roomCode, battle: snap });
   emitRoomUpdate(roomCode);
+  return true;
 }
 
 function scheduleRoundAdvance(roomCode) {
@@ -185,13 +202,23 @@ function scheduleRoundAdvance(roomCode) {
   }, RESOLVE_MS);
 }
 
-function assignSlot(room, socket) {
-  if (!room.players.p1) {
-    room.players.p1 = { socketId: socket.id, slot: 'p1', ready: false, profile: null };
+function ensurePlayerRecord(room, slot, socket) {
+  const existing = room.players[slot];
+  if (!existing) {
+    room.players[slot] = { socketId: socket.id, slot, profile: null };
+    return room.players[slot];
+  }
+  existing.socketId = socket.id;
+  return existing;
+}
+
+function assignJoinSlot(room, socket) {
+  if (!room.players.p1?.socketId) {
+    ensurePlayerRecord(room, 'p1', socket);
     return 'p1';
   }
-  if (!room.players.p2) {
-    room.players.p2 = { socketId: socket.id, slot: 'p2', ready: false, profile: null };
+  if (!room.players.p2?.socketId) {
+    ensurePlayerRecord(room, 'p2', socket);
     return 'p2';
   }
   return null;
@@ -208,18 +235,29 @@ io.on('connection', (socket) => {
       if (typeof ack === 'function') ack({ error: 'Room not found' });
       return;
     }
-    const wantSlot = payload.playerSlot === 'p2' ? 'p2' : 'p1';
-    const slot = room.players[wantSlot] ? wantSlot : assignSlot(room, socket);
+
+    let slot = playerSlot(room, socket.id);
+    if (!slot) {
+      const want = payload.playerSlot === 'p2' ? 'p2' : 'p1';
+      if (room.players[want] && !room.players[want].socketId) {
+        ensurePlayerRecord(room, want, socket);
+        slot = want;
+      } else {
+        slot = assignJoinSlot(room, socket);
+      }
+    }
+
     if (!slot) {
       if (typeof ack === 'function') ack({ error: 'Room is full' });
       return;
     }
-    room.players[slot].socketId = socket.id;
-    room.players[slot].connected = true;
+
+    ensurePlayerRecord(room, slot, socket);
     socket.join(roomCode);
     console.log('[room] rejoined', roomCode, slot);
-    if (typeof ack === 'function') ack({ roomCode, playerSlot: slot });
-    emitRoomUpdate(roomCode);
+    const state = emitRoomUpdate(roomCode);
+    if (typeof ack === 'function') ack({ roomCode, playerSlot: slot, room: state });
+    tryAutoStartBattle(roomCode);
   });
 
   socket.on('createRoom', (_payload, ack) => {
@@ -227,12 +265,12 @@ io.on('connection', (socket) => {
     while (rooms[roomCode]) roomCode = randomRoomCode();
 
     const room = createEmptyRoom(roomCode);
-    room.players.p1 = { socketId: socket.id, slot: 'p1', ready: false, profile: null };
+    ensurePlayerRecord(room, 'p1', socket);
     rooms[roomCode] = room;
     socket.join(roomCode);
     console.log('[room] created', roomCode);
-    if (typeof ack === 'function') ack({ roomCode, playerSlot: 'p1' });
-    emitRoomUpdate(roomCode);
+    const state = emitRoomUpdate(roomCode);
+    if (typeof ack === 'function') ack({ roomCode, playerSlot: 'p1', room: state });
   });
 
   socket.on('joinRoom', (payload = {}, ack) => {
@@ -240,41 +278,34 @@ io.on('connection', (socket) => {
     const room = rooms[roomCode];
 
     if (!room) {
-      const err = 'Room not found';
+      const err = 'Room not found — check the code and server URL';
       if (typeof ack === 'function') ack({ error: err });
       socket.emit('errorMessage', err);
       return;
     }
 
-    if (room.players.p1?.socketId === socket.id) {
-      if (typeof ack === 'function') ack({ roomCode, playerSlot: 'p1' });
-      emitRoomUpdate(roomCode);
-      return;
+    let slot = playerSlot(room, socket.id);
+    if (!slot) {
+      slot = assignJoinSlot(room, socket);
     }
-    if (room.players.p2?.socketId === socket.id) {
-      if (typeof ack === 'function') ack({ roomCode, playerSlot: 'p2' });
-      emitRoomUpdate(roomCode);
-      return;
-    }
-
-    if (room.players.p2) {
+    if (!slot) {
       const err = 'Room is full';
       if (typeof ack === 'function') ack({ error: err });
       socket.emit('errorMessage', err);
       return;
     }
 
-    if (!room.players.p1) {
-      room.players.p1 = { socketId: socket.id, slot: 'p1', ready: false, profile: null };
-    } else {
-      room.players.p2 = { socketId: socket.id, slot: 'p2', ready: false, profile: null };
-    }
-    const slot = playerSlot(room, socket.id);
+    ensurePlayerRecord(room, slot, socket);
     socket.join(roomCode);
+    room.opponentLeftMessage = null;
     console.log('[room] joined', roomCode, slot);
-    if (typeof ack === 'function') ack({ roomCode, playerSlot: slot });
-    io.to(roomCode).emit('opponentJoined', { roomCode });
-    emitRoomUpdate(roomCode);
+
+    const state = emitRoomUpdate(roomCode);
+    io.to(roomCode).emit('opponentJoined', { roomCode, slot });
+    if (typeof ack === 'function') ack({ roomCode, playerSlot: slot, room: state });
+
+    const started = tryAutoStartBattle(roomCode);
+    if (started) console.log('[battle] auto-start after join', roomCode);
   });
 
   socket.on('syncProfile', (payload = {}) => {
@@ -298,27 +329,10 @@ io.on('connection', (socket) => {
       templateId: fighter?.monsterTemplateId || null,
       fighter,
     };
-    if (room.status === 'lobby') p.ready = false;
     console.log('[profile] synced', code, slot, p.profile.name);
     emitRoomUpdate(code);
-  });
-
-  socket.on('setReady', (payload = {}) => {
-    const { code, room } = findRoomBySocket(socket.id);
-    if (!code || !room || room.status !== 'lobby') return;
-    const slot = playerSlot(room, socket.id);
-    if (!slot) return;
-    const p = room.players[slot];
-    if (!p.profile?.fighter) {
-      socket.emit('errorMessage', 'Select a monster first');
-      return;
-    }
-    p.ready = !!payload.ready;
-    console.log('[ready]', code, slot, p.ready);
-    emitRoomUpdate(code);
-    if (p.ready && room.players.p1?.ready && room.players.p2?.ready) {
-      tryStartBattle(code);
-    }
+    const started = tryAutoStartBattle(code);
+    if (started) console.log('[battle] auto-start after profile sync', code);
   });
 
   socket.on('battleAction', (payload = {}, ack) => {
@@ -360,8 +374,6 @@ io.on('connection', (socket) => {
         if (!r || r.status !== 'finished') return;
         r.status = 'lobby';
         r.battle = null;
-        if (r.players.p1) r.players.p1.ready = false;
-        if (r.players.p2) r.players.p2.ready = false;
         emitRoomUpdate(code);
       }, 8000);
     }
@@ -374,21 +386,21 @@ io.on('connection', (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
 
+    const slot = playerSlot(room, socket.id);
     clearBattleTimer(room);
-    removePlayerFromRoom(room, socket.id);
+    if (slot) removePlayerSlot(room, slot);
     socket.leave(roomCode);
     console.log('[room] leave', roomCode, socket.id);
 
     if (isRoomEmpty(room)) {
       delete rooms[roomCode];
     } else {
-      const remaining = room.players.p1 || room.players.p2;
-      if (remaining) remaining.ready = false;
+      room.opponentLeftMessage = 'Opponent left the room.';
       if (room.status === 'battle') {
         room.status = 'lobby';
         room.battle = null;
       }
-      io.to(roomCode).emit('opponentDisconnected', { roomCode });
+      io.to(roomCode).emit('opponentDisconnected', { roomCode, message: room.opponentLeftMessage });
       emitRoomUpdate(roomCode);
     }
   });
@@ -399,16 +411,16 @@ io.on('connection', (socket) => {
     if (!code || !room) return;
 
     const slot = playerSlot(room, socket.id);
-    if (slot && room.players[slot]) {
+    if (slot) {
       room.players[slot].socketId = null;
-      room.players[slot].ready = false;
     }
 
     if (isRoomEmpty(room)) {
       clearBattleTimer(room);
       delete rooms[code];
     } else {
-      io.to(code).emit('opponentDisconnected', { roomCode: code, temporary: true });
+      room.opponentLeftMessage = 'Opponent left the room.';
+      io.to(code).emit('opponentDisconnected', { roomCode: code, message: room.opponentLeftMessage });
       emitRoomUpdate(code);
     }
   });

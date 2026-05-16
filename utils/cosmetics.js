@@ -1,8 +1,16 @@
 /**
- * Monster Gear — equippable cosmetics with one item per slot and small stat bonuses.
+ * Monster Gear — stat / element / fun items with indexed slot equipping.
  */
 
-/** @typedef {'hat'|'glasses'|'body'|'hands'|'aura'} GearSlot */
+import { getTemplateElement } from './elements';
+import {
+  compactGearIds,
+  equipToFirstEmptySlot,
+  normalizeEquippedSlots,
+  setGearAtSlot,
+} from './gearSlots';
+
+/** @typedef {'stat'|'element'|'fun'} GearCategory */
 
 /**
  * @typedef {{
@@ -10,7 +18,7 @@
  *   name: string,
  *   price: number,
  *   emoji: string,
- *   slot: GearSlot,
+ *   category: GearCategory,
  *   bonuses: {
  *     hp?: number,
  *     mp?: number,
@@ -26,40 +34,54 @@
  *     dodgePct?: number,
  *     expPct?: number,
  *   },
+ *   element?: string,
+ *   elementMode?: 'override'|'enhance',
  * }} GearDef
  */
 
 /** @type {GearDef[]} */
 export const GEAR_CATALOG = [
-  { id: 'crown', name: 'Royal Crown', price: 50, emoji: '👑', slot: 'hat', bonuses: { hp: 5, defMax: 1 } },
-  { id: 'wizard', name: 'Wizard Hat', price: 60, emoji: '🧙', slot: 'hat', bonuses: { mp: 5, magicMin: 1, magicMax: 1 } },
-  { id: 'sunglasses', name: 'Cool Shades', price: 40, emoji: '🕶️', slot: 'glasses', bonuses: { dodgePct: 2, critPct: 1 } },
-  { id: 'cape', name: 'Hero Cape', price: 45, emoji: '🦸', slot: 'body', bonuses: { hp: 5, defMin: 1, defMax: 1 } },
-  { id: 'tpCape', name: 'TP Cape', price: 35, emoji: '🧻', slot: 'body', bonuses: { hp: 3, dodgePct: 1 } },
-  { id: 'boxing', name: 'Boxing Gloves', price: 55, emoji: '🥊', slot: 'hands', bonuses: { attackMin: 1, attackMax: 2 } },
-  { id: 'sockNecklace', name: 'Sock Necklace', price: 30, emoji: '🧿', slot: 'body', bonuses: { critPct: 2, expPct: 5 } },
-  { id: 'fireAura', name: 'Fire Aura', price: 80, emoji: '🔥', slot: 'aura', bonuses: { attackMin: 1, attackMax: 1, magicMin: 1 } },
+  // —— Stat gear ——
+  { id: 'crown', name: 'Royal Crown', price: 50, emoji: '👑', category: 'stat', bonuses: { hp: 5, defMax: 1 } },
+  { id: 'wizard', name: 'Wizard Hat', price: 60, emoji: '🧙', category: 'stat', bonuses: { mp: 5, magicMin: 1, magicMax: 1 } },
+  { id: 'sunglasses', name: 'Cool Shades', price: 40, emoji: '🕶️', category: 'stat', bonuses: { dodgePct: 2, critPct: 1 } },
+  { id: 'cape', name: 'Hero Cape', price: 45, emoji: '🦸', category: 'stat', bonuses: { hp: 5, defMin: 1, defMax: 1 } },
+  { id: 'boxing', name: 'Boxing Gloves', price: 55, emoji: '🥊', category: 'stat', bonuses: { attackMin: 1, attackMax: 2 } },
+  { id: 'sockNecklace', name: 'Sock Necklace', price: 30, emoji: '🧿', category: 'stat', bonuses: { critPct: 2, expPct: 5 } },
+  { id: 'hpCharm', name: 'HP Charm', price: 42, emoji: '❤️', category: 'stat', bonuses: { hp: 8 } },
+  { id: 'mpOrb', name: 'MP Orb', price: 48, emoji: '🔮', category: 'stat', bonuses: { mp: 8 } },
+  { id: 'powerBand', name: 'Power Band', price: 52, emoji: '💪', category: 'stat', bonuses: { attackMin: 2, attackMax: 1 } },
+  { id: 'guardBadge', name: 'Guard Badge', price: 50, emoji: '🛡️', category: 'stat', bonuses: { defMin: 1, defMax: 2, magicDefMin: 1 } },
+  // —— Element gear ——
+  { id: 'fireAura', name: 'Fire Aura', price: 80, emoji: '🔥', category: 'element', bonuses: { attackMin: 1, magicMin: 1 }, element: 'fire', elementMode: 'enhance' },
+  { id: 'fireCore', name: 'Fire Core', price: 90, emoji: '🔥', category: 'element', bonuses: { mp: 4, magicMin: 1 }, element: 'fire', elementMode: 'override' },
+  { id: 'waterShell', name: 'Water Shell', price: 85, emoji: '💧', category: 'element', bonuses: { hp: 6, magicDefMin: 1 }, element: 'water', elementMode: 'override' },
+  { id: 'metalPlate', name: 'Metal Plate', price: 95, emoji: '⚙️', category: 'element', bonuses: { defMin: 1, defMax: 2 }, element: 'metal', elementMode: 'override' },
+  { id: 'woodCharm', name: 'Wood Charm', price: 70, emoji: '🌿', category: 'element', bonuses: { hp: 4, mp: 2 }, element: 'wood', elementMode: 'enhance' },
+  { id: 'earthRune', name: 'Earth Rune', price: 75, emoji: '🪨', category: 'element', bonuses: { defMin: 1, hp: 4 }, element: 'earth', elementMode: 'enhance' },
+  // —— Fun / meme gear ——
+  { id: 'tpCape', name: 'TP Cape', price: 35, emoji: '🧻', category: 'fun', bonuses: { hp: 3, dodgePct: 1 } },
+  { id: 'toiletLid', name: 'Toilet Lid Shield', price: 38, emoji: '🚽', category: 'fun', bonuses: { defMin: 2, defMax: 1 } },
+  { id: 'slippers', name: 'Slippers of Speed', price: 44, emoji: '🩴', category: 'fun', bonuses: { dodgePct: 4 } },
+  { id: 'durianHelm', name: 'Durian Helmet', price: 46, emoji: '🥭', category: 'fun', bonuses: { hp: 4, attackMin: 1 } },
+  { id: 'smellySocks', name: 'Smelly Socks', price: 32, emoji: '🧦', category: 'fun', bonuses: { attackMin: 1, critPct: 1 } },
+  { id: 'rubberDuck', name: 'Lucky Rubber Duck', price: 28, emoji: '🦆', category: 'fun', bonuses: { expPct: 8, mp: 2 } },
 ];
 
-/** @deprecated use GEAR_CATALOG */
-export const COSMETIC_CATALOG = GEAR_CATALOG;
-
-export const GEAR_SLOT_LABELS = {
-  hat: 'Hat',
-  glasses: 'Glasses',
-  body: 'Body',
-  hands: 'Hands',
-  aura: 'Aura',
+export const GEAR_CATEGORY_LABELS = {
+  stat: 'Stat',
+  element: 'Element',
+  fun: 'Fun',
 };
+
+/** @deprecated */
+export const GEAR_SLOT_LABELS = GEAR_CATEGORY_LABELS;
 
 export function getGear(id) {
   return GEAR_CATALOG.find((g) => g.id === id) ?? null;
 }
 
-/** @deprecated */
-export const getCosmetic = getGear;
-
-/** Sum bonuses from equipped gear ids */
+/** Sum bonuses from equipped gear ids (compact list) */
 export function sumGearBonuses(gearIds) {
   const out = {
     hp: 0,
@@ -76,7 +98,8 @@ export function sumGearBonuses(gearIds) {
     dodgePct: 0,
     expPct: 0,
   };
-  for (const id of gearIds || []) {
+  const ids = compactGearIds(gearIds);
+  for (const id of ids) {
     const g = getGear(id);
     if (!g?.bonuses) continue;
     const b = g.bonuses;
@@ -97,7 +120,6 @@ export function sumGearBonuses(gearIds) {
   return out;
 }
 
-/** Human-readable bonus chips for UI */
 export function formatGearBonusLines(gearDef) {
   if (!gearDef?.bonuses) return [];
   const b = gearDef.bonuses;
@@ -114,25 +136,38 @@ export function formatGearBonusLines(gearDef) {
   if (b.critPct) lines.push(`+${b.critPct}% Crit`);
   if (b.dodgePct) lines.push(`+${b.dodgePct}% Dodge`);
   if (b.expPct) lines.push(`+${b.expPct}% EXP`);
+  if (gearDef.element) {
+    const mode = gearDef.elementMode === 'override' ? 'becomes' : 'boosts';
+    lines.push(`${gearDef.element.charAt(0).toUpperCase() + gearDef.element.slice(1)} (${mode})`);
+  }
   return lines;
 }
 
-/**
- * Equip one gear id; removes any other gear in the same slot.
- * @param {string[]} currentIds
- * @param {string} gearId
- */
+export function resolveFighterElement(templateId, gearIds) {
+  let element = getTemplateElement(templateId);
+  for (const id of compactGearIds(gearIds)) {
+    const g = getGear(id);
+    if (!g?.element) continue;
+    if (g.elementMode === 'override') element = g.element;
+  }
+  return element;
+}
+
+/** @deprecated — use setGearAtSlot via gameStorage */
 export function equipGearInSlot(currentIds, gearId) {
-  const item = getGear(gearId);
-  if (!item) return [...(currentIds || [])];
-  const withoutSlot = (currentIds || []).filter((id) => getGear(id)?.slot !== item.slot);
-  return [...withoutSlot, gearId];
+  const max = Math.max(3, (currentIds || []).length);
+  return equipToFirstEmptySlot(currentIds, gearId, max) ?? compactGearIds(currentIds);
 }
 
-export function unequipGear(currentIds, gearId) {
-  return (currentIds || []).filter((id) => id !== gearId);
+export function unequipGearFromSlot(currentSlots, slotIndex, maxSlots) {
+  const slots = normalizeEquippedSlots(currentSlots, maxSlots);
+  if (slotIndex >= 0 && slotIndex < maxSlots) slots[slotIndex] = null;
+  return slots;
 }
 
-export function getEquippedInSlot(gearIds, slot) {
-  return (gearIds || []).find((id) => getGear(id)?.slot === slot) ?? null;
+export function unequipGear(currentSlots, gearId, maxSlots = 6) {
+  const slots = normalizeEquippedSlots(currentSlots, maxSlots);
+  return slots.map((id) => (id === gearId ? null : id));
 }
+
+export { setGearAtSlot, normalizeEquippedSlots, compactGearIds, equipToFirstEmptySlot };

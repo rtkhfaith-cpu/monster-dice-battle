@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import MoveEffect from './MoveEffect';
+import { ATTACK_EFFECT_SCALE, fx } from '../utils/battleEffectScale';
 
 /**
  * @param {{
@@ -80,11 +81,14 @@ export default function BattleEffect({ currentEffect, instruction }) {
     ]).start();
   }, [ce?.superBomb, superZoom]);
 
-  const flyY = flyDmg.interpolate({ inputRange: [0, 1], outputRange: [12, -36] });
-  const burstScale = burst.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1.6] });
+  const flyY = flyDmg.interpolate({ inputRange: [0, 1], outputRange: [fx(12), -fx(36)] });
+  const burstScale = burst.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1.6 * ATTACK_EFFECT_SCALE] });
   const burstOp = burst.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0.85, 0] });
   const flashBg = flash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.55] });
-  const boomScale = superZoom.interpolate({ inputRange: [0, 1, 2], outputRange: [0.85, 1.15, 1.65] });
+  const boomScale = superZoom.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: [0.85 * ATTACK_EFFECT_SCALE, 1.15 * ATTACK_EFFECT_SCALE, 1.65 * ATTACK_EFFECT_SCALE],
+  });
 
   const superPhase = ce?.superPhase || 'boom';
 
@@ -130,9 +134,11 @@ export default function BattleEffect({ currentEffect, instruction }) {
         </Text>
       ) : null}
 
-      {!ce?.superBomb && ce?.effectType ? (
+      {!ce?.superBomb && !ce?.useProjectileAnim && ce?.effectType ? (
         <View style={styles.fxSlot}>
-          <MoveEffect effectType={ce.effectType} emoji={ce.emoji} animate rageBoost={!!ce.rageBoost} />
+          <View style={styles.fxScale}>
+            <MoveEffect effectType={ce.effectType} emoji={ce.emoji} animate rageBoost={!!ce.rageBoost} />
+          </View>
         </View>
       ) : null}
 
@@ -191,6 +197,8 @@ export default function BattleEffect({ currentEffect, instruction }) {
   );
 }
 
+const S = ATTACK_EFFECT_SCALE;
+
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
@@ -205,7 +213,7 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   rageLbl: {
-    fontSize: 18,
+    fontSize: fx(18),
     fontWeight: '900',
     color: '#c0392b',
     textShadowColor: '#f1c40f',
@@ -224,62 +232,66 @@ const styles = StyleSheet.create({
   },
   moveTitle: {
     fontWeight: '900',
-    fontSize: 20,
+    fontSize: fx(20),
     color: '#1a1a2e',
     textAlign: 'center',
-    marginBottom: 6,
-    paddingHorizontal: 4,
+    marginBottom: fx(6),
+    paddingHorizontal: fx(4),
   },
-  moveCrit: { fontSize: 24, color: '#c0392b' },
+  moveCrit: { fontSize: fx(24), color: '#c0392b' },
   fxSlot: {
-    minHeight: 72,
-    maxHeight: 100,
+    minHeight: fx(72),
+    maxHeight: fx(100),
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
+  },
+  fxScale: {
+    transform: [{ scale: S }],
   },
   shieldLbl: {
-    fontSize: 16,
+    fontSize: fx(16),
     fontWeight: '800',
     color: '#1a6a8a',
     marginTop: 2,
   },
   dodgeLbl: {
-    fontSize: 22,
+    fontSize: fx(22),
     fontWeight: '900',
     color: '#576574',
     letterSpacing: 0.6,
     marginVertical: 2,
   },
   dmgLbl: {
-    fontSize: 28,
+    fontSize: fx(28),
     fontWeight: '900',
     color: '#922b21',
-    marginTop: 2,
+    marginTop: fx(2),
   },
   dmgCrit: {
-    fontSize: 40,
+    fontSize: fx(40),
     color: '#c0392b',
   },
   dmgWeak: {
-    fontSize: 24,
+    fontSize: fx(24),
     color: '#95a5a6',
   },
   dmgDefended: {
-    fontSize: 24,
+    fontSize: fx(24),
     color: '#2a9d8f',
   },
   weakLbl: {
-    fontSize: 20,
+    fontSize: fx(20),
     fontWeight: '900',
     color: '#95a5a6',
     marginTop: 2,
   },
   burst: {
     position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: fx(80),
+    height: fx(80),
+    borderRadius: fx(40),
     backgroundColor: '#f39c12',
     top: '38%',
   },
@@ -295,17 +307,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   critHuge: {
-    fontSize: 34,
+    fontSize: fx(34),
     fontWeight: '900',
     color: '#d35400',
   },
   critEmoji: {
-    fontSize: 28,
+    fontSize: fx(28),
     marginTop: 0,
   },
   bomb: {
-    fontSize: 48,
-    lineHeight: 52,
+    fontSize: fx(48),
+    lineHeight: fx(52),
     includeFontPadding: false,
     marginBottom: -2,
   },
@@ -320,13 +332,13 @@ const styles = StyleSheet.create({
     color: '#764ba2',
   },
   superDmg: {
-    fontSize: 32,
+    fontSize: fx(32),
     fontWeight: '900',
     color: '#a93226',
     marginTop: 4,
   },
   superWord: {
-    fontSize: 22,
+    fontSize: fx(22),
     fontWeight: '900',
     color: '#6c3483',
     textAlign: 'center',

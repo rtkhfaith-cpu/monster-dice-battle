@@ -1,4 +1,6 @@
 import { randInt } from './random';
+import { getElementRelation, getElementalDamageModifier } from './elements';
+import { applyStatus, statusStatMultiplier } from './statusEffects';
 
 /**
  * @param {{min:number,max:number}} range
@@ -18,8 +20,115 @@ export function rollPercentChance(pct) {
 }
 
 function statMid(range, fallback) {
+  if (typeof range === 'number') return range;
   if (!range || typeof range.min !== 'number' || typeof range.max !== 'number') return fallback;
   return Math.round((range.min + range.max) / 2);
+}
+
+/**
+ * Physical strike — attack vs defense, no elemental modifiers.
+ * @param {{ attacker: object, defender: object, defending?: boolean, skill?: { power?: number } }} opts
+ */
+export function resolvePhysicalBattleDamage({ attacker, defender, defending = false, skill = null }) {
+  const powerMult = skill?.power ?? 1;
+  const atkMult = statusStatMultiplier(attacker, 'attack');
+  const defMult = statusStatMultiplier(defender, 'def');
+
+  const baseAttack = statMid(attacker?.stats?.attack, 10) * atkMult * powerMult;
+  const levelBonus = (attacker?.level ?? 1) * 1.5;
+  const defStat = statMid(defender?.stats?.def, 5) * defMult;
+  const randomVariance = 0.85 + Math.random() * 0.3;
+
+  let raw = (baseAttack + levelBonus - defStat * 0.6) * randomVariance;
+
+  let critical = false;
+  let weak = false;
+  if (rollPercentChance(attacker?.stats?.critPct ?? 10)) {
+    critical = true;
+    raw *= 1.5;
+  } else if (rollPercentChance(8)) {
+    weak = true;
+    raw *= 0.75;
+  }
+
+  if (defending) raw *= 0.6;
+
+  const damage = Math.max(1, Math.round(raw));
+  return {
+    damage,
+    critical,
+    weak,
+    defended: !!defending,
+    dodged: false,
+    strikeKind: 'physical',
+    elementRelation: 'neutral',
+  };
+}
+
+/** @deprecated use resolvePhysicalBattleDamage */
+export function resolveTurnBattleDamage(opts) {
+  return resolvePhysicalBattleDamage(opts);
+}
+
+/**
+ * Magic strike — stronger base, uses magic stats + element cycle.
+ * @param {{ attacker: object, defender: object, defending?: boolean, skill: object, atkElement?: string, defElement?: string }} opts
+ */
+export function resolveMagicBattleDamage({
+  attacker,
+  defender,
+  defending = false,
+  skill,
+  atkElement,
+  defElement,
+}) {
+  const powerMult = skill?.power ?? 1.2;
+  const defMult = statusStatMultiplier(defender, 'def');
+
+  const baseMagic = statMid(attacker?.stats?.magic, 10) * powerMult;
+  const levelBonus = (attacker?.level ?? 1) * 1.8;
+  const defStat = statMid(defender?.stats?.magicDef, 5) * defMult;
+  const randomVariance = 0.88 + Math.random() * 0.28;
+
+  const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';
+  const dEl = defElement ?? defender?.element ?? 'earth';
+  const elementRelation = getElementRelation(aEl, dEl);
+  const elementalModifier = getElementalDamageModifier(elementRelation);
+
+  let raw = (baseMagic * 1.35 + levelBonus - defStat * 0.55) * randomVariance * elementalModifier;
+
+  let critical = false;
+  let weak = false;
+  if (rollPercentChance((attacker?.stats?.critPct ?? 10) + 2)) {
+    critical = true;
+    raw *= 1.5;
+  } else if (rollPercentChance(6)) {
+    weak = true;
+    raw *= 0.75;
+  }
+
+  if (defending) raw *= 0.6;
+
+  const damage = Math.max(1, Math.round(raw));
+  return {
+    damage,
+    critical,
+    weak,
+    defended: !!defending,
+    dodged: false,
+    strikeKind: 'magic',
+    elementRelation,
+    atkElement: aEl,
+    defElement: dEl,
+  };
+}
+
+/** Apply skill status proc to defender after a hit */
+export function maybeApplySkillStatus(defender, skill) {
+  const st = skill?.status;
+  if (!st?.type || !st.chance) return defender;
+  if (!rollPercentChance(Math.round(st.chance * 100))) return defender;
+  return applyStatus(defender, st.type, st.turns ?? 2, 1);
 }
 
 /**

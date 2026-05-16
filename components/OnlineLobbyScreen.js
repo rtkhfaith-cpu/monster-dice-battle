@@ -1,26 +1,31 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Constants from 'expo-constants';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import {
   createOnlineRoom,
   ensureOnlineSocket,
+  getConfiguredServerUrl,
   joinOnlineRoom,
   leaveOnlineRoom,
-  setOnlineReady,
   subscribeOnline,
   syncOnlineProfile,
 } from '../utils/onlineSocketManager';
 import { loadOnlineSession } from '../utils/onlineSession';
 
-function socketUrlConfigured() {
-  const u = Constants.expoConfig?.extra?.socketServerUrl ?? '';
-  return typeof u === 'string' && u.length > 5;
-}
-
-function PlayerCard({ label, player, isYou }) {
+function PlayerCard({ label, player, isYou, emptyLabel }) {
   const prof = player?.profile;
   const parts = prof?.fighter?.monsterParts;
+  const joined = !!player?.connected;
+
+  if (!joined && !prof) {
+    return (
+      <View style={[styles.playerCard, styles.playerCardEmpty]}>
+        <Text style={styles.playerLabel}>{label}</Text>
+        <Text style={styles.wait}>{emptyLabel}</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.playerCard, isYou && styles.playerCardYou]}>
       <Text style={styles.playerLabel}>
@@ -28,86 +33,113 @@ function PlayerCard({ label, player, isYou }) {
         {isYou ? ' (You)' : ''}
       </Text>
       <Text style={styles.playerName}>{prof?.name ?? '—'}</Text>
-      {!player?.connected && !prof ? (
-        <Text style={styles.wait}>Waiting for opponent…</Text>
-      ) : null}
       {prof ? (
-        <>
-          <View style={styles.previewRow}>
-            {parts ? <MonsterPreview parts={parts} size={56} mood="neutral" /> : null}
-            <View style={styles.statsCol}>
-              <Text style={styles.monName}>{prof.monsterName}</Text>
-              <Text style={styles.stat}>Lv {prof.level}</Text>
-              <Text style={styles.stat}>
-                HP {prof.hp}/{prof.maxHp} · MP {prof.mp}/{prof.maxMp}
-              </Text>
-              <Text style={[styles.readyTag, player.ready ? styles.readyYes : styles.readyNo]}>
-                {player.ready ? 'Ready' : 'Not ready'}
-              </Text>
-            </View>
+        <View style={styles.previewRow}>
+          {parts ? <MonsterPreview parts={parts} size={56} mood="neutral" /> : null}
+          <View style={styles.statsCol}>
+            <Text style={styles.monName}>{prof.monsterName}</Text>
+            <Text style={styles.stat}>Lv {prof.level}</Text>
+            <Text style={styles.stat}>
+              HP {prof.hp}/{prof.maxHp} · MP {prof.mp}/{prof.maxMp}
+            </Text>
           </View>
-        </>
-      ) : null}
+        </View>
+      ) : (
+        <Text style={styles.wait}>Select a monster on Home, then return here.</Text>
+      )}
     </View>
   );
 }
 
+async function copyRoomCode(code) {
+  const text = String(code || '').trim();
+  if (!text) return;
+  try {
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      Alert.alert('Copied', `Room code ${text} copied.`);
+      return;
+    }
+    Alert.alert('Room code', text);
+  } catch {
+    Alert.alert('Room code', text);
+  }
+}
+
 /**
- * Online multiplayer lobby — room persists when navigating home.
+ * Online multiplayer: Create / Join → waiting room → auto battle start.
  */
 export default function OnlineLobbyScreen({
   onBackHome,
   onBattleStart,
   buildProfilePayload,
   mySlot: mySlotProp,
+  initialView = 'menu',
 }) {
-  const [status, setStatus] = useState(socketUrlConfigured() ? 'idle' : 'no_env');
+  const serverUrl = getConfiguredServerUrl();
+  const configured = serverUrl.length > 5;
+
+  const [view, setView] = useState(initialView);
+  const [status, setStatus] = useState(configured ? 'connecting' : 'no_env');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomState, setRoomState] = useState(null);
   const [mySlot, setMySlot] = useState(mySlotProp || loadOnlineSession()?.playerSlot || null);
-  const [ready, setReady] = useState(false);
   const [err, setErr] = useState('');
+  const [opponentLeft, setOpponentLeft] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const refreshProfile = useCallback(() => {
     const payload = buildProfilePayload?.();
-    if (payload?.fighter) syncOnlineProfile(payload);
+    if (payload) syncOnlineProfile(payload);
   }, [buildProfilePayload]);
 
   useEffect(() => {
-    if (!socketUrlConfigured()) return undefined;
+    if (!configured) return undefined;
     setStatus('connecting');
-    ensureOnlineSocket().then(({ error }) => {
+    ensureOnlineSocket().then(({ error, url }) => {
       if (error) {
         setStatus('fail');
-        setErr(error);
+        setErr(`${error}${url ? ` (${url})` : ''}`);
         return;
       }
       setStatus('connected');
       refreshProfile();
+      const session = loadOnlineSession();
+      if (session?.roomCode) {
+        setView('waiting');
+        setRoomCodeInput(session.roomCode);
+        setMySlot(session.playerSlot);
+      }
     });
-    return subscribeOnline((st) => {
+    return subscribeOnline((st, meta) => {
       setRoomState(st);
-      if (st?.roomCode) setRoomCodeInput(st.roomCode);
+      if (st?.roomCode) {
+        setView('waiting');
+        setRoomCodeInput(st.roomCode);
+      }
       const session = loadOnlineSession();
       if (session?.playerSlot) setMySlot(session.playerSlot);
-      const me = session?.playerSlot === 'p2' ? st?.players?.p2 : st?.players?.p1;
-      setReady(!!me?.ready);
+      if (meta?.opponentLeft) setOpponentLeft(meta.opponentLeft);
       if (st?.status === 'battle' && st.battle && onBattleStart) {
         onBattleStart(st);
       }
     });
-  }, [buildProfilePayload, onBattleStart, refreshProfile]);
+  }, [buildProfilePayload, configured, onBattleStart, refreshProfile]);
 
   useEffect(() => {
-    refreshProfile();
-  }, [refreshProfile]);
+    if (view === 'waiting') refreshProfile();
+  }, [view, refreshProfile]);
 
   async function handleCreate() {
     setErr('');
+    setBusy(true);
+    refreshProfile();
     const res = await createOnlineRoom();
+    setBusy(false);
     if (res.error) setErr(res.error);
     else {
       setMySlot(res.playerSlot);
+      setView('waiting');
       refreshProfile();
     }
   }
@@ -116,109 +148,159 @@ export default function OnlineLobbyScreen({
     setErr('');
     const code = roomCodeInput.trim().toUpperCase();
     if (code.length < 4) {
-      setErr('Enter a room code');
+      setErr('Enter the 6-letter room code');
       return;
     }
+    setBusy(true);
+    refreshProfile();
     const res = await joinOnlineRoom(code);
+    setBusy(false);
     if (res.error) setErr(res.error);
     else {
       setMySlot(res.playerSlot);
+      setView('waiting');
       refreshProfile();
     }
-  }
-
-  function toggleReady() {
-    const next = !ready;
-    setReady(next);
-    setOnlineReady(next);
   }
 
   function handleLeave() {
     leaveOnlineRoom();
     setRoomState(null);
     setMySlot(null);
-    setReady(false);
+    setOpponentLeft('');
+    setView('menu');
   }
 
   const connected = status === 'connected';
   const inRoom = !!roomState?.roomCode;
   const opp = mySlot === 'p2' ? roomState?.players?.p1 : roomState?.players?.p2;
   const me = mySlot === 'p2' ? roomState?.players?.p2 : roomState?.players?.p1;
-  const canReady = !!me?.profile?.fighter && !!opp?.profile?.fighter;
+  const bothJoined = !!roomState?.bothJoined;
+  const missing = roomState?.missingRequirements ?? [];
+  const starting = bothJoined && missing.length === 0 && roomState?.status === 'lobby';
+
+  let statusLine = 'Connecting…';
+  if (!configured) statusLine = 'Server not configured. Set EXPO_PUBLIC_SOCKET_SERVER_URL and rebuild.';
+  else if (status === 'fail') statusLine = err || 'Connection failed';
+  else if (connected && inRoom) {
+    if (opponentLeft) statusLine = opponentLeft;
+    else if (roomState.status === 'battle') statusLine = 'Battle starting…';
+    else if (!bothJoined) statusLine = 'Waiting for opponent…';
+    else if (missing.length) statusLine = missing[0];
+    else if (starting) statusLine = 'Both players ready — starting battle…';
+    else statusLine = `Connected · Room ${roomState.roomCode}`;
+  } else if (connected) statusLine = 'Connected';
+
+  if (view === 'waiting' && inRoom) {
+    return (
+      <ScrollView style={styles.wrap} contentContainerStyle={styles.inner}>
+        <Text style={styles.title}>Waiting Room</Text>
+        <Text style={[styles.status, opponentLeft && styles.statusWarn]}>{statusLine}</Text>
+
+        <Text style={styles.roomLabel}>Room code</Text>
+        <Text style={styles.roomCode}>{roomState.roomCode}</Text>
+        <TouchableOpacity style={styles.copyBtn} onPress={() => copyRoomCode(roomState.roomCode)}>
+          <Text style={styles.copyTxt}>Copy room code</Text>
+        </TouchableOpacity>
+
+        <PlayerCard
+          label="Player A"
+          player={roomState.players?.p1}
+          isYou={mySlot === 'p1'}
+          emptyLabel="Waiting for Player A…"
+        />
+        <PlayerCard
+          label="Player B"
+          player={roomState.players?.p2}
+          isYou={mySlot === 'p2'}
+          emptyLabel={bothJoined ? '—' : 'Waiting for opponent…'}
+        />
+
+        {missing.length > 1 ? (
+          <View style={styles.missingBox}>
+            {missing.map((m) => (
+              <Text key={m} style={styles.missingLine}>
+                • {m}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {DEV_HINT && configured ? (
+          <Text style={styles.devUrl} numberOfLines={2}>
+            Server: {serverUrl}
+          </Text>
+        ) : null}
+
+        <TouchableOpacity style={styles.leave} onPress={handleLeave}>
+          <Text style={styles.leaveTxt}>Leave Room</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.back} onPress={onBackHome}>
+          <Text style={styles.backTxt}>← Back to Home</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={styles.wrap} contentContainerStyle={styles.inner}>
-      <Text style={styles.title}>Online Multiplayer</Text>
-      <Text style={styles.status}>
-        {status === 'no_env'
-          ? 'Server not configured. Set EXPO_PUBLIC_SOCKET_SERVER_URL and rebuild.'
-          : connected
-            ? inRoom
-              ? `Connected · Room ${roomState.roomCode}`
-              : 'Connected — create or join a room'
-            : status === 'fail'
-              ? err || 'Connection failed'
-              : 'Connecting…'}
-      </Text>
+      <Text style={styles.title}>Multiplayer Online</Text>
+      <Text style={styles.status}>{statusLine}</Text>
 
-      {!inRoom ? (
+      {view === 'menu' ? (
         <>
-          <TouchableOpacity style={styles.btn} onPress={handleCreate} disabled={!connected}>
+          <TouchableOpacity
+            style={styles.btn}
+            onPress={handleCreate}
+            disabled={!connected || busy}
+          >
             <Text style={styles.btnTxt}>Create Room</Text>
           </TouchableOpacity>
-          <TextInput
-            style={styles.input}
-            placeholder="ROOM CODE"
-            autoCapitalize="characters"
-            value={roomCodeInput}
-            onChangeText={setRoomCodeInput}
-          />
-          <TouchableOpacity style={styles.btnAlt} onPress={handleJoin} disabled={!connected}>
+          <TouchableOpacity
+            style={styles.btnAlt}
+            onPress={() => setView('join')}
+            disabled={!connected}
+          >
             <Text style={styles.btnTxt}>Join Room</Text>
           </TouchableOpacity>
         </>
       ) : (
         <>
-          <Text style={styles.roomCode}>Room {roomState.roomCode}</Text>
-          <PlayerCard label="Player 1" player={roomState.players?.p1} isYou={mySlot === 'p1'} />
-          <PlayerCard label="Player 2" player={roomState.players?.p2} isYou={mySlot === 'p2'} />
-
-          {!opp?.profile ? (
-            <Text style={styles.hint}>Waiting for opponent to join…</Text>
-          ) : !canReady ? (
-            <Text style={styles.hint}>Both players need a monster selected on Home.</Text>
-          ) : (
-            <Text style={styles.hint}>Both monsters locked in — tap Ready when set.</Text>
-          )}
-
-          <TouchableOpacity
-            style={[styles.readyBtn, ready && styles.readyBtnOn]}
-            onPress={toggleReady}
-            disabled={!canReady || roomState.status === 'battle'}
-          >
-            <Text style={styles.btnTxt}>{ready ? 'Unready' : 'Ready'}</Text>
+          <Text style={styles.joinHint}>Enter the room code from your friend:</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="ROOM CODE"
+            autoCapitalize="characters"
+            maxLength={8}
+            value={roomCodeInput}
+            onChangeText={(t) => setRoomCodeInput(t.toUpperCase())}
+          />
+          <TouchableOpacity style={styles.btn} onPress={handleJoin} disabled={!connected || busy}>
+            <Text style={styles.btnTxt}>Join</Text>
           </TouchableOpacity>
-
-          {roomState.canStart ? (
-            <Text style={styles.startHint}>Starting battle…</Text>
-          ) : null}
+          <TouchableOpacity style={styles.linkBtn} onPress={() => setView('menu')}>
+            <Text style={styles.linkTxt}>← Back</Text>
+          </TouchableOpacity>
         </>
       )}
 
       {err ? <Text style={styles.err}>{err}</Text> : null}
 
+      {DEV_HINT && configured ? (
+        <Text style={styles.devUrl} numberOfLines={2}>
+          Server: {serverUrl}
+        </Text>
+      ) : null}
+
       <TouchableOpacity style={styles.back} onPress={onBackHome}>
         <Text style={styles.backTxt}>← Back to Home</Text>
       </TouchableOpacity>
-
-      {inRoom ? (
-        <TouchableOpacity style={styles.leave} onPress={handleLeave}>
-          <Text style={styles.leaveTxt}>Leave Room</Text>
-        </TouchableOpacity>
-      ) : null}
     </ScrollView>
   );
 }
+
+const DEV_HINT = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
 
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
@@ -232,14 +314,34 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     lineHeight: 20,
   },
+  statusWarn: { color: '#c0392b' },
+  roomLabel: {
+    fontWeight: '800',
+    fontSize: 12,
+    color: '#636e72',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   roomCode: {
     fontWeight: '900',
-    fontSize: 22,
+    fontSize: 36,
     textAlign: 'center',
     color: '#0984e3',
-    marginBottom: 10,
-    letterSpacing: 2,
+    marginVertical: 8,
+    letterSpacing: 4,
   },
+  copyBtn: {
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 16,
+    backgroundColor: '#dfe6e9',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#2d2d44',
+  },
+  copyTxt: { fontWeight: '900', fontSize: 14, color: '#2d3436' },
   btn: {
     backgroundColor: '#8ac926',
     paddingVertical: 14,
@@ -259,6 +361,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   btnTxt: { fontWeight: '900', fontSize: 17, color: '#1b1b2f' },
+  joinHint: { fontWeight: '800', fontSize: 14, color: '#566573', textAlign: 'center', marginBottom: 8 },
   input: {
     borderWidth: 3,
     borderColor: '#ff9f1c',
@@ -268,10 +371,12 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginBottom: 10,
     backgroundColor: '#fff',
-    fontSize: 18,
-    letterSpacing: 2,
+    fontSize: 22,
+    letterSpacing: 3,
     textAlign: 'center',
   },
+  linkBtn: { alignSelf: 'center', marginBottom: 12 },
+  linkTxt: { fontWeight: '900', fontSize: 15, color: '#0984e3' },
   playerCard: {
     backgroundColor: '#fff',
     borderWidth: 2,
@@ -280,6 +385,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 10,
   },
+  playerCardEmpty: { borderStyle: 'dashed', backgroundColor: '#f8f9fa' },
   playerCardYou: { borderColor: '#0984e3', borderWidth: 3 },
   playerLabel: { fontWeight: '900', fontSize: 12, color: '#636e72', textTransform: 'uppercase' },
   playerName: { fontWeight: '900', fontSize: 18, color: '#1a1a2e', marginBottom: 6 },
@@ -288,42 +394,16 @@ const styles = StyleSheet.create({
   statsCol: { flex: 1 },
   monName: { fontWeight: '900', fontSize: 16, color: '#2d3436' },
   stat: { fontWeight: '800', fontSize: 13, color: '#4a5568' },
-  readyTag: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
-    fontWeight: '900',
-    fontSize: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    overflow: 'hidden',
-  },
-  readyYes: { backgroundColor: '#8ac926', color: '#1b4332' },
-  readyNo: { backgroundColor: '#ffd166', color: '#4a2800' },
-  hint: {
-    fontWeight: '800',
-    fontSize: 14,
-    color: '#566573',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  startHint: {
-    fontWeight: '900',
-    fontSize: 16,
-    color: '#27ae60',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  readyBtn: {
-    backgroundColor: '#dfe6e9',
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 3,
-    borderColor: '#2d2d44',
-    alignItems: 'center',
+  missingBox: {
+    backgroundColor: '#fff3cd',
+    borderRadius: 10,
+    padding: 10,
     marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#ffc107',
   },
-  readyBtnOn: { backgroundColor: '#8ac926' },
+  missingLine: { fontWeight: '800', fontSize: 13, color: '#856404', marginBottom: 4 },
+  devUrl: { fontSize: 11, color: '#95a5a6', textAlign: 'center', marginBottom: 10, paddingHorizontal: 8 },
   err: { color: '#c0392b', fontWeight: '800', textAlign: 'center', marginBottom: 8 },
   back: {
     alignSelf: 'center',
@@ -333,7 +413,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 3,
     borderColor: '#2d2d44',
-    marginBottom: 10,
+    marginTop: 8,
   },
   backTxt: { fontWeight: '900', fontSize: 16, color: '#1b1b2f' },
   leave: {
@@ -344,6 +424,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 3,
     borderColor: '#2d2d44',
+    marginBottom: 8,
   },
   leaveTxt: { fontWeight: '900', fontSize: 16, color: '#fff' },
 });

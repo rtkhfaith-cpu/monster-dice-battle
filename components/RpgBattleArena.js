@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import AnimatedMonster from './AnimatedMonster';
 import { expToAdvanceFrom } from '../utils/expLevel';
+import { getStrictLayout } from '../utils/battleLayout';
+import { ELEMENT_UI } from '../utils/elements';
+import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
 import { BATTLE } from '../utils/gameTheme';
 
 function MicroBar({ ratio, color }) {
@@ -13,51 +16,62 @@ function MicroBar({ ratio, color }) {
   );
 }
 
-function BattlerInfoPanel({ title, fighter, diceValue, combo, active, isPlayer }) {
+function BattlerInfoPanel({ title, fighter, active, side, panelWidth }) {
   const level = fighter?.level ?? 1;
   const exp = fighter?.battleExp ?? 0;
   const expNeed = fighter?.battleExpToNext ?? expToAdvanceFrom(level);
-  const hpRatio = fighter?.stats?.hp ? fighter.hp / fighter.stats.hp : 0;
-  const mpRatio = fighter?.stats?.mp ? fighter.mp / fighter.stats.mp : 0;
+  const maxHp = fighter?.maxHp ?? fighter?.stats?.hp ?? 0;
+  const maxMp = fighter?.maxMp ?? fighter?.stats?.mp ?? 0;
+  const hpRatio = maxHp ? fighter.hp / maxHp : 0;
+  const mpRatio = maxMp ? fighter.mp / maxMp : 0;
   const expRatio = expNeed > 0 ? exp / expNeed : 0;
-  const diceLabel = diceValue == null ? '—' : String(diceValue);
+  const combo = fighter?.combo ?? 0;
   const rage = fighter?.stats?.hp && fighter.hp / fighter.stats.hp <= 0.3 && fighter.hp > 0;
+  const hpColor = side === 'left' ? '#4ecdc4' : '#ff6b6b';
+  const elUi = ELEMENT_UI[fighter?.element] ?? ELEMENT_UI.earth;
+  const statusTag = hasStatus(fighter) ? STATUS_LABELS[fighter.status.type] : null;
 
   return (
-    <View style={[styles.infoPanel, active ? styles.infoPanelActive : styles.infoPanelIdle]}>
+    <View
+      style={[
+        styles.infoPanel,
+        { width: panelWidth, maxWidth: panelWidth, minHeight: 118 },
+        active ? styles.infoPanelActive : styles.infoPanelIdle,
+      ]}
+    >
       <Text style={styles.infoTitle} numberOfLines={1}>
         {title}
       </Text>
-      <Text style={styles.monName} numberOfLines={1}>
-        {fighter?.displayName || 'Monster'}
-      </Text>
+      <View style={styles.nameRow}>
+        <Text style={styles.elementBadge}>{elUi.emoji}</Text>
+        <Text style={[styles.monName, styles.monNameFlex]} numberOfLines={1}>
+          {fighter?.displayName || 'Monster'}
+        </Text>
+      </View>
       <Text style={styles.lvLine}>Lv {level}</Text>
       <Text style={styles.statInline}>
-        HP {fighter.hp}/{fighter.stats.hp}
+        HP {fighter.hp}/{maxHp}
       </Text>
-      <MicroBar ratio={hpRatio} color={isPlayer ? '#4ecdc4' : '#ff6b6b'} />
-      {isPlayer ? (
-        <>
-          <Text style={styles.statInline}>
-            MP {fighter.mp}/{fighter.stats.mp}
-          </Text>
-          <MicroBar ratio={mpRatio} color="#6366f1" />
-          <Text style={styles.statInline}>
-            EXP {exp}/{expNeed}
-          </Text>
-          <MicroBar ratio={expRatio} color="#ffd166" />
-        </>
-      ) : null}
-      <Text style={styles.diceCombo}>
-        Dice <Text style={styles.val}>{diceLabel}</Text> · Cmb <Text style={styles.val}>{combo ?? 0}</Text>
+      <MicroBar ratio={hpRatio} color={hpColor} />
+      <Text style={styles.statInline}>
+        MP {fighter.mp}/{maxMp}
       </Text>
-      {rage ? <Text style={styles.rageTag}>RAGE</Text> : null}
+      <MicroBar ratio={mpRatio} color="#6366f1" />
+      <Text style={styles.statInline}>
+        EXP {exp}/{expNeed}
+      </Text>
+      <MicroBar ratio={expRatio} color="#ffd166" />
+      <Text style={styles.statInline}>
+        Combo <Text style={styles.val}>{combo}</Text>
+      </Text>
+      {statusTag ? <Text style={styles.statusTag}>{statusTag}</Text> : null}
+      {rage ? <Text style={styles.rageTag}>LOW HP</Text> : null}
     </View>
   );
 }
 
 /**
- * Single-screen RPG battle field — enemy top, ally bottom, turn focus.
+ * Strict-coordinate RPG battlefield — all combatants use absolute % positions.
  */
 export default function RpgBattleArena({
   p1,
@@ -66,16 +80,12 @@ export default function RpgBattleArena({
   p2Mood,
   p1Pose,
   p2Pose,
-  p1Bubble,
-  p2Bubble,
-  diceP1,
-  diceP2,
   activeTurn,
   round,
   turnBadge = '',
   player1Label = 'You',
   player2Label = 'Foe',
-  centerDock = null,
+  topHudExtra = null,
   battleDim,
   shakeX,
   stageZoom,
@@ -115,55 +125,42 @@ export default function RpgBattleArena({
     ]).start();
     return undefined;
   }, [defenderFlashP2, p2Flash]);
-  const { width, height } = useWindowDimensions();
-  const short = height < 680;
-  const narrow = width < 520;
 
-  const monsterSize = useMemo(() => {
-    const byH = Math.floor(height * (short ? 0.28 : 0.33));
-    const byW = Math.floor(width * (narrow ? 0.5 : 0.46));
-    const cap = short ? 205 : 255;
-    const floor = short ? 110 : 128;
-    return Math.max(floor, Math.min(cap, byH, byW));
-  }, [width, height, short, narrow]);
+  const { width, height } = useWindowDimensions();
+  const narrow = width < 520;
+  const L = useMemo(() => getStrictLayout(width, height), [width, height]);
+  const bannerW = L.hudBannerW;
+  const bannerHalf = bannerW / 2;
 
   const p1Focus = useRef(new Animated.Value(activeTurn === 1 ? 1 : 0)).current;
   const p2Focus = useRef(new Animated.Value(activeTurn === 2 ? 1 : 0)).current;
 
   useEffect(() => {
-    const dur = short ? 160 : 220;
-    Animated.timing(p1Focus, { toValue: activeTurn === 1 ? 1 : 0, duration: dur, useNativeDriver: true }).start();
-    Animated.timing(p2Focus, { toValue: activeTurn === 2 ? 1 : 0, duration: dur, useNativeDriver: true }).start();
-  }, [activeTurn, p1Focus, p2Focus, short]);
+    Animated.timing(p1Focus, { toValue: activeTurn === 1 ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+    Animated.timing(p2Focus, { toValue: activeTurn === 2 ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+  }, [activeTurn, p1Focus, p2Focus]);
 
-  const p1Scale = p1Focus.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] });
-  const p1Opacity = p1Focus.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
-  const p1Ty = p1Focus.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
-  const p2Scale = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] });
-  const p2Opacity = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
-  const p2Ty = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] });
+  const p1Scale = p1Focus.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
+  const p1Opacity = p1Focus.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] });
+  const p2Scale = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
+  const p2Opacity = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] });
 
-  const turnPulse = useRef(new Animated.Value(1)).current;
-  const turnFlash = useRef(new Animated.Value(0)).current;
-
+  const cloudDrift = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    turnFlash.setValue(0);
-    Animated.sequence([
-      Animated.timing(turnFlash, { toValue: 1, duration: 160, useNativeDriver: true }),
-      Animated.timing(turnFlash, { toValue: 0, duration: 480, useNativeDriver: true }),
-    ]).start();
-    turnPulse.setValue(1);
+    cloudDrift.setValue(0);
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(turnPulse, { toValue: 1.05, duration: 580, useNativeDriver: true }),
-        Animated.timing(turnPulse, { toValue: 1, duration: 580, useNativeDriver: true }),
+        Animated.timing(cloudDrift, { toValue: 1, duration: 18000, useNativeDriver: true }),
+        Animated.timing(cloudDrift, { toValue: 0, duration: 18000, useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [turnBadge, turnPulse, turnFlash]);
+  }, [cloudDrift]);
+  const cloudTx = cloudDrift.interpolate({ inputRange: [0, 1], outputRange: [0, 24] });
 
-  const ribbonScale = turnPulse;
+  const roundLabel = narrow ? `R${round}` : `Round ${round}`;
+  const turnShort = turnBadge || '';
 
   return (
     <Animated.View
@@ -173,108 +170,118 @@ export default function RpgBattleArena({
         { transform: [{ translateX: shakeX }, { scale: stageZoom }] },
       ]}
     >
-      <View style={styles.sky} />
-      <View style={styles.cloudA} />
-      <View style={styles.cloudB} />
-      <View style={styles.cloudC} />
-      <View style={styles.hillBack} />
-      <View style={styles.hillFront} />
+      {/* z-index 0–1: background */}
+      <View style={styles.skyGrad} />
+      <View style={styles.skyFade} />
+      <View style={styles.sunGlow} />
+      <Animated.View style={[styles.cloudA, { transform: [{ translateX: cloudTx }] }]} />
+      <Animated.View style={[styles.cloudB, { transform: [{ translateX: Animated.multiply(cloudTx, -0.5) }] }]} />
+      <Animated.View style={[styles.cloudC, { transform: [{ translateX: Animated.multiply(cloudTx, 0.35) }] }]} />
+      <View style={styles.hillFar} />
+      <View style={styles.hillMid} />
+      <View style={styles.hillNear} />
+      <View style={styles.grassPatchA} />
+      <View style={styles.grassPatchB} />
+      <View style={styles.grassPatchC} />
+      <View style={styles.bushL} />
+      <View style={styles.bushR} />
+      <View style={styles.bushMid} />
+      <View style={styles.rockA} />
+      <View style={styles.rockB} />
+      <View style={styles.rockC} />
+      <View style={styles.rockD} />
+      <View style={styles.grassTuftA} />
+      <View style={styles.grassTuftB} />
+      <View style={styles.grassTuftC} />
+      <View style={styles.flowerA} />
+      <View style={styles.flowerB} />
+      <View style={styles.flowerC} />
       <View style={styles.treeL} />
       <View style={styles.treeR} />
-      <View style={styles.grass} />
+      <View style={styles.groundTexture} />
+      <View style={styles.groundStrip} />
+      <View style={styles.foreGrass} />
+      <View style={styles.battlePlatform} />
+      <View style={styles.centerCombatZone} />
+      <View style={styles.shadowP1} />
+      <View style={styles.shadowP2} />
 
-      <Animated.View style={[styles.turnRibbon, { transform: [{ scale: ribbonScale }] }]}>
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.turnRibbonFlash, { opacity: turnFlash }]}
-        />
-        <Text style={styles.roundTxt}>Round {round}</Text>
-        <Text style={styles.turnBadge} numberOfLines={1}>
-          {turnBadge}
-        </Text>
-      </Animated.View>
-
-      <View style={styles.topZone}>
-        <BattlerInfoPanel
-          title={player2Label}
-          fighter={p2}
-          diceValue={diceP2}
-          combo={p2.combo}
-          active={activeTurn === 2}
-          isPlayer={false}
-        />
-        <Animated.View
-          style={[
-            styles.monsterCell,
-            { opacity: p2Opacity, transform: [{ scale: p2Scale }, { translateY: p2Ty }] },
-          ]}
-        >
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.hitFlash, { opacity: p2Flash }]}
-          />
-          {p2Bubble ? (
-            <Text style={styles.bubble} numberOfLines={1}>
-              {p2Bubble}
-            </Text>
-          ) : null}
-          <View style={[styles.faceLeft, styles.monsterWrap]}>
-            {defendGlowP2 ? <View style={styles.shieldRing} pointerEvents="none" /> : null}
-            <AnimatedMonster
-              parts={p2.monsterParts}
-              size={monsterSize}
-              pose={p2Pose}
-              side="right"
-              mood={p2Mood}
-              rage={p2Rage}
-              superJump={superJumpSide === 'right'}
-            />
-          </View>
-        </Animated.View>
+      {/* z-index 10: top HUD */}
+      <View style={styles.muteSlot}>{topHudExtra}</View>
+      {turnShort ? (
+        <View style={[styles.turnBadge, { width: bannerW, transform: [{ translateX: -bannerHalf }] }]}>
+          <Text style={styles.turnBadgeTxt} numberOfLines={2}>
+            {turnShort}
+          </Text>
+        </View>
+      ) : null}
+      <View style={styles.roundBadge}>
+        <Text style={styles.roundBadgeTxt}>{roundLabel}</Text>
       </View>
 
-      <View style={styles.midSpacer} pointerEvents="box-none">
-        {centerDock ? <View style={styles.centerDock}>{centerDock}</View> : null}
-      </View>
-
-      <View style={styles.bottomZone}>
-        <Animated.View
-          style={[
-            styles.monsterCell,
-            { opacity: p1Opacity, transform: [{ scale: p1Scale }, { translateY: p1Ty }] },
-          ]}
-        >
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.hitFlash, { opacity: p1Flash }]}
-          />
-          {p1Bubble ? (
-            <Text style={styles.bubble} numberOfLines={1}>
-              {p1Bubble}
-            </Text>
-          ) : null}
-          <View style={styles.monsterWrap}>
-            {defendGlowP1 ? <View style={styles.shieldRing} pointerEvents="none" /> : null}
-            <AnimatedMonster
-              parts={p1.monsterParts}
-              size={monsterSize}
-              pose={p1Pose}
-              side="left"
-              mood={p1Mood}
-              rage={p1Rage}
-              superJump={superJumpSide === 'left'}
-            />
-          </View>
-        </Animated.View>
+      {/* z-index 6: stats (above monsters) */}
+      <View style={[styles.playerStats, { width: L.statsP1W }]}>
         <BattlerInfoPanel
           title={player1Label}
           fighter={p1}
-          diceValue={diceP1}
-          combo={p1.combo}
           active={activeTurn === 1}
-          isPlayer
+          side="left"
+          panelWidth={L.statsP1W}
         />
       </View>
+      <View style={[styles.enemyStats, { width: L.statsP2W }]}>
+        <BattlerInfoPanel
+          title={player2Label}
+          fighter={p2}
+          active={activeTurn === 2}
+          side="right"
+          panelWidth={L.statsP2W}
+        />
+      </View>
+
+      {/* z-index 3: monsters */}
+      <Animated.View
+        style={[
+          styles.playerMonster,
+          { bottom: L.monsterBottom, opacity: p1Opacity, transform: [{ scale: p1Scale }] },
+        ]}
+      >
+        <Animated.View pointerEvents="none" style={[styles.hitFlash, { opacity: p1Flash }]} />
+        <View style={[styles.monsterWrap, { width: L.p1Monster }]}>
+          {defendGlowP1 ? <View style={styles.shieldRing} pointerEvents="none" /> : null}
+          <AnimatedMonster
+            parts={p1.monsterParts}
+            size={L.p1Monster}
+            pose={p1Pose}
+            side="left"
+            mood={p1Mood}
+            rage={p1Rage}
+            superJump={superJumpSide === 'left'}
+          />
+        </View>
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.enemyMonster,
+          { bottom: L.monsterBottom, opacity: p2Opacity, transform: [{ scale: p2Scale }] },
+        ]}
+      >
+        <Animated.View pointerEvents="none" style={[styles.hitFlash, { opacity: p2Flash }]} />
+        <View style={[styles.faceLeft, styles.monsterWrap, { width: L.p2Monster }]}>
+          {defendGlowP2 ? <View style={styles.shieldRing} pointerEvents="none" /> : null}
+          <AnimatedMonster
+            parts={p2.monsterParts}
+            size={L.p2Monster}
+            pose={p2Pose}
+            side="right"
+            mood={p2Mood}
+            rage={p2Rage}
+            superJump={superJumpSide === 'right'}
+          />
+        </View>
+      </Animated.View>
+
     </Animated.View>
   );
 }
@@ -285,78 +292,267 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 0,
     overflow: 'hidden',
-    backgroundColor: BATTLE.arenaSky,
+    backgroundColor: '#9ad4f0',
   },
-  arenaDim: { opacity: 0.88 },
-  sky: {
+  arenaDim: { opacity: 0.9 },
+
+  skyGrad: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: BATTLE.arenaSky,
+    backgroundColor: '#a8daf5',
+    zIndex: 0,
+  },
+  skyFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '42%',
+    backgroundColor: 'rgba(120, 175, 220, 0.18)',
+    zIndex: 0,
+  },
+  sunGlow: {
+    position: 'absolute',
+    top: '3%',
+    right: '10%',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 236, 160, 0.5)',
+    zIndex: 0,
   },
   cloudA: {
     position: 'absolute',
-    top: '8%',
-    left: '12%',
-    width: 56,
-    height: 22,
+    top: '6%',
+    left: '6%',
+    width: 70,
+    height: 26,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.75)',
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    zIndex: 0,
   },
   cloudB: {
     position: 'absolute',
-    top: '14%',
-    right: '10%',
-    width: 72,
-    height: 26,
+    top: '10%',
+    right: '5%',
+    width: 88,
+    height: 30,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.65)',
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    zIndex: 0,
   },
   cloudC: {
     position: 'absolute',
-    top: '6%',
-    left: '48%',
-    width: 44,
-    height: 18,
+    top: '4%',
+    left: '40%',
+    width: 54,
+    height: 22,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.65)',
+    zIndex: 0,
   },
-  hillBack: {
+  hillFar: {
+    position: 'absolute',
+    left: '-12%',
+    right: '-12%',
+    bottom: '36%',
+    height: '20%',
+    backgroundColor: '#9edfc0',
+    borderTopLeftRadius: 140,
+    borderTopRightRadius: 140,
+    opacity: 0.55,
+    zIndex: 0,
+  },
+  hillMid: {
     position: 'absolute',
     left: '-8%',
     right: '-8%',
-    bottom: '28%',
-    height: '22%',
-    backgroundColor: '#6ecf9a',
+    bottom: '30%',
+    height: '15%',
+    backgroundColor: '#85d4a8',
     borderTopLeftRadius: 120,
     borderTopRightRadius: 120,
-    opacity: 0.85,
+    opacity: 0.72,
+    zIndex: 0,
   },
-  hillFront: {
+  hillNear: {
     position: 'absolute',
-    left: '-5%',
-    right: '-5%',
-    bottom: '22%',
-    height: '18%',
-    backgroundColor: '#7ed9a8',
+    left: '-4%',
+    right: '-4%',
+    bottom: '24%',
+    height: '11%',
+    backgroundColor: '#72c896',
     borderTopLeftRadius: 100,
     borderTopRightRadius: 100,
+    opacity: 0.9,
+    zIndex: 0,
+  },
+  grassPatchA: {
+    position: 'absolute',
+    left: '12%',
+    bottom: '22%',
+    width: 56,
+    height: 16,
+    borderRadius: 10,
+    backgroundColor: '#6ecf9a',
+    zIndex: 0,
+  },
+  grassPatchB: {
+    position: 'absolute',
+    right: '16%',
+    bottom: '21%',
+    width: 64,
+    height: 18,
+    borderRadius: 12,
+    backgroundColor: '#7ed9a8',
+    zIndex: 0,
+  },
+  grassPatchC: {
+    position: 'absolute',
+    left: '44%',
+    bottom: '20%',
+    width: 48,
+    height: 14,
+    borderRadius: 10,
+    backgroundColor: '#6ecf9a',
+    zIndex: 0,
+  },
+  bushL: {
+    position: 'absolute',
+    left: '18%',
+    bottom: '26%',
+    width: 32,
+    height: 20,
+    borderRadius: 14,
+    backgroundColor: '#4a9e6e',
+    zIndex: 0,
+  },
+  bushR: {
+    position: 'absolute',
+    right: '20%',
+    bottom: '25%',
+    width: 36,
+    height: 22,
+    borderRadius: 16,
+    backgroundColor: '#3d9168',
+    zIndex: 0,
+  },
+  bushMid: {
+    position: 'absolute',
+    left: '48%',
+    bottom: '24%',
+    width: 28,
+    height: 18,
+    borderRadius: 12,
+    backgroundColor: '#52a87a',
+    zIndex: 0,
+  },
+  rockA: {
+    position: 'absolute',
+    left: '8%',
+    bottom: '18%',
+    width: 24,
+    height: 16,
+    borderRadius: 6,
+    backgroundColor: '#95a5a6',
+    zIndex: 0,
+  },
+  rockB: {
+    position: 'absolute',
+    right: '10%',
+    bottom: '17%',
+    width: 28,
+    height: 18,
+    borderRadius: 7,
+    backgroundColor: '#7f8c8d',
+    zIndex: 0,
+  },
+  rockC: {
+    position: 'absolute',
+    left: '52%',
+    bottom: '16%',
+    width: 20,
+    height: 12,
+    borderRadius: 5,
+    backgroundColor: '#bdc3c7',
+    zIndex: 0,
+  },
+  rockD: {
+    position: 'absolute',
+    left: '32%',
+    bottom: '19%',
+    width: 16,
+    height: 10,
+    borderRadius: 4,
+    backgroundColor: '#aab7b8',
+    zIndex: 0,
+  },
+  grassTuftA: {
+    position: 'absolute',
+    left: '22%',
+    bottom: '18%',
+    width: 14,
+    height: 10,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: '#5fb87a',
+    zIndex: 1,
+  },
+  grassTuftB: {
+    position: 'absolute',
+    right: '28%',
+    bottom: '17%',
+    width: 12,
+    height: 9,
+    borderTopLeftRadius: 7,
+    borderTopRightRadius: 7,
+    backgroundColor: '#52a870',
+    zIndex: 1,
+  },
+  grassTuftC: {
+    position: 'absolute',
+    left: '58%',
+    bottom: '19%',
+    width: 10,
+    height: 8,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    backgroundColor: '#5fb87a',
+    zIndex: 1,
+  },
+  flowerA: {
+    position: 'absolute',
+    left: '26%',
+    bottom: '20%',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ff6b9d',
+    zIndex: 1,
+  },
+  flowerB: {
+    position: 'absolute',
+    right: '24%',
+    bottom: '19%',
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#ffe066',
+    zIndex: 1,
+  },
+  flowerC: {
+    position: 'absolute',
+    left: '62%',
+    bottom: '21%',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#c77dff',
+    zIndex: 1,
   },
   treeL: {
     position: 'absolute',
-    left: 8,
-    bottom: '34%',
-    width: 0,
-    height: 0,
-    borderLeftWidth: 14,
-    borderRightWidth: 14,
-    borderBottomWidth: 36,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#4a9e6e',
-  },
-  treeR: {
-    position: 'absolute',
-    right: 12,
-    bottom: '32%',
+    left: 4,
+    bottom: '30%',
     width: 0,
     height: 0,
     borderLeftWidth: 18,
@@ -364,101 +560,174 @@ const styles = StyleSheet.create({
     borderBottomWidth: 44,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderBottomColor: '#3d9168',
+    borderBottomColor: '#4a9e6e',
+    zIndex: 0,
   },
-  grass: {
+  treeR: {
+    position: 'absolute',
+    right: 6,
+    bottom: '29%',
+    width: 0,
+    height: 0,
+    borderLeftWidth: 22,
+    borderRightWidth: 22,
+    borderBottomWidth: 52,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#3d9168',
+    zIndex: 0,
+  },
+  groundTexture: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: '36%',
-    backgroundColor: BATTLE.arenaGrass,
-    borderTopWidth: 2,
-    borderTopColor: BATTLE.arenaGrassDark,
+    height: '22%',
+    backgroundColor: 'rgba(90, 168, 110, 0.15)',
+    zIndex: 0,
   },
-  turnRibbon: {
+  groundStrip: {
     position: 'absolute',
-    top: 4,
-    left: 6,
-    right: 6,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '22%',
+    backgroundColor: BATTLE.arenaGrass,
+    borderTopWidth: 3,
+    borderTopColor: BATTLE.arenaGrassDark,
+    zIndex: 0,
+  },
+  foreGrass: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '12%',
+    backgroundColor: '#4fa868',
+    opacity: 0.42,
+    zIndex: 1,
+  },
+  battlePlatform: {
+    position: 'absolute',
+    left: '6%',
+    right: '6%',
+    bottom: '8%',
+    height: '10%',
+    backgroundColor: 'rgba(90, 168, 110, 0.38)',
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(58, 130, 82, 0.35)',
+    zIndex: 1,
+  },
+  centerCombatZone: {
+    position: 'absolute',
+    left: '32%',
+    right: '32%',
+    bottom: '22%',
+    top: '28%',
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderStyle: 'dashed',
+    zIndex: 1,
+  },
+  shadowP1: {
+    position: 'absolute',
+    left: '10%',
+    bottom: '9%',
+    width: 120,
+    height: 18,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    zIndex: 2,
+  },
+  shadowP2: {
+    position: 'absolute',
+    right: '10%',
+    bottom: '9%',
+    width: 120,
+    height: 18,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    zIndex: 2,
+  },
+
+  muteSlot: {
+    position: 'absolute',
+    top: '2%',
+    left: '1.5%',
     zIndex: 10,
-    flexDirection: 'row',
+  },
+  turnBadge: {
+    position: 'absolute',
+    top: '3%',
+    left: '50%',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,248,220,0.96)',
-    borderWidth: 3,
-    borderColor: '#ff9f1c',
-    borderRadius: 10,
-    paddingHorizontal: 10,
+    zIndex: 10,
+  },
+  turnBadgeTxt: {
+    fontWeight: '900',
+    fontSize: 13,
+    lineHeight: 17,
+    color: '#1a1a2e',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderWidth: 2,
+    borderColor: 'rgba(45, 45, 68, 0.35)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     overflow: 'hidden',
-    shadowColor: '#ffd166',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.95,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  turnRibbonFlash: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#ffeaa7',
-    borderRadius: 8,
-  },
-  roundTxt: { fontWeight: '900', fontSize: 13, color: '#c0392b' },
-  turnBadge: {
-    fontWeight: '900',
-    fontSize: 16,
-    color: '#c0392b',
-    flex: 1,
     textAlign: 'center',
-    marginLeft: 6,
-    letterSpacing: 0.3,
+    width: '100%',
   },
-  topZone: {
-    flex: 0.36,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingTop: 32,
-    paddingHorizontal: 2,
-    minHeight: 0,
+  roundBadge: {
+    position: 'absolute',
+    top: '2%',
+    right: '1.5%',
+    zIndex: 10,
+    backgroundColor: 'rgba(26, 26, 46, 0.85)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 209, 102, 0.65)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  midSpacer: {
-    flex: 0.2,
-    minHeight: 72,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+  roundBadgeTxt: {
+    fontWeight: '900',
+    fontSize: 11,
+    color: '#ffeaa7',
+    textTransform: 'uppercase',
   },
-  centerDock: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 12,
-    paddingHorizontal: 4,
+
+  playerStats: {
+    position: 'absolute',
+    left: '2.5%',
+    top: '6%',
+    zIndex: 6,
   },
-  bottomZone: {
-    flex: 0.34,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingHorizontal: 2,
-    paddingBottom: 2,
-    minHeight: 0,
+  enemyStats: {
+    position: 'absolute',
+    right: '2.5%',
+    top: '6%',
+    zIndex: 6,
   },
-  monsterCell: {
-    flex: 1,
-    alignItems: 'center',
+  playerMonster: {
+    position: 'absolute',
+    left: '4%',
+    zIndex: 3,
+    alignItems: 'flex-start',
     justifyContent: 'flex-end',
-    maxWidth: '62%',
-    minHeight: 0,
-    minWidth: 0,
-    zIndex: 2,
-    overflow: 'visible',
   },
-  monsterWrap: {
-    alignItems: 'center',
+  enemyMonster: {
+    position: 'absolute',
+    right: '4%',
+    zIndex: 3,
+    alignItems: 'flex-end',
     justifyContent: 'flex-end',
-    overflow: 'visible',
   },
+
+  monsterWrap: { alignItems: 'center', justifyContent: 'flex-end', overflow: 'visible' },
   faceLeft: { transform: [{ scaleX: -1 }], overflow: 'visible' },
   hitFlash: {
     ...StyleSheet.absoluteFillObject,
@@ -477,92 +746,61 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(72, 202, 228, 0.22)',
     bottom: '8%',
     zIndex: 3,
-    shadowColor: '#94d2bd',
-    shadowOpacity: 0.9,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  bubble: {
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#2d2d44',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    fontWeight: '800',
-    fontSize: 11,
-    color: '#4a2800',
-    marginBottom: 2,
-    maxWidth: '100%',
-    textAlign: 'center',
   },
   infoPanel: {
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderWidth: 2,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    paddingVertical: 3,
-    maxWidth: '38%',
-    width: '38%',
-    minWidth: 88,
-    flexShrink: 1,
-    zIndex: 4,
-    alignSelf: 'flex-start',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 4,
+    elevation: 5,
   },
   infoPanelActive: {
     borderColor: '#ff9f1c',
     borderWidth: 3,
-    backgroundColor: '#fff9e6',
-    shadowColor: '#ffd166',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.85,
-    shadowRadius: 8,
-    elevation: 5,
+    backgroundColor: 'rgba(255, 249, 230, 0.96)',
   },
-  infoPanelIdle: {
-    borderColor: '#95a5a6',
-    opacity: 0.9,
-  },
+  infoPanelIdle: { borderColor: '#95a5a6' },
   infoTitle: {
     fontSize: 10,
     fontWeight: '900',
     color: '#636e72',
     textTransform: 'uppercase',
   },
-  monName: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#1a1a2e',
-    marginTop: 1,
-  },
-  lvLine: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#c0392b',
-  },
-  statInline: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#2d3436',
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
+  elementBadge: { fontSize: 14 },
+  monName: { fontSize: 12, fontWeight: '900', color: '#1a1a2e' },
+  monNameFlex: { flex: 1, minWidth: 0 },
+  statusTag: {
     marginTop: 2,
+    alignSelf: 'flex-start',
+    backgroundColor: '#9b59b6',
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 9,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+    overflow: 'hidden',
   },
+  lvLine: { fontSize: 11, fontWeight: '800', color: '#c0392b' },
+  statInline: { fontSize: 11, fontWeight: '800', color: '#2d3436', marginTop: 1 },
   microTrack: {
-    height: 6,
+    height: 5,
     borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.12)',
+    backgroundColor: 'rgba(0,0,0,0.1)',
     borderWidth: 1,
     borderColor: '#2d2d44',
     overflow: 'hidden',
     marginTop: 1,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   microFill: { height: '100%', borderRadius: 3 },
-  diceCombo: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#4a5568',
-    marginTop: 2,
-  },
+  diceCombo: { fontSize: 11, fontWeight: '800', color: '#4a5568', marginTop: 2 },
   val: { fontWeight: '900', color: '#c1121f' },
   rageTag: {
     marginTop: 2,
@@ -570,8 +808,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#e74c3c',
     color: '#fff',
     fontWeight: '900',
-    fontSize: 10,
-    paddingHorizontal: 6,
+    fontSize: 9,
+    paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 6,
     overflow: 'hidden',

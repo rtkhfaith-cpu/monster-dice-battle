@@ -2,14 +2,8 @@ import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 
 /** Low-volume game feedback using bundled WAV sfx. */
 
-const SOURCE_MAP = {
-  dice: require('../assets/sounds/dice.wav'),
-  attackP1: require('../assets/sounds/attack_p1.wav'),
-  attackP2: require('../assets/sounds/attack_p2.wav'),
-  super: require('../assets/sounds/super.wav'),
-  winP1: require('../assets/sounds/win_p1.wav'),
-  winP2: require('../assets/sounds/win_p2.wav'),
-};
+/** Drop WAV paths here when assets exist under assets/sounds/. */
+const SOURCE_MAP = {};
 
 let initPromise = null;
 
@@ -39,8 +33,8 @@ export function initGameSounds() {
         try {
           const { sound } = await Audio.Sound.createAsync(src, { shouldPlay: false, volume: 1 });
           store[clipKey] = sound;
-        } catch (e) {
-          console.warn(`[gameSounds] Failed to load "${clipKey}"`, e);
+        } catch {
+          /* WAV optional — battleAudio synth fallback used */
         }
       }),
     );

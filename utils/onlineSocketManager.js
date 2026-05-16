@@ -1,4 +1,4 @@
-import { connectOnlineSocket } from './socketClient';
+import { connectOnlineSocket, destroyOnlineSocket, getSocketServerUrl } from './socketClient';
 import { clearOnlineSession, loadOnlineSession, saveOnlineSession } from './onlineSession';
 
 const DEV = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
@@ -11,12 +11,23 @@ function devLog(...args) {
 let socket = null;
 /** @type {object | null} */
 let roomState = null;
+/** @type {string | null} */
+let opponentLeftMsg = null;
 const listeners = new Set();
+
+function applyRoomPayload(payload) {
+  roomState = payload;
+  if (payload?.lobbyMessage?.includes('left')) {
+    opponentLeftMsg = payload.lobbyMessage;
+  } else if (payload?.bothJoined) {
+    opponentLeftMsg = null;
+  }
+}
 
 function notify() {
   listeners.forEach((fn) => {
     try {
-      fn(roomState);
+      fn(roomState, { opponentLeft: opponentLeftMsg });
     } catch {
       /* ignore */
     }
@@ -24,37 +35,55 @@ function notify() {
 }
 
 function attachSocket(sock) {
+  if (socket === sock) return;
   socket = sock;
 
-  sock.on('connect', () => devLog('connected', sock.id));
+  sock.on('connect', () => devLog('socket connected', sock.id, getSocketServerUrl()));
   sock.on('disconnect', (reason) => {
-    devLog('disconnected', reason);
+    devLog('socket disconnected', reason);
     notify();
   });
   sock.on('connect_error', (err) => devLog('connect_error', err?.message || err));
 
   sock.on('roomUpdate', (payload) => {
-    roomState = payload;
-    devLog('roomUpdate', payload?.roomCode, payload?.status);
+    applyRoomPayload(payload);
+    devLog('room state updated', payload?.roomCode, payload?.status, 'bothJoined', payload?.bothJoined);
     notify();
   });
 
-  sock.on('opponentJoined', (p) => devLog('opponent joined', p?.roomCode));
-  sock.on('opponentDisconnected', (p) => devLog('opponent disconnected', p?.roomCode));
+  sock.on('opponentJoined', (p) => {
+    devLog('opponent joined', p?.roomCode, p?.slot);
+    opponentLeftMsg = null;
+    notify();
+  });
+
+  sock.on('opponentDisconnected', (p) => {
+    opponentLeftMsg = p?.message || 'Opponent left the room.';
+    devLog('opponent disconnected', opponentLeftMsg);
+    notify();
+  });
+
   sock.on('battleStarted', (p) => {
-    devLog('battle started', p?.roomCode);
-    if (p?.battle) {
-      roomState = { ...(roomState || {}), status: 'battle', battle: p.battle };
-      notify();
-    }
+    devLog('battle auto-started', p?.roomCode);
+    applyRoomPayload({
+      ...(roomState || {}),
+      roomCode: p?.roomCode || roomState?.roomCode,
+      status: 'battle',
+      battle: p?.battle,
+      bothJoined: true,
+      canStart: true,
+    });
+    notify();
   });
+
   sock.on('battleUpdate', (p) => {
-    devLog('battle state updated', p?.battle?.phase, 'seq', p?.battle?.seq);
+    devLog('battle state synced', p?.battle?.phase, 'seq', p?.battle?.seq);
     if (roomState) {
-      roomState = { ...roomState, battle: p.battle };
+      roomState = { ...roomState, status: 'battle', battle: p.battle };
       notify();
     }
   });
+
   sock.on('battleEnded', (p) => {
     devLog('battle ended', p?.winner);
     if (roomState) {
@@ -63,17 +92,21 @@ function attachSocket(sock) {
     }
   });
 
-  sock.on('errorMessage', (msg) => devLog('error', msg));
+  sock.on('errorMessage', (msg) => devLog('server error', msg));
 }
 
 export function subscribeOnline(listener) {
   listeners.add(listener);
-  if (roomState) listener(roomState);
+  if (roomState) listener(roomState, { opponentLeft: opponentLeftMsg });
   return () => listeners.delete(listener);
 }
 
 export function getOnlineRoomState() {
   return roomState;
+}
+
+export function getOpponentLeftMessage() {
+  return opponentLeftMsg;
 }
 
 export function getOnlineSocket() {
@@ -84,19 +117,25 @@ export function isOnlineInRoom() {
   return !!(roomState?.roomCode && socket?.connected);
 }
 
-/**
- * Ensure socket connected; rejoin persisted room if any.
- */
+export function getConfiguredServerUrl() {
+  return getSocketServerUrl();
+}
+
 export function ensureOnlineSocket() {
   return new Promise((resolve) => {
-    if (socket?.connected) {
-      resolve({ socket, error: null });
+    const url = getSocketServerUrl();
+    if (!url) {
+      resolve({
+        socket: null,
+        error: 'Online server not configured. Set EXPO_PUBLIC_SOCKET_SERVER_URL and rebuild.',
+        url: '',
+      });
       return;
     }
 
     const { socket: sock, error } = connectOnlineSocket();
     if (error || !sock) {
-      resolve({ socket: null, error: error || 'Could not connect' });
+      resolve({ socket: null, error: error || 'Could not connect', url });
       return;
     }
 
@@ -105,6 +144,7 @@ export function ensureOnlineSocket() {
     const session = loadOnlineSession();
     const onConnect = () => {
       sock.off('connect', onConnect);
+      devLog('socket connected', sock.id, '→', url);
       if (session?.roomCode && session?.playerSlot) {
         devLog('rejoining room', session.roomCode);
         sock.emit('rejoinRoom', { roomCode: session.roomCode, playerSlot: session.playerSlot }, (res) => {
@@ -112,17 +152,19 @@ export function ensureOnlineSocket() {
             devLog('rejoin failed', res.error);
             clearOnlineSession();
           } else {
+            if (res.room) applyRoomPayload(res.room);
             saveOnlineSession({
               roomCode: res.roomCode,
               playerSlot: res.playerSlot,
               profileId: session.profileId,
               playerName: session.playerName,
             });
+            notify();
           }
-          resolve({ socket: sock, error: null });
+          resolve({ socket: sock, error: null, url });
         });
       } else {
-        resolve({ socket: sock, error: null });
+        resolve({ socket: sock, error: null, url });
       }
     };
 
@@ -133,19 +175,21 @@ export function ensureOnlineSocket() {
 
 export function createOnlineRoom() {
   return new Promise((resolve) => {
-    ensureOnlineSocket().then(({ socket: sock, error }) => {
+    ensureOnlineSocket().then(({ socket: sock, error, url }) => {
       if (error || !sock) {
-        resolve({ error });
+        resolve({ error, url });
         return;
       }
       sock.emit('createRoom', {}, (res) => {
         if (res?.error) {
-          resolve({ error: res.error });
+          resolve({ error: res.error, url });
           return;
         }
+        devLog('room created', res.roomCode);
         saveOnlineSession({ roomCode: res.roomCode, playerSlot: res.playerSlot });
-        devLog('joined room', res.roomCode, res.playerSlot);
-        resolve({ roomCode: res.roomCode, playerSlot: res.playerSlot });
+        if (res.room) applyRoomPayload(res.room);
+        notify();
+        resolve({ roomCode: res.roomCode, playerSlot: res.playerSlot, url });
       });
     });
   });
@@ -153,19 +197,22 @@ export function createOnlineRoom() {
 
 export function joinOnlineRoom(roomCode) {
   return new Promise((resolve) => {
-    ensureOnlineSocket().then(({ socket: sock, error }) => {
+    ensureOnlineSocket().then(({ socket: sock, error, url }) => {
       if (error || !sock) {
-        resolve({ error });
+        resolve({ error, url });
         return;
       }
-      sock.emit('joinRoom', { roomCode }, (res) => {
+      const code = String(roomCode || '').trim().toUpperCase();
+      sock.emit('joinRoom', { roomCode: code }, (res) => {
         if (res?.error) {
-          resolve({ error: res.error });
+          resolve({ error: res.error, url });
           return;
         }
+        devLog('room joined', res.roomCode, res.playerSlot);
         saveOnlineSession({ roomCode: res.roomCode, playerSlot: res.playerSlot });
-        devLog('joined room', res.roomCode, res.playerSlot);
-        resolve({ roomCode: res.roomCode, playerSlot: res.playerSlot });
+        if (res.room) applyRoomPayload(res.room);
+        notify();
+        resolve({ roomCode: res.roomCode, playerSlot: res.playerSlot, url });
       });
     });
   });
@@ -177,6 +224,7 @@ export function leaveOnlineRoom() {
     socket.emit('leaveRoom', { roomCode: code });
   }
   roomState = null;
+  opponentLeftMsg = null;
   clearOnlineSession();
   devLog('left room');
   notify();
@@ -196,12 +244,6 @@ export function syncOnlineProfile(profilePayload) {
   devLog('profile synced', profilePayload.name);
 }
 
-export function setOnlineReady(ready) {
-  if (!socket?.connected) return;
-  socket.emit('setReady', { ready });
-  devLog('ready', ready);
-}
-
 export function emitBattleAction(action, payload = {}) {
   if (!socket?.connected) return;
   devLog('action submitted', action);
@@ -209,13 +251,10 @@ export function emitBattleAction(action, payload = {}) {
 }
 
 export function disconnectOnline() {
-  try {
-    socket?.disconnect?.();
-  } catch {
-    /* ignore */
-  }
+  destroyOnlineSocket();
   socket = null;
   roomState = null;
+  opponentLeftMsg = null;
   clearOnlineSession();
   notify();
 }

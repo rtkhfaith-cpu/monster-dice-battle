@@ -1,5 +1,7 @@
 import React from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import MonsterPreview from './MonsterPreview';
+import { mergeMonsterParts } from '../utils/gameStorage';
 import { MONSTER_CATALOG, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 
 /** Count owned instances per template id */
@@ -24,8 +26,12 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
               const ru = RARITY_UI[m.rarity];
               const count = counts[m.id] || 0;
               const afford = (coins ?? 0) >= m.price;
+              const previewParts = mergeMonsterParts(m.id);
               return (
                 <View key={m.id} style={[styles.row, { borderLeftColor: ru.border }]}>
+                  <View style={styles.thumbCol}>
+                    <MonsterPreview parts={previewParts} size={80} mood="happy" />
+                  </View>
                   <View style={styles.mid}>
                     <View style={styles.titleRow}>
                       <Text style={styles.name}>{m.name}</Text>
@@ -79,14 +85,27 @@ const styles = StyleSheet.create({
   list: { flexGrow: 0 },
   row: {
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 6,
     borderBottomWidth: 2,
     borderColor: '#ffe8cc',
     borderLeftWidth: 5,
   },
-  mid: { flex: 1, paddingRight: 6 },
+  thumbCol: {
+    width: 92,
+    minHeight: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#dfe6e9',
+    overflow: 'visible',
+    paddingVertical: 4,
+  },
+  mid: { flex: 1, paddingRight: 6, minWidth: 0 },
   titleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   name: { fontWeight: '900', fontSize: 16, color: '#273043', flexShrink: 1 },
   rChip: {
