@@ -32,6 +32,7 @@ import { loadOnlineSession } from '../utils/onlineSession';
 import {
   devOnlineLog,
   getConnectionBanner,
+  getRoomPlayerCountLabel,
   getWaitingRoomStatus,
   toUserOnlineError,
 } from '../utils/onlineUserMessages';
@@ -290,6 +291,7 @@ export default function OnlineLobbyScreen({
   const bothJoined = !!roomState?.bothJoined;
   const missing = roomState?.missingRequirements ?? [];
   const starting = bothJoined && missing.length === 0 && roomState?.status === 'lobby';
+  const playerCountLabel = inRoom ? getRoomPlayerCountLabel(roomState) : null;
   const userErr = err ? toUserOnlineError(err) : null;
 
   const connBanner = getConnectionBanner(configured, status);
@@ -358,8 +360,15 @@ export default function OnlineLobbyScreen({
     <View style={[styles.card, mobile && styles.cardMobile]}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>⚔ Battle Lobby</Text>
-        <View style={[styles.liveTag, bothJoined && styles.liveTagHot]}>
-          <Text style={styles.liveTagTxt}>{bothJoined ? 'LIVE' : 'WAITING'}</Text>
+        <View style={styles.cardHeaderRight}>
+          {playerCountLabel ? (
+            <View style={styles.playerCountPill}>
+              <Text style={styles.playerCountPillTxt}>{playerCountLabel}</Text>
+            </View>
+          ) : null}
+          <View style={[styles.liveTag, bothJoined && styles.liveTagHot]}>
+            <Text style={styles.liveTagTxt}>{bothJoined ? 'LIVE' : 'WAITING'}</Text>
+          </View>
         </View>
       </View>
 
@@ -371,6 +380,9 @@ export default function OnlineLobbyScreen({
 
       <View style={styles.codeBlock}>
         <Text style={styles.codeLbl}>ROOM CODE</Text>
+        {playerCountLabel ? (
+          <Text style={styles.codePlayerCount}>{playerCountLabel}</Text>
+        ) : null}
         <Text style={[styles.codeValue, mobile && styles.codeValueMobile]}>{roomState?.roomCode}</Text>
         <TouchableOpacity style={styles.copyBtn} onPress={() => copyRoomCode(roomState?.roomCode)}>
           <Text style={styles.copyTxt}>📋 Copy code</Text>
@@ -467,6 +479,16 @@ export default function OnlineLobbyScreen({
           <Text style={[styles.heroTitle, mobile && styles.heroTitleMobile]}>Multiplayer Arena</Text>
           <Text style={styles.heroSub}>Find an opponent · Share your code · Fight!</Text>
           <ConnectionPill banner={connBanner} pulseAnim={status === 'connecting' ? pulseAnim : null} />
+          {inRoom && playerCountLabel ? (
+            <View style={styles.heroPlayerCount}>
+              <Text style={styles.heroPlayerCountTxt}>👥 {playerCountLabel}</Text>
+            </View>
+          ) : null}
+          {(status === 'fail' || status === 'no_env') && configured ? (
+            <Text style={styles.serverHint} numberOfLines={2}>
+              Server: {serverUrl}
+            </Text>
+          ) : null}
           {(status === 'fail' || status === 'no_env') && (
             <TouchableOpacity style={styles.retryBtn} onPress={handleRetryConnect} activeOpacity={0.88}>
               <Text style={styles.retryTxt}>↻ Retry connection</Text>
@@ -559,6 +581,25 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 12,
   },
+  heroPlayerCount: {
+    marginTop: 8,
+    marginBottom: 4,
+    backgroundColor: '#0984e3',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 2,
+    borderColor: '#2d2d44',
+  },
+  heroPlayerCountTxt: { fontWeight: '900', fontSize: 15, color: '#fff' },
+  serverHint: {
+    marginTop: 8,
+    fontWeight: '700',
+    fontSize: 12,
+    color: '#566573',
+    textAlign: 'center',
+    maxWidth: 320,
+  },
   connPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -606,7 +647,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
+    gap: 8,
   },
+  cardHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  playerCountPill: {
+    backgroundColor: '#0984e3',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 2,
+    borderColor: '#2d2d44',
+  },
+  playerCountPillTxt: { fontWeight: '900', fontSize: 11, color: '#fff' },
   cardTitle: {
     fontWeight: '900',
     fontSize: 20,
@@ -651,6 +708,13 @@ const styles = StyleSheet.create({
     borderColor: '#0984e3',
   },
   codeLbl: { fontWeight: '900', fontSize: 11, color: '#636e72', letterSpacing: 2 },
+  codePlayerCount: {
+    fontWeight: '900',
+    fontSize: 14,
+    color: '#0984e3',
+    marginTop: 6,
+    marginBottom: 2,
+  },
   codeValue: {
     fontWeight: '900',
     fontSize: 38,

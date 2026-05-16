@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getRoomPlayerCountLabel } from '../utils/onlineUserMessages';
 
 /**
  * Compact online room status on the home screen — battle-lobby style.
@@ -18,6 +19,9 @@ export default function OnlineRoomBanner({ roomState, mySlot, onOpenLobby, onLea
       <View style={styles.header}>
         <Text style={styles.liveDot}>●</Text>
         <Text style={styles.title}>Online · Room {roomState.roomCode}</Text>
+        <View style={styles.countPill}>
+          <Text style={styles.countPillTxt}>{getRoomPlayerCountLabel(roomState)}</Text>
+        </View>
       </View>
       <Text style={styles.line}>
         You: {me?.profile?.name ?? '—'}
@@ -59,9 +63,24 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
   liveDot: { color: '#2ecc71', fontWeight: '900', fontSize: 12 },
-  title: { fontWeight: '900', fontSize: 15, color: '#1a5276' },
+  title: { fontWeight: '900', fontSize: 15, color: '#1a5276', flexShrink: 1 },
+  countPill: {
+    backgroundColor: '#0984e3',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 2,
+    borderColor: '#2d2d44',
+  },
+  countPillTxt: { fontWeight: '900', fontSize: 12, color: '#fff' },
   line: { fontWeight: '800', fontSize: 13, color: '#2d3436', marginBottom: 3 },
   battle: { fontWeight: '900', fontSize: 13, color: '#c0392b', marginBottom: 8 },
   row: { flexDirection: 'row', gap: 8, marginTop: 6 },

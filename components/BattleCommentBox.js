@@ -25,11 +25,9 @@ export default function BattleCommentBox({ message }) {
       ]}
       pointerEvents="none"
     >
-      <View style={styles.box}>
-        <Text style={styles.text} numberOfLines={2}>
-          {text}
-        </Text>
-      </View>
+      <Text style={styles.text} numberOfLines={3}>
+        {text}
+      </Text>
     </View>
   );
 }
@@ -38,27 +36,17 @@ const styles = StyleSheet.create({
   anchor: {
     position: 'absolute',
     zIndex: 8,
-  },
-  box: {
-    width: '100%',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(18, 22, 36, 0.72)',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    alignItems: 'center',
   },
   text: {
     fontWeight: '900',
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 17,
+    lineHeight: 23,
     color: '#ffffff',
-    textAlign: 'left',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
+    width: '100%',
   },
 });

@@ -140,9 +140,6 @@ export default function RpgBattleArena({
   const { width, height } = useWindowDimensions();
   const narrow = width < 520;
   const L = useMemo(() => getStrictLayout(width, height), [width, height]);
-  const bannerW = L.hudBannerW;
-  const bannerHalf = bannerW / 2;
-
   const p1Focus = useRef(new Animated.Value(activeTurn === 1 ? 1 : 0)).current;
   const p2Focus = useRef(new Animated.Value(activeTurn === 2 ? 1 : 0)).current;
 
@@ -256,8 +253,8 @@ export default function RpgBattleArena({
       {/* z-index 10: top HUD */}
       <View style={styles.muteSlot}>{topHudExtra}</View>
       {turnShort ? (
-        <View style={[styles.turnBadge, { width: bannerW, transform: [{ translateX: -bannerHalf }] }]}>
-          <Text style={styles.turnBadgeTxt} numberOfLines={2}>
+        <View style={styles.turnBadge} pointerEvents="none">
+          <Text style={styles.turnBadgeTxt} numberOfLines={3}>
             {turnShort}
           </Text>
         </View>
@@ -772,24 +769,22 @@ const styles = StyleSheet.create({
   },
   turnBadge: {
     position: 'absolute',
-    top: '3%',
-    left: '50%',
+    top: '25%',
+    left: '5%',
+    right: '5%',
     alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
   },
   turnBadgeTxt: {
     fontWeight: '900',
-    fontSize: 13,
-    lineHeight: 17,
-    color: '#1a1a2e',
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
-    borderWidth: 2,
-    borderColor: 'rgba(45, 45, 68, 0.35)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    overflow: 'hidden',
+    fontSize: 17,
+    lineHeight: 23,
+    color: '#ffffff',
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.88)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
     width: '100%',
   },
   roundBadge: {

@@ -29,6 +29,10 @@ export function getStrictLayout(width, height) {
     monsterLaneY: 0.48,
     compactHud: mobile,
     phone,
+    /** Battle comment — ~25% from top (between top and screen center) */
+    commentTop: Math.round(height * 0.25),
+    commentLeft: Math.round(width * 0.05),
+    commentW: Math.round(width * 0.9),
   };
 }
 

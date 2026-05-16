@@ -72,6 +72,21 @@ export function toUserOnlineError(raw) {
 /**
  * @param {object} opts
  */
+/** @param {object|null|undefined} roomState */
+export function countPlayersInRoom(roomState) {
+  if (!roomState?.players) return 0;
+  let n = 0;
+  if (roomState.players.p1?.connected) n += 1;
+  if (roomState.players.p2?.connected) n += 1;
+  return n;
+}
+
+/** @param {object|null|undefined} roomState @param {number} [max] */
+export function getRoomPlayerCountLabel(roomState, max = 2) {
+  const n = countPlayersInRoom(roomState);
+  return `${n} / ${max} player${max === 1 ? '' : 's'} in room`;
+}
+
 export function getWaitingRoomStatus(opts) {
   const {
     configured,

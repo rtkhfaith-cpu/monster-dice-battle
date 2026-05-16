@@ -157,15 +157,7 @@ export function ensureOnlineSocket() {
 
     return pingSocketServer(url).then((ping) => {
       if (!ping.ok) {
-        devLog('health check failed', ping.error, url, getSocketConfigDebug());
-        if (DEV) {
-          return connectOnlineSocketFlow(url);
-        }
-        const hint =
-          pageIsLocalDev() && isLocalhostUrl(url)
-            ? 'Start the game server: npm run server'
-            : ping.error || 'Server offline or unreachable';
-        return { socket: null, error: hint, url };
+        devLog('health check failed — trying socket connect anyway', ping.error, url, getSocketConfigDebug());
       }
       return connectOnlineSocketFlow(url);
     });
