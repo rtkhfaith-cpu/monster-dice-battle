@@ -29,7 +29,10 @@ const LEGACY_KEY_V2 = 'monster_dice_battle_v2';
 /** @typedef {{
  * id: string,
  * name: string,
- * pin: string,
+ * pin?: string,
+ * playerKeyHash?: string,
+ * createdAt?: string,
+ * updatedAt?: string,
  * coins: number,
  * ownedMonsters: OwnedMonster[],
  * cosmeticsOwned: string[],
@@ -204,7 +207,7 @@ function normalizeWalletMonsters(wallet) {
 function normalizePlayerProfile(p) {
   if (!p.name || typeof p.name !== 'string') p.name = 'Player';
   p.name = String(p.name).slice(0, 24);
-  if (!p.pin) p.pin = '0000';
+  if (p.pin && typeof p.pin !== 'string') delete p.pin;
   if (typeof p.coins !== 'number') p.coins = 0;
   if (!Array.isArray(p.cosmeticsOwned)) p.cosmeticsOwned = [];
   if (!Array.isArray(p.cosmeticEquippedP1)) p.cosmeticEquippedP1 = [];
@@ -373,16 +376,17 @@ export function ensureProfilesFromGuest(gameData) {
 }
 
 /** @returns {{ gameData: object, playerId?: string, error?: string }} */
-export function createPlayerProfile(gameData, name) {
+export function createPlayerProfile(gameData, name, playerKeyHash = '') {
   const gd = cloneGameData(gameData);
   if (gd.players.length >= MAX_PLAYER_PROFILES) {
     return { gameData: gd, error: 'Maximum 5 players saved.' };
   }
   const id = uid('pl');
+  const now = new Date().toISOString();
   const profile = {
     id,
     name: String(name || 'New Player').trim().slice(0, 24) || 'New Player',
-    pin: '0000',
+    playerKeyHash: String(playerKeyHash || ''),
     coins: 0,
     ownedMonsters: [],
     cosmeticsOwned: [],
@@ -391,12 +395,26 @@ export function createPlayerProfile(gameData, name) {
     selectedMonsterId: null,
     battleProgress: defaultBattleProgress(),
     meta: defaultProfileMeta(),
+    createdAt: now,
+    updatedAt: now,
   };
   ensureStarterMonsters(profile);
   normalizePlayerProfile(profile);
   gd.players.push(profile);
   gd.session.activeProfileId = id;
   return { gameData: gd, playerId: id };
+}
+
+/** @returns {object} */
+export function setPlayerKeyForProfile(gameData, profileId, playerKeyHash) {
+  const gd = cloneGameData(gameData);
+  const p = gd.players.find((x) => x.id === profileId);
+  if (!p) return gd;
+  p.playerKeyHash = String(playerKeyHash || '');
+  delete p.pin;
+  p.updatedAt = new Date().toISOString();
+  if (!p.createdAt) p.createdAt = p.updatedAt;
+  return gd;
 }
 
 /** @deprecated use createPlayerProfile */
@@ -439,15 +457,12 @@ export function updatePlayer(gameData, playerId, updates) {
 
 export function deletePlayer(gameData, playerId) {
   const gd = cloneGameData(gameData);
+  if (!playerId) return gd;
   gd.players = gd.players.filter((p) => p.id !== playerId);
-  if (gd.session.activeProfileId === playerId) gd.session.activeProfileId = null;
+  if (gd.session.activeProfileId === playerId) {
+    gd.session.activeProfileId = gd.players[0]?.id ?? null;
+  }
   return gd;
-}
-
-export function verifyPlayerPin(gameData, playerId, pin) {
-  const p = gameData.players.find((x) => x.id === playerId);
-  if (!p) return false;
-  return p.pin === String(pin || '').replace(/\D/g, '').slice(0, 4).padStart(4, '0');
 }
 
 /** --- Monsters --- */

@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -38,18 +38,30 @@ import {
   buyGearItem,
   buyMonster as purchaseMonsterRow,
   createPlayerProfile,
+  deletePlayer,
   equipOwnedGear,
-  loadGameData,
+  getPlayerProfile,
   mergeMonsterParts,
   resetGameData,
-  saveGameData,
   setActiveProfile,
+  setPlayerKeyForProfile,
   setProfileSelectedMonster,
   unequipOwnedGear,
   unlockGearSlotForMonster,
   updatePlayer,
   walletForProfile,
 } from './utils/gameStorage';
+import { loadGameSave } from './src/services/saveService';
+import { commitProfileDeleted, commitSave, setCloudSyncProfileID } from './src/services/syncCoordinator';
+import {
+  hashPlayerKey,
+  profileNeedsPlayerKeyMigration,
+  validatePlayerKeyPair,
+  verifyPlayerKeyForProfile,
+} from './utils/playerKey';
+import PlayerKeyModal from './components/PlayerKeyModal';
+import { loadSaveApiConfig } from './utils/saveApiConfig';
+import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
 import { playSound } from './utils/sounds';
 
@@ -100,6 +112,11 @@ export default function App() {
   const [setupP2Id, setSetupP2Id] = useState(null);
   const [setupP1ProfileId, setSetupP1ProfileId] = useState(null);
   const [setupP2ProfileId, setSetupP2ProfileId] = useState(null);
+  const unlockedProfileIdsRef = useRef(new Set());
+  const [keyModal, setKeyModal] = useState(null);
+  const [keyModalError, setKeyModalError] = useState('');
+  const [keyModalBusy, setKeyModalBusy] = useState(false);
+  const [deleteBusyProfileId, setDeleteBusyProfileId] = useState(null);
 
   function syncSetupMonstersFromProfiles(gd, p1ProfileId, p2ProfileId, mode = gameMode) {
     const w1 = walletForProfile(gd, p1ProfileId);
@@ -228,7 +245,8 @@ export default function App() {
 
   useEffect(() => {
     void initGameSounds();
-    loadGameData().then((gd) => {
+    void loadSaveApiConfig();
+    loadGameSave().then((gd) => {
       setGameData(gd);
       const p1 = gd.session?.activeProfileId ?? gd.players?.[0]?.id ?? null;
       const p2 = gd.players?.[1]?.id ?? p1;
@@ -238,15 +256,20 @@ export default function App() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!gameData) return undefined;
-    const t = setTimeout(() => {
-      void saveGameData(gameData);
-    }, 180);
-    return () => clearTimeout(t);
-  }, [gameData]);
-
   const activeProfileId = gameData?.session?.activeProfileId ?? null;
+
+  useEffect(() => {
+    setCloudSyncProfileID(activeProfileId);
+  }, [activeProfileId]);
+
+  function persistSave(nextGd, reason, profileIDs) {
+    setGameData(nextGd);
+    void commitSave({
+      reason,
+      gameData: nextGd,
+      profileIDs,
+    });
+  }
   const slotProfileId =
     (setupActiveSlot === 1 ? setupP1ProfileId : setupP2ProfileId) ?? gameData?.players?.[0]?.id ?? null;
   const walletP1 = useMemo(
@@ -278,34 +301,186 @@ export default function App() {
     return activeProfileId ?? slotProfileId;
   }, [gearMonsterId, gameData, setupP1Id, setupP2Id, setupP1ProfileId, setupP2ProfileId, activeProfileId, slotProfileId]);
 
-  function handleSelectProfile(profileId) {
-    if (!gameData) return;
-    setGameData((gd) => {
-      const next = setActiveProfile(gd, profileId);
-      if (setupActiveSlot === 1 || gameMode === 'onePlayer') {
-        setSetupP1ProfileId(profileId);
-        const w = walletForProfile(next, profileId);
-        setSetupP1Id(w.selectedMonsterId || w.ownedMonsters?.[0]?.id || null);
-      }
-      if (setupActiveSlot === 2 && gameMode === 'twoPlayer') {
-        setSetupP2ProfileId(profileId);
-        const w = walletForProfile(next, profileId);
-        setSetupP2Id(w.selectedMonsterId || w.ownedMonsters?.[0]?.id || null);
-      }
-      return next;
-    });
+  function markProfileUnlocked(profileId) {
+    if (profileId) unlockedProfileIdsRef.current.add(profileId);
   }
 
-  function handleCreateProfile(name) {
+  function isProfileUnlockedThisSession(profileId) {
+    return unlockedProfileIdsRef.current.has(profileId);
+  }
+
+  function applyProfileSelection(profileId, gd = gameData) {
+    if (!gd || !profileId) return;
+    const next = setActiveProfile(gd, profileId);
+    if (setupActiveSlot === 1 || gameMode === 'onePlayer') {
+      setSetupP1ProfileId(profileId);
+      const w = walletForProfile(next, profileId);
+      setSetupP1Id(w.selectedMonsterId || w.ownedMonsters?.[0]?.id || null);
+    }
+    if (setupActiveSlot === 2 && gameMode === 'twoPlayer') {
+      setSetupP2ProfileId(profileId);
+      const w = walletForProfile(next, profileId);
+      setSetupP2Id(w.selectedMonsterId || w.ownedMonsters?.[0]?.id || null);
+    }
+    persistSave(next, 'profile_selected', profileId);
+  }
+
+  function handleSelectProfile(profileId) {
+    if (!gameData || !profileId) return;
+    markProfileUnlocked(profileId);
+    applyProfileSelection(profileId);
+  }
+
+  function handleRequestSelectProfile(profileId) {
+    if (!gameData || !profileId) return;
+    const profile = getPlayerProfile(gameData, profileId);
+    if (!profile) return;
+
+    if (profileNeedsPlayerKeyMigration(profile)) {
+      setKeyModalError('');
+      setKeyModal({ mode: 'migrate', profileId, playerName: profile.name });
+      return;
+    }
+
+    if (isProfileUnlockedThisSession(profileId)) {
+      handleSelectProfile(profileId);
+      return;
+    }
+
+    setKeyModalError('');
+    setKeyModal({ mode: 'unlock', profileId, playerName: profile.name });
+  }
+
+  function closeKeyModal() {
+    if (keyModalBusy) return;
+    setKeyModal(null);
+    setKeyModalError('');
+  }
+
+  function handleKeyModalSubmit({ key, confirmKey }) {
+    if (!gameData || !keyModal?.profileId) return;
+    const { mode, profileId } = keyModal;
+    const profile = getPlayerProfile(gameData, profileId);
+    if (!profile) {
+      closeKeyModal();
+      return;
+    }
+
+    if (mode === 'migrate') {
+      const pairErr = validatePlayerKeyPair(key, confirmKey ?? '');
+      if (pairErr) {
+        setKeyModalError(pairErr);
+        return;
+      }
+      const hash = hashPlayerKey(key);
+      let next = setPlayerKeyForProfile(gameData, profileId, hash);
+      markProfileUnlocked(profileId);
+      persistSave(next, 'player_key_migrated', profileId);
+      setKeyModal(null);
+      setKeyModalError('');
+      applyProfileSelection(profileId, next);
+      return;
+    }
+
+    if (mode === 'unlock' || mode === 'delete') {
+      if (!key || key.length !== 4) {
+        setKeyModalError('Enter your 4-digit Player Key.');
+        return;
+      }
+      if (!verifyPlayerKeyForProfile(profile, key)) {
+        setKeyModalError(
+          mode === 'delete'
+            ? 'Incorrect key. Player was not deleted.'
+            : 'Incorrect key. Please try again.',
+        );
+        return;
+      }
+
+      if (mode === 'unlock') {
+        markProfileUnlocked(profileId);
+        setKeyModal(null);
+        setKeyModalError('');
+        handleSelectProfile(profileId);
+        return;
+      }
+
+      void finalizeProfileDelete(profileId);
+    }
+  }
+
+  async function finalizeProfileDelete(profileId) {
+    if (!gameData || deleteBusyProfileId) return;
+    setKeyModalBusy(true);
+    setDeleteBusyProfileId(profileId);
+
+    const next = deletePlayer(gameData, profileId);
+    unlockedProfileIdsRef.current.delete(profileId);
+
+    const remaining = next.players.map((p) => p.id);
+    const fallback = next.session?.activeProfileId ?? remaining[0] ?? null;
+
+    let nextP1 = setupP1ProfileId;
+    let nextP2 = setupP2ProfileId;
+    if (nextP1 === profileId) nextP1 = fallback;
+    if (nextP2 === profileId) {
+      nextP2 = remaining.find((id) => id !== nextP1) ?? fallback;
+    }
+    setSetupP1ProfileId(nextP1);
+    setSetupP2ProfileId(nextP2);
+    syncSetupMonstersFromProfiles(next, nextP1, nextP2);
+
+    setGameData(next);
+    setKeyModal(null);
+    setKeyModalError('');
+
+    try {
+      await commitProfileDeleted(profileId, next);
+    } finally {
+      setKeyModalBusy(false);
+      setDeleteBusyProfileId(null);
+    }
+  }
+
+  function handleRequestDeleteProfile(profileId) {
+    if (!gameData || deleteBusyProfileId) return;
+    const profile = getPlayerProfile(gameData, profileId);
+    if (!profile) return;
+
+    Alert.alert(`Delete ${profile.name}?`, 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Continue',
+        style: 'destructive',
+        onPress: () => {
+          setKeyModalError('');
+          setKeyModal({ mode: 'delete', profileId, playerName: profile.name });
+        },
+      },
+    ]);
+  }
+
+  function handleCreateProfile(name, playerKey, confirmKey) {
     if (!gameData) return;
-    const defaultName = `Player ${gameData.players.length + 1}`;
-    const res = createPlayerProfile(gameData, name || defaultName);
+    const trimmed = String(name || '').trim().slice(0, 24);
+    if (!trimmed) {
+      Alert.alert('Create Player', 'Player name cannot be empty.');
+      return;
+    }
+    const keyErr = validatePlayerKeyPair(playerKey, confirmKey);
+    if (keyErr) {
+      Alert.alert('Create Player', keyErr);
+      return;
+    }
+
+    const playerKeyHash = hashPlayerKey(playerKey);
+    const res = createPlayerProfile(gameData, trimmed, playerKeyHash);
     if (res.error) {
       Alert.alert('Player profiles', res.error);
       return;
     }
     const newId = res.playerId;
-    setGameData(res.gameData);
+    markProfileUnlocked(newId);
+    persistSave(res.gameData, 'profile_created', newId);
     if (setupActiveSlot === 2 && gameMode === 'twoPlayer') {
       setSetupP2ProfileId(newId);
       syncSetupMonstersFromProfiles(res.gameData, setupP1ProfileId ?? newId, newId);
@@ -319,7 +494,8 @@ export default function App() {
 
   function handleUpdateProfileName(profileId, name) {
     if (!gameData) return;
-    setGameData((gd) => updatePlayer(gd, profileId, { name: name.trim().slice(0, 24) || 'Player' }));
+    const next = updatePlayer(gameData, profileId, { name: name.trim().slice(0, 24) || 'Player' });
+    persistSave(next, 'profile_renamed', profileId);
   }
 
   function tryBuyMonster(templateId, price) {
@@ -338,7 +514,7 @@ export default function App() {
     } else if (newOm?.id && !setupP1Id) {
       setSetupP1Id(newOm.id);
     }
-    setGameData(nextGd);
+    persistSave(nextGd, 'coins_changed', slotProfileId);
     Alert.alert('Monster Mart', `${getMonsterTemplate(templateId)?.name ?? 'Monster'} joined your team!`);
   }
 
@@ -370,7 +546,7 @@ export default function App() {
       Alert.alert('Monster Gear', res.error);
       return;
     }
-    setGameData(res.gameData);
+    persistSave(res.gameData, 'gear_bought', gearProfileId || null);
   }
 
   function handleBuyGearMart(gearId) {
@@ -381,7 +557,7 @@ export default function App() {
       Alert.alert('Gear Mart', res.error);
       return;
     }
-    setGameData(res.gameData);
+    persistSave(res.gameData, 'gear_bought', profileId);
   }
 
   function handleEquipGear(gearId, slotIndex = null) {
@@ -391,7 +567,7 @@ export default function App() {
       Alert.alert('Monster Gear', res.error);
       return;
     }
-    setGameData(res.gameData);
+    persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
   }
 
   function handleUnequipGear(gearId, slotIndex = null) {
@@ -401,7 +577,7 @@ export default function App() {
       Alert.alert('Monster Gear', res.error);
       return;
     }
-    setGameData(res.gameData);
+    persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
   }
 
   function handleUnlockGearSlot() {
@@ -411,7 +587,7 @@ export default function App() {
       Alert.alert('Unlock slot', res.error);
       return;
     }
-    setGameData(res.gameData);
+    persistSave(res.gameData, 'gear_slot_unlocked', gearProfileId || null);
     if (res.newSlotCount) {
       Alert.alert('Slot unlocked!', `This monster now has ${res.newSlotCount} gear slots.`);
     }
@@ -483,6 +659,10 @@ export default function App() {
     setWinner(null);
     setBattleKey((k) => k + 1);
     setPhase('battle');
+    if (gameData) {
+      const ids = [setupP1ProfileId, gameMode === 'twoPlayer' ? setupP2ProfileId : null].filter(Boolean);
+      void commitSave({ reason: 'battle_start', gameData, profileIDs: ids });
+    }
   }
 
   function handleBattleFinish({
@@ -526,7 +706,9 @@ export default function App() {
       aiPowerRatio: player2Snapshot?.aiPowerRatio ?? null,
     });
 
-    setGameData(nextGd);
+    const profileIds = [setupP1ProfileId, setupP2ProfileId].filter(Boolean);
+    persistSave(nextGd, 'battle_ended', profileIds);
+
     setRewardSummary(summary);
 
     const winTpl =
@@ -601,6 +783,16 @@ export default function App() {
       ]}
     >
       <StatusBar style="dark" />
+      <SyncStatusIndicator />
+      <PlayerKeyModal
+        visible={!!keyModal}
+        mode={keyModal?.mode ?? 'unlock'}
+        playerName={keyModal?.playerName}
+        error={keyModalError}
+        busy={keyModalBusy}
+        onCancel={closeKeyModal}
+        onSubmit={handleKeyModalSubmit}
+      />
       {phase !== 'menu' && phase !== 'battle' && phase !== 'online' ? (
         <>
           <Text style={styles.gameTitle}>Monster Dice Battle</Text>
@@ -652,20 +844,26 @@ export default function App() {
             onSelectMonster={(ownedId) => {
               if (gameMode === 'onePlayer') {
                 setSetupP1Id(ownedId);
-                if (setupP1ProfileId) {
-                  setGameData((gd) => setProfileSelectedMonster(gd, setupP1ProfileId, ownedId));
+                if (setupP1ProfileId && gameData) {
+                  persistSave(
+                    setProfileSelectedMonster(gameData, setupP1ProfileId, ownedId),
+                    'monster_selected',
+                    setupP1ProfileId,
+                  );
                 }
                 return;
               }
               const profId = setupActiveSlot === 1 ? setupP1ProfileId : setupP2ProfileId;
               if (setupActiveSlot === 1) setSetupP1Id(ownedId);
               else setSetupP2Id(ownedId);
-              if (profId) {
-                setGameData((gd) => setProfileSelectedMonster(gd, profId, ownedId));
+              if (profId && gameData) {
+                persistSave(setProfileSelectedMonster(gameData, profId, ownedId), 'monster_selected', profId);
               }
             }}
-            onSelectProfile={handleSelectProfile}
+            onSelectProfile={handleRequestSelectProfile}
             onCreateProfile={handleCreateProfile}
+            onRequestDeleteProfile={handleRequestDeleteProfile}
+            deleteBusyProfileId={deleteBusyProfileId}
             onUpdateProfileName={handleUpdateProfileName}
             onStartGame={startGameFromSetup}
             onOpenMonsterGear={openMonsterGear}

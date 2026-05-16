@@ -8,7 +8,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "web:local": "expo start --web --port 8081",
-    "prebuild": "node scripts/write-socket-config.js",
+    "prebuild": "node scripts/write-socket-config.js && node scripts/write-save-config.js",
     "build": "npm run prebuild && expo export -p web",
     "server": "npm run start --prefix server",
     "dev:all": "concurrently \"npm run web:local\" \"npm run server\""

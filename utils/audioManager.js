@@ -153,6 +153,7 @@ export function setAudioMuted(next) {
   saveAudioSettings({ muted: !!next });
   applySettingsToGains();
   if (muted) stopBattleMusic();
+  void import('../src/services/syncCoordinator').then((m) => m.commitAudioSettingsSave());
 }
 
 export function toggleAudioMuted() {
@@ -173,6 +174,7 @@ export function setAudioVolumes({ bgm, sfx, ui, impact } = {}) {
   if (typeof impact === 'number') patch.impact = impact;
   saveAudioSettings(patch);
   applySettingsToGains();
+  void import('../src/services/syncCoordinator').then((m) => m.commitAudioSettingsSave());
 }
 
 /** Adaptive battle music — call when HP changes */

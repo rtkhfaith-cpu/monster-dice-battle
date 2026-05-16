@@ -14,6 +14,7 @@ import { getMonsterTemplate } from '../utils/monsterTemplates';
 import { MAX_PLAYER_PROFILES } from '../utils/gameStorage';
 import { gamePanelStyle } from '../utils/artDirection';
 import { LOBBY } from '../utils/gameTheme';
+import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 
 function profileMonster(profile) {
   const om =
@@ -35,7 +36,10 @@ export default function SaveSlotPanel({
   setupActiveSlot = 1,
   gameMode,
   onSelectProfile,
+  onRequestSelectProfile,
   onCreateProfile,
+  onRequestDeleteProfile,
+  deleteBusyProfileId = null,
   onUpdateName,
   compact = false,
   embedInScroll = false,
@@ -44,7 +48,12 @@ export default function SaveSlotPanel({
   const [isCreating, setIsCreating] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [createNameDraft, setCreateNameDraft] = useState('');
+  const [createKeyDraft, setCreateKeyDraft] = useState('');
+  const [createConfirmDraft, setCreateConfirmDraft] = useState('');
+  const [createError, setCreateError] = useState('');
   const [nameDraft, setNameDraft] = useState('');
+
+  const pickProfile = onRequestSelectProfile ?? onSelectProfile;
 
   const atMax = profiles.length >= MAX_PLAYER_PROFILES;
   const canCreate = !atMax;
@@ -81,18 +90,37 @@ export default function SaveSlotPanel({
     return profileId === setupP1ProfileId;
   }
 
+  function resetCreateForm() {
+    setIsCreating(false);
+    setCreateNameDraft('');
+    setCreateKeyDraft('');
+    setCreateConfirmDraft('');
+    setCreateError('');
+  }
+
   function handleStartCreate() {
     if (!canCreate) return;
     setIsCreating(true);
     setCreateNameDraft(`Player ${profiles.length + 1}`);
+    setCreateKeyDraft('');
+    setCreateConfirmDraft('');
+    setCreateError('');
   }
 
   function handleSaveNewPlayer() {
     const trimmed = createNameDraft.trim().slice(0, 24);
-    const name = trimmed || `Player ${profiles.length + 1}`;
-    onCreateProfile?.(name);
-    setIsCreating(false);
-    setCreateNameDraft('');
+    if (!trimmed) {
+      setCreateError('Player name cannot be empty.');
+      return;
+    }
+    const keyErr = validatePlayerKeyPair(createKeyDraft, createConfirmDraft);
+    if (keyErr) {
+      setCreateError(keyErr);
+      return;
+    }
+    const name = trimmed;
+    onCreateProfile?.(name, normalizePlayerKey(createKeyDraft), normalizePlayerKey(createConfirmDraft));
+    resetCreateForm();
   }
 
   function handleSaveName() {
@@ -130,7 +158,7 @@ export default function SaveSlotPanel({
       {profiles.length === 0 && !isCreating ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No players yet</Text>
-          <Text style={styles.emptySub}>Create a profile to save coins, monsters, and gear.</Text>
+          <Text style={styles.emptySub}>Tap Create Player to add a profile with a 4-digit Player Key.</Text>
         </View>
       ) : null}
 
@@ -143,8 +171,10 @@ export default function SaveSlotPanel({
             const tpl = om ? getMonsterTemplate(om.templateId) : null;
             const badge = slotLabel(p.id);
 
+            const deleteBusy = deleteBusyProfileId === p.id;
+
             return (
-              <TouchableOpacity
+              <View
                 key={p.id}
                 style={[
                   styles.slot,
@@ -152,34 +182,51 @@ export default function SaveSlotPanel({
                   isMobile && styles.slotMobile,
                   selected && styles.slotOn,
                 ]}
-                onPress={() => onSelectProfile?.(p.id)}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={`Select ${p.name}`}
               >
-                {fighter ? (
-                  <MonsterPreview
-                    parts={fighter.monsterParts}
-                    size={isMobile ? 44 : compact ? 40 : 52}
-                    mood="happy"
-                  />
-                ) : (
-                  <Text style={styles.fallbackEmoji}>👾</Text>
-                )}
-                <View style={styles.slotMeta}>
-                  <Text style={[styles.slotName, isMobile && styles.slotNameMobile]} numberOfLines={1}>
-                    {p.name}
-                  </Text>
-                  <Text style={[styles.slotLine, isMobile && styles.slotLineMobile]}>
-                    Lv {om?.level ?? 1} · 🪙 {p.coins ?? 0}
-                  </Text>
-                  <Text style={[styles.slotMon, isMobile && styles.slotMonMobile]} numberOfLines={1}>
-                    {om ? om.nickname || tpl?.name : 'No monster'}
-                  </Text>
-                  {sessionSelected ? <Text style={styles.selTag}>★ SELECTED</Text> : null}
-                  {badge ? <Text style={styles.badge}>{badge}</Text> : null}
-                </View>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.slotMain}
+                  onPress={() => pickProfile?.(p.id)}
+                  activeOpacity={0.85}
+                  disabled={deleteBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${p.name}`}
+                >
+                  {fighter ? (
+                    <MonsterPreview
+                      parts={fighter.monsterParts}
+                      size={isMobile ? 44 : compact ? 40 : 52}
+                      mood="happy"
+                    />
+                  ) : (
+                    <Text style={styles.fallbackEmoji}>👾</Text>
+                  )}
+                  <View style={styles.slotMeta}>
+                    <Text style={[styles.slotName, isMobile && styles.slotNameMobile]} numberOfLines={1}>
+                      {p.name}
+                    </Text>
+                    <Text style={[styles.slotLine, isMobile && styles.slotLineMobile]}>
+                      Lv {om?.level ?? 1} · 🪙 {p.coins ?? 0}
+                    </Text>
+                    <Text style={[styles.slotMon, isMobile && styles.slotMonMobile]} numberOfLines={1}>
+                      {om ? om.nickname || tpl?.name : 'No monster'}
+                    </Text>
+                    {sessionSelected ? <Text style={styles.selTag}>★ SELECTED</Text> : null}
+                    {badge ? <Text style={styles.badge}>{badge}</Text> : null}
+                  </View>
+                </TouchableOpacity>
+                {onRequestDeleteProfile ? (
+                  <TouchableOpacity
+                    style={[styles.deleteBtn, deleteBusy && styles.deleteBtnDisabled]}
+                    onPress={() => onRequestDeleteProfile(p.id)}
+                    disabled={deleteBusy}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${p.name}`}
+                  >
+                    <Text style={styles.deleteBtnTxt}>{deleteBusy ? '…' : 'Delete'}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             );
           })}
         </SlotListWrap>
@@ -187,34 +234,69 @@ export default function SaveSlotPanel({
 
       {isCreating ? (
         <View style={styles.createBox}>
-          <Text style={styles.createLbl}>New player name</Text>
+          <Text style={styles.createLbl}>Player name</Text>
           <TextInput
             style={styles.nameInput}
             value={createNameDraft}
-            onChangeText={setCreateNameDraft}
+            onChangeText={(t) => {
+              setCreateNameDraft(t);
+              if (createError) setCreateError('');
+            }}
             placeholder="Enter name"
             placeholderTextColor="#636e72"
             maxLength={24}
             autoCorrect={false}
             autoCapitalize="words"
-            returnKeyType="done"
-            onSubmitEditing={handleSaveNewPlayer}
+            returnKeyType="next"
             editable
             {...(Platform.OS === 'web' ? { autoFocus: true } : {})}
           />
+          <Text style={[styles.createLbl, styles.createLblSpaced]}>Create Player Key</Text>
+          <Text style={styles.createHint}>
+            Choose a 4-digit key. You need this to open or delete this player later.
+          </Text>
+          <Text style={styles.fieldSubLbl}>4-digit Player Key</Text>
+          <TextInput
+            style={styles.keyInput}
+            value={createKeyDraft}
+            onChangeText={(t) => {
+              setCreateKeyDraft(normalizePlayerKey(t));
+              if (createError) setCreateError('');
+            }}
+            placeholder="••••"
+            placeholderTextColor="#636e72"
+            keyboardType="number-pad"
+            maxLength={4}
+            secureTextEntry
+            autoComplete="off"
+            textContentType="none"
+            returnKeyType="next"
+          />
+          <Text style={styles.fieldSubLbl}>Confirm Player Key</Text>
+          <TextInput
+            style={styles.keyInput}
+            value={createConfirmDraft}
+            onChangeText={(t) => {
+              setCreateConfirmDraft(normalizePlayerKey(t));
+              if (createError) setCreateError('');
+            }}
+            placeholder="••••"
+            placeholderTextColor="#636e72"
+            keyboardType="number-pad"
+            maxLength={4}
+            secureTextEntry
+            autoComplete="off"
+            textContentType="none"
+            returnKeyType="done"
+            onSubmitEditing={handleSaveNewPlayer}
+          />
+          {createError ? <Text style={styles.createError}>{createError}</Text> : null}
           <View style={styles.createActions}>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => {
-                setIsCreating(false);
-                setCreateNameDraft('');
-              }}
-              activeOpacity={0.85}
-            >
+            <TouchableOpacity style={styles.cancelBtn} onPress={resetCreateForm} activeOpacity={0.85}>
               <Text style={styles.cancelBtnTxt}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.saveBtn} onPress={handleSaveNewPlayer} activeOpacity={0.85}>
-              <Text style={styles.saveBtnTxt}>Save</Text>
+              <Text style={styles.saveBtnTxt}>Create Player</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -357,6 +439,29 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     minHeight: 64,
   },
+  slotMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  deleteBtn: {
+    marginLeft: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e74c3c',
+    backgroundColor: '#fdecea',
+    minHeight: 40,
+    justifyContent: 'center',
+  },
+  deleteBtnDisabled: { opacity: 0.5 },
+  deleteBtnTxt: {
+    fontWeight: '900',
+    fontSize: 12,
+    color: '#c0392b',
+  },
   slotCompact: {
     minHeight: 56,
     paddingVertical: 5,
@@ -442,6 +547,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1a1a2e',
     marginBottom: 8,
+  },
+  createLblSpaced: { marginTop: 10 },
+  createHint: {
+    fontWeight: '700',
+    fontSize: 13,
+    color: '#4a5568',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  fieldSubLbl: {
+    fontWeight: '800',
+    fontSize: 13,
+    color: '#1a1a2e',
+    marginBottom: 6,
+  },
+  keyInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 2,
+    borderColor: '#2d2d44',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    fontWeight: '800',
+    fontSize: 16,
+    color: '#1b1b2f',
+    minHeight: 48,
+    letterSpacing: 4,
+    textAlign: 'center',
+    marginBottom: 10,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : {}),
+  },
+  createError: {
+    fontWeight: '800',
+    fontSize: 13,
+    color: '#c0392b',
+    marginBottom: 8,
+    lineHeight: 18,
   },
   nameBox: {
     backgroundColor: '#fff',

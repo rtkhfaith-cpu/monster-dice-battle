@@ -8,6 +8,7 @@ try {
 }
 
 const socketUrl = process.env.VITE_SOCKET_SERVER_URL ?? '';
+const saveApiUrl = process.env.VITE_SAVE_API_URL ?? '';
 
 module.exports = function (api) {
   api.cache(true);
@@ -18,6 +19,7 @@ module.exports = function (api) {
         'babel-plugin-transform-define',
         {
           'import.meta.env.VITE_SOCKET_SERVER_URL': socketUrl,
+          'import.meta.env.VITE_SAVE_API_URL': saveApiUrl,
         },
       ],
     ],
