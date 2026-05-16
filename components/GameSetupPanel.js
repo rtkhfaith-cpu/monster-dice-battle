@@ -78,6 +78,7 @@ export default function GameSetupPanel({
   selectedP1Id,
   selectedP2Id,
   onOpenMonsterGear,
+  embedInScroll = false,
 }) {
   const p1Name = profiles.find((p) => p.id === setupP1ProfileId)?.name ?? 'Player 1';
   const p2Name = profiles.find((p) => p.id === setupP2ProfileId)?.name ?? 'Player 2';
@@ -93,16 +94,22 @@ export default function GameSetupPanel({
 
   const ready = p1.ok && p2.ok;
 
+  const BodyWrap = embedInScroll ? View : ScrollView;
+  const bodyProps = embedInScroll
+    ? { style: styles.scrollContent }
+    : {
+        style: styles.scroll,
+        contentContainerStyle: styles.scrollContent,
+        showsVerticalScrollIndicator: false,
+        nestedScrollEnabled: true,
+        keyboardShouldPersistTaps: 'handled',
+      };
+
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, embedInScroll && styles.panelEmbed]}>
       <Text style={styles.panelTitle}>Battle Setup</Text>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        nestedScrollEnabled
-      >
+      <BodyWrap {...bodyProps}>
         <View style={styles.modeRow}>
           <TouchableOpacity
             style={[styles.modeBtn, gameMode === 'onePlayer' && styles.modeOn]}
@@ -156,9 +163,11 @@ export default function GameSetupPanel({
         )}
 
         <View style={[styles.statusBar, ready && styles.statusOk]}>
-          <Text style={styles.statusTxt}>{ready ? 'All fighters ready!' : 'Choose monsters on the right'}</Text>
+          <Text style={styles.statusTxt}>
+            {ready ? 'All fighters ready!' : 'Choose monsters below'}
+          </Text>
         </View>
-      </ScrollView>
+      </BodyWrap>
     </View>
   );
 }
@@ -174,6 +183,11 @@ const styles = StyleSheet.create({
     borderColor: LOBBY.panelBorder,
     padding: 8,
     ...panelShadow,
+  },
+  panelEmbed: {
+    flex: 0,
+    flexGrow: 0,
+    minHeight: 0,
   },
   panelTitle: {
     fontWeight: '900',

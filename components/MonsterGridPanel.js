@@ -16,12 +16,23 @@ export default function MonsterGridPanel({
   selectedP1Id,
   selectedP2Id,
   onSelectMonster,
+  embedInScroll = false,
 }) {
   const monsters = wallet?.ownedMonsters ?? [];
   const is1P = gameMode === 'onePlayer';
+  const GridWrap = embedInScroll ? View : ScrollView;
+  const gridWrapProps = embedInScroll
+    ? { style: styles.gridEmbed }
+    : {
+        style: styles.scroll,
+        contentContainerStyle: styles.grid,
+        showsVerticalScrollIndicator: false,
+        nestedScrollEnabled: true,
+        keyboardShouldPersistTaps: 'handled',
+      };
 
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, embedInScroll && styles.panelEmbed]}>
       <Text style={styles.panelTitle}>Your Monsters</Text>
       <Text style={styles.subTitle} numberOfLines={1}>
         {is1P ? (
@@ -42,7 +53,7 @@ export default function MonsterGridPanel({
           <Text style={styles.emptyTxt}>No monsters yet! Open Monster Mart from the top menu.</Text>
         </View>
       ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
+        <GridWrap {...gridWrapProps}>
           {monsters.map((om) => {
             const f = fighterFromOwned(om);
             const t = getMonsterTemplate(om.templateId);
@@ -87,7 +98,7 @@ export default function MonsterGridPanel({
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </GridWrap>
       )}
     </View>
   );
@@ -121,7 +132,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   subStrong: { fontWeight: '900', color: LOBBY.coin },
+  panelEmbed: {
+    flex: 0,
+    flexGrow: 0,
+    minHeight: 0,
+  },
   scroll: { flex: 1, minHeight: 0 },
+  gridEmbed: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    paddingBottom: 4,
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

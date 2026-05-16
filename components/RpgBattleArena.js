@@ -84,7 +84,37 @@ export default function RpgBattleArena({
   p2Rage,
   defendGlowP1 = false,
   defendGlowP2 = false,
+  defenderFlashP1 = false,
+  defenderFlashP2 = false,
 }) {
+  const p1Flash = useRef(new Animated.Value(0)).current;
+  const p2Flash = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!defenderFlashP1) {
+      p1Flash.setValue(0);
+      return undefined;
+    }
+    p1Flash.setValue(0);
+    Animated.sequence([
+      Animated.timing(p1Flash, { toValue: 1, duration: 70, useNativeDriver: true }),
+      Animated.timing(p1Flash, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start();
+    return undefined;
+  }, [defenderFlashP1, p1Flash]);
+
+  useEffect(() => {
+    if (!defenderFlashP2) {
+      p2Flash.setValue(0);
+      return undefined;
+    }
+    p2Flash.setValue(0);
+    Animated.sequence([
+      Animated.timing(p2Flash, { toValue: 1, duration: 70, useNativeDriver: true }),
+      Animated.timing(p2Flash, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start();
+    return undefined;
+  }, [defenderFlashP2, p2Flash]);
   const { width, height } = useWindowDimensions();
   const short = height < 680;
   const narrow = width < 520;
@@ -179,6 +209,10 @@ export default function RpgBattleArena({
             { opacity: p2Opacity, transform: [{ scale: p2Scale }, { translateY: p2Ty }] },
           ]}
         >
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.hitFlash, { opacity: p2Flash }]}
+          />
           {p2Bubble ? (
             <Text style={styles.bubble} numberOfLines={1}>
               {p2Bubble}
@@ -210,6 +244,10 @@ export default function RpgBattleArena({
             { opacity: p1Opacity, transform: [{ scale: p1Scale }, { translateY: p1Ty }] },
           ]}
         >
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.hitFlash, { opacity: p1Flash }]}
+          />
           {p1Bubble ? (
             <Text style={styles.bubble} numberOfLines={1}>
               {p1Bubble}
@@ -422,6 +460,12 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   faceLeft: { transform: [{ scaleX: -1 }], overflow: 'visible' },
+  hitFlash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    zIndex: 5,
+  },
   shieldRing: {
     position: 'absolute',
     alignSelf: 'center',

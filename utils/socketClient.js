@@ -20,8 +20,10 @@ export function connectOnlineSocket() {
       transports: ['polling', 'websocket'],
       upgrade: true,
       timeout: 12000,
-      reconnection: false,
-      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 8,
+      reconnectionDelay: 800,
+      forceNew: false,
     });
     return { socket, error: null };
   } catch {

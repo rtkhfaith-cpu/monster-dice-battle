@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import BattleEffect from './BattleEffect';
+import BattleProjectileLayer from './BattleProjectileLayer';
 import BattleLog from './BattleLog';
 import ChaosEventBanner from './ChaosEventBanner';
 import BattleDiceButton from './BattleDiceButton';
 import RpgBattleArena from './RpgBattleArena';
 import { CHAOS_EVENT_IDS, pickRandomChaosEvent, rulesForChaosEvent } from '../utils/chaosEvents';
 import { pickRandomMagic, pickRandomNormal } from '../utils/moves';
+import { pickProjectile } from '../utils/battleProjectiles';
 import { resolveDiceBattleDamage, resolveSuperStrike } from '../utils/battleLogic';
 import { playSfx } from '../utils/gameSounds';
 import { rollDice } from '../utils/random';
@@ -139,7 +141,10 @@ export default function BattleScreen({
   opponentLabel = 'Player 2',
   opponentIsAi = false,
   battleExtras = {},
+  onlineBattle = null,
 }) {
+  const isOnline = !!onlineBattle?.mySlot;
+  const myPlayerId = onlineBattle?.mySlot === 'p2' ? 2 : 1;
   const labelP1 = player1Name || 'Player 1';
   const labelP2 = opponentIsAi ? player2Name || 'CPU' : player2Name || opponentLabel || 'Player 2';
 
@@ -163,6 +168,8 @@ export default function BattleScreen({
   const [resultBlurb, setResultBlurb] = useState('');
   const [bannerMessage, setBannerMessage] = useState('');
   const [defendGlowSide, setDefendGlowSide] = useState(null);
+  const [defenderFlash, setDefenderFlash] = useState(0);
+  const effectSeqRef = useRef(0);
   const [p1Pose, setP1Pose] = useState('idle');
   const [p2Pose, setP2Pose] = useState('idle');
   const [p1Emotion, setP1Emotion] = useState('neutral');
@@ -255,10 +262,48 @@ export default function BattleScreen({
   useEffect(() => () => clearTimers(), []);
 
   useEffect(() => {
+    if (isOnline) return;
     const msg = `${labelP1}'s Turn — tap your dice`;
     setInstruction(msg);
     setBannerMessage(msg);
-  }, [labelP1]);
+  }, [labelP1, isOnline]);
+
+  const lastSyncSeq = useRef(0);
+  const onlineFinishedRef = useRef(false);
+  useEffect(() => {
+    if (!isOnline || !onlineBattle?.snapshot) return;
+    const s = onlineBattle.snapshot;
+    if (s.seq === lastSyncSeq.current) return;
+    lastSyncSeq.current = s.seq;
+
+    setRound(s.round ?? 1);
+    setBattlePhase(s.phase || 'player1Dice');
+    setDiceP1(s.diceP1 ?? null);
+    setDiceP2(s.diceP2 ?? null);
+    setAttackerId(s.attackerId ?? null);
+    setStrikeKind(s.strikeKind ?? null);
+    if (s.p1) setP1(s.p1);
+    if (s.p2) setP2(s.p2);
+    if (Array.isArray(s.log)) setLog(s.log);
+    if (s.bannerMessage) setBannerMessage(s.bannerMessage);
+    if (s.currentEffect !== undefined) setCurrentEffect(s.currentEffect);
+    setDiceSession({ active: false, player: null, value: 1 });
+    setBusy(s.phase === 'resolveAttack');
+
+    if (s.winner && !onlineFinishedRef.current) {
+      onlineFinishedRef.current = true;
+      schedule(800, () => {
+        const np1 = s.p1;
+        const np2 = s.p2;
+        onFinish({
+          winner: s.winner,
+          player1Snapshot: snapshotFight(np1),
+          player2Snapshot: snapshotFight(np2),
+          battleExtras: { ...battleExtrasRef.current, online: true },
+        });
+      });
+    }
+  }, [isOnline, onlineBattle?.snapshot, onFinish]);
 
   function doShake(strength) {
     const mag = strength === 'super' ? 22 : strength === 'crit' ? 16 : 9;
@@ -272,6 +317,7 @@ export default function BattleScreen({
 
   useEffect(() => {
     if (!currentEffect || currentEffect.superBomb || currentEffect.dodged) return;
+    if (currentEffect.useProjectileAnim) return;
     if (currentEffect.critical && currentEffect.damage > 0) {
       playSound('critical');
       void playSfx(attackerRef.current === 1 ? 'attackP1' : 'attackP2', { volume: 1 });
@@ -306,6 +352,14 @@ export default function BattleScreen({
     setP1Pose('idle');
     setP2Pose('idle');
     setSuperJumpSide(null);
+    setDefenderFlash(0);
+  }
+
+  function handleProjectileImpact(defId, fx) {
+    setDefenderFlash(defId);
+    schedule(450, () => setDefenderFlash(0));
+    if (fx?.critical && fx?.damage > 0) doShake('crit');
+    else if (fx?.damage > 0) doShake('normal');
   }
 
   function applyMonsterPosesForStrike({ atkId, strike, dodged, defendMode, isSuper }) {
@@ -348,7 +402,7 @@ export default function BattleScreen({
       if (endingDead) wrapUpBattle(np1, np2);
       else {
         if (blurb) showBanner(blurb);
-        schedule(1100, () => handleNextRound());
+        if (!isOnline) schedule(1100, () => handleNextRound());
       }
     }, RESOLVE_MS);
   }
@@ -406,13 +460,13 @@ export default function BattleScreen({
   );
 
   useEffect(() => {
-    if (!opponentIsAi || battlePhase !== 'player2Dice' || busy || diceSession.active || diceP1 == null) return undefined;
+    if (isOnline || !opponentIsAi || battlePhase !== 'player2Dice' || busy || diceSession.active || diceP1 == null) return undefined;
     const t = setTimeout(() => throwP2Ref.current(), 680);
     return () => clearTimeout(t);
   }, [battlePhase, opponentIsAi, busy, diceSession.active, diceP1]);
 
   useEffect(() => {
-    if (!opponentIsAi || battlePhase !== 'chooseAttack' || attackerId !== 2 || busy || strikeKind != null) return undefined;
+    if (isOnline || !opponentIsAi || battlePhase !== 'chooseAttack' || attackerId !== 2 || busy || strikeKind != null) return undefined;
     const t = setTimeout(() => {
       const atk = p2;
       const need = superNeedFor(atk);
@@ -426,7 +480,7 @@ export default function BattleScreen({
   }, [battlePhase, attackerId, opponentIsAi, busy, strikeKind, p2.combo, p2.mp]);
 
   useEffect(() => {
-    if (!opponentIsAi || battlePhase !== 'chooseDefense' || attackerId !== 1 || busy || strikeKind == null) return undefined;
+    if (isOnline || !opponentIsAi || battlePhase !== 'chooseDefense' || attackerId !== 1 || busy || strikeKind == null) return undefined;
     const t = setTimeout(() => {
       const mode = Math.random() < 0.42 ? 'dodge' : 'defend';
       pickDefenseRef.current(mode);
@@ -435,6 +489,11 @@ export default function BattleScreen({
   }, [battlePhase, attackerId, opponentIsAi, busy, strikeKind]);
 
   function handleThrowPlayer1Dice() {
+    if (isOnline) {
+      if (myPlayerId !== 1 || battlePhase !== 'player1Dice' || busy) return;
+      onlineBattle.emitAction('rollDice');
+      return;
+    }
     if (battlePhase !== 'player1Dice' || busy || diceSession.active) return;
     playSound('dice');
     void playSfx('dice');
@@ -446,6 +505,11 @@ export default function BattleScreen({
   }
 
   function handleThrowPlayer2Dice() {
+    if (isOnline) {
+      if (myPlayerId !== 2 || battlePhase !== 'player2Dice' || busy) return;
+      onlineBattle.emitAction('rollDice');
+      return;
+    }
     if (battlePhase !== 'player2Dice' || busy || diceP1 == null || diceSession.active) return;
     playSound('dice');
     void playSfx('dice');
@@ -462,6 +526,12 @@ export default function BattleScreen({
   }
 
   function handlePickDefense(mode) {
+    if (isOnline) {
+      const defId = attackerId === 1 ? 2 : 1;
+      if (myPlayerId !== defId || battlePhase !== 'chooseDefense') return;
+      onlineBattle.emitAction('pickDefense', { mode });
+      return;
+    }
     if (battlePhase !== 'chooseDefense' || busy || attackerId == null || !strikeKind) return;
 
     const movePick = strikeKind === 'magic' ? pickRandomMagic() : pickRandomNormal();
@@ -591,12 +661,14 @@ export default function BattleScreen({
       isSuper: false,
     });
 
+    effectSeqRef.current += 1;
     setCurrentEffect({
       type: strikeKind === 'magic' ? 'magic' : 'normal',
       moveName: movePick.name,
       effectType: movePick.effectType,
       emoji: movePick.emoji,
       critical: !!(resolved.critical && !dodged && dmgFinal > 0),
+      weak: !!(resolved.weak && !dodged && dmgFinal > 0),
       dodged,
       dodgeFailed: mode === 'dodge' && !dodged,
       defended: mode === 'defend',
@@ -604,6 +676,15 @@ export default function BattleScreen({
       superBomb: false,
       rageTag: atkRage && !dodged && dmgFinal > 0,
       rageBoost: atkRage && movePick.effectType === 'fire' && !dodged && dmgFinal > 0,
+      attackerId,
+      defenderId: defId,
+      attackerTemplateId: atkPaid.monsterTemplateId,
+      projectileId: pickProjectile({
+        templateId: atkPaid.monsterTemplateId,
+        effectType: movePick.effectType,
+      }),
+      useProjectileAnim: true,
+      seq: effectSeqRef.current,
     });
     setBattlePhase('resolveAttack');
     setInstruction(dodged ? 'Smoke escape!' : 'Battle clash!');
@@ -614,6 +695,11 @@ export default function BattleScreen({
   }
 
   function handlePickStrike(kind) {
+    if (isOnline) {
+      if (myPlayerId !== attackerId || battlePhase !== 'chooseAttack' || busy) return;
+      onlineBattle.emitAction('pickStrike', { kind });
+      return;
+    }
     if (battlePhase !== 'chooseAttack' || busy || attackerId == null) return;
 
     const atkNow = attackerId === 1 ? p1 : p2;
@@ -768,8 +854,12 @@ export default function BattleScreen({
   function turnPromptText() {
     if (battlePhase === 'player1Dice') return `${labelP1}'s Turn — tap your dice`;
     if (battlePhase === 'player2Dice') {
+      if (isOnline && myPlayerId !== 2) return `${labelP2} is rolling…`;
       if (opponentIsAi) return `${labelP2} is rolling…`;
       return `${labelP2}'s Turn — tap your dice`;
+    }
+    if (isOnline && battlePhase === 'player1Dice' && myPlayerId !== 1) {
+      return `${labelP1} is rolling…`;
     }
     if (battlePhase === 'chooseAttack') return `${nameFor(attackerId)} — pick Fight`;
     if (battlePhase === 'chooseDefense') return `${nameFor(attackerId === 1 ? 2 : 1)} — Defend or Dodge`;
@@ -794,6 +884,10 @@ export default function BattleScreen({
 
   function handleRunPress() {
     if (busy || diceSession.active) return;
+    if (isOnline) {
+      onlineBattle.emitAction('run');
+      return;
+    }
     if (typeof onExitBattle === 'function') {
       onExitBattle();
       return;
@@ -823,8 +917,10 @@ export default function BattleScreen({
   function renderDiceControl() {
     const isP1Roll = battlePhase === 'player1Dice';
     const isP2Roll = battlePhase === 'player2Dice';
-    const p1CanRoll = isP1Roll && !busy && !diceSession.active;
-    const p2CanRoll = isP2Roll && !busy && !diceSession.active && diceP1 != null;
+    const p1CanRoll =
+      isP1Roll && !busy && !diceSession.active && (!isOnline || myPlayerId === 1);
+    const p2CanRoll =
+      isP2Roll && !busy && !diceSession.active && diceP1 != null && (!isOnline || myPlayerId === 2);
     const p1Rolling = diceSession.active && diceSession.player === 1;
     const p2Rolling = diceSession.active && diceSession.player === 2;
     const p1Active =
@@ -876,9 +972,16 @@ export default function BattleScreen({
 
   function renderActionDock() {
     const sub = [];
-    const fightEnabled = !busy && !diceSession.active && battlePhase === 'chooseAttack';
+    const fightEnabled =
+      !busy &&
+      !diceSession.active &&
+      battlePhase === 'chooseAttack' &&
+      (!isOnline || myPlayerId === attackerId);
     const defendEnabled =
-      !busy && !diceSession.active && battlePhase === 'chooseDefense';
+      !busy &&
+      !diceSession.active &&
+      battlePhase === 'chooseDefense' &&
+      (!isOnline || myPlayerId === (attackerId === 1 ? 2 : 1));
 
     if (battlePhase === 'chooseAttack' && atkBtn) {
       const magLocked = atkBtn.mp < MAGIC_COST;
@@ -975,7 +1078,12 @@ export default function BattleScreen({
             p2Rage={isRage(p2)}
             defendGlowP1={defendGlowSide === 1}
             defendGlowP2={defendGlowSide === 2}
+            defenderFlashP1={defenderFlash === 1}
+            defenderFlashP2={defenderFlash === 2}
           />
+          {battlePhase === 'resolveAttack' && currentEffect && !currentEffect.superBomb ? (
+            <BattleProjectileLayer effect={currentEffect} onImpact={handleProjectileImpact} />
+          ) : null}
           {bannerMessage ? (
             <View style={styles.battleBanner} pointerEvents="none">
               <Text style={styles.battleBannerTxt} numberOfLines={3}>

@@ -37,8 +37,10 @@ export default function SaveSlotPanel({
   onCreateProfile,
   onUpdateName,
   compact = false,
+  embedInScroll = false,
 }) {
   const [isCreating, setIsCreating] = useState(false);
+  const [editingName, setEditingName] = useState(false);
   const [createNameDraft, setCreateNameDraft] = useState('');
   const [nameDraft, setNameDraft] = useState('');
 
@@ -54,6 +56,7 @@ export default function SaveSlotPanel({
 
   useEffect(() => {
     setNameDraft(editProfile?.name ?? '');
+    setEditingName(false);
   }, [editProfileId, editProfile?.name]);
 
   useEffect(() => {
@@ -98,11 +101,21 @@ export default function SaveSlotPanel({
     }
   }
 
-  const showNameEditor = isCreating || !!editProfile;
-  const listScrollable = profiles.length > 2;
+  const listScrollable = !embedInScroll && profiles.length > 2;
+  const SlotListWrap = embedInScroll || !listScrollable ? View : ScrollView;
+  const slotListProps =
+    embedInScroll || !listScrollable
+      ? { style: styles.slotListWrap }
+      : {
+          style: [styles.slotScroll, styles.slotScrollLimited],
+          contentContainerStyle: styles.slotList,
+          showsVerticalScrollIndicator: true,
+          nestedScrollEnabled: true,
+          keyboardShouldPersistTaps: 'handled',
+        };
 
   return (
-    <View style={[styles.panel, compact && styles.panelCompact]}>
+    <View style={[styles.panel, compact && styles.panelCompact, embedInScroll && styles.panelEmbed]}>
       <Text style={styles.panelTitle}>Save Slots</Text>
 
       {profiles.length === 0 && !isCreating ? (
@@ -113,13 +126,7 @@ export default function SaveSlotPanel({
       ) : null}
 
       {profiles.length > 0 ? (
-        <ScrollView
-          style={[styles.slotScroll, listScrollable && styles.slotScrollLimited]}
-          contentContainerStyle={styles.slotList}
-          showsVerticalScrollIndicator={listScrollable}
-          nestedScrollEnabled
-          keyboardShouldPersistTaps="handled"
-        >
+        <SlotListWrap {...slotListProps}>
           {profiles.map((p) => {
             const selected = isProfileHighlighted(p.id);
             const sessionSelected = p.id === activeProfileId;
@@ -130,14 +137,14 @@ export default function SaveSlotPanel({
             return (
               <TouchableOpacity
                 key={p.id}
-                style={[styles.slot, selected && styles.slotOn]}
+                style={[styles.slot, compact && styles.slotCompact, selected && styles.slotOn]}
                 onPress={() => onSelectProfile?.(p.id)}
                 activeOpacity={0.85}
                 accessibilityRole="button"
                 accessibilityLabel={`Select ${p.name}`}
               >
                 {fighter ? (
-                  <MonsterPreview parts={fighter.monsterParts} size={compact ? 48 : 52} mood="happy" />
+                  <MonsterPreview parts={fighter.monsterParts} size={compact ? 40 : 52} mood="happy" />
                 ) : (
                   <Text style={styles.fallbackEmoji}>👾</Text>
                 )}
@@ -157,7 +164,7 @@ export default function SaveSlotPanel({
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </SlotListWrap>
       ) : null}
 
       {isCreating ? (
@@ -199,7 +206,22 @@ export default function SaveSlotPanel({
         </TouchableOpacity>
       ) : null}
 
-      {showNameEditor && editProfile && !isCreating ? (
+      {editProfile && !isCreating && !editingName ? (
+        <View style={styles.nameRow}>
+          <Text style={styles.namePreview} numberOfLines={1}>
+            Name: <Text style={styles.namePreviewVal}>{editProfile.name}</Text>
+          </Text>
+          <TouchableOpacity
+            style={styles.editNameBtn}
+            onPress={() => setEditingName(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.editNameBtnTxt}>Edit Name</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {editProfile && !isCreating && editingName ? (
         <View style={styles.nameBox}>
           <Text style={styles.nameLbl}>Player name</Text>
           <TextInput
@@ -216,9 +238,21 @@ export default function SaveSlotPanel({
             onSubmitEditing={handleSaveName}
             editable
           />
-          <TouchableOpacity style={styles.saveNameBtn} onPress={handleSaveName} activeOpacity={0.85}>
-            <Text style={styles.saveNameBtnTxt}>Save name</Text>
-          </TouchableOpacity>
+          <View style={styles.createActions}>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => {
+                setEditingName(false);
+                setNameDraft(editProfile.name ?? '');
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.cancelBtnTxt}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveName} activeOpacity={0.85}>
+              <Text style={styles.saveBtnTxt}>Save</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : null}
 
@@ -242,6 +276,14 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
     flexBasis: 'auto',
+    padding: 8,
+  },
+  panelEmbed: {
+    flex: 0,
+    flexGrow: 0,
+  },
+  slotListWrap: {
+    flexGrow: 0,
   },
   panelTitle: {
     fontWeight: '900',
@@ -291,9 +333,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: LOBBY.cardBorder,
-    padding: 8,
-    marginBottom: 8,
+    padding: 6,
+    marginBottom: 6,
     minHeight: 64,
+  },
+  slotCompact: {
+    minHeight: 56,
+    paddingVertical: 5,
   },
   slotOn: {
     borderColor: LOBBY.cardActiveBorder,
@@ -307,12 +353,44 @@ const styles = StyleSheet.create({
   slotMon: { fontWeight: '700', fontSize: 12, color: '#636e72', marginTop: 2 },
   selTag: { fontWeight: '900', fontSize: 11, color: '#27ae60', marginTop: 4 },
   badge: { fontWeight: '900', fontSize: 11, color: '#c0392b', marginTop: 2 },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 4,
+    paddingVertical: 4,
+  },
+  namePreview: {
+    flex: 1,
+    fontWeight: '800',
+    fontSize: 14,
+    color: LOBBY.textMuted,
+  },
+  namePreviewVal: {
+    fontWeight: '900',
+    color: LOBBY.textStrong,
+  },
+  editNameBtn: {
+    backgroundColor: LOBBY.chip,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: LOBBY.cardBorder,
+  },
+  editNameBtnTxt: {
+    fontWeight: '900',
+    fontSize: 13,
+    color: LOBBY.textStrong,
+  },
   createPrimaryBtn: {
     backgroundColor: '#48cae4',
     borderRadius: 12,
     borderWidth: 2,
     borderColor: '#2d2d44',
-    paddingVertical: 16,
+    paddingVertical: 12,
     alignItems: 'center',
     marginTop: 4,
     marginBottom: 4,

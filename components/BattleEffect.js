@@ -142,11 +142,13 @@ export default function BattleEffect({ currentEffect, instruction }) {
 
       {ce?.dodged ? <Text style={styles.dodgeLbl}>💨 DODGED!</Text> : null}
 
-      {!ce?.superBomb && !ce?.dodged && typeof ce?.damage === 'number' ? (
+      {!ce?.useProjectileAnim && !ce?.superBomb && !ce?.dodged && typeof ce?.damage === 'number' ? (
         <Animated.Text
           style={[
             styles.dmgLbl,
             ce.critical && styles.dmgCrit,
+            ce.weak && styles.dmgWeak,
+            ce.defended && styles.dmgDefended,
             {
               opacity: Animated.multiply(
                 freezeGate,
@@ -160,7 +162,7 @@ export default function BattleEffect({ currentEffect, instruction }) {
         </Animated.Text>
       ) : null}
 
-      {!ce?.superBomb && !ce?.dodged && typeof ce?.damage === 'number' && ce.damage > 0 ? (
+      {!ce?.useProjectileAnim && !ce?.superBomb && !ce?.dodged && typeof ce?.damage === 'number' && ce.damage > 0 ? (
         <Animated.View
           pointerEvents="none"
           style={[
@@ -175,11 +177,15 @@ export default function BattleEffect({ currentEffect, instruction }) {
 
       {!ce?.superBomb && ce?.dodgeFailed ? <Text style={styles.failLbl}>💥 Dodge failed!</Text> : null}
 
-      {!ce?.superBomb && ce?.critical ? (
+      {!ce?.useProjectileAnim && !ce?.superBomb && ce?.critical ? (
         <View style={styles.critBurst}>
           <Text style={styles.critHuge}>CRITICAL HIT!</Text>
           <Text style={styles.critEmoji}>💥</Text>
         </View>
+      ) : null}
+
+      {!ce?.superBomb && ce?.weak ? (
+        <Text style={styles.weakLbl}>Weak hit!</Text>
       ) : null}
     </View>
   );
@@ -254,6 +260,20 @@ const styles = StyleSheet.create({
   dmgCrit: {
     fontSize: 40,
     color: '#c0392b',
+  },
+  dmgWeak: {
+    fontSize: 24,
+    color: '#95a5a6',
+  },
+  dmgDefended: {
+    fontSize: 24,
+    color: '#2a9d8f',
+  },
+  weakLbl: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#95a5a6',
+    marginTop: 2,
   },
   burst: {
     position: 'absolute',

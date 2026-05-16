@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,15 @@ import MonsterGearScreen from './components/MonsterGearScreen';
 import MonsterMarketModal from './components/MonsterMarketModal';
 import HomeSetupScreen from './components/HomeSetupScreen';
 import OnlineLobbyScreen from './components/OnlineLobbyScreen';
+import OnlineRoomBanner from './components/OnlineRoomBanner';
+import { loadOnlineSession } from './utils/onlineSession';
+import {
+  ensureOnlineSocket,
+  emitBattleAction,
+  leaveOnlineRoom,
+  subscribeOnline,
+  syncOnlineProfile,
+} from './utils/onlineSocketManager';
 import RewardScreen from './components/RewardScreen';
 import { buildAiFighter, fighterFromOwned } from './utils/fighterFromOwned';
 import { initGameSounds, playSfx } from './utils/gameSounds';
@@ -65,7 +75,9 @@ function buildEncourageLines(gameData, winner, summary) {
 export default function App() {
   const [gameData, setGameData] = useState(null);
   const [phase, setPhase] = useState('menu');
-  const [gameMode, setGameMode] = useState(/** @type {'twoPlayer'|'onePlayer'} */ ('twoPlayer'));
+  const [gameMode, setGameMode] = useState(/** @type {'twoPlayer'|'onePlayer'|'online'} */ ('twoPlayer'));
+  const [onlineRoom, setOnlineRoom] = useState(null);
+  const [onlineSlot, setOnlineSlot] = useState(() => loadOnlineSession()?.playerSlot ?? null);
   const [player1, setPlayer1] = useState(null);
   const [player2, setPlayer2] = useState(null);
   const [winner, setWinner] = useState(null);
@@ -105,6 +117,88 @@ export default function App() {
       syncSetupMonstersFromProfiles(gameData, setupP1ProfileId, p2, 'twoPlayer');
     }
   }
+
+  const buildOnlineProfilePayload = useCallback(() => {
+    if (!gameData || !setupP1ProfileId || !setupP1Id) return null;
+    const prof = gameData.players.find((p) => p.id === setupP1ProfileId);
+    const f = fighterFromSetupId(setupP1Id, setupP1ProfileId);
+    if (!f) return null;
+    return {
+      name: prof?.name ?? 'Player',
+      profileId: setupP1ProfileId,
+      ownedMonsterId: setupP1Id,
+      monsterName: f.displayName,
+      fighter: f,
+    };
+  }, [gameData, setupP1ProfileId, setupP1Id]);
+
+  useEffect(() => {
+    void ensureOnlineSocket();
+    const session = loadOnlineSession();
+    if (session?.playerSlot) setOnlineSlot(session.playerSlot);
+    return subscribeOnline((st) => {
+      setOnlineRoom(st);
+      if (st?.roomCode && loadOnlineSession()?.playerSlot) {
+        setOnlineSlot(loadOnlineSession().playerSlot);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!onlineRoom?.roomCode) return;
+    const payload = buildOnlineProfilePayload();
+    if (payload) syncOnlineProfile(payload);
+  }, [onlineRoom?.roomCode, buildOnlineProfilePayload, setupP1Id, gameData]);
+
+  function handleOnlineBattleStart(roomState) {
+    const f1 = roomState?.players?.p1?.profile?.fighter;
+    const f2 = roomState?.players?.p2?.profile?.fighter;
+    if (!f1 || !f2) return;
+    const slot = loadOnlineSession()?.playerSlot ?? onlineSlot;
+    setOnlineSlot(slot);
+    setGameMode('online');
+    beginBattle(f1, f2);
+  }
+
+  useEffect(() => {
+    if (onlineRoom?.status !== 'battle') return;
+    const f1 = onlineRoom.players?.p1?.profile?.fighter;
+    const f2 = onlineRoom.players?.p2?.profile?.fighter;
+    if (!f1 || !f2) return;
+    if (phase === 'battle') return;
+    if (phase === 'menu' || phase === 'online') handleOnlineBattleStart(onlineRoom);
+  }, [onlineRoom?.status, onlineRoom?.battle?.seq, phase]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root');
+    const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'gameOver';
+    if (scrollableLobby) {
+      html.style.overflow = 'auto';
+      html.style.height = 'auto';
+      html.style.minHeight = '100%';
+      body.style.overflow = 'auto';
+      body.style.height = 'auto';
+      body.style.minHeight = '100%';
+      if (root) {
+        root.style.overflow = 'auto';
+        root.style.height = 'auto';
+        root.style.minHeight = '100%';
+      }
+    } else if (phase === 'battle') {
+      html.style.overflow = 'hidden';
+      html.style.height = '100%';
+      body.style.overflow = 'hidden';
+      body.style.height = '100%';
+      if (root) {
+        root.style.overflow = 'hidden';
+        root.style.height = '100%';
+      }
+    }
+    return undefined;
+  }, [phase]);
 
   useEffect(() => {
     void initGameSounds();
@@ -350,6 +444,15 @@ export default function App() {
       return;
     }
 
+    if (battleExtras?.online) {
+      const myId = onlineSlot === 'p2' ? 2 : 1;
+      const iWon = outcome === myId;
+      setRewardSummary({ coinsAwarded: 0, expP1: null, expP2: null, online: true, iWon });
+      setRewardTitle(iWon ? 'Online Victory!' : outcome === 'draw' ? 'Online Draw' : 'Online Defeat');
+      setPhase('gameOver');
+      return;
+    }
+
     const lastAiWeak = battleExtras?.mode === 'onePlayer' && (player2Snapshot?.aiPowerRatio ?? 2) < 0.82;
 
     const { gameData: nextGd, summary } = awardBattleRewards(gameData, {
@@ -499,7 +602,18 @@ export default function App() {
             onUpdateProfileName={handleUpdateProfileName}
             onStartGame={startGameFromSetup}
             onOpenMonsterGear={openMonsterGear}
+            onlineRoom={onlineRoom}
+            onlineSlot={onlineSlot}
             onOnline={() => setPhase('online')}
+            onLeaveOnlineRoom={() => {
+              leaveOnlineRoom();
+              setOnlineRoom(null);
+              setOnlineSlot(null);
+            }}
+            onOpenOnlineLobby={() => {
+              if (onlineRoom?.status === 'battle') handleOnlineBattleStart(onlineRoom);
+              else setPhase('online');
+            }}
             onOpenMonsterGearShop={openMonsterGearForActiveSlot}
             onOpenMonsterMart={() => setMonsterMartOpen(true)}
             onResetSave={handleResetSave}
@@ -514,20 +628,34 @@ export default function App() {
             onFinish={handleBattleFinish}
             onExitBattle={resetToMenu}
             player1Name={
-              gameData.players.find((p) => p.id === setupP1ProfileId)?.name ??
-              player1.displayName ??
-              'Player 1'
+              gameMode === 'online'
+                ? onlineRoom?.players?.p1?.profile?.name ?? 'Player 1'
+                : gameData.players.find((p) => p.id === setupP1ProfileId)?.name ??
+                  player1.displayName ??
+                  'Player 1'
             }
             player2Name={
               gameMode === 'onePlayer'
                 ? player2.displayName ?? 'CPU'
-                : gameData.players.find((p) => p.id === setupP2ProfileId)?.name ??
-                  player2.displayName ??
-                  'Player 2'
+                : gameMode === 'online'
+                  ? onlineRoom?.players?.p2?.profile?.name ?? 'Player 2'
+                  : gameData.players.find((p) => p.id === setupP2ProfileId)?.name ??
+                    player2.displayName ??
+                    'Player 2'
             }
             opponentLabel={gameMode === 'onePlayer' ? 'CPU' : 'Player 2'}
             opponentIsAi={gameMode === 'onePlayer'}
             battleExtras={{ mode: gameMode }}
+            onlineBattle={
+              gameMode === 'online'
+                ? {
+                    mySlot: onlineSlot,
+                    snapshot: onlineRoom?.battle ?? null,
+                    activeTurn: onlineRoom?.activeTurn ?? null,
+                    emitAction: (action, payload) => emitBattleAction(action, payload),
+                  }
+                : null
+            }
           />
         )}
 
@@ -558,7 +686,14 @@ export default function App() {
           </ScrollView>
         )}
 
-        {phase === 'online' && <OnlineLobbyScreen onBack={() => setPhase('menu')} />}
+        {phase === 'online' && (
+          <OnlineLobbyScreen
+            onBackHome={() => setPhase('menu')}
+            onBattleStart={handleOnlineBattleStart}
+            buildProfilePayload={buildOnlineProfilePayload}
+            mySlot={onlineSlot}
+          />
+        )}
       </View>
 
       <MonsterGearScreen
@@ -659,7 +794,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#8eb8dc',
     padding: 6,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   cardShellBattle: {
     flex: 1,
