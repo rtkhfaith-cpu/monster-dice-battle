@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { EXP_LOSER, EXP_WINNER, EXP_UNDERDOG_BONUS, expToAdvanceFrom, addExperience } from './expLevel';
-import { WINNER_COINS, LOSER_COINS, DRAW_COINS_EACH } from './rewards';
+import { Platform } from 'react-native';
+import {
+  EXP_UNDERDOG_BONUS,
+  expToAdvanceFrom,
+  addExperience,
+  subtractExperience,
+  expWinForEnemyLevel,
+  expLossPenalty,
+} from './expLevel';
+import { coinWinForEnemyLevel, LOSER_COINS, DRAW_COINS_EACH } from './rewards';
 import { equipGearInSlot, getGear } from './cosmetics';
 import { expMultiplierFromGear } from './gearStats';
 import { evolutionStageFromLevel } from './evolution';
@@ -247,9 +255,24 @@ function normalizeGameData(raw) {
   return ensureProfilesFromGuest(d);
 }
 
+async function readSaveRaw() {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    const web = localStorage.getItem(SAVE_KEY);
+    if (web) return web;
+  }
+  return AsyncStorage.getItem(SAVE_KEY);
+}
+
+async function writeSaveRaw(json) {
+  if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+    localStorage.setItem(SAVE_KEY, json);
+  }
+  await AsyncStorage.setItem(SAVE_KEY, json);
+}
+
 export async function loadGameData() {
   try {
-    const rawNew = await AsyncStorage.getItem(SAVE_KEY);
+    const rawNew = await readSaveRaw();
     if (rawNew) {
       const parsed = JSON.parse(rawNew);
       return normalizeGameData(parsed);
@@ -278,7 +301,7 @@ export async function loadGameData() {
 
 export async function saveGameData(gameData) {
   ensureStarterMonsters(gameData.guest);
-  await AsyncStorage.setItem(SAVE_KEY, JSON.stringify(gameData));
+  await writeSaveRaw(JSON.stringify(gameData));
 }
 
 export async function resetGameData() {
@@ -512,8 +535,9 @@ function grantExpInWallet(wallet, ownedId, amount) {
       nextStage: null,
       level: 1,
       exp: 0,
-      expToNext: 36,
+      expToNext: expToAdvanceFrom(1),
       prevLevel: 1,
+      expDelta: 0,
     };
   }
   const om = wallet.ownedMonsters.find((x) => x.id === ownedId);
@@ -525,21 +549,28 @@ function grantExpInWallet(wallet, ownedId, amount) {
       nextStage: null,
       level: 1,
       exp: 0,
-      expToNext: 36,
+      expToNext: expToAdvanceFrom(1),
       prevLevel: 1,
+      expDelta: 0,
     };
   }
   const prevStage = evolutionStageFromLevel(om.level).key;
   const prevLvl = om.level;
   const mult = expMultiplierFromGear(om.equippedGear || []);
-  const adjusted = Math.max(0, Math.floor(amount * mult));
-  const res = addExperience({ level: om.level, exp: om.exp }, adjusted);
+  const raw = Math.floor(amount * mult);
+  let res;
+  if (raw >= 0) {
+    res = addExperience({ level: om.level, exp: om.exp }, raw);
+  } else {
+    res = subtractExperience({ level: om.level, exp: om.exp }, Math.abs(raw));
+    res.levelsGained = 0;
+  }
   om.level = res.level;
   om.exp = res.exp;
   const nextStage = evolutionStageFromLevel(om.level).key;
   const evolved = prevStage !== nextStage && res.levelsGained > 0;
   return {
-    levelsGained: res.levelsGained,
+    levelsGained: res.levelsGained ?? 0,
     evolved,
     prevStage,
     nextStage,
@@ -547,6 +578,7 @@ function grantExpInWallet(wallet, ownedId, amount) {
     exp: om.exp,
     expToNext: expToAdvanceFrom(om.level),
     prevLevel: prevLvl,
+    expDelta: raw,
   };
 }
 
@@ -592,10 +624,12 @@ export function awardBattleRewards(gameData, payload) {
   const profileP1 = p1ProfileId ? getPlayerProfile(gd, p1ProfileId) : null;
   const profileP2 = p2ProfileId ? getPlayerProfile(gd, p2ProfileId) : null;
 
-  let coinsAwarded = 0;
-  if (payload.outcome === 'draw') coinsAwarded = DRAW_COINS_EACH * 2;
-  else coinsAwarded = WINNER_COINS + LOSER_COINS;
+  const p1Level = payload.p1Level ?? 1;
+  const p2Level = payload.p2Level ?? 1;
+  const oppLevelForP1 = p2Level;
+  const oppLevelForP2 = p1Level;
 
+  let coinsAwarded = 0;
   let bonusUnderdog = false;
   if (payload.outcome !== 'draw' && payload.p1TemplateId && payload.p2TemplateId) {
     const winTid = payload.outcome === 1 ? payload.p1TemplateId : payload.p2TemplateId;
@@ -610,20 +644,30 @@ export function awardBattleRewards(gameData, payload) {
   if (payload.outcome === 'draw') {
     walletP1.coins += DRAW_COINS_EACH;
     if (walletP2) walletP2.coins += DRAW_COINS_EACH;
+    coinsAwarded = DRAW_COINS_EACH * (walletP2 ? 2 : 1);
   } else if (payload.outcome === 1) {
-    walletP1.coins += WINNER_COINS + (bonusUnderdog ? 10 : 0);
+    const winCoins = coinWinForEnemyLevel(oppLevelForP1) + (bonusUnderdog ? 3 : 0);
+    walletP1.coins += winCoins;
     if (walletP2) walletP2.coins += LOSER_COINS;
+    coinsAwarded = winCoins + (walletP2 ? LOSER_COINS : 0);
   } else if (payload.outcome === 2) {
     walletP1.coins += LOSER_COINS;
-    if (walletP2) walletP2.coins += WINNER_COINS + (bonusUnderdog ? 10 : 0);
+    const winCoins = coinWinForEnemyLevel(oppLevelForP2) + (bonusUnderdog ? 3 : 0);
+    if (walletP2) walletP2.coins += winCoins;
+    coinsAwarded = LOSER_COINS + winCoins;
   }
 
-  let expP1 = payload.outcome === 'draw' ? 18 : payload.outcome === 1 ? EXP_WINNER : EXP_LOSER;
-  let expP2 = payload.outcome === 'draw' ? 18 : payload.outcome === 2 ? EXP_WINNER : EXP_LOSER;
-
-  if (bonusUnderdog && payload.outcome !== 'draw') {
-    if (payload.outcome === 1) expP1 += EXP_UNDERDOG_BONUS;
-    if (payload.outcome === 2) expP2 += EXP_UNDERDOG_BONUS;
+  let expP1 = 12;
+  let expP2 = 12;
+  if (payload.outcome === 'draw') {
+    expP1 = 12;
+    expP2 = 12;
+  } else if (payload.outcome === 1) {
+    expP1 = expWinForEnemyLevel(oppLevelForP1) + (bonusUnderdog ? EXP_UNDERDOG_BONUS : 0);
+    expP2 = -expLossPenalty(p2Level);
+  } else if (payload.outcome === 2) {
+    expP1 = -expLossPenalty(p1Level);
+    expP2 = expWinForEnemyLevel(oppLevelForP2) + (bonusUnderdog ? EXP_UNDERDOG_BONUS : 0);
   }
 
   const r1 = grantExpInWallet(walletP1, payload.p1OwnedId, expP1);

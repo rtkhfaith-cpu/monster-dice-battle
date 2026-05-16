@@ -2,10 +2,10 @@
  * EXP thresholds — tuned simple for offline progression.
  */
 
-/** EXP granted defaults */
+/** EXP granted defaults (used as fallbacks; battle rewards compute per-level amounts). */
 export const EXP_WINNER = 25;
 export const EXP_LOSER = 10;
-export const EXP_UNDERDOG_BONUS = 10;
+export const EXP_UNDERDOG_BONUS = 8;
 
 /**
  * Total cumulative EXP needed to *reach* `targetLevel` from level 1.
@@ -23,7 +23,20 @@ export function cumulativeExpForLevel(targetLevel) {
 /** EXP needed to go from currentLevel → currentLevel+1 */
 export function expToAdvanceFrom(currentLevel) {
   const L = Math.max(1, Math.floor(currentLevel || 1));
-  return 36 + Math.floor(L * 14 + L * L * 0.06);
+  const n = L - 1;
+  return 50 + n * 35 + n * n * 10;
+}
+
+/** Win EXP scaled to opponent level. */
+export function expWinForEnemyLevel(enemyLevel) {
+  const lv = Math.max(1, Math.floor(enemyLevel || 1));
+  return 15 + lv * 5;
+}
+
+/** EXP lost on defeat (no level-down). */
+export function expLossPenalty(playerLevel) {
+  const lv = Math.max(1, Math.floor(playerLevel || 1));
+  return Math.min(15, Math.max(5, 5 + Math.floor(lv / 3)));
 }
 
 /**
@@ -46,4 +59,15 @@ export function addExperience(owned, addExp) {
     levelsGained += 1;
   }
   return { level, exp, levelsGained };
+}
+
+/**
+ * Apply EXP loss without reducing level.
+ * @param {{ level: number, exp: number }} owned
+ * @param {number} loseExp
+ */
+export function subtractExperience(owned, loseExp) {
+  const level = Math.max(1, Math.floor(owned.level || 1));
+  const exp = Math.max(0, Math.floor(owned.exp || 0) - Math.max(0, Math.floor(loseExp || 0)));
+  return { level, exp, levelsLost: 0 };
 }

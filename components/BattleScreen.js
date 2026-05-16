@@ -134,10 +134,18 @@ export default function BattleScreen({
   onFinish,
   onExitBattle,
   battleIntroSubtitle = '',
+  player1Name = 'Player 1',
+  player2Name = 'Player 2',
   opponentLabel = 'Player 2',
   opponentIsAi = false,
   battleExtras = {},
 }) {
+  const labelP1 = player1Name || 'Player 1';
+  const labelP2 = opponentIsAi ? player2Name || 'CPU' : player2Name || opponentLabel || 'Player 2';
+
+  function nameFor(side) {
+    return side === 1 ? labelP1 : labelP2;
+  }
   const [round, setRound] = useState(1);
   const [battlePhase, setBattlePhase] = useState('player1Dice');
   const [diceP1, setDiceP1] = useState(null);
@@ -149,7 +157,7 @@ export default function BattleScreen({
   const [p1, setP1] = useState(() => seedFighter(fighter1));
   const [p2, setP2] = useState(() => seedFighter(fighter2));
   const [log, setLog] = useState([]);
-  const [instruction, setInstruction] = useState('Player 1 — tap the dice to roll!');
+  const [instruction, setInstruction] = useState('');
   const [currentEffect, setCurrentEffect] = useState(null);
   const [busy, setBusy] = useState(false);
   const [resultBlurb, setResultBlurb] = useState('');
@@ -271,7 +279,7 @@ export default function BattleScreen({
       if (np1.hp <= 0 && np2.hp <= 0) winner = 'draw';
       else if (np1.hp <= 0) winner = 2;
       else winner = 1;
-      pushLine(winner === 'draw' ? 'Double KO!' : `Player ${winner} wins!`);
+      pushLine(winner === 'draw' ? 'Double KO!' : `${nameFor(winner)} wins!`);
       onFinish({
         winner,
         player1Snapshot: snapshotFight(np1),
@@ -279,7 +287,7 @@ export default function BattleScreen({
         battleExtras: battleExtrasRef.current,
       });
     },
-    [onFinish, pushLine],
+    [onFinish, pushLine, labelP1, labelP2],
   );
 
   function resetMonstersIdle() {
@@ -339,19 +347,19 @@ export default function BattleScreen({
       setDiceShoutText(diceShout(val));
       if (playerId === 1) {
         setDiceP1(val);
-        pushLine(`Player 1 rolled ${val}!`);
+        pushLine(`${labelP1} rolled ${val}!`);
         setBattlePhase('player2Dice');
-        setInstruction(`${opponentLabel} — tap the dice to roll!`);
+        setInstruction('');
       } else if (playerId === 2) {
         setDiceP2(val);
-        pushLine(`${opponentLabel} rolled ${val}!`);
+        pushLine(`${labelP2} rolled ${val}!`);
         const p1v = diceP1Ref.current;
         if (val === p1v) {
           pushLine('Draw! Throw again.');
           setDiceP1(null);
           setDiceP2(null);
           setBattlePhase('player1Dice');
-          setInstruction('Tied dice — Player 1 throw again!');
+          setInstruction('');
         } else {
           const atk = val > p1v ? 2 : 1;
           setAttackerId(atk);
@@ -370,13 +378,13 @@ export default function BattleScreen({
             return;
           }
           setBattlePhase('chooseAttack');
-          setInstruction(`${atk === 2 ? opponentLabel : 'Player 1'}: choose Normal, Magic, or Super`);
+          setInstruction(`${nameFor(atk)} — pick Fight`);
         }
       }
       setDiceSession({ active: false, player: null, value: 1 });
       setBusy(false);
     },
-    [pushLine, opponentLabel],
+    [pushLine, labelP1, labelP2],
   );
 
   useEffect(() => {
@@ -482,8 +490,8 @@ export default function BattleScreen({
       dmgFinal = elementScaleDmg(dmgFinal, movePick.effectType, chaosRules.rain);
     }
 
-    const atkName = atkPaid.displayName || `Player ${attackerId}`;
-    const defName = defSnap.displayName || `Player ${defId}`;
+    const atkName = nameFor(attackerId);
+    const defName = nameFor(defId);
     pushLine(`${atkName} uses ${movePick.name}!`);
     pushLine(`${defName} chooses ${mode === 'defend' ? 'Defend' : 'Dodge'}!`);
     if (mode === 'dodge' && dodged) {
@@ -519,14 +527,14 @@ export default function BattleScreen({
     }
 
     if (!dodged && dmgFinal > 0 && movePick.effectType === 'smellySocks' && nextDef.hp <= 0) {
-      pushLine(`Player ${defId} is destroyed by stink cloud!`);
+      pushLine(`${defName} is destroyed by stink cloud!`);
     }
 
     const atkComboEnd = attackerId === 1 ? np1.combo : np2.combo;
     const atkSnapForSuper = attackerId === 1 ? np1 : np2;
     const needHits = superNeedFor(atkSnapForSuper);
     if (!dodged && dmgFinal > 0 && atkComboEnd === needHits) {
-      pushLine(`Player ${attackerId} SUPER POWER READY`);
+      pushLine(`${nameFor(attackerId)} — SUPER READY`);
       fireTaunt(attackerId, pickRandomTaunt());
     }
 
@@ -592,7 +600,7 @@ export default function BattleScreen({
     setStrikeKind(kind);
     const defId = attackerId === 1 ? 2 : 1;
     setBattlePhase('chooseDefense');
-    setInstruction(`${defId === 2 ? opponentLabel : 'Player 1'}: defend or dodge`);
+    setInstruction(`${nameFor(defId)} — Defend or Dodge`);
   }
 
   function runSuperAttack(attkId, atk, def) {
@@ -606,7 +614,7 @@ export default function BattleScreen({
     Animated.spring(stageZoom, { toValue: 1.08, friction: 6, useNativeDriver: true }).start();
     setSuperJumpSide(attkId === 1 ? 'left' : 'right');
 
-    pushLine(`Player ${attkId} unleashes Super Power!`);
+    pushLine(`${nameFor(attkId)} unleashes Super Power!`);
     void playSfx('super');
     playSound('super');
 
@@ -651,7 +659,7 @@ export default function BattleScreen({
       setCurrentEffect((prev) => (prev ? { ...prev, superPhase: 'boom' } : prev));
       playSound('hit');
       doShake('super');
-      pushLine(`BOOOOM! Player ${attkId === 1 ? 2 : 1} blasted for ${damage} damage!`);
+      pushLine(`BOOOOM! ${nameFor(attkId === 1 ? 2 : 1)} blasted for ${damage} damage!`);
 
       const dead = np1.hp <= 0 || np2.hp <= 0;
       schedule(3000, () => {
@@ -707,7 +715,7 @@ export default function BattleScreen({
     setP2Emotion('neutral');
     resetMonstersIdle();
     setBattlePhase('player1Dice');
-    setInstruction('Player 1 — tap the dice to roll!');
+    setInstruction('');
   }
 
   const atkBtn = attackerId === 1 ? p1 : attackerId === 2 ? p2 : null;
@@ -721,27 +729,33 @@ export default function BattleScreen({
     return 1;
   })();
 
-  const turnLabel =
-    activeTurn === 1
-      ? opponentIsAi
-        ? 'Your Turn'
-        : 'Player 1 Turn'
-      : opponentIsAi
-        ? `${opponentLabel} Turn`
-        : 'Player 2 Turn';
+  const activeName = nameFor(activeTurn);
+  const turnBadge = `${activeName}'s Turn`;
+
+  function compactDicePrompt() {
+    if (battlePhase === 'player1Dice') return `${labelP1} — tap dice`;
+    if (battlePhase === 'player2Dice') return `${labelP2} — tap dice`;
+    if (battlePhase === 'chooseAttack') return `${nameFor(attackerId)} — Fight`;
+    if (battlePhase === 'chooseDefense') return `${nameFor(attackerId === 1 ? 2 : 1)} — Defend`;
+    if (battlePhase === 'roundResult') return 'Next round';
+    return '';
+  }
 
   function handleFightPress() {
     if (busy || diceSession.active) return;
-    if (battlePhase === 'player1Dice') {
-      handleThrowPlayer1Dice();
-      return;
-    }
-    if (battlePhase === 'player2Dice') {
-      handleThrowPlayer2Dice();
-      return;
-    }
     if (battlePhase === 'roundResult') {
       handleNextRound();
+      return;
+    }
+    if (battlePhase === 'chooseAttack') {
+      handlePickStrike('normal');
+    }
+  }
+
+  function handleDefendPress() {
+    if (busy || diceSession.active) return;
+    if (battlePhase === 'chooseDefense') {
+      handlePickDefense('defend');
     }
   }
 
@@ -774,10 +788,6 @@ export default function BattleScreen({
   }
 
   function renderDiceControl() {
-    const isDicePhase = battlePhase === 'player1Dice' || battlePhase === 'player2Dice';
-    const showDice = isDicePhase || diceP1 != null || diceP2 != null;
-    if (!showDice) return null;
-
     const isP1 = battlePhase === 'player1Dice';
     const isP2 = battlePhase === 'player2Dice';
     const canRoll =
@@ -785,13 +795,20 @@ export default function BattleScreen({
 
     let shownValue = null;
     if (!diceSession.active) {
-      if (isP2) shownValue = diceP2;
-      else if (isP1) shownValue = diceP1;
-      else shownValue = diceP2 ?? diceP1;
+      if (isP2 && diceP2 != null) shownValue = diceP2;
+      else if (diceP1 != null) shownValue = diceP1;
+      else if (diceP2 != null) shownValue = diceP2;
     }
+
+    const prompt = compactDicePrompt();
 
     return (
       <View style={styles.diceDock}>
+        {prompt ? (
+          <Text style={styles.dicePrompt} numberOfLines={1}>
+            {prompt}
+          </Text>
+        ) : null}
         <BattleDiceButton
           rolling={diceSession.active}
           rollValue={diceSession.value}
@@ -803,15 +820,9 @@ export default function BattleScreen({
           durationMs={1000}
           compact
         />
-        {!diceSession.active && shownValue != null ? (
-          <View style={styles.diceResultBox}>
-            <Text style={styles.diceResultLbl}>Result</Text>
-            <Text style={styles.diceResultNum}>{shownValue}</Text>
-          </View>
-        ) : null}
-        {!isDicePhase && (diceP1 != null || diceP2 != null) ? (
-          <Text style={styles.dicePairTxt} numberOfLines={2}>
-            You: {diceP1 ?? '—'} · {opponentLabel}: {diceP2 ?? '—'}
+        {!diceSession.active && diceP1 != null && diceP2 != null ? (
+          <Text style={styles.dicePairTxt} numberOfLines={1}>
+            {labelP1}: {diceP1} · {labelP2}: {diceP2}
           </Text>
         ) : null}
       </View>
@@ -820,12 +831,12 @@ export default function BattleScreen({
 
   function renderActionDock() {
     const sub = [];
-    const fightDisabled =
-      busy ||
-      diceSession.active ||
-      battlePhase === 'player1Dice' ||
-      battlePhase === 'player2Dice' ||
-      (battlePhase !== 'roundResult' && battlePhase !== 'chooseAttack' && battlePhase !== 'chooseDefense');
+    const fightEnabled =
+      !busy &&
+      !diceSession.active &&
+      (battlePhase === 'chooseAttack' || battlePhase === 'roundResult');
+    const defendEnabled =
+      !busy && !diceSession.active && battlePhase === 'chooseDefense';
 
     if (battlePhase === 'chooseAttack' && atkBtn) {
       const magLocked = atkBtn.mp < MAGIC_COST;
@@ -838,33 +849,16 @@ export default function BattleScreen({
       );
     }
     if (battlePhase === 'chooseDefense') {
-      sub.push(
-        renderMenuBtn('df', 'Defend', () => handlePickDefense('defend'), 'shield'),
-        renderMenuBtn('dd', 'Dodge', () => handlePickDefense('dodge'), 'smoke'),
-      );
+      sub.push(renderMenuBtn('dd', 'Dodge', () => handlePickDefense('dodge'), 'smoke'));
     }
 
-    const fightLabel =
-      battlePhase === 'roundResult'
-        ? 'Next'
-        : battlePhase === 'chooseAttack' || battlePhase === 'chooseDefense'
-          ? 'Fight!'
-          : 'Fight';
-
-    const showDice = battlePhase === 'player1Dice' || battlePhase === 'player2Dice' || diceP1 != null || diceP2 != null;
+    const fightLabel = battlePhase === 'roundResult' ? 'Next' : 'Fight';
 
     return (
       <View style={styles.actionDock}>
-        <Text style={styles.turnStatus} numberOfLines={1}>
-          {instruction}
-        </Text>
-
-        {showDice ? renderDiceControl() : null}
-
         <View style={styles.menuRow}>
-          {renderMenuBtn('fight', fightLabel, handleFightPress, 'fight', fightDisabled && battlePhase !== 'roundResult')}
-          {renderMenuBtn('gear', 'Gear', () => pushLine('Gear: between battles only.'), 'gear', true)}
-          {renderMenuBtn('mon', 'Mon', () => pushLine('Team locked for this fight.'), 'monster', true)}
+          {renderMenuBtn('fight', fightLabel, handleFightPress, 'fight', !fightEnabled)}
+          {renderMenuBtn('defend', 'Defend', handleDefendPress, 'shield', !defendEnabled)}
           {renderMenuBtn('run', 'Run', handleRunPress, 'run')}
         </View>
         {sub.length ? <View style={styles.subMenuRow}>{sub}</View> : null}
@@ -873,6 +867,11 @@ export default function BattleScreen({
           <BattleLog lines={log} maxLines={LOG_MAX} compact />
         </View>
 
+        {instruction ? (
+          <Text style={styles.miniNote} numberOfLines={1}>
+            {instruction}
+          </Text>
+        ) : null}
         {resultBlurb ? (
           <Text style={styles.miniNote} numberOfLines={1}>
             {resultBlurb}
@@ -890,16 +889,10 @@ export default function BattleScreen({
   pickDefenseRef.current = handlePickDefense;
 
   const { height: vh, width: vw } = useWindowDimensions();
-  const diceSize = vh < 680 || vw < 520 ? 56 : 64;
+  const diceSize = vh < 680 || vw < 520 ? 64 : 72;
 
   return (
     <View style={styles.root}>
-      {battleIntroSubtitle ? (
-        <Text style={styles.introTiny} numberOfLines={1}>
-          {battleIntroSubtitle}
-        </Text>
-      ) : null}
-
       <View style={styles.battleFrame}>
         {chaosBanner ? (
           <View style={styles.chaosWrap}>
@@ -921,20 +914,21 @@ export default function BattleScreen({
             diceP2={diceP2}
             activeTurn={activeTurn}
             round={round}
-            turnLabel={turnLabel}
-            opponentLabel={opponentLabel}
+            turnBadge={turnBadge}
+            player1Label={labelP1}
+            player2Label={labelP2}
+            centerDock={renderDiceControl()}
             battleDim={battleDim}
             shakeX={shakeX}
             stageZoom={stageZoom}
             superJumpSide={superJumpSide}
             p1Rage={isRage(p1)}
             p2Rage={isRage(p2)}
-            fieldHeightRatio={0.58}
           />
           <View style={styles.fxStrip} pointerEvents="none">
             <BattleEffect
               currentEffect={battlePhase === 'resolveAttack' ? currentEffect : null}
-              instruction={instruction}
+              instruction=""
             />
           </View>
           {diceShoutText ? (
@@ -1004,42 +998,32 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
   },
   diceDock: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingVertical: 4,
-    marginBottom: 4,
+    paddingVertical: 2,
+    width: '100%',
   },
-  diceResultBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    minWidth: 52,
-  },
-  diceResultLbl: {
+  dicePrompt: {
     fontWeight: '800',
-    fontSize: 10,
-    color: BATTLE.textLight,
-    opacity: 0.85,
-    textTransform: 'uppercase',
-  },
-  diceResultNum: {
-    fontWeight: '900',
-    fontSize: 26,
-    color: '#ffeaa7',
-    lineHeight: 28,
+    fontSize: 12,
+    color: '#1a1a2e',
+    textAlign: 'center',
+    marginBottom: 4,
+    backgroundColor: 'rgba(255,248,220,0.92)',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2d2d44',
+    overflow: 'hidden',
+    maxWidth: '95%',
   },
   dicePairTxt: {
     fontWeight: '800',
     fontSize: 11,
-    color: BATTLE.textLight,
-    opacity: 0.9,
+    color: '#1a1a2e',
     textAlign: 'center',
+    marginTop: 4,
     maxWidth: '100%',
   },
   diceShoutWrap: {
@@ -1057,28 +1041,19 @@ const styles = StyleSheet.create({
     borderColor: BATTLE.dockBorder,
     paddingHorizontal: 6,
     paddingTop: 4,
-    paddingBottom: 6,
+    paddingBottom: 4,
     width: '100%',
-    minHeight: 0,
-  },
-  turnStatus: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: BATTLE.textLight,
-    textAlign: 'center',
-    marginBottom: 2,
+    maxHeight: 118,
   },
   logWrap: {
-    maxHeight: 56,
+    maxHeight: 44,
     overflow: 'hidden',
-    marginTop: 4,
+    marginTop: 3,
   },
   menuRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 6,
     justifyContent: 'space-between',
-    marginTop: 4,
   },
   subMenuRow: {
     flexDirection: 'row',
@@ -1088,9 +1063,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   menuBtn: {
-    flexGrow: 1,
-    flexBasis: '23%',
-    minWidth: 56,
+    flex: 1,
+    minWidth: 72,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: BATTLE.dockBorder,
@@ -1106,8 +1080,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   fight: { backgroundColor: '#ff6b6b' },
-  gear: { backgroundColor: '#dfe6e9', opacity: 0.7 },
-  monster: { backgroundColor: '#dfe6e9', opacity: 0.7 },
   run: { backgroundColor: '#ffd166' },
   diceShout: {
     fontSize: 22,

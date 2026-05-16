@@ -72,28 +72,28 @@ export default function RpgBattleArena({
   diceP2,
   activeTurn,
   round,
-  turnLabel,
+  turnBadge = '',
+  player1Label = 'You',
+  player2Label = 'Foe',
+  centerDock = null,
   battleDim,
   shakeX,
   stageZoom,
   superJumpSide,
   p1Rage,
   p2Rage,
-  /** Share of viewport height used by arena field (rest is action dock inside frame). */
-  fieldHeightRatio = 0.58,
 }) {
   const { width, height } = useWindowDimensions();
   const short = height < 680;
   const narrow = width < 520;
-  const fieldH = height * fieldHeightRatio;
 
   const monsterSize = useMemo(() => {
-    const byH = Math.floor(fieldH * (short ? 0.34 : 0.4));
-    const byW = Math.floor(width * (narrow ? 0.44 : 0.4));
-    const cap = short ? 180 : 220;
-    const floor = short ? 96 : 112;
+    const byH = Math.floor(height * (short ? 0.22 : 0.26));
+    const byW = Math.floor(width * (narrow ? 0.4 : 0.36));
+    const cap = short ? 160 : 200;
+    const floor = short ? 88 : 100;
     return Math.max(floor, Math.min(cap, byH, byW));
-  }, [width, fieldH, short, narrow]);
+  }, [width, height, short, narrow]);
 
   const p1Focus = useRef(new Animated.Value(activeTurn === 1 ? 1 : 0)).current;
   const p2Focus = useRef(new Animated.Value(activeTurn === 2 ? 1 : 0)).current;
@@ -130,15 +130,15 @@ export default function RpgBattleArena({
       <View style={styles.grass} />
 
       <View style={styles.turnRibbon}>
-        <Text style={styles.roundTxt}>R{round}</Text>
-        <Text style={styles.turnTxt} numberOfLines={1}>
-          {turnLabel}
+        <Text style={styles.roundTxt}>Round {round}</Text>
+        <Text style={styles.turnBadge} numberOfLines={1}>
+          {turnBadge}
         </Text>
       </View>
 
       <View style={styles.topZone}>
         <BattlerInfoPanel
-          title="Foe"
+          title={player2Label}
           fighter={p2}
           diceValue={diceP2}
           combo={p2.combo}
@@ -170,7 +170,9 @@ export default function RpgBattleArena({
         </Animated.View>
       </View>
 
-      <View style={styles.midSpacer} />
+      <View style={styles.midSpacer} pointerEvents="box-none">
+        {centerDock ? <View style={styles.centerDock}>{centerDock}</View> : null}
+      </View>
 
       <View style={styles.bottomZone}>
         <Animated.View
@@ -195,7 +197,7 @@ export default function RpgBattleArena({
           />
         </Animated.View>
         <BattlerInfoPanel
-          title="You"
+          title={player1Label}
           fighter={p1}
           diceValue={diceP1}
           combo={p1.combo}
@@ -321,26 +323,38 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   roundTxt: { fontWeight: '900', fontSize: 14, color: '#c0392b' },
-  turnTxt: {
+  turnBadge: {
     fontWeight: '900',
-    fontSize: 14,
+    fontSize: 15,
     color: '#1a1a2e',
     flex: 1,
-    textAlign: 'right',
+    textAlign: 'center',
     marginLeft: 6,
   },
   topZone: {
-    flex: 0.4,
+    flex: 0.36,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    paddingTop: 28,
+    paddingTop: 32,
     paddingHorizontal: 2,
     minHeight: 0,
   },
-  midSpacer: { flex: 0.06, minHeight: 2 },
+  midSpacer: {
+    flex: 0.2,
+    minHeight: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  centerDock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 12,
+    paddingHorizontal: 4,
+  },
   bottomZone: {
-    flex: 0.38,
+    flex: 0.34,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',

@@ -176,9 +176,10 @@ export default function App() {
     });
   }
 
-  function handleCreateProfile() {
+  function handleCreateProfile(name) {
     if (!gameData) return;
-    const res = createPlayerProfile(gameData, `Player ${gameData.players.length + 1}`);
+    const defaultName = `Player ${gameData.players.length + 1}`;
+    const res = createPlayerProfile(gameData, name || defaultName);
     if (res.error) {
       Alert.alert('Player profiles', res.error);
       return;
@@ -360,6 +361,8 @@ export default function App() {
       p2OwnedId: player2Snapshot?.ownedMonsterId ?? null,
       p1TemplateId: player1Snapshot?.monsterTemplateId ?? null,
       p2TemplateId: player2Snapshot?.monsterTemplateId ?? null,
+      p1Level: player1Snapshot?.level ?? 1,
+      p2Level: player2Snapshot?.level ?? 1,
       lastAiWasMuchWeaker: lastAiWeak,
       aiPowerRatio: player2Snapshot?.aiPowerRatio ?? null,
     });
@@ -510,7 +513,18 @@ export default function App() {
             fighter2={player2}
             onFinish={handleBattleFinish}
             onExitBattle={resetToMenu}
-            battleIntroSubtitle={introLineFromFighter(player1)}
+            player1Name={
+              gameData.players.find((p) => p.id === setupP1ProfileId)?.name ??
+              player1.displayName ??
+              'Player 1'
+            }
+            player2Name={
+              gameMode === 'onePlayer'
+                ? player2.displayName ?? 'CPU'
+                : gameData.players.find((p) => p.id === setupP2ProfileId)?.name ??
+                  player2.displayName ??
+                  'Player 2'
+            }
             opponentLabel={gameMode === 'onePlayer' ? 'CPU' : 'Player 2'}
             opponentIsAi={gameMode === 'onePlayer'}
             battleExtras={{ mode: gameMode }}

@@ -66,6 +66,7 @@ export default function HomeSetupScreen({
     activeProfileId,
     setupP1ProfileId,
     setupP2ProfileId,
+    setupActiveSlot: activeSlot,
     gameMode,
     onSelectProfile,
     onCreateProfile,
@@ -155,7 +156,9 @@ export default function HomeSetupScreen({
 
         {layout === 'narrow' ? (
           <View style={styles.stack}>
-            <SaveSlotPanel {...saveProps} />
+            <View style={styles.saveSlotWrap}>
+              <SaveSlotPanel {...saveProps} />
+            </View>
             <GameSetupPanel {...setupProps} />
             <View style={styles.monstersGrow}>
               <MonsterGridPanel {...gridProps} />
@@ -263,6 +266,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     gap: 6,
+  },
+  saveSlotWrap: {
+    flexShrink: 0,
+    flexGrow: 0,
   },
   monstersGrow: { flex: 1, minHeight: 120 },
   bottom: {

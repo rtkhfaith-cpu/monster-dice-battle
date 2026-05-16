@@ -1,6 +1,6 @@
-export const WINNER_COINS = 30;
-export const LOSER_COINS = 10;
-export const DRAW_COINS_EACH = 15;
+export const WINNER_COINS = 8;
+export const LOSER_COINS = 2;
+export const DRAW_COINS_EACH = 4;
 
 export const FUNNY_WIN_TITLES = [
   'Toilet Champion',
@@ -33,9 +33,18 @@ export function winTitleForRarity(rarity) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+/** Modest win payout: base 5–10 + small level bonus + tiny random bonus. */
+export function coinWinForEnemyLevel(enemyLevel) {
+  const lv = Math.max(1, Math.floor(enemyLevel || 1));
+  const base = 5 + Math.floor(Math.random() * 6);
+  const levelBonus = Math.floor(lv / 2);
+  const randomBonus = Math.floor(Math.random() * 4);
+  return base + levelBonus + randomBonus;
+}
+
 /**
  * @param {'draw'|1|2} winner
- * @param {1|2} perspective — which player’s wallet (shared pool: same increment for both in co-op wallet)
+ * @param {1|2} perspective — which player’s wallet
  */
 export function coinsForBattleOutcome(winner, perspective) {
   if (winner === 'draw') return DRAW_COINS_EACH;
