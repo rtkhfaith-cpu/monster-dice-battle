@@ -38,6 +38,7 @@ import {
   buyGearItem,
   buyMonster as purchaseMonsterRow,
   createPlayerProfile,
+  enforceSingleActiveProfile,
   equipOwnedGear,
   getPlayerProfile,
   mergeMonsterParts,
@@ -60,6 +61,7 @@ import {
   hashPlayerKey,
   profileNeedsPlayerKeyMigration,
   validatePlayerKeyPair,
+  verifyPlayerKeyForProfile,
 } from './utils/playerKey';
 import PlayerKeyModal from './components/PlayerKeyModal';
 import { loadSaveApiConfig } from './utils/saveApiConfig';
@@ -138,15 +140,11 @@ export default function App() {
   }
 
   function handleGameModeChange(mode) {
-    setGameMode(mode);
-    if (mode === 'onePlayer') {
-      setSetupP2Id(null);
-      setSetupActiveSlot(1);
-    } else if (gameData && setupP1ProfileId) {
-      const p2 = setupP2ProfileId ?? gameData.players?.[1]?.id ?? setupP1ProfileId;
-      if (!setupP2ProfileId) setSetupP2ProfileId(p2);
-      syncSetupMonstersFromProfiles(gameData, setupP1ProfileId, p2, 'twoPlayer');
-    }
+    if (mode === 'twoPlayer') return;
+    setGameMode(mode === 'online' ? 'online' : 'onePlayer');
+    setSetupP2Id(null);
+    setSetupP2ProfileId(null);
+    setSetupActiveSlot(1);
   }
 
   const buildOnlineProfilePayload = useCallback(() => {
@@ -258,12 +256,12 @@ export default function App() {
     void initGameSounds();
     void loadSaveApiConfig();
     loadGameSave().then((gd) => {
-      setGameData(gd);
-      const p1 = gd.session?.activeProfileId ?? gd.players?.[0]?.id ?? null;
-      const p2 = gd.players?.[1]?.id ?? p1;
-      setSetupP1ProfileId(p1);
-      setSetupP2ProfileId(p2);
-      syncSetupMonstersFromProfiles(gd, p1, p2);
+      const activeId = gd.session?.activeProfileId ?? gd.players?.[0]?.id ?? null;
+      const normalized = activeId ? enforceSingleActiveProfile(gd, activeId) : gd;
+      setGameData(normalized);
+      setSetupP1ProfileId(activeId);
+      setSetupP2ProfileId(null);
+      syncSetupMonstersFromProfiles(normalized, activeId, null, 'onePlayer');
     });
   }, []);
 
@@ -272,6 +270,10 @@ export default function App() {
   useEffect(() => {
     setCloudSyncProfileID(activeProfileId);
   }, [activeProfileId]);
+
+  useEffect(() => {
+    void loadSaveApiConfig().then(() => handleFetchCloudPlayers());
+  }, []);
 
   function persistSave(nextGd, reason, profileIDs) {
     setGameData(nextGd);
@@ -322,17 +324,15 @@ export default function App() {
 
   function applyProfileSelection(profileId, gd = gameData) {
     if (!gd || !profileId) return;
-    const next = setActiveProfile(gd, profileId);
-    if (setupActiveSlot === 1 || gameMode === 'onePlayer') {
-      setSetupP1ProfileId(profileId);
-      const w = walletForProfile(next, profileId);
-      setSetupP1Id(w.selectedMonsterId || w.ownedMonsters?.[0]?.id || null);
-    }
-    if (setupActiveSlot === 2 && gameMode === 'twoPlayer') {
-      setSetupP2ProfileId(profileId);
-      const w = walletForProfile(next, profileId);
-      setSetupP2Id(w.selectedMonsterId || w.ownedMonsters?.[0]?.id || null);
-    }
+    let next = setActiveProfile(gd, profileId);
+    next = enforceSingleActiveProfile(next, profileId);
+    setSetupP1ProfileId(profileId);
+    setSetupP2ProfileId(null);
+    setSetupP2Id(null);
+    setSetupActiveSlot(1);
+    const w = walletForProfile(next, profileId);
+    setSetupP1Id(w.selectedMonsterId || w.ownedMonsters?.[0]?.id || null);
+    setGameData(next);
     persistSave(next, 'profile_selected', profileId);
   }
 
@@ -369,6 +369,7 @@ export default function App() {
       mode: 'login',
       profileId: cloudItem.profileID,
       playerName: cloudItem.playerName || 'Player',
+      fromCloud: true,
     });
   }
 
@@ -420,6 +421,19 @@ export default function App() {
         setKeyModalError('Enter your 4-digit Player Key.');
         return;
       }
+      const fromCloud = !!keyModal.fromCloud;
+      const localProfile = gameData ? getPlayerProfile(gameData, profileId) : null;
+      if (localProfile && !fromCloud) {
+        if (!verifyPlayerKeyForProfile(localProfile, key)) {
+          setKeyModalError('Incorrect key. Please try again.');
+          return;
+        }
+        markProfileUnlocked(profileId);
+        setKeyModal(null);
+        setKeyModalError('');
+        applyProfileSelection(profileId);
+        return;
+      }
       void finalizeCloudLogin(profileId, key);
       return;
     }
@@ -448,9 +462,10 @@ export default function App() {
     }
 
     const baseGd = gameData || (await loadGameSave());
-    const next = applyCloudProfile(baseGd, login.data);
-    next.session = next.session || {};
-    next.session.activeProfileId = profileId;
+    const keyHash = hashPlayerKey(playerKey);
+    let next = applyCloudProfile(baseGd, login.data);
+    next = setPlayerKeyForProfile(next, profileId, keyHash);
+    next = enforceSingleActiveProfile(next, profileId);
 
     setGameData(next);
     markProfileUnlocked(profileId);
@@ -536,16 +551,12 @@ export default function App() {
     }
     const newId = res.playerId;
     markProfileUnlocked(newId);
-    persistSave(res.gameData, 'profile_created', newId);
-    if (setupActiveSlot === 2 && gameMode === 'twoPlayer') {
-      setSetupP2ProfileId(newId);
-      syncSetupMonstersFromProfiles(res.gameData, setupP1ProfileId ?? newId, newId);
-    } else {
-      setSetupP1ProfileId(newId);
-      const p2 = setupP2ProfileId ?? res.gameData.players.find((p) => p.id !== newId)?.id ?? newId;
-      if (!setupP2ProfileId && gameMode === 'twoPlayer') setSetupP2ProfileId(p2);
-      syncSetupMonstersFromProfiles(res.gameData, newId, p2);
-    }
+    const next = enforceSingleActiveProfile(res.gameData, newId);
+    setSetupP1ProfileId(newId);
+    setSetupP2ProfileId(null);
+    syncSetupMonstersFromProfiles(next, newId, null, 'onePlayer');
+    persistSave(next, 'profile_created', newId);
+    applyProfileSelection(newId, next);
   }
 
   function handleUpdateProfileName(profileId, name) {
@@ -659,30 +670,13 @@ export default function App() {
       Alert.alert('Player setup', 'Player 1 needs a monster.');
       return;
     }
-    if (gameMode === 'twoPlayer' && setupP1ProfileId === setupP2ProfileId) {
-      Alert.alert('Invalid matchup', 'Pick two different player profiles — you cannot battle yourself.');
+    const gdClone = JSON.parse(JSON.stringify(gameData));
+    const ai = buildAiFighter(f1, gdClone, setupP1ProfileId);
+    if (!ai) {
+      Alert.alert('Player setup', 'Could not build CPU opponent. Try again.');
       return;
     }
-    if (gameMode === 'onePlayer') {
-      const gdClone = JSON.parse(JSON.stringify(gameData));
-      const ai = buildAiFighter(f1, gdClone, setupP1ProfileId);
-      if (!ai) {
-        Alert.alert('Player setup', 'Could not build CPU opponent. Try again.');
-        return;
-      }
-      beginBattle(f1, ai);
-      return;
-    }
-    if (!setupP2ProfileId) {
-      Alert.alert('Player setup', 'Select a profile for Player 2.');
-      return;
-    }
-    const f2 = fighterFromSetupId(setupP2Id, setupP2ProfileId);
-    if (!f2) {
-      Alert.alert('Player setup', 'Player 2 needs a monster.');
-      return;
-    }
-    beginBattle(f1, f2);
+    beginBattle(f1, ai);
   }
 
   function beginBattle(p1Fighter, p2Fighter) {

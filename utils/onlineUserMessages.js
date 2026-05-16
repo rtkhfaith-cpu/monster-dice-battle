@@ -75,13 +75,16 @@ export function toUserOnlineError(raw) {
 /** @param {object|null|undefined} roomState */
 export function countPlayersInRoom(roomState) {
   if (!roomState) return 0;
-  if (typeof roomState.playerCount === 'number') {
-    return Math.max(0, Math.min(2, roomState.playerCount));
-  }
-  if (!roomState.players) return 0;
   let n = 0;
-  if (roomState.players.p1?.connected) n += 1;
-  if (roomState.players.p2?.connected) n += 1;
+  if (roomState.players) {
+    for (const slot of ['p1', 'p2']) {
+      const p = roomState.players[slot];
+      if (p != null && (p.connected === true || p.socketId || p.slot)) n += 1;
+    }
+  }
+  if (typeof roomState.playerCount === 'number') {
+    return Math.max(n, Math.max(0, Math.min(2, roomState.playerCount)));
+  }
   return n;
 }
 

@@ -43,7 +43,7 @@ const LEGACY_KEY_V2 = 'monster_dice_battle_v2';
  * meta?: { difficultyMode: 'easy'|'normal'|'hard'|'boss', aiBias: number, consecutiveLosses: number, consecutiveEasyWins: number, lastAiPowerRatio: number|null },
  * }} PlayerProfile */
 
-export const MAX_PLAYER_PROFILES = 5;
+export const MAX_PLAYER_PROFILES = 1;
 
 function defaultProfileMeta() {
   return {
@@ -379,7 +379,7 @@ export function ensureProfilesFromGuest(gameData) {
 export function createPlayerProfile(gameData, name, playerKeyHash = '') {
   const gd = cloneGameData(gameData);
   if (gd.players.length >= MAX_PLAYER_PROFILES) {
-    return { gameData: gd, error: 'Maximum 5 players saved.' };
+    return { gameData: gd, error: 'Only one player at a time. Delete or switch players first.' };
   }
   const id = uid('pl');
   const now = new Date().toISOString();
@@ -403,6 +403,17 @@ export function createPlayerProfile(gameData, name, playerKeyHash = '') {
   gd.players.push(profile);
   gd.session.activeProfileId = id;
   return { gameData: gd, playerId: id };
+}
+
+/** Keep a single local profile row — the active cloud/local player. */
+export function enforceSingleActiveProfile(gameData, activeProfileId) {
+  const gd = cloneGameData(gameData);
+  const id = activeProfileId ?? gd.session?.activeProfileId ?? null;
+  const active = id ? gd.players.find((p) => p.id === id) : gd.players[0] ?? null;
+  gd.players = active ? [active] : [];
+  gd.session = gd.session || {};
+  gd.session.activeProfileId = active?.id ?? null;
+  return gd;
 }
 
 /** @returns {object} */

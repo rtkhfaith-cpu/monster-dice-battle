@@ -128,7 +128,10 @@ function roomPayload(room) {
   if (room.battle && room.status === 'battle') {
     activeTurn = activeTurnFromPhase(room.battle);
   }
-  const playerCount = [room.players.p1, room.players.p2].filter((p) => p?.socketId).length;
+  const playerCount = ['p1', 'p2'].filter((slot) => {
+    const p = room.players[slot];
+    return !!(p && p.socketId);
+  }).length;
   const bothJoined = playerCount >= 2;
   const missing = lobbyMissing(room);
   return {

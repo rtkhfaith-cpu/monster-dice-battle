@@ -35,16 +35,25 @@ let listenersAttachedTo = null;
  * Merge server room payloads — never drop players/battle accidentally.
  * @param {object|null|undefined} incoming
  */
+function mergePlayerSlots(prevPlayers, incomingPlayers) {
+  const prev = prevPlayers && typeof prevPlayers === 'object' ? prevPlayers : {};
+  if (!incomingPlayers || typeof incomingPlayers !== 'object') return prev;
+  const next = { ...prev };
+  for (const slot of ['p1', 'p2']) {
+    if (incomingPlayers[slot] !== undefined) {
+      next[slot] = incomingPlayers[slot];
+    }
+  }
+  return next;
+}
+
 function mergeRoomPayload(incoming) {
   if (!incoming || typeof incoming !== 'object') return;
   const prev = roomState || {};
   roomState = {
     ...prev,
     ...incoming,
-    players:
-      incoming.players && typeof incoming.players === 'object'
-        ? incoming.players
-        : prev.players,
+    players: mergePlayerSlots(prev.players, incoming.players),
     battle: incoming.battle !== undefined ? incoming.battle : prev.battle,
     missingRequirements: Array.isArray(incoming.missingRequirements)
       ? incoming.missingRequirements

@@ -115,6 +115,7 @@ export default function SaveSlotPanel({
   const [createConfirmDraft, setCreateConfirmDraft] = useState('');
   const [createError, setCreateError] = useState('');
   const [nameDraft, setNameDraft] = useState('');
+  const [cloudDropdownOpen, setCloudDropdownOpen] = useState(false);
 
   const pickProfile = onRequestSelectProfile ?? onSelectProfile;
 
@@ -137,21 +138,22 @@ export default function SaveSlotPanel({
     if (atMax) setIsCreating(false);
   }, [atMax]);
 
-  function slotLabel(profileId) {
-    if (gameMode !== 'twoPlayer' || !profileId) return null;
-    if (profileId === setupP1ProfileId && profileId === setupP2ProfileId) return 'P1+P2';
-    if (profileId === setupP1ProfileId) return 'P1';
-    if (profileId === setupP2ProfileId) return 'P2';
-    return null;
+  function isProfileHighlighted(profileId) {
+    return profileId === activeProfileId;
   }
 
-  function isProfileHighlighted(profileId) {
-    if (profileId === activeProfileId) return true;
-    if (gameMode === 'twoPlayer') {
-      return profileId === setupP1ProfileId || profileId === setupP2ProfileId;
-    }
-    return profileId === setupP1ProfileId;
+  function openCloudDropdown() {
+    const next = !cloudDropdownOpen;
+    setCloudDropdownOpen(next);
+    if (next) onFetchCloudPlayers?.();
   }
+
+  const activeCloudMeta = cloudPlayers.find((cp) => cp.profileID === activeProfileId) ?? null;
+  const cloudSelectLabel = activeCloudMeta
+    ? activeCloudMeta.playerName || 'Player'
+    : activeProfileId && profiles.find((p) => p.id === activeProfileId)
+      ? profiles.find((p) => p.id === activeProfileId)?.name
+      : 'Select Player';
 
   function resetCreateForm() {
     setIsCreating(false);
@@ -219,7 +221,7 @@ export default function SaveSlotPanel({
       <Text style={[styles.panelTitle, isMobile && styles.panelTitleMobile]}>Player Login</Text>
 
       <View style={styles.sectionHead}>
-        <Text style={styles.sectionTitle}>Local saved players</Text>
+        <Text style={styles.sectionTitle}>Your player</Text>
       </View>
 
       {profiles.length === 0 && !isCreating ? (
@@ -238,8 +240,6 @@ export default function SaveSlotPanel({
             const sessionSelected = p.id === activeProfileId;
             const { om, fighter } = profileMonster(p);
             const tpl = om ? getMonsterTemplate(om.templateId) : null;
-            const badge = slotLabel(p.id);
-
             const deleteBusy = deleteBusyProfileId === p.id;
 
             return (
@@ -272,8 +272,7 @@ export default function SaveSlotPanel({
                     <Text style={[styles.slotMon, isMobile && styles.slotMonMobile]} numberOfLines={1}>
                       {om ? om.nickname || tpl?.name : 'No monster'}
                     </Text>
-                    {sessionSelected ? <Text style={styles.selTag}>★ SELECTED</Text> : null}
-                    {badge ? <Text style={styles.badge}>{badge}</Text> : null}
+                    {sessionSelected ? <Text style={styles.selTag}>★ ACTIVE</Text> : null}
                   </View>
                 </View>
                 <ProfileActionRow
@@ -366,65 +365,81 @@ export default function SaveSlotPanel({
       ) : null}
 
       <View style={[styles.sectionHead, styles.sectionHeadSpaced]}>
-        <Text style={styles.sectionTitle}>Cloud players</Text>
+        <Text style={styles.sectionTitle}>Cloud saves</Text>
       </View>
 
       {onFetchCloudPlayers ? (
-        <TouchableOpacity
-          style={[styles.fetchCloudBtn, cloudFetchLoading && styles.fetchCloudBtnBusy]}
-          onPress={onFetchCloudPlayers}
-          disabled={cloudFetchLoading}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.fetchCloudTxt}>
-            {cloudFetchLoading ? 'Fetching…' : '☁ Fetch Cloud Players'}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
+        <View style={styles.dropdownWrap}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.dropdownBtn,
+              cloudDropdownOpen && styles.dropdownBtnOpen,
+              pressed && styles.actionPressed,
+            ]}
+            onPress={openCloudDropdown}
+            accessibilityRole="button"
+            accessibilityLabel="Select player from cloud"
+          >
+            <Text style={styles.dropdownBtnLbl}>Select Player</Text>
+            <Text style={styles.dropdownBtnVal} numberOfLines={1}>
+              {cloudFetchLoading && cloudDropdownOpen ? 'Loading…' : cloudSelectLabel}
+            </Text>
+            <Text style={styles.dropdownChevron}>{cloudDropdownOpen ? '▲' : '▼'}</Text>
+          </Pressable>
 
-      {cloudFetchError ? <Text style={styles.cloudErr}>{cloudFetchError}</Text> : null}
-
-      {cloudPlayers.length > 0 ? (
-        <View style={styles.cloudList}>
-          {cloudPlayers.map((cp) => {
-            const deleteBusy = deleteBusyProfileId === cp.profileID;
-            const sessionSelected = cp.profileID === activeProfileId;
-            const cloudTpl = cp.monsterTemplateId ? getMonsterTemplate(cp.monsterTemplateId) : null;
-            return (
-              <View
-                key={cp.profileID}
-                style={[styles.slot, isMobile && styles.slotMobile, sessionSelected && styles.slotOn]}
-              >
-                <View style={styles.slotTop}>
-                  <Text style={styles.fallbackEmoji}>☁</Text>
-                  <View style={styles.slotMeta}>
-                    <Text style={styles.slotName} numberOfLines={1}>
+          {cloudDropdownOpen ? (
+            <ScrollView style={styles.dropdownMenu} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+              {cloudFetchLoading ? (
+                <Text style={styles.dropdownItemHint}>Loading cloud players…</Text>
+              ) : null}
+              {cloudFetchError ? <Text style={styles.cloudErr}>{cloudFetchError}</Text> : null}
+              {!cloudFetchLoading && !cloudFetchError && cloudPlayers.length === 0 ? (
+                <Text style={styles.dropdownItemHint}>No cloud players found. Create one below.</Text>
+              ) : null}
+              {cloudPlayers.map((cp) => {
+                const selected = cp.profileID === activeProfileId;
+                const cloudTpl = cp.monsterTemplateId ? getMonsterTemplate(cp.monsterTemplateId) : null;
+                return (
+                  <Pressable
+                    key={cp.profileID}
+                    style={({ pressed }) => [
+                      styles.dropdownItem,
+                      selected && styles.dropdownItemOn,
+                      pressed && styles.actionPressed,
+                    ]}
+                    onPress={() => {
+                      setCloudDropdownOpen(false);
+                      onRequestSelectCloudProfile?.(cp);
+                    }}
+                  >
+                    <Text style={styles.dropdownItemName} numberOfLines={1}>
                       {cp.playerName || 'Player'}
+                      {selected ? ' ★' : ''}
                     </Text>
-                    <Text style={styles.slotLine}>
-                      Lv {cp.level ?? 1} · 🪙 {cp.coins ?? 0}
-                    </Text>
-                    <Text style={styles.slotMon} numberOfLines={1}>
-                      {cloudTpl?.name ?? (cp.selectedMonsterId ? 'Monster saved' : 'Cloud save')}
+                    <Text style={styles.dropdownItemSub} numberOfLines={1}>
+                      Lv {cp.level ?? 1} · 🪙 {cp.coins ?? 0} ·{' '}
+                      {cloudTpl?.name ?? 'Cloud save'}
                     </Text>
                     <Text style={styles.savedAt}>Saved {formatSavedAt(cp.updatedAt)}</Text>
-                    {sessionSelected ? <Text style={styles.selTag}>★ SELECTED</Text> : null}
-                  </View>
-                </View>
-                <ProfileActionRow
-                  deleteBusy={deleteBusy}
-                  onSelect={() => onRequestSelectCloudProfile?.(cp)}
-                  onDelete={
-                    onRequestDeleteCloudProfile ? () => onRequestDeleteCloudProfile(cp) : undefined
-                  }
-                />
-              </View>
-            );
-          })}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
         </View>
-      ) : cloudFetchLoading ? null : (
-        <Text style={styles.cloudHint}>Tap Fetch Cloud Players to load saves from the cloud.</Text>
-      )}
+      ) : null}
+
+      {activeCloudMeta && onRequestDeleteCloudProfile ? (
+        <Pressable
+          style={({ pressed }) => [styles.deleteCloudLink, pressed && styles.actionPressed]}
+          onPress={() => onRequestDeleteCloudProfile(activeCloudMeta)}
+          disabled={deleteBusyProfileId === activeCloudMeta.profileID}
+        >
+          <Text style={styles.deleteCloudLinkTxt}>
+            {deleteBusyProfileId === activeCloudMeta.profileID ? 'Deleting…' : 'Delete cloud player'}
+          </Text>
+        </Pressable>
+      ) : null}
 
       {editProfile && !isCreating && !editingName ? (
         <View style={styles.nameRow}>
@@ -476,7 +491,7 @@ export default function SaveSlotPanel({
         </View>
       ) : null}
 
-      {atMax ? <Text style={styles.maxMsg}>Maximum 5 players saved.</Text> : null}
+      {atMax ? <Text style={styles.maxMsg}>Only one player at a time. Delete to create another.</Text> : null}
     </View>
   );
 }
@@ -526,17 +541,93 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  fetchCloudBtn: {
+  dropdownWrap: {
+    marginBottom: 8,
+    zIndex: 10,
+    ...(Platform.OS === 'web' ? { position: 'relative' } : {}),
+  },
+  dropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: '#74b9ff',
     borderRadius: 12,
     borderWidth: 2,
     borderColor: '#2d2d44',
     paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 8,
+    paddingHorizontal: 12,
+    minHeight: 48,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  fetchCloudBtnBusy: { opacity: 0.65 },
-  fetchCloudTxt: { fontWeight: '900', fontSize: 16, color: '#1b1b2f' },
+  dropdownBtnOpen: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  dropdownBtnLbl: {
+    fontWeight: '900',
+    fontSize: 12,
+    color: '#1b1b2f',
+    textTransform: 'uppercase',
+  },
+  dropdownBtnVal: {
+    flex: 1,
+    fontWeight: '800',
+    fontSize: 15,
+    color: '#1b1b2f',
+    minWidth: 0,
+  },
+  dropdownChevron: { fontWeight: '900', fontSize: 12, color: '#1b1b2f' },
+  dropdownMenu: {
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderTopWidth: 0,
+    borderColor: '#2d2d44',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    maxHeight: 240,
+    overflow: 'hidden',
+    ...(Platform.OS === 'web' ? { boxShadow: '0 8px 24px rgba(0,0,0,0.12)' } : {}),
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: LOBBY.cardBorder,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  dropdownItemOn: {
+    backgroundColor: LOBBY.cardActive,
+  },
+  dropdownItemName: {
+    fontWeight: '900',
+    fontSize: 15,
+    color: LOBBY.textStrong,
+  },
+  dropdownItemSub: {
+    fontWeight: '700',
+    fontSize: 12,
+    color: LOBBY.textMuted,
+    marginTop: 2,
+  },
+  dropdownItemHint: {
+    fontWeight: '700',
+    fontSize: 13,
+    color: LOBBY.textMuted,
+    padding: 12,
+    textAlign: 'center',
+  },
+  deleteCloudLink: {
+    alignSelf: 'center',
+    marginBottom: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  deleteCloudLinkTxt: {
+    fontWeight: '800',
+    fontSize: 13,
+    color: '#c0392b',
+    textDecorationLine: 'underline',
+  },
   cloudErr: {
     fontWeight: '800',
     fontSize: 13,

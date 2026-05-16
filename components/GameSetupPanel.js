@@ -93,18 +93,10 @@ export default function GameSetupPanel({
   isMobile = false,
 }) {
   const p1Name = profiles.find((p) => p.id === setupP1ProfileId)?.name ?? 'Player 1';
-  const p2Name = profiles.find((p) => p.id === setupP2ProfileId)?.name ?? 'Player 2';
 
   const p1 = useMemo(() => rosterLine(walletP1, selectedP1Id, p1Name), [walletP1, selectedP1Id, p1Name]);
-  const p2 = useMemo(
-    () =>
-      gameMode === 'onePlayer'
-        ? { ok: true, title: 'CPU', sub: 'Auto match', fighter: null }
-        : rosterLine(walletP2, selectedP2Id, p2Name),
-    [gameMode, walletP2, selectedP2Id, p2Name],
-  );
 
-  const ready = p1.ok && p2.ok;
+  const ready = p1.ok;
 
   const BodyWrap = embedInScroll ? View : ScrollView;
   const bodyProps = embedInScroll
@@ -127,24 +119,13 @@ export default function GameSetupPanel({
             <TouchableOpacity
               style={[
                 styles.modeBtn,
-                !isMobile && styles.modeBtnFlex,
+                styles.modeBtnFlex,
                 isMobile && styles.modeBtnMobile,
-                gameMode === 'onePlayer' && styles.modeOn,
+                (gameMode === 'onePlayer' || gameMode !== 'online') && styles.modeOn,
               ]}
               onPress={() => onGameModeChange('onePlayer')}
             >
               <Text style={[styles.modeTxt, isMobile && styles.modeTxtMobile]}>1P vs CPU</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.modeBtn,
-                !isMobile && styles.modeBtnFlex,
-                isMobile && styles.modeBtnMobile,
-                gameMode === 'twoPlayer' && styles.modeOn,
-              ]}
-              onPress={() => onGameModeChange('twoPlayer')}
-            >
-              <Text style={[styles.modeTxt, isMobile && styles.modeTxtMobile]}>2P Local</Text>
             </TouchableOpacity>
           </View>
           {onEnterMultiplayer ? (
@@ -156,54 +137,27 @@ export default function GameSetupPanel({
             </TouchableOpacity>
           ) : null}
           <Text style={[styles.modeHint, isMobile && styles.modeHintMobile]}>
-            {gameMode === 'twoPlayer'
-              ? 'Two players on this device — pick monsters for each profile'
-              : '1P vs CPU · 2P local · Online uses a room code'}
+            Fight the CPU solo, or use Online Multiplayer with a room code.
           </Text>
         </View>
 
-        {gameMode === 'twoPlayer' ? (
-          <View style={[styles.rosterRow, isMobile && styles.rosterRowMobile]}>
-            <RosterCard
-              slot={1}
-              compact={!isMobile}
-              fullWidth={isMobile}
-              isMobile={isMobile}
-              active={activeSlot === 1}
-              data={p1}
-              onSelect={onActiveSlotChange}
-              onGear={onOpenMonsterGear}
-            />
-            <RosterCard
-              slot={2}
-              compact={!isMobile}
-              fullWidth={isMobile}
-              isMobile={isMobile}
-              active={activeSlot === 2}
-              data={p2}
-              onSelect={onActiveSlotChange}
-              onGear={onOpenMonsterGear}
-            />
+        <>
+          <RosterCard
+            slot={1}
+            fullWidth={isMobile}
+            isMobile={isMobile}
+            active={activeSlot === 1}
+            data={p1}
+            onSelect={onActiveSlotChange}
+            onGear={onOpenMonsterGear}
+          />
+          <View style={[styles.cpuCard, isMobile && styles.cpuCardMobile]}>
+            <Text style={styles.cpuEmoji}>🤖</Text>
+            <Text style={styles.cpuLbl}>CPU Opponent</Text>
+            <Text style={styles.cpuSub}>Generated when battle starts</Text>
+            <Text style={[styles.readyTag, styles.readyOk]}>AUTO</Text>
           </View>
-        ) : (
-          <>
-            <RosterCard
-              slot={1}
-              fullWidth={isMobile}
-              isMobile={isMobile}
-              active={activeSlot === 1}
-              data={p1}
-              onSelect={onActiveSlotChange}
-              onGear={onOpenMonsterGear}
-            />
-            <View style={[styles.cpuCard, isMobile && styles.cpuCardMobile]}>
-              <Text style={styles.cpuEmoji}>🤖</Text>
-              <Text style={styles.cpuLbl}>CPU Opponent</Text>
-              <Text style={styles.cpuSub}>Generated when battle starts</Text>
-              <Text style={[styles.readyTag, styles.readyOk]}>AUTO</Text>
-            </View>
-          </>
-        )}
+        </>
 
         <View style={[styles.statusBar, ready && styles.statusOk]}>
           <Text style={[styles.statusTxt, isMobile && styles.statusTxtMobile]}>

@@ -33,12 +33,15 @@ export function toCloudProfile(gameData, profileID) {
     unlockedGearSlots[om.id] = om.gearSlotCount ?? DEFAULT_GEAR_SLOTS;
   }
 
+  const keyHash =
+    p.playerKeyHash ||
+    (p.pin ? hashPlayerKey(p.pin) : '');
+
   return {
     profileID: String(profileID),
     playerName: String(p.name || 'Player').slice(0, 24),
-    pinHash:
-      p.playerKeyHash ||
-      (p.pin ? hashPlayerKey(p.pin) : ''),
+    playerKeyHash: keyHash,
+    pinHash: keyHash,
     coins: typeof p.coins === 'number' ? p.coins : 0,
     selectedMonsterId: p.selectedMonsterId ?? null,
     monsters,
@@ -78,12 +81,13 @@ export function applyCloudProfile(gameData, cloud) {
   }
 
   p.name = String(cloud.playerName || p.name).slice(0, 24);
-  if (typeof cloud.pinHash === 'string') {
-    if (String(cloud.pinHash).startsWith('pk_')) {
-      p.playerKeyHash = cloud.pinHash;
+  const cloudKey = cloud.playerKeyHash || cloud.pinHash;
+  if (typeof cloudKey === 'string' && cloudKey) {
+    if (String(cloudKey).startsWith('pk_')) {
+      p.playerKeyHash = cloudKey;
       delete p.pin;
     } else {
-      p.pin = cloud.pinHash;
+      p.pin = cloudKey;
     }
   }
   if (cloud.createdAt) p.createdAt = cloud.createdAt;

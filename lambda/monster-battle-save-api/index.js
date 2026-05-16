@@ -25,9 +25,25 @@ const ALLOWED_ORIGINS = new Set([
 
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
+function isAllowedOrigin(origin) {
+  if (!origin || typeof origin !== 'string') return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    if (host.endsWith('.amplifyapp.com')) return true;
+    if (host.endsWith('.rtkhfaith.com')) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 function corsHeaders(event) {
   const origin = event?.headers?.origin || event?.headers?.Origin || '';
-  const allowOrigin = ALLOWED_ORIGINS.has(origin) ? origin : 'https://monster-dice-battle.rtkhfaith.com';
+  const allowOrigin = isAllowedOrigin(origin)
+    ? origin
+    : 'https://monster-dice-battle.rtkhfaith.com';
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
@@ -143,12 +159,17 @@ async function handlePostSave(event) {
   if (!profileID) return respond(event, 400, { error: 'Missing profileID' });
 
   const now = new Date().toISOString();
+  const keyHash = String(body.playerKeyHash || body.pinHash || '').trim();
   const item = {
     ...body,
     profileID,
     updatedAt: body.updatedAt || now,
     createdAt: body.createdAt || now,
   };
+  if (keyHash) {
+    item.playerKeyHash = keyHash;
+    item.pinHash = keyHash;
+  }
 
   await client.send(
     new PutCommand({

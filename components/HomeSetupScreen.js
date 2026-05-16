@@ -79,20 +79,14 @@ export default function HomeSetupScreen({
     };
     return {
       p1: row(selectedP1Id, walletP1 || wallet),
-      p2: gameMode === 'onePlayer' ? true : row(selectedP2Id, walletP2 || wallet),
     };
-  }, [wallet, walletP1, walletP2, selectedP1Id, selectedP2Id, gameMode]);
+  }, [wallet, walletP1, selectedP1Id]);
 
-  const canStart = summary.p1 && summary.p2;
+  const canStart = summary.p1;
   const missingMsg = useMemo(() => {
-    if (!summary.p1) {
-      return gameMode === 'onePlayer'
-        ? 'Pick your monster below!'
-        : 'Player 1 needs a monster — pick one below!';
-    }
-    if (gameMode === 'twoPlayer' && !summary.p2) return 'Player 2 needs a monster — pick one below!';
+    if (!summary.p1) return 'Pick your monster below!';
     return '';
-  }, [summary, gameMode]);
+  }, [summary]);
 
   const panelLayout = { layoutTier, isMobile, isTablet };
 

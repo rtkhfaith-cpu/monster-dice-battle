@@ -147,7 +147,11 @@ export async function loginCloudProfile(profileID, playerKey) {
       return { ok: false, status: res.status, error: `HTTP ${res.status}` };
     }
     const body = await res.json();
-    const data = body?.profile ?? body;
+    const data =
+      body?.profile ??
+      (body && typeof body === 'object' && body.profileID ? body : null) ??
+      body?.Item ??
+      body?.item;
     if (!data?.profileID) return { ok: false, error: 'Invalid login response' };
     return { ok: true, data };
   } catch (err) {
