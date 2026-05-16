@@ -24,7 +24,11 @@ app.get('/health', (_req, res) => {
 
 // One shared HTTP server: Express handles REST; Socket.io upgrades the same server
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  cors: { origin: '*', methods: ['GET', 'POST'] },
+  transports: ['polling', 'websocket'],
+  allowEIO3: true,
+});
 
 /** @type {Record<string, { roomCode: string, players: object, battleState: object }>} */
 const rooms = {};
