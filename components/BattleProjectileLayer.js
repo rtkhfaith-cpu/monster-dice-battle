@@ -14,6 +14,7 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
   const spin = useRef(new Animated.Value(0)).current;
   const missFade = useRef(new Animated.Value(1)).current;
   const cloudGrow = useRef(new Animated.Value(0)).current;
+  const burst = useRef(new Animated.Value(0)).current;
   const runId = useRef(0);
 
   const atkId = effect?.attackerId ?? 1;
@@ -49,8 +50,10 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
         if (!effect.dodged && typeof onImpact === 'function') onImpact(defId, effect);
         splat.setValue(0);
         dmgUp.setValue(0);
+        burst.setValue(0);
         Animated.parallel([
           Animated.timing(splat, { toValue: 1, duration: 160, useNativeDriver: true }),
+          Animated.timing(burst, { toValue: 1, duration: 240, useNativeDriver: true }),
           Animated.timing(dmgUp, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         ]).start();
       }, 520);
@@ -106,9 +109,11 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
       const splatPeak = effect.critical ? 1.35 : effect.defended ? 0.7 : 1;
       splat.setValue(0);
       dmgUp.setValue(0);
+      burst.setValue(0);
       Animated.parallel([
-        Animated.timing(splat, { toValue: splatPeak, duration: effect.critical ? 200 : 160, useNativeDriver: true }),
-        Animated.timing(dmgUp, { toValue: 1, duration: 560, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(splat, { toValue: splatPeak, duration: effect.critical ? 220 : 170, useNativeDriver: true }),
+        Animated.timing(burst, { toValue: 1, duration: effect.critical ? 280 : 220, useNativeDriver: true }),
+        Animated.timing(dmgUp, { toValue: 1, duration: 580, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]).start(() => {
         Animated.timing(splat, { toValue: 0, duration: 280, useNativeDriver: true }).start(() => {
           if (runId.current === id) finish();
@@ -145,9 +150,19 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
     const dmgOpFly = dmgUp.interpolate({ inputRange: [0, 0.15, 0.65, 1], outputRange: [0, 1, 1, 0] });
     const splatScaleFly = splat.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1.15] });
     const splatOpFly = splat.interpolate({ inputRange: [0, 0.3, 0.8, 1], outputRange: [0, 1, 0.9, 0] });
+    const burstScaleFly = burst.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.4] });
+    const burstOpFly = burst.interpolate({ inputRange: [0, 0.2, 0.7, 1], outputRange: [0, 1, 0.85, 0] });
     return (
       <View style={styles.layer} pointerEvents="none">
         {!effect.dodged ? (
+          <>
+          <Animated.View
+            style={[
+              styles.burstRing,
+              styles.splatCenter,
+              { top: laneY - 20, opacity: burstOpFly, transform: [{ scale: burstScaleFly }] },
+            ]}
+          />
           <Animated.View
             style={[
               styles.splatWrap,
@@ -157,6 +172,7 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
           >
             <Text style={styles.splatEmoji}>💥</Text>
           </Animated.View>
+          </>
         ) : null}
         {showDmgFly ? (
           <Animated.Text
@@ -197,8 +213,10 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
   const dmgY = dmgUp.interpolate({ inputRange: [0, 1], outputRange: [0, -fx(36)] });
   const dmgOp = dmgUp.interpolate({ inputRange: [0, 0.15, 0.65, 1], outputRange: [0, 1, 1, 0] });
 
-  const splatScale = splat.interpolate({ inputRange: [0, 1], outputRange: [0.15, 1.1] });
+  const splatScale = splat.interpolate({ inputRange: [0, 1], outputRange: [0.15, 1.15] });
   const splatOp = splat.interpolate({ inputRange: [0, 0.25, 0.75, 1], outputRange: [0, 1, 0.9, 0] });
+  const burstScale = burst.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.4] });
+  const burstOp = burst.interpolate({ inputRange: [0, 0.2, 0.7, 1], outputRange: [0, 1, 0.85, 0] });
 
   const cloudScale = cloudGrow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1.35] });
   const cloudOp = cloudGrow.interpolate({ inputRange: [0, 0.3, 0.85, 1], outputRange: [0, 0.85, 0.7, 0.35] });
@@ -279,18 +297,31 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
       ) : null}
 
       {!effect.dodged ? (
-        <Animated.View
-          style={[
-            styles.splatWrap,
-            styles.splatCenter,
-            sickly && styles.splatSickly,
-            {
-              top: endY - 6,
-              opacity: splatOp,
-              transform: [{ scale: splatScale }],
-            },
-          ]}
-        >
+        <>
+          <Animated.View
+            style={[
+              styles.burstRing,
+              styles.splatCenter,
+              {
+                top: endY - 20,
+                opacity: burstOp,
+                transform: [{ scale: burstScale }],
+              },
+            ]}
+            pointerEvents="none"
+          />
+          <Animated.View
+            style={[
+              styles.splatWrap,
+              styles.splatCenter,
+              sickly && styles.splatSickly,
+              {
+                top: endY - 6,
+                opacity: splatOp,
+                transform: [{ scale: splatScale }],
+              },
+            ]}
+          >
           <Text style={[styles.splatEmoji, effect.critical && styles.splatCrit]}>
             {animKind === 'egg_bomb' && projectile.crack ? '💥' : projectile.splat}
           </Text>
@@ -299,6 +330,7 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
           ) : null}
           {effect.defended ? <Text style={styles.shieldSpark}>🛡️</Text> : null}
         </Animated.View>
+        </>
       ) : (
         <Animated.Text style={[styles.missLbl, { top: endY, opacity: missFade }]}>Miss!</Animated.Text>
       )}
@@ -411,6 +443,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   splatCrit: { fontSize: fx(56) },
+  burstRing: {
+    position: 'absolute',
+    width: fx(80),
+    height: fx(80),
+    marginLeft: -fx(40),
+    borderRadius: fx(40),
+    borderWidth: 4,
+    borderColor: 'rgba(255, 209, 102, 0.85)',
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+  },
   eggShell: {
     position: 'absolute',
     fontSize: fx(22),

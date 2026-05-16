@@ -1,46 +1,53 @@
 /**
- * Pastel handheld-style palette — lobby (cozy) vs battle (vibrant).
+ * Theme tokens — derived from art direction bible.
  */
+import { ART, gamePanelStyle } from './artDirection';
+
 export const LOBBY = {
-  shell: '#b8d4f0',
-  shellBorder: '#8eb8dc',
-  panel: 'rgba(255, 255, 255, 0.94)',
+  shell: ART.skyMid,
+  shellBorder: '#6ba8d4',
+  panel: ART.panelFill,
   panelBorder: '#c5d5e8',
   card: '#f7f9fc',
   cardBorder: '#d8e2ef',
   cardActive: '#fff8e8',
-  cardActiveBorder: '#f4c56a',
-  text: '#3d4f63',
-  textStrong: '#2a3544',
+  cardActiveBorder: ART.coin,
+  text: ART.textMuted,
+  textStrong: ART.textInk,
   textMuted: '#6b7c93',
-  accent: '#7ec8a8',
-  accentStrong: '#5cb88a',
-  chip: '#e8f0fa',
+  accent: ART.grassMid,
+  accentStrong: ART.grassDark,
+  chip: '#e8f4ff',
   chipAlt: '#dceefb',
   warn: '#f5b8b0',
-  coin: '#e89b4a',
-  start: '#6ecf8a',
-  startBorder: '#4aad6e',
-  shadow: 'rgba(61, 79, 99, 0.12)',
+  coin: ART.coin,
+  start: ART.grassMid,
+  startBorder: ART.grassDark,
+  shadow: ART.shadow,
 };
 
 export const BATTLE = {
-  arenaSky: '#7ec8f5',
-  arenaSkyDeep: '#5eb0e8',
-  arenaGrass: '#8fd48a',
-  arenaGrassDark: '#6fbf6a',
-  dock: '#3d4a5c',
-  dockBorder: '#2a3340',
-  textLight: '#f5f0e6',
-  accent: '#ff9f6b',
+  arenaSky: ART.skyMid,
+  arenaSkyDeep: '#6eb8e8',
+  arenaGrass: ART.grassLight,
+  arenaGrassDark: ART.grassDark,
+  dock: ART.dock,
+  dockBorder: ART.dockEdge,
+  textLight: '#fff9f0',
+  accent: ART.panelAccent,
   diceReady: '#fff8ef',
   diceBorder: '#d4c4a8',
+  hp: ART.hp,
+  mp: ART.mp,
+  crit: ART.crit,
 };
 
 export const panelShadow = {
-  shadowColor: LOBBY.shadow,
-  shadowOffset: { width: 0, height: 3 },
+  shadowColor: ART.shadow,
+  shadowOffset: { width: 0, height: 4 },
   shadowOpacity: 1,
-  shadowRadius: 6,
-  elevation: 3,
+  shadowRadius: 8,
+  elevation: 4,
 };
+
+export { ART, gamePanelStyle };

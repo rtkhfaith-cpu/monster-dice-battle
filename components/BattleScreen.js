@@ -36,9 +36,10 @@ import {
   unlockBattleAudio,
 } from '../utils/battleAudio';
 import { playUiSfx } from '../utils/sounds';
+import { ART } from '../utils/artDirection';
 import { BATTLE } from '../utils/gameTheme';
 
-const ATTACK_WINDUP_MS = 420;
+const ATTACK_WINDUP_MS = ART.windup;
 const PLAYER_ID = 1;
 const CPU_ID = 2;
 
@@ -325,7 +326,7 @@ export default function BattleScreen({
     schedule(400, () => setDefenderFlash(0));
     if (fx?.damage > 0) {
       duckBgm(fx?.critical ? 480 : 380);
-      triggerHitStop(fx?.critical ? 100 : 75);
+      triggerHitStop(fx?.critical ? ART.hitStopCrit : ART.hitStop);
     }
     if (fx?.critical && fx?.damage > 0) {
       playSound('critical');
@@ -382,12 +383,20 @@ export default function BattleScreen({
     setBusy(true);
 
     if (attackerId === PLAYER_ID) {
-      setP1Pose('lunge');
-      setP2Pose(defending ? 'defend' : 'hit');
+      setP1Pose('cast');
+      setP2Pose(defending ? 'defend' : 'idle');
     } else {
-      setP2Pose('lunge');
-      setP1Pose(defending ? 'defend' : 'hit');
+      setP2Pose('cast');
+      setP1Pose(defending ? 'defend' : 'idle');
     }
+    schedule(Math.round(ATTACK_WINDUP_MS * 0.55), () => {
+      if (attackerId === PLAYER_ID) setP1Pose('lunge');
+      else setP2Pose('lunge');
+      if (!defending) {
+        if (attackerId === PLAYER_ID) setP2Pose('hit');
+        else setP1Pose('hit');
+      }
+    });
 
     if (attackerId === PLAYER_ID) {
       setP1Emotion('happy');

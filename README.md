@@ -21,15 +21,13 @@ Templates, rarity, roles, base stats, and growth live in **`utils/monsterTemplat
 
 Uses **Socket.io**. This is a **stub lobby** (`server/index.js`) so the app never crashes when the server is missing.
 
-### Env (Expo)
+### Env (Amplify web)
 
-Set:
+In **Amplify Console → Environment variables**, set:
 
-`EXPO_PUBLIC_SOCKET_SERVER_URL` — e.g. `http://192.168.1.10:3000` (LAN IP of the machine running the server)
+`VITE_SOCKET_SERVER_URL` — your public Socket.io server URL (e.g. `https://api.yourgame.com`)
 
-Restart Expo after changing env. The value is injected via **`app.config.js`** → `expo.extra.socketServerUrl`.
-
-> This project is **Expo / React Native**, not Vite. Use `EXPO_PUBLIC_*`, not `VITE_*`.
+The client reads `import.meta.env.VITE_SOCKET_SERVER_URL` (inlined at build time via `babel.config.js`). Redeploy after changing the variable.
 
 ### Run app + server together
 
@@ -46,7 +44,7 @@ npm run start     # Expo
 
 ### AWS Lightsail (later)
 
-Deploy `server/index.js` to a small Node VM, open TCP **3000** (or set `PORT`), point `EXPO_PUBLIC_SOCKET_SERVER_URL` at `http://YOUR_IP:3000`.
+Deploy `server/index.js` to a small Node VM, open TCP **3000** (or set `PORT`), set Amplify `VITE_SOCKET_SERVER_URL` to that server’s public URL.
 
 ## Profiles & PIN API (saved, UI optional)
 

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
+import { ART } from '../utils/artDirection';
+import { getMonsterIdleProfile } from '../utils/monsterIdleMotion';
 
 /**
- * Idle bob/sway + squash-stretch + blink; battle poses; optional rage aura.
- * `superJump` bumps attacker forward for super cutscene.
+ * Personality idle (per themeBody) + battle poses + fly strike + rage.
  */
 export default function AnimatedMonster({
   parts,
@@ -21,6 +22,7 @@ export default function AnimatedMonster({
   const twist = useRef(new Animated.Value(0)).current;
   const squash = useRef(new Animated.Value(0)).current;
   const blink = useRef(new Animated.Value(1)).current;
+  const jitterX = useRef(new Animated.Value(0)).current;
   const poseTx = useRef(new Animated.Value(0)).current;
   const poseTy = useRef(new Animated.Value(0)).current;
   const poseScale = useRef(new Animated.Value(1)).current;
@@ -30,39 +32,110 @@ export default function AnimatedMonster({
   const flyTx = useRef(new Animated.Value(0)).current;
 
   const toward = side === 'left' ? 1 : -1;
+  const profile = getMonsterIdleProfile(parts?.themeBody);
+  const themed = !!parts?.themeBody;
 
   useEffect(() => {
+    const bobLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bob, {
+          toValue: 1,
+          duration: profile.bobMs,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bob, {
+          toValue: 0,
+          duration: profile.bobMs,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    const swayLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sway, {
+          toValue: 1,
+          duration: profile.swayMs,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sway, {
+          toValue: 0,
+          duration: profile.swayMs,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    const twistLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(twist, {
+          toValue: 1,
+          duration: profile.twistMs,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(twist, {
+          toValue: 0,
+          duration: profile.twistMs,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    const squashLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(squash, {
+          toValue: 1,
+          duration: profile.squashMs,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(squash, {
+          toValue: 0,
+          duration: profile.squashMs,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    bobLoop.start();
+    swayLoop.start();
+    twistLoop.start();
+    squashLoop.start();
+    return () => {
+      bobLoop.stop();
+      swayLoop.stop();
+      twistLoop.stop();
+      squashLoop.stop();
+    };
+  }, [bob, sway, twist, squash, profile]);
+
+  useEffect(() => {
+    if (!profile.jitter) {
+      jitterX.setValue(0);
+      return undefined;
+    }
+    const jMs = profile.jitterMs ?? 100;
     const loop = Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(bob, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(bob, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(sway, { toValue: 1, duration: 1900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(sway, { toValue: 0, duration: 1900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(twist, { toValue: 1, duration: 2200, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          Animated.timing(twist, { toValue: 0, duration: 2200, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        ]),
-        Animated.sequence([
-          Animated.timing(squash, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(squash, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ]),
+      Animated.sequence([
+        Animated.timing(jitterX, { toValue: 1, duration: jMs, useNativeDriver: true }),
+        Animated.timing(jitterX, { toValue: -1, duration: jMs, useNativeDriver: true }),
+        Animated.timing(jitterX, { toValue: 0, duration: jMs * 0.5, useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [bob, sway, twist, squash]);
+  }, [profile, jitterX]);
 
   useEffect(() => {
     const blinkLoop = Animated.loop(
       Animated.sequence([
-        Animated.delay(2200),
-        Animated.timing(blink, { toValue: 0.15, duration: 42, useNativeDriver: true }),
-        Animated.timing(blink, { toValue: 1, duration: 55, useNativeDriver: true }),
-        Animated.delay(1600),
+        Animated.delay(1800 + Math.random() * 1200),
+        Animated.timing(blink, { toValue: 0.12, duration: 40, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 50, useNativeDriver: true }),
+        Animated.delay(1400),
       ]),
     );
     blinkLoop.start();
@@ -72,12 +145,12 @@ export default function AnimatedMonster({
   useEffect(() => {
     if (!rage) {
       ragePulse.setValue(0);
-      return;
+      return undefined;
     }
     const r = Animated.loop(
       Animated.sequence([
-        Animated.timing(ragePulse, { toValue: 1, duration: 550, useNativeDriver: true }),
-        Animated.timing(ragePulse, { toValue: 0, duration: 550, useNativeDriver: true }),
+        Animated.timing(ragePulse, { toValue: 1, duration: 480, useNativeDriver: true }),
+        Animated.timing(ragePulse, { toValue: 0, duration: 480, useNativeDriver: true }),
       ]),
     );
     r.start();
@@ -94,21 +167,12 @@ export default function AnimatedMonster({
     const flyAnim = Animated.sequence([
       Animated.timing(flyTx, {
         toValue: arc,
-        duration: 340,
+        duration: 320,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.timing(flyTx, {
-        toValue: arc * 0.15,
-        duration: 80,
-        useNativeDriver: true,
-      }),
-      Animated.spring(flyTx, {
-        toValue: 0,
-        friction: 6,
-        tension: 90,
-        useNativeDriver: true,
-      }),
+      Animated.timing(flyTx, { toValue: arc * 0.12, duration: 70, useNativeDriver: true }),
+      Animated.spring(flyTx, { toValue: 0, friction: 6, tension: 88, useNativeDriver: true }),
     ]);
     flyAnim.start();
     return () => flyAnim.stop();
@@ -133,36 +197,39 @@ export default function AnimatedMonster({
     }
 
     const jumpExtra = superJump ? toward * 28 : 0;
-    const lungeX = toward * (pose === 'lunge' || pose === 'cast' ? 14 : 0) + jumpExtra;
-    const lungeY = pose === 'cast' || pose === 'superWindup' ? -8 : pose === 'lunge' ? 2 : superJump ? -10 : 0;
-    const sc = pose === 'defend' ? 0.88 : pose === 'cast' || pose === 'superWindup' || superJump ? 1.1 : 1;
+    const windup = pose === 'cast' || pose === 'superWindup';
+    const lungeX = toward * (pose === 'lunge' || pose === 'cast' ? (windup ? 6 : 16) : 0) + jumpExtra;
+    const lungeY = windup ? -10 : pose === 'lunge' ? 2 : superJump ? -10 : 0;
+    const sc = pose === 'defend' ? 0.86 : windup || superJump ? 1.12 : pose === 'lunge' ? 1.08 : 1;
 
     if (pose === 'hit') {
       Animated.parallel([
         Animated.sequence([
-          Animated.timing(shake, { toValue: 1, duration: 40, useNativeDriver: true }),
-          Animated.timing(shake, { toValue: -1, duration: 40, useNativeDriver: true }),
-          Animated.timing(shake, { toValue: 0.6, duration: 35, useNativeDriver: true }),
-          Animated.timing(shake, { toValue: 0, duration: 35, useNativeDriver: true }),
+          Animated.timing(shake, { toValue: 1, duration: 35, useNativeDriver: true }),
+          Animated.timing(shake, { toValue: -1, duration: 35, useNativeDriver: true }),
+          Animated.timing(shake, { toValue: 0.7, duration: 30, useNativeDriver: true }),
+          Animated.timing(shake, { toValue: 0, duration: 30, useNativeDriver: true }),
         ]),
-        Animated.spring(poseTx, { toValue: -toward * 18, friction: 4, tension: 180, useNativeDriver: true }),
+        Animated.spring(poseTx, { toValue: -toward * 22, friction: 4, tension: 200, useNativeDriver: true }),
+        Animated.spring(poseScale, { toValue: 0.92, friction: 5, tension: 160, useNativeDriver: true }),
       ]).start();
+      return;
     }
 
     if (pose === 'dodge') {
       Animated.parallel([
-        Animated.timing(poseTx, { toValue: -toward * 16, duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(poseTx, { toValue: -toward * 18, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         Animated.sequence([
-          Animated.timing(dodgeOp, { toValue: 0.55, duration: 70, useNativeDriver: true }),
+          Animated.timing(dodgeOp, { toValue: 0.5, duration: 70, useNativeDriver: true }),
           Animated.timing(dodgeOp, { toValue: 1, duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: true }),
         ]),
-        Animated.timing(poseTy, { toValue: -3, duration: 160, useNativeDriver: true }),
+        Animated.timing(poseTy, { toValue: -4, duration: 150, useNativeDriver: true }),
       ]).start();
       return;
     }
 
     Animated.parallel([
-      Animated.spring(poseTx, { toValue: lungeX, friction: 5, tension: 120, useNativeDriver: true }),
+      Animated.spring(poseTx, { toValue: lungeX, friction: windup ? 7 : 5, tension: windup ? 100 : 130, useNativeDriver: true }),
       Animated.spring(poseTy, { toValue: lungeY, friction: 5, tension: 120, useNativeDriver: true }),
       Animated.spring(poseScale, { toValue: sc, friction: 6, tension: 140, useNativeDriver: true }),
       Animated.timing(dodgeOp, { toValue: 1, duration: 100, useNativeDriver: true }),
@@ -170,25 +237,31 @@ export default function AnimatedMonster({
   }, [pose, poseTx, poseTy, poseScale, shake, dodgeOp, toward, superJump]);
 
   const tier = Math.min(5, Math.max(0, Number(parts.evolutionTierIndex) || 0));
-  const scaledSize = size * (1 + tier * 0.036);
-  const themed = !!parts?.themeBody;
-
-  const bobAmp = (themed ? -5.2 : -4.2) - tier * 1.25;
-  const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, bobAmp] });
-  const swayMag = themed ? 3.2 : 2.5;
+  const scaledSize = size * (1 + tier * 0.04);
+  const baseBob = (themed ? -5.4 : -4.4) - tier * 1.2;
+  const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, baseBob * profile.bobMul] });
+  const swayMag = (themed ? 3.4 : 2.6) * profile.swayMul;
   const swayX = sway.interpolate({ inputRange: [0, 1], outputRange: [0, swayMag * toward * -1] });
+  const twistDeg = profile.twistDeg;
   const swayR = twist.interpolate({
     inputRange: [0, 1],
-    outputRange: themed ? ['-3.5deg', '3.5deg'] : ['-2.5deg', '2.5deg'],
+    outputRange: [`-${twistDeg}deg`, `${twistDeg}deg`],
   });
-  const jolt = shake.interpolate({ inputRange: [-1, 0, 1], outputRange: [-7, 0, 9] });
-  const squashX = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
-  const squashY = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 0.93] });
-
-  const glowOpacity = ragePulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.75] });
+  const jAmp = profile.jitterAmp ?? 0;
+  const jitterPx = jitterX.interpolate({ inputRange: [-1, 0, 1], outputRange: [-jAmp, 0, jAmp] });
+  const jolt = shake.interpolate({ inputRange: [-1, 0, 1], outputRange: [-9, 0, 11] });
+  const squashX = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const squashY = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] });
+  const glowOpacity = ragePulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
 
   return (
     <View style={styles.wrap}>
+      <View
+        style={[
+          styles.groundShadow,
+          { width: scaledSize * 0.72, height: scaledSize * 0.1, borderRadius: scaledSize },
+        ]}
+      />
       {rage ? (
         <Animated.View
           pointerEvents="none"
@@ -196,10 +269,9 @@ export default function AnimatedMonster({
             styles.rageHalo,
             {
               opacity: glowOpacity,
-              width: scaledSize * 1.35,
-              height: scaledSize * 1.35,
+              width: scaledSize * 1.38,
+              height: scaledSize * 1.38,
               borderRadius: scaledSize,
-              backgroundColor: '#ff1744',
             },
           ]}
         />
@@ -210,7 +282,7 @@ export default function AnimatedMonster({
           {
             opacity: blink,
             transform: [
-              { translateX: Animated.add(flyTx, Animated.add(swayX, Animated.add(poseTx, jolt))) },
+              { translateX: Animated.add(flyTx, Animated.add(jitterPx, Animated.add(swayX, Animated.add(poseTx, jolt)))) },
               { translateY: Animated.add(bobY, poseTy) },
               { rotate: swayR },
               { scale: poseScale },
@@ -231,7 +303,13 @@ export default function AnimatedMonster({
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
+  },
+  groundShadow: {
+    position: 'absolute',
+    bottom: 2,
+    backgroundColor: ART.shadowDeep,
+    opacity: 0.35,
   },
   core: {
     alignItems: 'center',
@@ -245,5 +323,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignSelf: 'center',
     zIndex: 0,
+    backgroundColor: '#ff4757',
+    borderWidth: 3,
+    borderColor: '#ff6b81',
   },
 });

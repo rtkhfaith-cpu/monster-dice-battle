@@ -13,7 +13,7 @@ export function isPhoneLayout(width) {
 export function getStrictLayout(width, height) {
   const mobile = isMobileLayout(width, height);
   const phone = isPhoneLayout(width);
-  const monster = phone ? 188 : mobile ? 210 : 345;
+  const monster = phone ? 200 : mobile ? 238 : 368;
   const statsW = phone ? 118 : mobile ? 132 : 188;
   return {
     /** Both fighters same scale — arcade mirror match */

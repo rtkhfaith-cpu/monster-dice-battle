@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 import { ThemedMonsterBody } from './themedMonsterBodies';
 import MonsterGearLayers from './MonsterGearLayers';
+import { ART } from '../utils/artDirection';
 
 /** Pastel-vibrant cartoon palette */
 export const MONSTER_PALETTE = [
@@ -83,7 +84,7 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
   const instanceId = useId().replace(/:/g, '');
   const safe = parts && typeof parts === 'object' ? parts : null;
   const ST = 5;
-  const stroke = '#2d3561';
+  const stroke = ART.outline;
   const cheek = '#ff8fb188';
   const eyeWhite = '#fffef8';
   const pupil = '#1a1a2e';
@@ -169,7 +170,8 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
           width: size * 0.76,
           height: size * 0.1,
           borderRadius: size,
-          backgroundColor: 'rgba(45, 53, 97, 0.14)',
+          backgroundColor: ART.shadowDeep,
+          opacity: 0.28,
         }}
       />
       <Svg width={size} height={size} viewBox="0 0 200 200">

@@ -1,17 +1,10 @@
-import Constants from 'expo-constants';
 import { io } from 'socket.io-client';
+import { getSocketServerUrl, SOCKET_URL } from './socketConfig';
+
+export { getSocketServerUrl, SOCKET_URL };
 
 /** @type {import('socket.io-client').Socket | null} */
 let sharedSocket = null;
-
-/** Set at build via app.config.js (EXPO_PUBLIC_* or VITE_* env). */
-export function getSocketServerUrl() {
-  const fromExtra = Constants.expoConfig?.extra?.socketServerUrl;
-  if (typeof fromExtra === 'string' && fromExtra.length > 5) {
-    return fromExtra.trim().replace(/\/+$/, '');
-  }
-  return '';
-}
 
 /**
  * Singleton Socket.io connection — returns `{ socket: null, error }` when misconfigured.

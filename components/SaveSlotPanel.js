@@ -12,7 +12,8 @@ import MonsterPreview from './MonsterPreview';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { getMonsterTemplate } from '../utils/monsterTemplates';
 import { MAX_PLAYER_PROFILES } from '../utils/gameStorage';
-import { LOBBY, panelShadow } from '../utils/gameTheme';
+import { gamePanelStyle } from '../utils/artDirection';
+import { LOBBY } from '../utils/gameTheme';
 
 function profileMonster(profile) {
   const om =
@@ -283,12 +284,8 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
     minWidth: 0,
-    backgroundColor: LOBBY.panel,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: LOBBY.panelBorder,
     padding: 10,
-    ...panelShadow,
+    ...gamePanelStyle(LOBBY.panelBorder),
   },
   panelCompact: {
     flexGrow: 0,

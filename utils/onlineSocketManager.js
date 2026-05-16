@@ -1,7 +1,13 @@
-import { connectOnlineSocket, destroyOnlineSocket, getSocketServerUrl } from './socketClient';
+import {
+  connectOnlineSocket,
+  destroyOnlineSocket,
+  getSocketServerUrl,
+} from './socketClient';
 import { clearOnlineSession, loadOnlineSession, saveOnlineSession } from './onlineSession';
 
-const DEV = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
+const CONNECT_TIMEOUT_MS = 12000;
+const REJOIN_ACK_MS = 6000;
 
 function devLog(...args) {
   if (DEV) console.log('[online]', ...args);
@@ -38,7 +44,10 @@ function attachSocket(sock) {
   if (socket === sock) return;
   socket = sock;
 
-  sock.on('connect', () => devLog('socket connected', sock.id, getSocketServerUrl()));
+  sock.on('connect', () => {
+    devLog('socket connected', sock.id, getSocketServerUrl());
+    notify();
+  });
   sock.on('disconnect', (reason) => {
     devLog('socket disconnected', reason);
     notify();
@@ -125,7 +134,7 @@ export function ensureOnlineSocket() {
   return new Promise((resolve) => {
     const url = getSocketServerUrl();
     if (!url) {
-      devLog('Online server not configured (set EXPO_PUBLIC_SOCKET_SERVER_URL in dev)');
+      devLog('Online server not configured');
       resolve({
         socket: null,
         error: 'Online server unavailable',
@@ -143,35 +152,86 @@ export function ensureOnlineSocket() {
 
     attachSocket(sock);
 
-    const session = loadOnlineSession();
-    const onConnect = () => {
+    let settled = false;
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    let connectTimer = null;
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    let rejoinTimer = null;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (connectTimer) clearTimeout(connectTimer);
+      if (rejoinTimer) clearTimeout(rejoinTimer);
       sock.off('connect', onConnect);
-      devLog('socket connected', sock.id, '→', url);
-      if (session?.roomCode && session?.playerSlot) {
-        devLog('rejoining room', session.roomCode);
-        sock.emit('rejoinRoom', { roomCode: session.roomCode, playerSlot: session.playerSlot }, (res) => {
-          if (res?.error) {
-            devLog('rejoin failed', res.error);
-            clearOnlineSession();
-          } else {
-            if (res.room) applyRoomPayload(res.room);
-            saveOnlineSession({
-              roomCode: res.roomCode,
-              playerSlot: res.playerSlot,
-              profileId: session.profileId,
-              playerName: session.playerName,
-            });
-            notify();
-          }
-          resolve({ socket: sock, error: null, url });
-        });
-      } else {
-        resolve({ socket: sock, error: null, url });
+      sock.off('connect_error', onConnectError);
+      if (!result.socket || result.error) {
+        try {
+          destroyOnlineSocket();
+        } catch {
+          /* ignore */
+        }
+        socket = null;
       }
+      resolve(result);
     };
 
-    if (sock.connected) onConnect();
-    else sock.on('connect', onConnect);
+    const onConnectError = (err) => {
+      devLog('connect_error', err?.message || err);
+      finish({ socket: null, error: err?.message || 'Unable to connect', url });
+    };
+
+    const session = loadOnlineSession();
+
+    const onConnect = () => {
+      devLog('socket connected', sock.id, '→', url);
+
+      if (session?.roomCode && session?.playerSlot) {
+        devLog('rejoining room', session.roomCode);
+        rejoinTimer = setTimeout(() => {
+          devLog('rejoin ack timeout — clearing stale session');
+          clearOnlineSession();
+          finish({ socket: sock, error: null, url });
+        }, REJOIN_ACK_MS);
+
+        sock.emit(
+          'rejoinRoom',
+          { roomCode: session.roomCode, playerSlot: session.playerSlot },
+          (res) => {
+            if (rejoinTimer) clearTimeout(rejoinTimer);
+            if (res?.error) {
+              devLog('rejoin failed', res.error);
+              clearOnlineSession();
+            } else {
+              if (res.room) applyRoomPayload(res.room);
+              saveOnlineSession({
+                roomCode: res.roomCode,
+                playerSlot: res.playerSlot,
+                profileId: session.profileId,
+                playerName: session.playerName,
+              });
+              notify();
+            }
+            finish({ socket: sock, error: null, url });
+          },
+        );
+        return;
+      }
+
+      finish({ socket: sock, error: null, url });
+    };
+
+    connectTimer = setTimeout(() => {
+      devLog('connect timeout — is the server running? (npm run server)');
+      finish({ socket: null, error: 'Connection timed out', url });
+    }, CONNECT_TIMEOUT_MS);
+
+    if (sock.connected) {
+      onConnect();
+    } else {
+      sock.once('connect', onConnect);
+      sock.once('connect_error', onConnectError);
+    }
   });
 }
 

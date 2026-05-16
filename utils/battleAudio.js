@@ -57,6 +57,7 @@ const BGM_BASS = [
   { f: 196, d: 0.24, t: 'triangle', v: 0.38 },
   { f: 165, d: 0.24, t: 'triangle', v: 0.32 },
 ];
+const BGM_KICK = { f: 55, d: 0.08, t: 'triangle', v: 0.5 };
 
 const SFX_PROFILES = {
   attack: [
@@ -117,10 +118,11 @@ const SFX_PROFILES = {
     { f: 659, d: 0.12, type: 'triangle', vol: 0.5 },
   ],
   critical: [
-    { f: 220, d: 0.04, type: 'square', vol: 1 },
-    { f: 440, d: 0.05, type: 'square', vol: 1 },
-    { f: 660, d: 0.08, type: 'square', vol: 0.9 },
-    { f: 880, d: 0.1, type: 'triangle', vol: 0.75 },
+    { noise: true, d: 0.04, vol: 0.65, filter: 200 },
+    { f: 180, d: 0.04, type: 'square', vol: 1 },
+    { f: 330, d: 0.05, type: 'square', vol: 1 },
+    { f: 523, d: 0.07, type: 'square', vol: 0.95 },
+    { f: 784, d: 0.12, type: 'triangle', vol: 0.85 },
   ],
   button: [
     { f: 620, d: 0.035, type: 'triangle', vol: 0.85 },
@@ -269,6 +271,9 @@ function playBgmStep() {
   }
   if (musicStep % 4 === 0) {
     synthTone(harm.f, harm.d, harm.t, MUSIC_BASE * harm.v, 'music');
+  }
+  if (musicStep % 2 === 0) {
+    synthTone(BGM_KICK.f, BGM_KICK.d, BGM_KICK.t, MUSIC_BASE * BGM_KICK.v * 0.9, 'music');
   }
   musicStep += 1;
 }

@@ -18,8 +18,10 @@ import MonsterPreview from './MonsterPreview';
 import OnlineLobbyBackground from './OnlineLobbyBackground';
 import {
   createOnlineRoom,
+  disconnectOnline,
   ensureOnlineSocket,
   getConfiguredServerUrl,
+  getOnlineSocket,
   joinOnlineRoom,
   leaveOnlineRoom,
   subscribeOnline,
@@ -178,6 +180,7 @@ export default function OnlineLobbyScreen({
   const [err, setErr] = useState('');
   const [opponentLeft, setOpponentLeft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [connectKey, setConnectKey] = useState(0);
 
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const waitDots = useRef(new Animated.Value(0)).current;
@@ -206,12 +209,13 @@ export default function OnlineLobbyScreen({
     return () => loop.stop();
   }, [waitDots]);
 
-  useEffect(() => {
+  const runConnect = useCallback(() => {
     if (!configured) {
       setStatus('no_env');
-      return undefined;
+      return;
     }
     setStatus('connecting');
+    setErr('');
     ensureOnlineSocket().then(({ error, url }) => {
       if (error) {
         devOnlineLog('connect failed', error, url);
@@ -230,6 +234,10 @@ export default function OnlineLobbyScreen({
         setMySlot(session.playerSlot);
       }
     });
+  }, [configured, refreshProfile]);
+
+  useEffect(() => {
+    runConnect();
     return subscribeOnline((st, meta) => {
       setRoomState(st);
       if (st?.roomCode) {
@@ -243,7 +251,30 @@ export default function OnlineLobbyScreen({
         onBattleStart(st);
       }
     });
-  }, [configured, onBattleStart, refreshProfile]);
+  }, [configured, connectKey, onBattleStart, runConnect]);
+
+  useEffect(() => {
+    const sock = getOnlineSocket();
+    if (!sock || !configured) return undefined;
+    const onSockConnect = () => {
+      setStatus('connected');
+      setErr('');
+    };
+    const onSockDisconnect = () => {
+      setStatus((prev) => (prev === 'connected' ? 'connecting' : prev));
+    };
+    sock.on('connect', onSockConnect);
+    sock.on('disconnect', onSockDisconnect);
+    return () => {
+      sock.off('connect', onSockConnect);
+      sock.off('disconnect', onSockDisconnect);
+    };
+  }, [configured, connectKey]);
+
+  function handleRetryConnect() {
+    disconnectOnline();
+    setConnectKey((k) => k + 1);
+  }
 
   useEffect(() => {
     if (view === 'waiting') refreshProfile();
@@ -431,6 +462,11 @@ export default function OnlineLobbyScreen({
           <Text style={[styles.heroTitle, mobile && styles.heroTitleMobile]}>Multiplayer Arena</Text>
           <Text style={styles.heroSub}>Find an opponent · Share your code · Fight!</Text>
           <ConnectionPill banner={connBanner} pulseAnim={status === 'connecting' ? pulseAnim : null} />
+          {(status === 'fail' || status === 'no_env') && (
+            <TouchableOpacity style={styles.retryBtn} onPress={handleRetryConnect} activeOpacity={0.88}>
+              <Text style={styles.retryTxt}>↻ Retry connection</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {view === 'waiting' && inRoom ? waitingRoom : mainMenu}
@@ -531,6 +567,16 @@ const styles = StyleSheet.create({
   pillOk: { backgroundColor: 'rgba(232, 248, 238, 0.95)', borderColor: '#5cb88a' },
   pillWarn: { backgroundColor: 'rgba(255, 243, 224, 0.95)', borderColor: '#f0b429' },
   pillErr: { backgroundColor: 'rgba(255, 235, 235, 0.95)', borderColor: '#e74c3c' },
+  retryBtn: {
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    backgroundColor: '#ff9f6b',
+    borderWidth: 3,
+    borderColor: '#2d3561',
+  },
+  retryTxt: { fontWeight: '900', fontSize: 14, color: '#1a2a3a', textAlign: 'center' },
   pillNeutral: { backgroundColor: 'rgba(255,255,255,0.92)', borderColor: '#74b9ff' },
   connIcon: { fontSize: 20 },
   connTextCol: { flex: 1, minWidth: 0 },

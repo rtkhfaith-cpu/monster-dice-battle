@@ -2,7 +2,7 @@
  * Player-facing online multiplayer copy — never expose env/build instructions in UI.
  */
 
-const DEV = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV !== 'production';
+const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 
 export function devOnlineLog(...args) {
   if (DEV) console.log('[online-ui]', ...args);
@@ -24,7 +24,12 @@ export function getConnectionBanner(configured, status) {
   if (status === 'connected') {
     return { icon: '🟢', label: 'Connected — ready to battle!', sub: 'Pick Create or Join', tone: 'ok' };
   }
-  return { icon: '🔴', label: 'Unable to connect', sub: 'Server offline or unreachable', tone: 'err' };
+  return {
+    icon: '🔴',
+    label: 'Unable to connect',
+    sub: 'Server offline or unreachable',
+    tone: 'err',
+  };
 }
 
 /**
@@ -37,7 +42,7 @@ export function toUserOnlineError(raw) {
   const s = String(raw).toLowerCase();
 
   if (
-    s.includes('expo_public') ||
+    s.includes('vite_socket') ||
     s.includes('socket_server') ||
     s.includes('not configured') ||
     s.includes('rebuild')

@@ -5,6 +5,7 @@ import { expToAdvanceFrom } from '../utils/expLevel';
 import { getStrictLayout } from '../utils/battleLayout';
 import { ELEMENT_UI } from '../utils/elements';
 import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
+import { ART } from '../utils/artDirection';
 import { BATTLE } from '../utils/gameTheme';
 
 function MicroBar({ ratio, color, compact }) {
@@ -213,6 +214,8 @@ export default function RpgBattleArena({
         { transform: [{ translateX: shakeX }, { scale: stageZoom }] },
       ]}
     >
+      <View style={styles.vignetteTop} pointerEvents="none" />
+      <View style={styles.vignetteBottom} pointerEvents="none" />
       {/* z-index 0–1: background */}
       <View style={styles.skyGrad} />
       <View style={styles.skyFade} />
@@ -369,7 +372,25 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 0,
     overflow: 'hidden',
-    backgroundColor: '#8ecdf5',
+    backgroundColor: ART.skyMid,
+  },
+  vignetteTop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '22%',
+    backgroundColor: 'rgba(45, 53, 97, 0.12)',
+    zIndex: 2,
+  },
+  vignetteBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '18%',
+    backgroundColor: 'rgba(45, 53, 97, 0.18)',
+    zIndex: 2,
   },
   arenaDim: { opacity: 0.9 },
 
@@ -834,9 +855,10 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
   },
   infoPanel: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderWidth: 2,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderWidth: 3,
+    borderColor: ART.outlineSoft,
+    borderRadius: ART.radiusMd,
     paddingHorizontal: 8,
     paddingVertical: 5,
     shadowColor: '#000',
