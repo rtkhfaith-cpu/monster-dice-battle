@@ -10,7 +10,12 @@ const {
   DeleteCommand,
   ScanCommand,
 } = require('@aws-sdk/lib-dynamodb');
-const { verifyPlayerKey, normalizePlayerKey } = require('./playerKeyHash');
+const {
+  verifyPlayerKey,
+  normalizePlayerKey,
+  hasStoredKey,
+  applyKeyToItem,
+} = require('./playerKeyHash');
 
 const TABLE_NAME = process.env.TABLE_NAME || 'MonsterBattleSaves';
 const MAX_LIST = 50;
@@ -104,13 +109,38 @@ function toPublicListItem(item) {
 }
 
 async function getProfile(profileID) {
+  const id = String(profileID || '').trim();
+  if (!id) return null;
   const res = await client.send(
     new GetCommand({
       TableName: TABLE_NAME,
-      Key: { profileID: String(profileID) },
+      Key: { profileID: id },
     }),
   );
   return res.Item || null;
+}
+
+function stripSecrets(item) {
+  const { pinHash, playerKeyHash, pin, ...safe } = item;
+  const profileID = String(safe.profileID || safe.id || '').trim();
+  return profileID ? { ...safe, profileID } : safe;
+}
+
+async function verifyKeyOrRepair(profileID, playerKey, item) {
+  if (verifyPlayerKey(playerKey, item)) {
+    return { ok: true, item };
+  }
+  if (!hasStoredKey(item)) {
+    const updated = applyKeyToItem({ ...item, profileID: String(profileID) }, playerKey);
+    await client.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: updated,
+      }),
+    );
+    return { ok: true, item: updated, repaired: true };
+  }
+  return { ok: false };
 }
 
 async function handleListPlayers(event) {
@@ -138,19 +168,32 @@ async function handleLogin(event) {
   const item = await getProfile(profileID);
   if (!item) return respond(event, 404, { error: 'Profile not found' });
 
-  if (!verifyPlayerKey(playerKey, item)) {
+  const auth = await verifyKeyOrRepair(profileID, playerKey, item);
+  if (!auth.ok) {
     return respond(event, 401, { error: 'Incorrect key' });
   }
 
-  const { pinHash, playerKeyHash, pin, ...safe } = item;
-  return respond(event, 200, { profile: safe });
+  return respond(event, 200, { profile: stripSecrets(auth.item) });
 }
 
 async function handleGetSave(event, profileID) {
   const item = await getProfile(profileID);
   if (!item) return respond(event, 404, { error: 'Not found' });
-  const { pinHash, playerKeyHash, pin, ...safe } = item;
-  return respond(event, 200, safe);
+
+  const qk = normalizePlayerKey(
+    event.queryStringParameters?.playerKey || event.queryStringParameters?.playerkey || '',
+  );
+  if (qk.length === 4) {
+    const auth = await verifyKeyOrRepair(profileID, qk, item);
+    if (!auth.ok) {
+      return respond(event, 401, { error: 'Incorrect key' });
+    }
+    return respond(event, 200, stripSecrets(auth.item));
+  }
+
+  const publicItem = toPublicListItem(item);
+  if (publicItem) return respond(event, 200, publicItem);
+  return respond(event, 200, stripSecrets(item));
 }
 
 async function handlePostSave(event) {

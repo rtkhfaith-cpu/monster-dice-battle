@@ -4,7 +4,7 @@
 import { getSaveApiBaseUrl, loadSaveApiConfig } from '../../utils/saveApiConfig';
 import { normalizePlayerKey } from '../../utils/playerKey';
 import { loadGameSave, saveGameSave } from './saveService';
-import { applyCloudProfile, toCloudProfile } from './cloudSaveMapper';
+import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
 
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 const REQUEST_MS = 12000;
@@ -23,6 +23,17 @@ async function ensureBaseUrl() {
  * @param {string} path
  * @param {RequestInit} init
  */
+async function readApiError(res) {
+  const text = await res.text().catch(() => '');
+  if (!text) return `HTTP ${res.status}`;
+  try {
+    const body = JSON.parse(text);
+    return body?.error || body?.message || text;
+  } catch {
+    return text.length > 120 ? `${text.slice(0, 120)}…` : text;
+  }
+}
+
 async function apiRequest(base, path, init = {}) {
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), REQUEST_MS) : null;
@@ -57,9 +68,9 @@ export async function saveCloudProfile(profile) {
       body: JSON.stringify(profile),
     });
     if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      if (DEV) console.warn('[cloud-save] POST /save failed', res.status);
-      return { ok: false, error: errText || `HTTP ${res.status}` };
+      const errText = await readApiError(res);
+      if (DEV) console.warn('[cloud-save] POST /save failed', res.status, errText);
+      return { ok: false, error: errText };
     }
     return { ok: true };
   } catch (err) {
@@ -72,6 +83,50 @@ export async function saveCloudProfile(profile) {
  * @param {string} profileID
  * @returns {Promise<{ ok: boolean, data?: object, skipped?: boolean, error?: string }>}
  */
+function extractCloudRecord(body) {
+  const raw =
+    body?.profile ??
+    (body && typeof body === 'object' && (body.profileID || body.id) ? body : null) ??
+    body?.Item ??
+    body?.item ??
+    body?.data ??
+    body;
+  return normalizeCloudRecord(raw);
+}
+
+/**
+ * @param {string} profileID
+ * @param {string} playerKey
+ */
+export async function loadCloudProfileWithKey(profileID, playerKey) {
+  const base = await ensureBaseUrl();
+  if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
+  const id = encodeURIComponent(String(profileID));
+  const key = normalizePlayerKey(playerKey);
+
+  try {
+    const res = await apiRequest(base, `/save/${id}?playerKey=${encodeURIComponent(key)}`, {
+      method: 'GET',
+    });
+    if (res.status === 401) {
+      return { ok: false, status: 401, error: 'Incorrect key' };
+    }
+    if (res.status === 404) return { ok: false, status: 404, error: 'Profile not found' };
+    if (!res.ok) {
+      const errText = await readApiError(res);
+      if (DEV) console.warn('[cloud-save] GET /save failed', res.status, errText);
+      return { ok: false, status: res.status, error: errText };
+    }
+    const body = await res.json();
+    const data = extractCloudRecord(body);
+    if (!data?.profileID) return { ok: false, error: 'Invalid save data from cloud' };
+    return { ok: true, data };
+  } catch (err) {
+    if (DEV) console.warn('[cloud-save] GET /save error', err?.message || err);
+    return { ok: false, error: err?.message || 'Network error' };
+  }
+}
+
 export async function loadCloudProfile(profileID) {
   const base = await ensureBaseUrl();
   if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
@@ -81,14 +136,13 @@ export async function loadCloudProfile(profileID) {
     const res = await apiRequest(base, `/save/${id}`, { method: 'GET' });
     if (res.status === 404) return { ok: false, error: 'Not found' };
     if (!res.ok) {
-      if (DEV) console.warn('[cloud-save] GET failed', res.status);
-      return { ok: false, error: `HTTP ${res.status}` };
+      const errText = await readApiError(res);
+      if (DEV) console.warn('[cloud-save] GET failed', res.status, errText);
+      return { ok: false, error: errText };
     }
     const body = await res.json();
-    const data =
-      body && typeof body === 'object' && body.profileID
-        ? body
-        : body?.Item ?? body?.item ?? body?.data ?? body;
+    const data = extractCloudRecord(body);
+    if (!data?.profileID) return { ok: false, error: 'Invalid save data from cloud' };
     return { ok: true, data };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] GET error', err?.message || err);
@@ -106,11 +160,24 @@ export async function listCloudPlayers() {
   try {
     const res = await apiRequest(base, '/players', { method: 'GET' });
     if (!res.ok) {
-      if (DEV) console.warn('[cloud-save] GET /players failed', res.status);
-      return { ok: false, error: `HTTP ${res.status}` };
+      const errText = await readApiError(res);
+      if (DEV) console.warn('[cloud-save] GET /players failed', res.status, errText);
+      return { ok: false, error: errText };
     }
     const body = await res.json();
-    const players = Array.isArray(body?.players) ? body.players : Array.isArray(body) ? body : [];
+    const raw = Array.isArray(body?.players) ? body.players : Array.isArray(body) ? body : [];
+    const players = raw
+      .map((row) => normalizeCloudRecord(row))
+      .filter(Boolean)
+      .map((row) => ({
+        profileID: row.profileID,
+        playerName: row.playerName || 'Player',
+        selectedMonsterId: row.selectedMonsterId ?? null,
+        monsterTemplateId: row.monsterTemplateId ?? null,
+        level: row.level ?? 1,
+        coins: row.coins ?? 0,
+        updatedAt: row.updatedAt ?? null,
+      }));
     return { ok: true, players };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] GET /players error', err?.message || err);
@@ -143,21 +210,44 @@ export async function loginCloudProfile(profileID, playerKey) {
       return { ok: false, status: 404, error: 'Profile not found' };
     }
     if (!res.ok) {
-      if (DEV) console.warn('[cloud-save] POST /login failed', res.status);
-      return { ok: false, status: res.status, error: `HTTP ${res.status}` };
+      const errText = await readApiError(res);
+      if (DEV) console.warn('[cloud-save] POST /login failed', res.status, errText);
+      return { ok: false, status: res.status, error: errText };
     }
     const body = await res.json();
-    const data =
-      body?.profile ??
-      (body && typeof body === 'object' && body.profileID ? body : null) ??
-      body?.Item ??
-      body?.item;
+    const data = extractCloudRecord(body);
     if (!data?.profileID) return { ok: false, error: 'Invalid login response' };
     return { ok: true, data };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] POST /login error', err?.message || err);
     return { ok: false, error: err?.message || 'Network error' };
   }
+}
+
+/**
+ * Load a cloud player with key — tries POST /login, then GET /save/{id}?playerKey=.
+ * @param {string} profileID
+ * @param {string} playerKey
+ */
+export async function recallCloudProfile(profileID, playerKey) {
+  const login = await loginCloudProfile(profileID, playerKey);
+  if (login.ok) return login;
+
+  const tryGet =
+    login.status === 404 ||
+    login.status === 403 ||
+    (login.error && /not found|404/i.test(String(login.error)));
+
+  if (tryGet) {
+    const loaded = await loadCloudProfileWithKey(profileID, playerKey);
+    if (loaded.ok) return loaded;
+    if (login.status === 401 || login.error === 'Incorrect key') {
+      return login;
+    }
+    return loaded;
+  }
+
+  return login;
 }
 
 /**

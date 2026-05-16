@@ -18,6 +18,16 @@ function hashPlayerKey(key) {
   return `pk_${(h >>> 0).toString(16)}`;
 }
 
+function hasStoredKey(item) {
+  if (!item || typeof item !== 'object') return false;
+  const saved = item.pinHash || item.playerKeyHash;
+  if (saved && String(saved).startsWith('pk_')) return true;
+  const legacy = String(item.pin || '')
+    .replace(/\D/g, '')
+    .slice(0, 4);
+  return legacy.length === 4;
+}
+
 function verifyPlayerKey(inputKey, item) {
   if (!item || typeof item !== 'object') return false;
   const saved = item.pinHash || item.playerKeyHash;
@@ -31,4 +41,22 @@ function verifyPlayerKey(inputKey, item) {
   return normalizePlayerKey(inputKey) === legacy;
 }
 
-module.exports = { normalizePlayerKey, hashPlayerKey, verifyPlayerKey };
+/** Attach hashed key when cloud row was saved without one (legacy / first sync). */
+function applyKeyToItem(item, inputKey) {
+  const hash = hashPlayerKey(inputKey);
+  if (!hash) return item;
+  return {
+    ...item,
+    playerKeyHash: hash,
+    pinHash: hash,
+    pin: undefined,
+  };
+}
+
+module.exports = {
+  normalizePlayerKey,
+  hashPlayerKey,
+  verifyPlayerKey,
+  hasStoredKey,
+  applyKeyToItem,
+};

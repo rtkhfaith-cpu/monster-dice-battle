@@ -57,14 +57,26 @@ export function toCloudProfile(gameData, profileID) {
 }
 
 /**
+ * @param {object|null|undefined} cloud
+ * @returns {object|null}
+ */
+export function normalizeCloudRecord(cloud) {
+  if (!cloud || typeof cloud !== 'object') return null;
+  const profileID = String(cloud.profileID || cloud.id || '').trim();
+  if (!profileID) return null;
+  return { ...cloud, profileID };
+}
+
+/**
  * @param {object} gameData
  * @param {object} cloud
  * @returns {object}
  */
 export function applyCloudProfile(gameData, cloud) {
-  if (!cloud?.profileID) return gameData;
+  const normalized = normalizeCloudRecord(cloud);
+  if (!normalized) return gameData;
   const gd = cloneGameData(gameData);
-  const profileID = String(cloud.profileID);
+  const profileID = String(normalized.profileID);
   let p = gd.players.find((x) => x.id === profileID);
   if (!p) {
     p = {
@@ -80,8 +92,8 @@ export function applyCloudProfile(gameData, cloud) {
     gd.players.push(p);
   }
 
-  p.name = String(cloud.playerName || p.name).slice(0, 24);
-  const cloudKey = cloud.playerKeyHash || cloud.pinHash;
+  p.name = String(normalized.playerName || cloud.playerName || p.name).slice(0, 24);
+  const cloudKey = normalized.playerKeyHash || normalized.pinHash || cloud.playerKeyHash || cloud.pinHash;
   if (typeof cloudKey === 'string' && cloudKey) {
     if (String(cloudKey).startsWith('pk_')) {
       p.playerKeyHash = cloudKey;
@@ -90,21 +102,23 @@ export function applyCloudProfile(gameData, cloud) {
       p.pin = cloudKey;
     }
   }
-  if (cloud.createdAt) p.createdAt = cloud.createdAt;
-  if (cloud.updatedAt) p.updatedAt = cloud.updatedAt;
-  p.coins = typeof cloud.coins === 'number' ? cloud.coins : p.coins;
-  p.selectedMonsterId = cloud.selectedMonsterId ?? p.selectedMonsterId;
+  if (normalized.createdAt) p.createdAt = normalized.createdAt;
+  if (normalized.updatedAt) p.updatedAt = normalized.updatedAt;
+  p.coins = typeof normalized.coins === 'number' ? normalized.coins : p.coins;
+  p.selectedMonsterId = normalized.selectedMonsterId ?? p.selectedMonsterId;
 
-  p.cosmeticsOwned = Array.isArray(cloud.gear) ? [...cloud.gear] : p.cosmeticsOwned;
+  p.cosmeticsOwned = Array.isArray(normalized.gear) ? [...normalized.gear] : p.cosmeticsOwned;
 
   const equippedMap =
-    cloud.equippedGear && typeof cloud.equippedGear === 'object' ? cloud.equippedGear : {};
+    normalized.equippedGear && typeof normalized.equippedGear === 'object'
+      ? normalized.equippedGear
+      : {};
   const slotsMap =
-    cloud.unlockedGearSlots && typeof cloud.unlockedGearSlots === 'object'
-      ? cloud.unlockedGearSlots
+    normalized.unlockedGearSlots && typeof normalized.unlockedGearSlots === 'object'
+      ? normalized.unlockedGearSlots
       : {};
 
-  p.ownedMonsters = (cloud.monsters || []).map((om) => ({
+  p.ownedMonsters = (normalized.monsters || []).map((om) => ({
     id: om.id,
     templateId: om.templateId,
     nickname: om.nickname ?? '',
@@ -116,11 +130,11 @@ export function applyCloudProfile(gameData, cloud) {
     unlockedVisualTags: om.unlockedVisualTags ?? [],
   }));
 
-  if (cloud.battleProgress) p.battleProgress = cloud.battleProgress;
-  if (cloud.meta) p.meta = cloud.meta;
+  if (normalized.battleProgress) p.battleProgress = normalized.battleProgress;
+  if (normalized.meta) p.meta = normalized.meta;
 
-  if (cloud.audioSettings && typeof cloud.audioSettings === 'object') {
-    saveAudioSettings(cloud.audioSettings);
+  if (normalized.audioSettings && typeof normalized.audioSettings === 'object') {
+    saveAudioSettings(normalized.audioSettings);
   }
 
   return gd;

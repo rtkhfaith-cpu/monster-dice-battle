@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { isMobileLayout as isLobbyMobileWidth } from './utils/responsive';
 import BattleScreen from './components/BattleScreen';
+import OnlineDiceBattleScreen from './components/OnlineDiceBattleScreen';
 import MonsterGearScreen from './components/MonsterGearScreen';
 import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
@@ -51,8 +52,8 @@ import {
   updatePlayer,
   walletForProfile,
 } from './utils/gameStorage';
-import { loadGameSave } from './src/services/saveService';
-import { listCloudPlayers, loginCloudProfile } from './src/services/cloudSaveService';
+import { loadGameSave, saveGameSave } from './src/services/saveService';
+import { listCloudPlayers, recallCloudProfile } from './src/services/cloudSaveService';
 import { applyCloudProfile } from './src/services/cloudSaveMapper';
 import { commitProfileDeleted, commitSave, setCloudSyncProfileID } from './src/services/syncCoordinator';
 import { emitSaveStatus } from './src/services/saveStatusBus';
@@ -117,6 +118,7 @@ export default function App() {
   const [setupP1ProfileId, setSetupP1ProfileId] = useState(null);
   const [setupP2ProfileId, setSetupP2ProfileId] = useState(null);
   const unlockedProfileIdsRef = useRef(new Set());
+  const dismissedOnlineBattleRef = useRef(false);
   const [keyModal, setKeyModal] = useState(null);
   const [keyModalError, setKeyModalError] = useState('');
   const [keyModalBusy, setKeyModalBusy] = useState(false);
@@ -173,34 +175,35 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!onlineRoom?.roomCode) return;
+    if (!onlineRoom?.roomCode || phase === 'battle') return;
     const payload = buildOnlineProfilePayload();
     if (payload) syncOnlineProfile(payload);
-  }, [onlineRoom?.roomCode, buildOnlineProfilePayload, setupP1Id, gameData]);
+  }, [onlineRoom?.roomCode, buildOnlineProfilePayload, setupP1Id, gameData, phase]);
 
   function handleOnlineBattleStart(roomState) {
-    const f1 = roomState?.players?.p1?.profile?.fighter;
-    const f2 = roomState?.players?.p2?.profile?.fighter;
-    if (!f1 || !f2) return;
+    if (dismissedOnlineBattleRef.current) return;
+    if (!roomState?.battle?.p1 || !roomState?.battle?.p2) return;
+    if (roomState?.battle?.winner || roomState?.status === 'finished') return;
     const slot = loadOnlineSession()?.playerSlot ?? onlineSlot;
     setOnlineSlot(slot);
     setGameMode('online');
-    beginBattle(f1, f2);
+    setWinner(null);
+    setBattleKey((k) => k + 1);
+    setPhase('battle');
   }
 
   useEffect(() => {
     if (onlineRoom?.status !== 'battle') return;
+    if (onlineRoom?.battle?.winner || dismissedOnlineBattleRef.current) return;
     const playerCount =
       typeof onlineRoom.playerCount === 'number'
         ? onlineRoom.playerCount
         : (onlineRoom.players?.p1?.connected ? 1 : 0) + (onlineRoom.players?.p2?.connected ? 1 : 0);
     if (playerCount < 2) return;
-    const f1 = onlineRoom.players?.p1?.profile?.fighter;
-    const f2 = onlineRoom.players?.p2?.profile?.fighter;
-    if (!f1 || !f2) return;
-    if (phase === 'battle') return;
-    if (phase === 'menu' || phase === 'online') handleOnlineBattleStart(onlineRoom);
-  }, [onlineRoom?.status, onlineRoom?.battle?.seq, onlineRoom?.playerCount, phase]);
+    if (!onlineRoom.battle?.p1 || !onlineRoom.battle?.p2) return;
+    if (phase === 'battle' || phase === 'gameOver') return;
+    if (phase === 'online') handleOnlineBattleStart(onlineRoom);
+  }, [onlineRoom?.status, onlineRoom?.battle?.seq, onlineRoom?.battle?.winner, onlineRoom?.playerCount, phase]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
@@ -452,30 +455,46 @@ export default function App() {
     setKeyModalBusy(true);
     setKeyModalError('');
 
-    const login = await loginCloudProfile(profileId, playerKey);
-    if (!login.ok) {
+    try {
+      const login = await recallCloudProfile(profileId, playerKey);
+      if (!login.ok) {
+        if (login.skipped) {
+          setKeyModalError('Cloud save is not configured on this build.');
+        } else if (login.status === 401) {
+          setKeyModalError('Incorrect key. Please try again.');
+        } else {
+          setKeyModalError(login.error || 'Could not load player from cloud.');
+        }
+        return;
+      }
+
+      const baseGd = gameData || (await loadGameSave());
+      const keyHash = hashPlayerKey(playerKey);
+      let next = applyCloudProfile(baseGd, login.data);
+      if (!next.players?.some((p) => p.id === profileId)) {
+        setKeyModalError('Could not apply cloud save. Try again or redeploy the save API.');
+        return;
+      }
+      next = setPlayerKeyForProfile(next, profileId, keyHash);
+      next = enforceSingleActiveProfile(next, profileId);
+
+      setGameData(next);
+      markProfileUnlocked(profileId);
+      setKeyModal(null);
+      setKeyModalError('');
+
+      await saveGameSave(next);
+      persistSave(next, 'profile_loaded', profileId);
+      emitSaveStatus('player_loaded');
+      applyProfileSelection(profileId, next);
+    } catch (err) {
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.warn('[cloud] finalizeCloudLogin failed', err);
+      }
+      setKeyModalError('Load failed. Check your connection and try again.');
+    } finally {
       setKeyModalBusy(false);
-      setKeyModalError(
-        login.status === 401 ? 'Incorrect key. Please try again.' : login.error || 'Could not load player.',
-      );
-      return;
     }
-
-    const baseGd = gameData || (await loadGameSave());
-    const keyHash = hashPlayerKey(playerKey);
-    let next = applyCloudProfile(baseGd, login.data);
-    next = setPlayerKeyForProfile(next, profileId, keyHash);
-    next = enforceSingleActiveProfile(next, profileId);
-
-    setGameData(next);
-    markProfileUnlocked(profileId);
-    setKeyModal(null);
-    setKeyModalError('');
-    setKeyModalBusy(false);
-
-    persistSave(next, 'profile_loaded', profileId);
-    emitSaveStatus('player_loaded');
-    applyProfileSelection(profileId, next);
   }
 
   async function finalizeProfileDelete(profileId, playerKey) {
@@ -731,6 +750,7 @@ export default function App() {
     }
 
     if (battleExtras?.online) {
+      dismissedOnlineBattleRef.current = true;
       const myId = onlineSlot === 'p2' ? 2 : 1;
       const iWon = outcome === myId;
       setRewardSummary({ coinsAwarded: 0, expP1: null, expP2: null, online: true, iWon });
@@ -777,11 +797,12 @@ export default function App() {
   }
 
   const resetToMenu = useCallback(() => {
+    dismissedOnlineBattleRef.current = true;
     setWinner(null);
     setPlayer1(null);
     setPlayer2(null);
     setRewardSummary(null);
-    setBattleKey(0);
+    setBattleKey((k) => k + 1);
     setPhase('menu');
   }, []);
 
@@ -941,6 +962,7 @@ export default function App() {
             onlineRoom={onlineRoom}
             onlineSlot={onlineSlot}
             onEnterMultiplayer={() => {
+              dismissedOnlineBattleRef.current = false;
               const payload = buildOnlineProfilePayload();
               if (payload) syncOnlineProfile(payload);
               setPhase('online');
@@ -951,8 +973,18 @@ export default function App() {
               setOnlineSlot(null);
             }}
             onOpenOnlineLobby={() => {
-              if (onlineRoom?.status === 'battle') handleOnlineBattleStart(onlineRoom);
-              else setPhase('online');
+              const activeBattle =
+                onlineRoom?.status === 'battle' &&
+                onlineRoom?.battle?.p1 &&
+                onlineRoom?.battle?.p2 &&
+                !onlineRoom?.battle?.winner;
+              if (activeBattle) {
+                dismissedOnlineBattleRef.current = false;
+                handleOnlineBattleStart(onlineRoom);
+              } else {
+                dismissedOnlineBattleRef.current = false;
+                setPhase('online');
+              }
             }}
             onOpenMonsterGearShop={openMonsterGearForActiveSlot}
             onOpenGearMart={() => setGearMartOpen(true)}
@@ -961,7 +993,21 @@ export default function App() {
           />
         )}
 
-        {phase === 'battle' && player1 && player2 && (
+        {phase === 'battle' && gameMode === 'online' && onlineRoom?.battle && !onlineRoom.battle.winner ? (
+          <OnlineDiceBattleScreen
+            key={battleKey}
+            mySlot={onlineSlot ?? loadOnlineSession()?.playerSlot ?? 'p1'}
+            snapshot={onlineRoom.battle}
+            activeTurn={onlineRoom.activeTurn ?? null}
+            emitAction={(action, payload) => emitBattleAction(action, payload)}
+            player1Name={onlineRoom?.players?.p1?.profile?.name ?? 'Player 1'}
+            player2Name={onlineRoom?.players?.p2?.profile?.name ?? 'Player 2'}
+            onFinish={handleBattleFinish}
+            onExitBattle={resetToMenu}
+          />
+        ) : null}
+
+        {phase === 'battle' && gameMode !== 'online' && player1 && player2 ? (
           <BattleScreen
             key={battleKey}
             fighter1={player1}
@@ -969,36 +1015,22 @@ export default function App() {
             onFinish={handleBattleFinish}
             onExitBattle={resetToMenu}
             player1Name={
-              gameMode === 'online'
-                ? onlineRoom?.players?.p1?.profile?.name ?? 'Player 1'
-                : gameData.players.find((p) => p.id === setupP1ProfileId)?.name ??
-                  player1.displayName ??
-                  'Player 1'
+              gameData.players.find((p) => p.id === setupP1ProfileId)?.name ??
+              player1.displayName ??
+              'Player 1'
             }
             player2Name={
               gameMode === 'onePlayer'
                 ? player2.displayName ?? 'CPU'
-                : gameMode === 'online'
-                  ? onlineRoom?.players?.p2?.profile?.name ?? 'Player 2'
-                  : gameData.players.find((p) => p.id === setupP2ProfileId)?.name ??
-                    player2.displayName ??
-                    'Player 2'
+                : gameData.players.find((p) => p.id === setupP2ProfileId)?.name ??
+                  player2.displayName ??
+                  'Player 2'
             }
             opponentLabel={gameMode === 'onePlayer' ? 'CPU' : 'Player 2'}
             opponentIsAi={gameMode === 'onePlayer'}
             battleExtras={{ mode: gameMode }}
-            onlineBattle={
-              gameMode === 'online'
-                ? {
-                    mySlot: onlineSlot,
-                    snapshot: onlineRoom?.battle ?? null,
-                    activeTurn: onlineRoom?.activeTurn ?? null,
-                    emitAction: (action, payload) => emitBattleAction(action, payload),
-                  }
-                : null
-            }
           />
-        )}
+        ) : null}
 
         {phase === 'gameOver' && (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.endCard}>

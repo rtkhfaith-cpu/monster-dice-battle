@@ -193,10 +193,15 @@ function attachSocket(sock) {
 
   sock.on('battleUpdate', (p) => {
     devLog('battleUpdate', p?.battle?.phase, 'seq', p?.battle?.seq);
-    mergeRoomPayload({
-      status: 'battle',
-      battle: p?.battle,
-    });
+    const patch = { battle: p?.battle };
+    const ended =
+      roomState?.status === 'finished' ||
+      !!roomState?.battle?.winner ||
+      !!p?.battle?.winner;
+    if (!ended) {
+      patch.status = 'battle';
+    }
+    mergeRoomPayload(patch);
     notify();
   });
 
