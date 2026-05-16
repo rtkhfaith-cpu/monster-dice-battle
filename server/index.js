@@ -8,20 +8,23 @@ const cors = require('cors');
 const { Server } = require('socket.io');
 
 const PORT = Number(process.env.PORT) || 3000;
-const HOST = '0.0.0.0';
 
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
+// HTTP routes (Express) — same process as Socket.io below
+app.get('/', (_req, res) => {
+  res.send('Monster Battle server is running');
+});
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'monster-dice-battle-socket', t: Date.now() });
 });
 
+// One shared HTTP server: Express handles REST; Socket.io upgrades the same server
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
-});
+const io = new Server(server, { cors: { origin: '*' } });
 
 /** @type {Record<string, { roomCode: string, players: object, battleState: object }>} */
 const rooms = {};
@@ -173,6 +176,6 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`Monster Dice Battle socket server listening on http://${HOST}:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on ${PORT}`);
 });
