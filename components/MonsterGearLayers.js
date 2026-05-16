@@ -105,7 +105,7 @@ export function MonsterGearLayers({ cosmetics = [], stroke = '#2d3561', ST = 6 }
       ) : null}
       {has('durianHelm') ? (
         <G>
-          <Ellipse cx={100} cy={62} rx={52} ry={28} fill="#8bc34a" stroke={stroke} strokeWidth={ST - 1} />
+          <Ellipse cx={100} cy={58} rx={54} ry={30} fill="#8bc34a" stroke={stroke} strokeWidth={ST - 1} />
           <Path d="M 58 58 L 68 42 L 78 56" fill="#689f38" stroke={stroke} strokeWidth={3} strokeLinejoin="round" />
           <Path d="M 88 50 L 100 34 L 112 50" fill="#689f38" stroke={stroke} strokeWidth={3} strokeLinejoin="round" />
           <Path d="M 122 58 L 132 42 L 142 56" fill="#689f38" stroke={stroke} strokeWidth={3} strokeLinejoin="round" />

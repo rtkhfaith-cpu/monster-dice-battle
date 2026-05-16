@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import Svg, { G } from 'react-native-svg';
 import { ThemedMonsterBody } from '../themedMonsterBodies';
 import MonsterGearLayers from '../MonsterGearLayers';
-import { LayerAura, LayerShadow } from '../../art/monsters/layerPrimitives';
+import { LayerAura, LayerRarityRim, LayerShadow } from '../../art/monsters/layerPrimitives';
 import { ART } from '../../utils/artDirection';
 
 /**
@@ -14,6 +14,9 @@ export default function MonsterLayerStack({
   size = 200,
   themeBody,
   themeAura,
+  themePalette = null,
+  themeArchetype = null,
+  showRarityRim = false,
   stroke = ART.outline,
   ST = 6,
   e = 0,
@@ -26,12 +29,15 @@ export default function MonsterLayerStack({
 }) {
   if (!themeBody) return null;
 
+  const rimColor = themePalette?.glow ?? themeAura ?? ART.crit;
+
   return (
     <View style={{ width: size, height: size, alignSelf: 'center' }}>
       <Svg width={size} height={size} viewBox="0 0 200 200">
         <G>
           {showShadow ? <LayerShadow /> : null}
           <LayerAura color={themeAura} />
+          {showRarityRim ? <LayerRarityRim color={rimColor} /> : null}
           <ThemedMonsterBody
             themeBody={themeBody}
             stroke={stroke}
@@ -41,6 +47,8 @@ export default function MonsterLayerStack({
             mood={mood}
             eyeWhite={eyeWhite}
             pupil={pupil}
+            palette={themePalette}
+            archetype={themeArchetype}
           />
           <MonsterGearLayers cosmetics={cosmetics} stroke={stroke} ST={ST} />
         </G>

@@ -2,7 +2,6 @@ import React, { useId, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 import MonsterLayerStack from './monsters/MonsterLayerStack';
-import { ThemedMonsterBody } from './themedMonsterBodies';
 import MonsterGearLayers from './MonsterGearLayers';
 import { ART } from '../utils/artDirection';
 
@@ -119,6 +118,8 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
   const themeEmoji = safe.themeEmoji || null;
   const themeAura = safe.themeAura || null;
   const themeBody = safe.themeBody || null;
+  const themePalette = safe.themePalette || null;
+  const themeArchetype = safe.themeArchetype || null;
   const hasThemedSilhouette = !!themeBody;
 
   return (
@@ -182,6 +183,9 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
           size={size}
           themeBody={themeBody}
           themeAura={themeAura}
+          themePalette={themePalette}
+          themeArchetype={themeArchetype}
+          showRarityRim={safe.rarity === 'legendary' || safe.rarity === 'mythic'}
           stroke={stroke}
           ST={ST}
           e={e}

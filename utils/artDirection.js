@@ -1,17 +1,19 @@
 /**
- * “Cute Chaotic Indie Cartoon Battler” — single visual identity source.
+ * “Cute Cinematic Kaiju Battler” — single visual identity source.
  * Apply these tokens everywhere; do not invent one-off colours in screens.
  */
 
 export const ART = {
-  name: 'Cute Chaotic Indie Cartoon Battler',
+  name: 'Cute Cinematic Kaiju Battler',
 
   /** Ink & depth */
   outline: '#2d3561',
   outlineSoft: '#4a5578',
-  shadow: 'rgba(45, 53, 97, 0.22)',
-  shadowDeep: 'rgba(26, 32, 58, 0.35)',
-  highlight: 'rgba(255, 255, 255, 0.55)',
+  shadow: 'rgba(45, 53, 97, 0.28)',
+  shadowDeep: 'rgba(20, 26, 48, 0.42)',
+  highlight: 'rgba(255, 255, 255, 0.62)',
+  rimLight: 'rgba(255, 255, 255, 0.48)',
+  subsurface: 'rgba(255, 158, 181, 0.5)',
 
   /** Pastel arcade palette */
   skyTop: '#b8e8fc',

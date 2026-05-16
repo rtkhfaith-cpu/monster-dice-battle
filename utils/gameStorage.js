@@ -140,7 +140,7 @@ export function mergeMonsterParts(templateId, overrides = {}) {
     ...overrides,
   };
   if (!Array.isArray(merged.cosmetics)) merged.cosmetics = [];
-  return applyMonsterTheme(templateId, merged);
+  return applyMonsterTheme(templateId, merged, t);
 }
 
 /** @param {string} templateId */
