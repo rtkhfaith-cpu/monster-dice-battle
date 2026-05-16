@@ -1,11 +1,10 @@
 import Constants from 'expo-constants';
 import { io } from 'socket.io-client';
 
-/** Expo injects extra.socketServerUrl via app.config.js from EXPO_PUBLIC_SOCKET_SERVER_URL */
+/** Set at build via app.config.js (EXPO_PUBLIC_* or VITE_* env). */
 export function getSocketServerUrl() {
   const fromExtra = Constants.expoConfig?.extra?.socketServerUrl;
   if (typeof fromExtra !== 'string' || fromExtra.length < 5) return '';
-  // Root origin only — no path (Socket.io uses /socket.io/ automatically)
   return fromExtra.trim().replace(/\/+$/, '');
 }
 

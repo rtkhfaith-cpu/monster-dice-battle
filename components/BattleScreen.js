@@ -7,7 +7,7 @@ import BattleDiceButton from './BattleDiceButton';
 import RpgBattleArena from './RpgBattleArena';
 import { CHAOS_EVENT_IDS, pickRandomChaosEvent, rulesForChaosEvent } from '../utils/chaosEvents';
 import { pickRandomMagic, pickRandomNormal } from '../utils/moves';
-import { resolveMagicHit, resolveNormalHit, resolveSuperStrike } from '../utils/battleLogic';
+import { resolveDiceBattleDamage, resolveSuperStrike } from '../utils/battleLogic';
 import { playSfx } from '../utils/gameSounds';
 import { rollDice } from '../utils/random';
 import { playSound } from '../utils/sounds';
@@ -161,6 +161,8 @@ export default function BattleScreen({
   const [currentEffect, setCurrentEffect] = useState(null);
   const [busy, setBusy] = useState(false);
   const [resultBlurb, setResultBlurb] = useState('');
+  const [bannerMessage, setBannerMessage] = useState('');
+  const [defendGlowSide, setDefendGlowSide] = useState(null);
   const [p1Pose, setP1Pose] = useState('idle');
   const [p2Pose, setP2Pose] = useState('idle');
   const [p1Emotion, setP1Emotion] = useState('neutral');
@@ -230,6 +232,10 @@ export default function BattleScreen({
     setLog((prev) => [...prev, line].slice(-LOG_MAX));
   }, []);
 
+  const showBanner = useCallback((msg) => {
+    if (msg) setBannerMessage(msg);
+  }, []);
+
   function clearTimers() {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = null;
@@ -247,6 +253,12 @@ export default function BattleScreen({
   }
 
   useEffect(() => () => clearTimers(), []);
+
+  useEffect(() => {
+    const msg = `${labelP1}'s Turn — tap your dice`;
+    setInstruction(msg);
+    setBannerMessage(msg);
+  }, [labelP1]);
 
   function doShake(strength) {
     const mag = strength === 'super' ? 22 : strength === 'crit' ? 16 : 9;
@@ -332,11 +344,11 @@ export default function BattleScreen({
       resetMonstersIdle();
       setP1Emotion('neutral');
       setP2Emotion('neutral');
+      setDefendGlowSide(null);
       if (endingDead) wrapUpBattle(np1, np2);
       else {
-        setBattlePhase('roundResult');
-        setInstruction('Tap Next Round to keep fighting!');
-        setResultBlurb(blurb);
+        if (blurb) showBanner(blurb);
+        schedule(1100, () => handleNextRound());
       }
     }, RESOLVE_MS);
   }
@@ -347,19 +359,24 @@ export default function BattleScreen({
       setDiceShoutText(diceShout(val));
       if (playerId === 1) {
         setDiceP1(val);
-        pushLine(`${labelP1} rolled ${val}!`);
+        const rollMsg = `${labelP1} rolled ${val}!`;
+        pushLine(rollMsg);
+        showBanner(rollMsg);
         setBattlePhase('player2Dice');
-        setInstruction('');
+        setInstruction(opponentIsAi ? `${labelP2} is rolling…` : `${labelP2}'s Turn — tap your dice`);
       } else if (playerId === 2) {
         setDiceP2(val);
-        pushLine(`${labelP2} rolled ${val}!`);
+        const rollMsg = `${labelP2} rolled ${val}!`;
+        pushLine(rollMsg);
+        showBanner(rollMsg);
         const p1v = diceP1Ref.current;
         if (val === p1v) {
           pushLine('Draw! Throw again.');
+          showBanner('Draw — roll again!');
           setDiceP1(null);
           setDiceP2(null);
           setBattlePhase('player1Dice');
-          setInstruction('');
+          setInstruction(`${labelP1}'s Turn — tap your dice`);
         } else {
           const atk = val > p1v ? 2 : 1;
           setAttackerId(atk);
@@ -370,21 +387,22 @@ export default function BattleScreen({
               return n;
             });
             pushLine('Homework Monster stole the turn!');
-            setBattlePhase('roundResult');
-            setInstruction('No attack — homework wins!');
-            setResultBlurb('Everyone studies…');
+            showBanner('Everyone studies…');
             setBusy(false);
             setDiceSession({ active: false, player: null, value: 1 });
+            schedule(1400, () => handleNextRound());
             return;
           }
           setBattlePhase('chooseAttack');
-          setInstruction(`${nameFor(atk)} — pick Fight`);
+          const fightMsg = `${nameFor(atk)} — Fight, Defend, or Run`;
+          setInstruction(fightMsg);
+          showBanner(fightMsg);
         }
       }
       setDiceSession({ active: false, player: null, value: 1 });
       setBusy(false);
     },
-    [pushLine, labelP1, labelP2],
+    [pushLine, labelP1, labelP2, opponentIsAi, showBanner],
   );
 
   useEffect(() => {
@@ -448,6 +466,7 @@ export default function BattleScreen({
 
     const movePick = strikeKind === 'magic' ? pickRandomMagic() : pickRandomNormal();
     const defId = attackerId === 1 ? 2 : 1;
+    const defName = nameFor(defId);
 
     let atkPaid = attackerId === 1 ? p1 : p2;
     const defSnap = attackerId === 1 ? p2 : p1;
@@ -460,24 +479,24 @@ export default function BattleScreen({
     const atkRage = isRage(atkPaid);
     if (atkRage) playSound('rage');
 
-    const resolved =
-      strikeKind === 'normal'
-        ? resolveNormalHit({
-            atkRange: atkPaid.stats.attack,
-            defRange: defSnap.stats.def,
-            defenseChoice: mode,
-            dodgePct: defSnap.stats.dodgePct,
-            critPct: atkPaid.stats.critPct,
-            rageMode: atkRage,
-          })
-        : resolveMagicHit({
-            magRange: atkPaid.stats.magic,
-            mdRange: defSnap.stats.magicDef,
-            defenseChoice: mode,
-            dodgePct: defSnap.stats.dodgePct,
-            critPct: atkPaid.stats.critPct,
-            rageMode: atkRage,
-          });
+    const atkDice = attackerId === 1 ? diceP1 : diceP2;
+    const defDice = attackerId === 1 ? diceP2 : diceP1;
+
+    if (mode === 'defend') {
+      setDefendGlowSide(defId);
+      if (defId === 1) setP1Pose('defend');
+      else setP2Pose('defend');
+    }
+
+    const resolved = resolveDiceBattleDamage({
+      attacker: atkPaid,
+      defender: defSnap,
+      attackerDice: atkDice ?? 1,
+      defenderDice: defDice ?? 1,
+      defenseChoice: mode,
+      strikeKind: strikeKind === 'magic' ? 'magic' : 'normal',
+      rageMode: atkRage,
+    });
 
     const dodged = resolved.dodged;
     let dmgFinal = dodged ? 0 : resolved.damage;
@@ -491,19 +510,32 @@ export default function BattleScreen({
     }
 
     const atkName = nameFor(attackerId);
-    const defName = nameFor(defId);
     pushLine(`${atkName} uses ${movePick.name}!`);
     pushLine(`${defName} chooses ${mode === 'defend' ? 'Defend' : 'Dodge'}!`);
+    if (mode === 'defend') {
+      showBanner(`${defName} is defending!`);
+    } else {
+      showBanner(`${defName} tries to dodge!`);
+    }
     if (mode === 'dodge' && dodged) {
       pushLine('Dodge succeeded!');
       playSound('dodge');
       fireTaunt(defId, pickRandomTaunt());
     }
     if (mode === 'dodge' && !dodged) pushLine('Dodge failed!');
-    if (!dodged) pushLine(`${defName} takes ${dmgFinal} damage!`);
+    if (!dodged) {
+      const dmgMsg = `${defName} took ${dmgFinal} damage!`;
+      pushLine(dmgMsg);
+      showBanner(dmgMsg);
+    }
     if (resolved.critical && !dodged && dmgFinal > 0) {
-      pushLine('CRITICAL HIT! Damage doubled!');
+      pushLine('Critical hit!');
+      showBanner('Critical hit!');
       fireTaunt(attackerId, pickRandomTaunt());
+    }
+    if (resolved.weak && !dodged && dmgFinal > 0) {
+      pushLine('Weak hit!');
+      showBanner('Weak hit!');
     }
 
     let nextAtk = { ...atkPaid };
@@ -578,7 +610,7 @@ export default function BattleScreen({
     setStrikeKind(null);
 
     const dead = np1.hp <= 0 || np2.hp <= 0;
-    beginResolveCooldown(np1, np2, dead, dodged ? 'Dodge superstar!' : 'HP updated!');
+    beginResolveCooldown(np1, np2, dead, dodged ? 'Dodge superstar!' : '');
   }
 
   function handlePickStrike(kind) {
@@ -600,7 +632,9 @@ export default function BattleScreen({
     setStrikeKind(kind);
     const defId = attackerId === 1 ? 2 : 1;
     setBattlePhase('chooseDefense');
-    setInstruction(`${nameFor(defId)} — Defend or Dodge`);
+    const defMsg = `${nameFor(defId)} — Defend or Dodge`;
+    setInstruction(defMsg);
+    showBanner(defMsg);
   }
 
   function runSuperAttack(attkId, atk, def) {
@@ -672,16 +706,15 @@ export default function BattleScreen({
         setP2Emotion('neutral');
         if (dead) wrapUpBattle(np1, np2);
         else {
-          setBattlePhase('roundResult');
-          setInstruction('Tap Next Round to keep fighting!');
-          setResultBlurb('Super fallout clears.');
+          showBanner('Super fallout clears.');
+          schedule(1100, () => handleNextRound());
         }
       });
     });
   }
 
   function handleNextRound() {
-    if (battlePhase !== 'roundResult' || busy) return;
+    if (busy) return;
     const nextR = round + 1;
     let n1 = p1;
     let n2 = p2;
@@ -711,11 +744,14 @@ export default function BattleScreen({
     setStrikeKind(null);
     setCurrentEffect(null);
     setResultBlurb('');
+    setBannerMessage('');
+    setDefendGlowSide(null);
     setP1Emotion('neutral');
     setP2Emotion('neutral');
     resetMonstersIdle();
     setBattlePhase('player1Dice');
-    setInstruction('');
+    setInstruction(`${labelP1}'s Turn — tap your dice`);
+    showBanner(`${labelP1}'s Turn — tap your dice`);
   }
 
   const atkBtn = attackerId === 1 ? p1 : attackerId === 2 ? p2 : null;
@@ -729,24 +765,21 @@ export default function BattleScreen({
     return 1;
   })();
 
-  const activeName = nameFor(activeTurn);
-  const turnBadge = `${activeName}'s Turn`;
-
-  function compactDicePrompt() {
-    if (battlePhase === 'player1Dice') return `${labelP1} — tap dice`;
-    if (battlePhase === 'player2Dice') return `${labelP2} — tap dice`;
-    if (battlePhase === 'chooseAttack') return `${nameFor(attackerId)} — Fight`;
-    if (battlePhase === 'chooseDefense') return `${nameFor(attackerId === 1 ? 2 : 1)} — Defend`;
-    if (battlePhase === 'roundResult') return 'Next round';
+  function turnPromptText() {
+    if (battlePhase === 'player1Dice') return `${labelP1}'s Turn — tap your dice`;
+    if (battlePhase === 'player2Dice') {
+      if (opponentIsAi) return `${labelP2} is rolling…`;
+      return `${labelP2}'s Turn — tap your dice`;
+    }
+    if (battlePhase === 'chooseAttack') return `${nameFor(attackerId)} — pick Fight`;
+    if (battlePhase === 'chooseDefense') return `${nameFor(attackerId === 1 ? 2 : 1)} — Defend or Dodge`;
     return '';
   }
 
+  const turnBadge = turnPromptText() || `${nameFor(activeTurn)}'s Turn`;
+
   function handleFightPress() {
     if (busy || diceSession.active) return;
-    if (battlePhase === 'roundResult') {
-      handleNextRound();
-      return;
-    }
     if (battlePhase === 'chooseAttack') {
       handlePickStrike('normal');
     }
@@ -788,53 +821,62 @@ export default function BattleScreen({
   }
 
   function renderDiceControl() {
-    const isP1 = battlePhase === 'player1Dice';
-    const isP2 = battlePhase === 'player2Dice';
-    const canRoll =
-      (isP1 && !busy && !diceSession.active) || (isP2 && !busy && !diceSession.active && diceP1 != null);
-
-    let shownValue = null;
-    if (!diceSession.active) {
-      if (isP2 && diceP2 != null) shownValue = diceP2;
-      else if (diceP1 != null) shownValue = diceP1;
-      else if (diceP2 != null) shownValue = diceP2;
-    }
-
-    const prompt = compactDicePrompt();
+    const isP1Roll = battlePhase === 'player1Dice';
+    const isP2Roll = battlePhase === 'player2Dice';
+    const p1CanRoll = isP1Roll && !busy && !diceSession.active;
+    const p2CanRoll = isP2Roll && !busy && !diceSession.active && diceP1 != null;
+    const p1Rolling = diceSession.active && diceSession.player === 1;
+    const p2Rolling = diceSession.active && diceSession.player === 2;
+    const p1Active =
+      isP1Roll || (activeTurn === 1 && (battlePhase === 'chooseAttack' || battlePhase === 'chooseDefense'));
+    const p2Active =
+      isP2Roll || (activeTurn === 2 && (battlePhase === 'chooseAttack' || battlePhase === 'chooseDefense'));
+    const prompt = turnPromptText();
 
     return (
       <View style={styles.diceDock}>
         {prompt ? (
-          <Text style={styles.dicePrompt} numberOfLines={1}>
+          <Text style={styles.dicePrompt} numberOfLines={2}>
             {prompt}
           </Text>
         ) : null}
-        <BattleDiceButton
-          rolling={diceSession.active}
-          rollValue={diceSession.value}
-          shownValue={shownValue}
-          canRoll={canRoll}
-          onPress={isP1 ? handleThrowPlayer1Dice : isP2 ? handleThrowPlayer2Dice : undefined}
-          onRollComplete={onDiceRollFinished}
-          size={diceSize}
-          durationMs={1000}
-          compact
-        />
-        {!diceSession.active && diceP1 != null && diceP2 != null ? (
-          <Text style={styles.dicePairTxt} numberOfLines={1}>
-            {labelP1}: {diceP1} · {labelP2}: {diceP2}
-          </Text>
-        ) : null}
+        <View style={styles.dualDiceRow}>
+          <BattleDiceButton
+            sideLabel={labelP1}
+            rolling={p1Rolling}
+            rollValue={diceSession.value}
+            shownValue={p1Rolling ? null : diceP1}
+            canRoll={p1CanRoll}
+            active={p1Active}
+            dimmed={!p1Active && !p1CanRoll}
+            onPress={handleThrowPlayer1Dice}
+            onRollComplete={onDiceRollFinished}
+            size={diceSize}
+            durationMs={1000}
+            compact
+          />
+          <BattleDiceButton
+            sideLabel={labelP2}
+            rolling={p2Rolling}
+            rollValue={diceSession.value}
+            shownValue={p2Rolling ? null : diceP2}
+            canRoll={p2CanRoll}
+            active={p2Active}
+            dimmed={!p2Active && !p2CanRoll}
+            onPress={handleThrowPlayer2Dice}
+            onRollComplete={onDiceRollFinished}
+            size={diceSize}
+            durationMs={1000}
+            compact
+          />
+        </View>
       </View>
     );
   }
 
   function renderActionDock() {
     const sub = [];
-    const fightEnabled =
-      !busy &&
-      !diceSession.active &&
-      (battlePhase === 'chooseAttack' || battlePhase === 'roundResult');
+    const fightEnabled = !busy && !diceSession.active && battlePhase === 'chooseAttack';
     const defendEnabled =
       !busy && !diceSession.active && battlePhase === 'chooseDefense';
 
@@ -852,7 +894,7 @@ export default function BattleScreen({
       sub.push(renderMenuBtn('dd', 'Dodge', () => handlePickDefense('dodge'), 'smoke'));
     }
 
-    const fightLabel = battlePhase === 'roundResult' ? 'Next' : 'Fight';
+    const fightLabel = 'Fight';
 
     return (
       <View style={styles.actionDock}>
@@ -889,13 +931,13 @@ export default function BattleScreen({
   pickDefenseRef.current = handlePickDefense;
 
   const { height: vh, width: vw } = useWindowDimensions();
-  const diceSize = vh < 680 || vw < 520 ? 64 : 72;
+  const diceSize = vh < 680 || vw < 520 ? 58 : 66;
 
   const floaterMessage =
-    (log.length ? log[log.length - 1] : '') ||
+    diceShoutText ||
+    (log.length && !bannerMessage ? log[log.length - 1] : '') ||
     instruction ||
     resultBlurb ||
-    diceShoutText ||
     '';
 
   return (
@@ -931,8 +973,16 @@ export default function BattleScreen({
             superJumpSide={superJumpSide}
             p1Rage={isRage(p1)}
             p2Rage={isRage(p2)}
+            defendGlowP1={defendGlowSide === 1}
+            defendGlowP2={defendGlowSide === 2}
           />
-          {floaterMessage ? (
+          {bannerMessage ? (
+            <View style={styles.battleBanner} pointerEvents="none">
+              <Text style={styles.battleBannerTxt} numberOfLines={3}>
+                {bannerMessage}
+              </Text>
+            </View>
+          ) : floaterMessage ? (
             <View style={styles.battleFloater} pointerEvents="none">
               <Text style={styles.battleFloaterTxt} numberOfLines={2}>
                 {floaterMessage}
@@ -1020,10 +1070,46 @@ const styles = StyleSheet.create({
   },
   battleFloaterTxt: {
     fontWeight: '800',
-    fontSize: 13,
+    fontSize: 16,
     color: '#fff8e8',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 22,
+  },
+  battleBanner: {
+    position: 'absolute',
+    top: '14%',
+    left: '5%',
+    right: '5%',
+    zIndex: 20,
+    alignItems: 'center',
+    alignSelf: 'center',
+    maxWidth: '92%',
+    backgroundColor: 'rgba(26, 26, 46, 0.94)',
+    borderRadius: 14,
+    borderWidth: 3,
+    borderColor: '#ffd166',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  battleBannerTxt: {
+    fontWeight: '900',
+    fontSize: 22,
+    color: '#fff8e8',
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  dualDiceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 10,
+    width: '100%',
+    paddingHorizontal: 4,
   },
   fxStrip: {
     position: 'absolute',
@@ -1041,8 +1127,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   dicePrompt: {
-    fontWeight: '800',
-    fontSize: 12,
+    fontWeight: '900',
+    fontSize: 14,
     color: '#1a1a2e',
     textAlign: 'center',
     marginBottom: 4,
@@ -1081,7 +1167,7 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 8,
     width: '100%',
-    maxHeight: 124,
+    maxHeight: 132,
   },
   logWrap: {
     maxHeight: 44,
@@ -1106,13 +1192,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 2,
     borderColor: BATTLE.dockBorder,
-    paddingVertical: 7,
+    paddingVertical: 10,
     paddingHorizontal: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   menuBtnTxt: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '900',
     color: '#1a1a2e',
     textAlign: 'center',

@@ -97,7 +97,7 @@ export default function OnlineLobbyScreen({ onBack }) {
       <Text style={styles.title}>Online Multiplayer</Text>
       <Text style={styles.note}>
         {status === 'no_env'
-          ? 'Online multiplayer server is not configured yet. Set EXPO_PUBLIC_SOCKET_SERVER_URL and restart Expo.'
+          ? 'Online multiplayer server is not configured yet. Set EXPO_PUBLIC_SOCKET_SERVER_URL or VITE_SOCKET_SERVER_URL (Lightsail socket URL) and rebuild.'
           : 'Experimental Socket.io lobby — battle sync is minimal; local modes remain the full game.'}
       </Text>
 

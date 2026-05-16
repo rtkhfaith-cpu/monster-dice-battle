@@ -82,16 +82,18 @@ export default function RpgBattleArena({
   superJumpSide,
   p1Rage,
   p2Rage,
+  defendGlowP1 = false,
+  defendGlowP2 = false,
 }) {
   const { width, height } = useWindowDimensions();
   const short = height < 680;
   const narrow = width < 520;
 
   const monsterSize = useMemo(() => {
-    const byH = Math.floor(height * (short ? 0.22 : 0.26));
-    const byW = Math.floor(width * (narrow ? 0.4 : 0.36));
-    const cap = short ? 160 : 200;
-    const floor = short ? 88 : 100;
+    const byH = Math.floor(height * (short ? 0.28 : 0.33));
+    const byW = Math.floor(width * (narrow ? 0.5 : 0.46));
+    const cap = short ? 205 : 255;
+    const floor = short ? 110 : 128;
     return Math.max(floor, Math.min(cap, byH, byW));
   }, [width, height, short, narrow]);
 
@@ -182,7 +184,8 @@ export default function RpgBattleArena({
               {p2Bubble}
             </Text>
           ) : null}
-          <View style={styles.faceLeft}>
+          <View style={[styles.faceLeft, styles.monsterWrap]}>
+            {defendGlowP2 ? <View style={styles.shieldRing} pointerEvents="none" /> : null}
             <AnimatedMonster
               parts={p2.monsterParts}
               size={monsterSize}
@@ -212,15 +215,18 @@ export default function RpgBattleArena({
               {p1Bubble}
             </Text>
           ) : null}
-          <AnimatedMonster
-            parts={p1.monsterParts}
-            size={monsterSize}
-            pose={p1Pose}
-            side="left"
-            mood={p1Mood}
-            rage={p1Rage}
-            superJump={superJumpSide === 'left'}
-          />
+          <View style={styles.monsterWrap}>
+            {defendGlowP1 ? <View style={styles.shieldRing} pointerEvents="none" /> : null}
+            <AnimatedMonster
+              parts={p1.monsterParts}
+              size={monsterSize}
+              pose={p1Pose}
+              side="left"
+              mood={p1Mood}
+              rage={p1Rage}
+              superJump={superJumpSide === 'left'}
+            />
+          </View>
         </Animated.View>
         <BattlerInfoPanel
           title={player1Label}
@@ -404,12 +410,34 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    maxWidth: '58%',
+    maxWidth: '62%',
     minHeight: 0,
     minWidth: 0,
     zIndex: 2,
+    overflow: 'visible',
   },
-  faceLeft: { transform: [{ scaleX: -1 }] },
+  monsterWrap: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    overflow: 'visible',
+  },
+  faceLeft: { transform: [{ scaleX: -1 }], overflow: 'visible' },
+  shieldRing: {
+    position: 'absolute',
+    alignSelf: 'center',
+    width: '115%',
+    aspectRatio: 1,
+    borderRadius: 999,
+    borderWidth: 4,
+    borderColor: '#48cae4',
+    backgroundColor: 'rgba(72, 202, 228, 0.22)',
+    bottom: '8%',
+    zIndex: 3,
+    shadowColor: '#94d2bd',
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    elevation: 6,
+  },
   bubble: {
     backgroundColor: '#fff',
     borderWidth: 2,
