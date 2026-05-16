@@ -1,0 +1,678 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EXP_LOSER, EXP_WINNER, EXP_UNDERDOG_BONUS, expToAdvanceFrom, addExperience } from './expLevel';
+import { WINNER_COINS, LOSER_COINS, DRAW_COINS_EACH } from './rewards';
+import { equipGearInSlot, getGear } from './cosmetics';
+import { expMultiplierFromGear } from './gearStats';
+import { evolutionStageFromLevel } from './evolution';
+import { getMonsterTemplate, rarityRank } from './monsterTemplates';
+
+export const SAVE_KEY = 'MONSTER_DICE_BATTLE_SAVE';
+const LEGACY_KEY_V2 = 'monster_dice_battle_v2';
+
+/** @typedef {{ id: string, templateId: string, nickname: string, level: number, exp: number, monsterParts: object, equippedGear?: string[], unlockedVisualTags?: string[] }} OwnedMonster */
+
+/** @typedef {{
+ * id: string,
+ * name: string,
+ * pin: string,
+ * coins: number,
+ * ownedMonsters: OwnedMonster[],
+ * cosmeticsOwned: string[],
+ * cosmeticEquippedP1: string[],
+ * cosmeticEquippedP2: string[],
+ * selectedMonsterId?: string|null,
+ * battleProgress?: { totalBattles: number, winStreak: number, lossStreak: number },
+ * meta?: { difficultyMode: 'easy'|'normal'|'hard'|'boss', aiBias: number, consecutiveLosses: number, consecutiveEasyWins: number, lastAiPowerRatio: number|null },
+ * }} PlayerProfile */
+
+export const MAX_PLAYER_PROFILES = 5;
+
+function defaultProfileMeta() {
+  return {
+    difficultyMode: /** @type {'normal'} */ ('normal'),
+    aiBias: 0,
+    consecutiveLosses: 0,
+    consecutiveEasyWins: 0,
+    lastAiPowerRatio: null,
+  };
+}
+
+function defaultBattleProgress() {
+  return { totalBattles: 0, winStreak: 0, lossStreak: 0 };
+}
+
+function uid(prefix) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** Deep-ish clone for plain JSON data */
+export function cloneGameData(src) {
+  return JSON.parse(JSON.stringify(src));
+}
+
+export function getDefaultGameData() {
+  return {
+    version: 1,
+    players: /** @type {PlayerProfile[]} */ ([]),
+    session: {
+      activeProfileId: null,
+    },
+    guest: {
+      coins: 0,
+      ownedMonsters: /** @type {OwnedMonster[]} */ ([]),
+      cosmeticsOwned: /** @type {string[]} */ ([]),
+      cosmeticEquippedP1: /** @type {string[]} */ ([]),
+      cosmeticEquippedP2: /** @type {string[]} */ ([]),
+    },
+    settings: {
+      soundEnabled: true,
+      vibrationEnabled: true,
+    },
+    meta: {
+      difficultyMode: /** @type {'easy'|'normal'|'hard'|'boss'} */ ('normal'),
+      aiBias: 0,
+      consecutiveLosses: 0,
+      consecutiveEasyWins: 0,
+      lastAiPowerRatio: null,
+    },
+    battleSummary: {
+      totalBattles: 0,
+      winStreakGuest: 0,
+      lossStreakGuest: 0,
+    },
+  };
+}
+
+/** Wallet resolved from guest or active profile */
+export function activeWallet(gameData) {
+  return walletForProfile(gameData, gameData?.session?.activeProfileId ?? null);
+}
+
+/** Wallet for a specific saved profile (guest fallback when id is null). */
+export function walletForProfile(gameData, profileId) {
+  if (!profileId) return gameData.guest;
+  const p = gameData.players.find((x) => x.id === profileId);
+  return p ?? gameData.guest;
+}
+
+export function getPlayerProfile(gameData, profileId) {
+  if (!profileId) return null;
+  return gameData.players.find((x) => x.id === profileId) ?? null;
+}
+
+/** Meta used for 1P AI scaling — per profile when available. */
+export function metaForProfile(gameData, profileId) {
+  const p = profileId ? getPlayerProfile(gameData, profileId) : null;
+  return p?.meta ?? gameData.meta;
+}
+
+export function mergeMonsterParts(templateId, overrides = {}) {
+  const t = getMonsterTemplate(templateId);
+  const base = t?.visualProfile?.defaultParts ? { ...t.visualProfile.defaultParts } : {};
+  const merged = {
+    species: 0,
+    body: 0,
+    head: 0,
+    eyes: 0,
+    mouth: 0,
+    horn: 0,
+    tail: 0,
+    hands: 0,
+    legs: 0,
+    colorIdx: 0,
+    cosmetics: [],
+    ...base,
+    ...overrides,
+  };
+  if (!Array.isArray(merged.cosmetics)) merged.cosmetics = [];
+  return merged;
+}
+
+/** @param {string} templateId */
+export function generateOwnedMonster(templateId, nickname = '') {
+  const t = getMonsterTemplate(templateId);
+  if (!t) throw new Error(`Unknown template ${templateId}`);
+  return {
+    id: uid('om'),
+    templateId,
+    nickname: nickname || t.name,
+    level: 1,
+    exp: 0,
+    monsterParts: mergeMonsterParts(templateId),
+    equippedGear: [],
+    unlockedVisualTags: [],
+  };
+}
+
+function normalizeOwnedMonster(om) {
+  if (!Array.isArray(om.equippedGear)) om.equippedGear = [];
+  om.equippedGear = om.equippedGear.filter((id) => typeof id === 'string' && getGear(id));
+  if (!om.monsterParts) om.monsterParts = mergeMonsterParts(om.templateId);
+}
+
+function migrateLegacyWalletGear(wallet) {
+  if (!wallet.ownedMonsters?.length) return;
+  const applyList = (list, index) => {
+    if (!Array.isArray(list) || !list.length) return;
+    const om = wallet.ownedMonsters[index];
+    if (!om || (om.equippedGear && om.equippedGear.length > 0)) return;
+    let eq = [];
+    for (const id of list) {
+      if (getGear(id)) eq = equipGearInSlot(eq, id);
+    }
+    om.equippedGear = eq;
+    const owned = new Set(wallet.cosmeticsOwned || []);
+    for (const id of list) if (getGear(id)) owned.add(id);
+    wallet.cosmeticsOwned = [...owned];
+  };
+  applyList(wallet.cosmeticEquippedP1, 0);
+  applyList(wallet.cosmeticEquippedP2, 1);
+}
+
+function normalizeWalletMonsters(wallet) {
+  if (!wallet.ownedMonsters) wallet.ownedMonsters = [];
+  wallet.ownedMonsters.forEach(normalizeOwnedMonster);
+  migrateLegacyWalletGear(wallet);
+}
+
+function normalizePlayerProfile(p) {
+  if (!p.name || typeof p.name !== 'string') p.name = 'Player';
+  p.name = String(p.name).slice(0, 24);
+  if (!p.pin) p.pin = '0000';
+  if (typeof p.coins !== 'number') p.coins = 0;
+  if (!Array.isArray(p.cosmeticsOwned)) p.cosmeticsOwned = [];
+  if (!Array.isArray(p.cosmeticEquippedP1)) p.cosmeticEquippedP1 = [];
+  if (!Array.isArray(p.cosmeticEquippedP2)) p.cosmeticEquippedP2 = [];
+  normalizeWalletMonsters(p);
+  if (p.selectedMonsterId && !p.ownedMonsters.some((om) => om.id === p.selectedMonsterId)) {
+    p.selectedMonsterId = p.ownedMonsters[0]?.id ?? null;
+  }
+  if (!p.selectedMonsterId && p.ownedMonsters[0]) p.selectedMonsterId = p.ownedMonsters[0].id;
+  if (!p.battleProgress) p.battleProgress = defaultBattleProgress();
+  if (!p.meta) p.meta = defaultProfileMeta();
+}
+
+function ensureStarterMonsters(wallet) {
+  if (!wallet.ownedMonsters) wallet.ownedMonsters = [];
+  if (wallet.ownedMonsters.length > 0) return;
+  wallet.ownedMonsters.push(generateOwnedMonster('cockroachsaurus'));
+  wallet.ownedMonsters.push(generateOwnedMonster('chickenzilla'));
+}
+
+function migrateLegacyV2Into(gameData, legacyParsed) {
+  if (!legacyParsed || typeof legacyParsed !== 'object') return gameData;
+  gameData.guest.coins += typeof legacyParsed.coins === 'number' ? legacyParsed.coins : 0;
+  const owned = Array.isArray(legacyParsed.owned) ? legacyParsed.owned.filter((x) => typeof x === 'string') : [];
+  gameData.guest.cosmeticsOwned = [...new Set([...(gameData.guest.cosmeticsOwned || []), ...owned])];
+  const e1 = Array.isArray(legacyParsed.equippedP1) ? legacyParsed.equippedP1.filter((x) => typeof x === 'string') : [];
+  const e2 = Array.isArray(legacyParsed.equippedP2) ? legacyParsed.equippedP2.filter((x) => typeof x === 'string') : [];
+  if (e1.length) gameData.guest.cosmeticEquippedP1 = e1.slice(0, 8);
+  if (e2.length) gameData.guest.cosmeticEquippedP2 = e2.slice(0, 8);
+  ensureStarterMonsters(gameData.guest);
+  return gameData;
+}
+
+function normalizeGameData(raw) {
+  const d = getDefaultGameData();
+  if (!raw || typeof raw !== 'object') return d;
+  d.version = typeof raw.version === 'number' ? raw.version : 1;
+  d.players = Array.isArray(raw.players) ? raw.players.filter((p) => p && p.id) : [];
+  d.session = { activeProfileId: raw.session?.activeProfileId ?? null };
+  if (raw.guest && typeof raw.guest === 'object') {
+    d.guest.coins = typeof raw.guest.coins === 'number' ? Math.max(0, raw.guest.coins) : 0;
+    d.guest.ownedMonsters = Array.isArray(raw.guest.ownedMonsters) ? raw.guest.ownedMonsters : [];
+    d.guest.cosmeticsOwned = Array.isArray(raw.guest.cosmeticsOwned) ? raw.guest.cosmeticsOwned.filter((x) => typeof x === 'string') : [];
+    d.guest.cosmeticEquippedP1 = Array.isArray(raw.guest.cosmeticEquippedP1) ? raw.guest.cosmeticEquippedP1 : [];
+    d.guest.cosmeticEquippedP2 = Array.isArray(raw.guest.cosmeticEquippedP2) ? raw.guest.cosmeticEquippedP2 : [];
+  }
+  if (raw.settings && typeof raw.settings === 'object') {
+    d.settings.soundEnabled = raw.settings.soundEnabled !== false;
+    d.settings.vibrationEnabled = raw.settings.vibrationEnabled !== false;
+  }
+  if (raw.meta && typeof raw.meta === 'object') {
+    const dm = raw.meta.difficultyMode;
+    if (dm === 'easy' || dm === 'normal' || dm === 'hard' || dm === 'boss') d.meta.difficultyMode = dm;
+    d.meta.aiBias = typeof raw.meta.aiBias === 'number' ? raw.meta.aiBias : 0;
+    d.meta.consecutiveLosses = typeof raw.meta.consecutiveLosses === 'number' ? raw.meta.consecutiveLosses : 0;
+    d.meta.consecutiveEasyWins = typeof raw.meta.consecutiveEasyWins === 'number' ? raw.meta.consecutiveEasyWins : 0;
+  }
+  if (raw.battleSummary && typeof raw.battleSummary === 'object') {
+    d.battleSummary.totalBattles = typeof raw.battleSummary.totalBattles === 'number' ? raw.battleSummary.totalBattles : 0;
+    d.battleSummary.winStreakGuest = typeof raw.battleSummary.winStreakGuest === 'number' ? raw.battleSummary.winStreakGuest : 0;
+    d.battleSummary.lossStreakGuest = typeof raw.battleSummary.lossStreakGuest === 'number' ? raw.battleSummary.lossStreakGuest : 0;
+  }
+  ensureStarterMonsters(d.guest);
+  normalizeWalletMonsters(d.guest);
+  d.players.forEach((p) => normalizePlayerProfile(p));
+  return ensureProfilesFromGuest(d);
+}
+
+export async function loadGameData() {
+  try {
+    const rawNew = await AsyncStorage.getItem(SAVE_KEY);
+    if (rawNew) {
+      const parsed = JSON.parse(rawNew);
+      return normalizeGameData(parsed);
+    }
+    const gd = getDefaultGameData();
+    const rawLegacy = await AsyncStorage.getItem(LEGACY_KEY_V2);
+    if (rawLegacy) {
+      try {
+        migrateLegacyV2Into(gd, JSON.parse(rawLegacy));
+      } catch {
+        /* ignore */
+      }
+      ensureStarterMonsters(gd.guest);
+      await saveGameData(gd);
+      return gd;
+    }
+    ensureStarterMonsters(gd.guest);
+    await saveGameData(gd);
+    return gd;
+  } catch {
+    const gd = getDefaultGameData();
+    ensureStarterMonsters(gd.guest);
+    return gd;
+  }
+}
+
+export async function saveGameData(gameData) {
+  ensureStarterMonsters(gameData.guest);
+  await AsyncStorage.setItem(SAVE_KEY, JSON.stringify(gameData));
+}
+
+export async function resetGameData() {
+  const fresh = getDefaultGameData();
+  ensureStarterMonsters(fresh.guest);
+  await saveGameData(fresh);
+  return fresh;
+}
+
+/** --- Profiles --- */
+
+/** Create first profile from guest save or a blank starter when none exist. */
+export function ensureProfilesFromGuest(gameData) {
+  const gd = cloneGameData(gameData);
+  if (gd.players.length > 0) {
+    if (!gd.session.activeProfileId) gd.session.activeProfileId = gd.players[0].id;
+    return gd;
+  }
+  const g = gd.guest;
+  const hasGuest =
+    (g.ownedMonsters?.length ?? 0) > 0 || g.coins > 0 || (g.cosmeticsOwned?.length ?? 0) > 0;
+  const id = uid('pl');
+  const profile = {
+    id,
+    name: 'Player 1',
+    pin: '0000',
+    coins: hasGuest ? g.coins : 0,
+    ownedMonsters: hasGuest ? g.ownedMonsters : [],
+    cosmeticsOwned: hasGuest ? [...(g.cosmeticsOwned || [])] : [],
+    cosmeticEquippedP1: hasGuest ? [...(g.cosmeticEquippedP1 || [])] : [],
+    cosmeticEquippedP2: hasGuest ? [...(g.cosmeticEquippedP2 || [])] : [],
+    selectedMonsterId: null,
+    battleProgress: {
+      totalBattles: gd.battleSummary?.totalBattles ?? 0,
+      winStreak: gd.battleSummary?.winStreakGuest ?? 0,
+      lossStreak: gd.battleSummary?.lossStreakGuest ?? 0,
+    },
+    meta: {
+      difficultyMode: gd.meta?.difficultyMode ?? 'normal',
+      aiBias: gd.meta?.aiBias ?? 0,
+      consecutiveLosses: gd.meta?.consecutiveLosses ?? 0,
+      consecutiveEasyWins: gd.meta?.consecutiveEasyWins ?? 0,
+      lastAiPowerRatio: gd.meta?.lastAiPowerRatio ?? null,
+    },
+  };
+  ensureStarterMonsters(profile);
+  normalizePlayerProfile(profile);
+  gd.players.push(profile);
+  gd.session.activeProfileId = id;
+  return gd;
+}
+
+/** @returns {{ gameData: object, playerId?: string, error?: string }} */
+export function createPlayerProfile(gameData, name) {
+  const gd = cloneGameData(gameData);
+  if (gd.players.length >= MAX_PLAYER_PROFILES) {
+    return { gameData: gd, error: 'Maximum 5 players saved.' };
+  }
+  const id = uid('pl');
+  const profile = {
+    id,
+    name: String(name || 'New Player').trim().slice(0, 24) || 'New Player',
+    pin: '0000',
+    coins: 0,
+    ownedMonsters: [],
+    cosmeticsOwned: [],
+    cosmeticEquippedP1: [],
+    cosmeticEquippedP2: [],
+    selectedMonsterId: null,
+    battleProgress: defaultBattleProgress(),
+    meta: defaultProfileMeta(),
+  };
+  ensureStarterMonsters(profile);
+  normalizePlayerProfile(profile);
+  gd.players.push(profile);
+  gd.session.activeProfileId = id;
+  return { gameData: gd, playerId: id };
+}
+
+/** @deprecated use createPlayerProfile */
+export function createPlayer(gameData, name, pin) {
+  const res = createPlayerProfile(gameData, name);
+  if (res.error) throw new Error(res.error);
+  const gd = res.gameData;
+  const p = gd.players.find((x) => x.id === res.playerId);
+  if (p && pin) p.pin = String(pin || '0000').replace(/\D/g, '').slice(0, 4).padStart(4, '0');
+  return gd;
+}
+
+export function setActiveProfile(gameData, profileId) {
+  const gd = cloneGameData(gameData);
+  if (!profileId) {
+    gd.session.activeProfileId = null;
+    return gd;
+  }
+  if (!gd.players.some((p) => p.id === profileId)) return gd;
+  gd.session.activeProfileId = profileId;
+  return gd;
+}
+
+export function setProfileSelectedMonster(gameData, profileId, ownedMonsterId) {
+  const gd = cloneGameData(gameData);
+  const p = gd.players.find((x) => x.id === profileId);
+  if (!p) return gd;
+  if (ownedMonsterId && !p.ownedMonsters.some((om) => om.id === ownedMonsterId)) return gd;
+  p.selectedMonsterId = ownedMonsterId || null;
+  return gd;
+}
+
+export function updatePlayer(gameData, playerId, updates) {
+  const gd = cloneGameData(gameData);
+  const i = gd.players.findIndex((p) => p.id === playerId);
+  if (i < 0) return gd;
+  gd.players[i] = { ...gd.players[i], ...updates };
+  return gd;
+}
+
+export function deletePlayer(gameData, playerId) {
+  const gd = cloneGameData(gameData);
+  gd.players = gd.players.filter((p) => p.id !== playerId);
+  if (gd.session.activeProfileId === playerId) gd.session.activeProfileId = null;
+  return gd;
+}
+
+export function verifyPlayerPin(gameData, playerId, pin) {
+  const p = gameData.players.find((x) => x.id === playerId);
+  if (!p) return false;
+  return p.pin === String(pin || '').replace(/\D/g, '').slice(0, 4).padStart(4, '0');
+}
+
+/** --- Monsters --- */
+
+export function buyMonster(gameData, playerId, monsterTypeId) {
+  const gd = cloneGameData(gameData);
+  const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const t = getMonsterTemplate(monsterTypeId);
+  if (!t) return { gameData: gd, error: 'Unknown monster' };
+  if (wallet.coins < t.price) return { gameData: gd, error: 'Not enough coins' };
+  wallet.coins -= t.price;
+  const om = generateOwnedMonster(monsterTypeId);
+  wallet.ownedMonsters.push(om);
+  return { gameData: gd, ownedMonster: om };
+}
+
+/**
+ * Buy gear, add to wallet owned list, equip on target monster (replaces same slot).
+ */
+export function buyGearForMonster(gameData, playerId, ownedMonsterId, gearId) {
+  const gd = cloneGameData(gameData);
+  const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const item = getGear(gearId);
+  if (!item) return { gameData: gd, error: 'Unknown gear' };
+  if (wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Already owned' };
+  if (wallet.coins < item.price) return { gameData: gd, error: 'Not enough coins' };
+  const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
+  if (!om) return { gameData: gd, error: 'Monster not found' };
+
+  wallet.coins -= item.price;
+  wallet.cosmeticsOwned = [...new Set([...wallet.cosmeticsOwned, gearId])];
+  om.equippedGear = equipGearInSlot(om.equippedGear || [], gearId);
+  normalizeOwnedMonster(om);
+  return { gameData: gd };
+}
+
+/** Equip owned gear onto monster (must already own item). */
+export function equipOwnedGear(gameData, playerId, ownedMonsterId, gearId) {
+  const gd = cloneGameData(gameData);
+  const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  if (!wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Not owned yet' };
+  const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
+  if (!om) return { gameData: gd, error: 'Monster not found' };
+  om.equippedGear = equipGearInSlot(om.equippedGear || [], gearId);
+  return { gameData: gd };
+}
+
+export function unequipOwnedGear(gameData, playerId, ownedMonsterId, gearId) {
+  const gd = cloneGameData(gameData);
+  const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
+  if (!om) return { gameData: gd, error: 'Monster not found' };
+  om.equippedGear = (om.equippedGear || []).filter((id) => id !== gearId);
+  return { gameData: gd };
+}
+
+export function updateOwnedMonster(gameData, playerId, ownedMonsterId, updates) {
+  const gd = cloneGameData(gameData);
+  const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
+  if (!wallet) return gd;
+  const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
+  if (!om) return gd;
+  const u = { ...updates };
+  if (u.monsterParts) {
+    om.monsterParts = mergeMonsterParts(om.templateId, { ...om.monsterParts, ...u.monsterParts });
+    delete u.monsterParts;
+  }
+  Object.assign(om, u);
+  return gd;
+}
+
+/** Difficulty multiplier on AI target power */
+export function difficultyPowerMultiplier(mode) {
+  if (mode === 'easy') return 0.9;
+  if (mode === 'hard') return 1.25;
+  if (mode === 'boss') return 1.5;
+  return 1.1; // normal default +10%
+}
+
+/**
+ * Apply coins + EXP after a battle for guest wallet or profile wallet.
+ * @param {*} gameData
+ * @param {{
+ *   outcome: 'draw'|1|2,
+ *   mode: 'twoPlayer'|'onePlayer',
+ *   p1OwnedId?: string|null,
+ *   p2OwnedId?: string|null,
+ *   p1TemplateId?: string|null,
+ *   p2TemplateId?: string|null,
+ *   winnerPerspective?: 1|2|null,
+ * }} payload
+ */
+function grantExpInWallet(wallet, ownedId, amount) {
+  if (!ownedId) {
+    return {
+      levelsGained: 0,
+      evolved: false,
+      prevStage: null,
+      nextStage: null,
+      level: 1,
+      exp: 0,
+      expToNext: 36,
+      prevLevel: 1,
+    };
+  }
+  const om = wallet.ownedMonsters.find((x) => x.id === ownedId);
+  if (!om) {
+    return {
+      levelsGained: 0,
+      evolved: false,
+      prevStage: null,
+      nextStage: null,
+      level: 1,
+      exp: 0,
+      expToNext: 36,
+      prevLevel: 1,
+    };
+  }
+  const prevStage = evolutionStageFromLevel(om.level).key;
+  const prevLvl = om.level;
+  const mult = expMultiplierFromGear(om.equippedGear || []);
+  const adjusted = Math.max(0, Math.floor(amount * mult));
+  const res = addExperience({ level: om.level, exp: om.exp }, adjusted);
+  om.level = res.level;
+  om.exp = res.exp;
+  const nextStage = evolutionStageFromLevel(om.level).key;
+  const evolved = prevStage !== nextStage && res.levelsGained > 0;
+  return {
+    levelsGained: res.levelsGained,
+    evolved,
+    prevStage,
+    nextStage,
+    level: om.level,
+    exp: om.exp,
+    expToNext: expToAdvanceFrom(om.level),
+    prevLevel: prevLvl,
+  };
+}
+
+function bumpProfileBattleProgress(profile, won, lost, drew) {
+  if (!profile) return;
+  if (!profile.battleProgress) profile.battleProgress = defaultBattleProgress();
+  profile.battleProgress.totalBattles += 1;
+  if (drew) return;
+  if (won) {
+    profile.battleProgress.winStreak += 1;
+    profile.battleProgress.lossStreak = 0;
+  } else if (lost) {
+    profile.battleProgress.lossStreak += 1;
+    profile.battleProgress.winStreak = 0;
+  }
+}
+
+function tuneProfileAiMeta(profile, payload) {
+  if (!profile?.meta) return;
+  const meta = profile.meta;
+  if (payload.outcome === 1) {
+    meta.consecutiveLosses = 0;
+    meta.consecutiveEasyWins = payload.lastAiWasMuchWeaker === true ? meta.consecutiveEasyWins + 1 : 0;
+  } else if (payload.outcome === 2) {
+    meta.consecutiveLosses += 1;
+    meta.consecutiveEasyWins = 0;
+  }
+  const cap = 0.12;
+  if (meta.consecutiveLosses >= 2) meta.aiBias = Math.max(-cap, meta.aiBias - 0.03);
+  if (meta.consecutiveEasyWins >= 3) meta.aiBias = Math.min(cap, meta.aiBias + 0.02);
+  if (payload.outcome === 1 || payload.outcome === 2) {
+    meta.lastAiPowerRatio =
+      typeof payload.aiPowerRatio === 'number' ? payload.aiPowerRatio : meta.lastAiPowerRatio;
+  }
+}
+
+export function awardBattleRewards(gameData, payload) {
+  const gd = cloneGameData(gameData);
+  const p1ProfileId = payload.p1ProfileId ?? gd.session.activeProfileId ?? null;
+  const p2ProfileId = payload.mode === 'twoPlayer' ? payload.p2ProfileId ?? null : null;
+  const walletP1 = walletForProfile(gd, p1ProfileId);
+  const walletP2 = p2ProfileId ? walletForProfile(gd, p2ProfileId) : null;
+  const profileP1 = p1ProfileId ? getPlayerProfile(gd, p1ProfileId) : null;
+  const profileP2 = p2ProfileId ? getPlayerProfile(gd, p2ProfileId) : null;
+
+  let coinsAwarded = 0;
+  if (payload.outcome === 'draw') coinsAwarded = DRAW_COINS_EACH * 2;
+  else coinsAwarded = WINNER_COINS + LOSER_COINS;
+
+  let bonusUnderdog = false;
+  if (payload.outcome !== 'draw' && payload.p1TemplateId && payload.p2TemplateId) {
+    const winTid = payload.outcome === 1 ? payload.p1TemplateId : payload.p2TemplateId;
+    const loseTid = payload.outcome === 1 ? payload.p2TemplateId : payload.p1TemplateId;
+    const wt = getMonsterTemplate(winTid);
+    const lt = getMonsterTemplate(loseTid);
+    if (wt && lt && rarityRank(wt.rarity) < rarityRank(lt.rarity)) {
+      bonusUnderdog = true;
+    }
+  }
+
+  if (payload.outcome === 'draw') {
+    walletP1.coins += DRAW_COINS_EACH;
+    if (walletP2) walletP2.coins += DRAW_COINS_EACH;
+  } else if (payload.outcome === 1) {
+    walletP1.coins += WINNER_COINS + (bonusUnderdog ? 10 : 0);
+    if (walletP2) walletP2.coins += LOSER_COINS;
+  } else if (payload.outcome === 2) {
+    walletP1.coins += LOSER_COINS;
+    if (walletP2) walletP2.coins += WINNER_COINS + (bonusUnderdog ? 10 : 0);
+  }
+
+  let expP1 = payload.outcome === 'draw' ? 18 : payload.outcome === 1 ? EXP_WINNER : EXP_LOSER;
+  let expP2 = payload.outcome === 'draw' ? 18 : payload.outcome === 2 ? EXP_WINNER : EXP_LOSER;
+
+  if (bonusUnderdog && payload.outcome !== 'draw') {
+    if (payload.outcome === 1) expP1 += EXP_UNDERDOG_BONUS;
+    if (payload.outcome === 2) expP2 += EXP_UNDERDOG_BONUS;
+  }
+
+  const r1 = grantExpInWallet(walletP1, payload.p1OwnedId, expP1);
+  const r2 = walletP2
+    ? grantExpInWallet(walletP2, payload.p2OwnedId, expP2)
+    : grantExpInWallet(walletP1, payload.p2OwnedId, expP2);
+
+  gd.battleSummary.totalBattles += 1;
+
+  if (payload.mode === 'onePlayer' && profileP1) {
+    bumpProfileBattleProgress(
+      profileP1,
+      payload.outcome === 1,
+      payload.outcome === 2,
+      payload.outcome === 'draw',
+    );
+    tuneProfileAiMeta(profileP1, payload);
+    gd.battleSummary.winStreakGuest = profileP1.battleProgress.winStreak;
+    gd.battleSummary.lossStreakGuest = profileP1.battleProgress.lossStreak;
+    gd.meta.aiBias = profileP1.meta.aiBias;
+    gd.meta.consecutiveLosses = profileP1.meta.consecutiveLosses;
+    gd.meta.consecutiveEasyWins = profileP1.meta.consecutiveEasyWins;
+    gd.meta.lastAiPowerRatio = profileP1.meta.lastAiPowerRatio;
+  } else if (payload.mode === 'twoPlayer') {
+    if (profileP1) {
+      bumpProfileBattleProgress(
+        profileP1,
+        payload.outcome === 1,
+        payload.outcome === 2,
+        payload.outcome === 'draw',
+      );
+    }
+    if (profileP2) {
+      bumpProfileBattleProgress(
+        profileP2,
+        payload.outcome === 2,
+        payload.outcome === 1,
+        payload.outcome === 'draw',
+      );
+    }
+  }
+
+  return {
+    gameData: gd,
+    summary: {
+      coinsAwarded,
+      bonusUnderdog,
+      expP1: r1,
+      expP2: r2,
+    },
+  };
+}
