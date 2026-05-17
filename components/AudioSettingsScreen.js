@@ -10,62 +10,40 @@ import {
 } from 'react-native';
 import { ART } from '../utils/artDirection';
 import {
-  BGM_TRACK_OPTIONS,
-  DICE_TRACK_OPTIONS,
-  ATTACK_TRACK_OPTIONS,
-  CRITICAL_TRACK_OPTIONS,
-  SUPER_TRACK_OPTIONS,
-  labelForField,
-} from '../utils/audioCatalog';
-import {
   applyAudioSettings,
   loadAudioSettings,
   describeAudioSettings,
 } from '../utils/audioSettings';
-import { unlockBattleAudio, startBattleMusic, stopBattleMusic } from '../utils/battleAudio';
-import { playGameSfx } from '../utils/gameSfx';
+import {
+  playButton,
+  playAttack,
+  playCritical,
+  playShop,
+  startBattleMusic,
+  stopBattleMusic,
+  unlockAudio,
+} from '../utils/audioManager';
 import { commitAudioSettingsSave } from '../src/services/syncCoordinator';
 
-function TrackDropdown({ label, field, value, options, onChange }) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.id === value) || options[0];
-
+function VolSlider({ label, value, onChange }) {
+  const steps = [0, 0.25, 0.5, 0.75, 1];
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable style={styles.dropdown} onPress={() => setOpen((v) => !v)}>
-        <Text style={styles.dropdownValue} numberOfLines={1}>
-          {selected.label}
-        </Text>
-        <Text style={styles.dropdownCaret}>{open ? '▲' : '▼'}</Text>
-      </Pressable>
-      {open ? (
-        <View style={styles.optionList}>
-          {options.map((opt) => {
-            const active = opt.id === value;
-            return (
-              <Pressable
-                key={opt.id}
-                style={[styles.optionRow, active && styles.optionRowActive]}
-                onPress={() => {
-                  onChange(opt.id);
-                  setOpen(false);
-                }}
-              >
-                <Text style={[styles.optionTxt, active && styles.optionTxtActive]}>{opt.label}</Text>
-                {active ? <Text style={styles.check}>✓</Text> : null}
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
+      <View style={styles.volRow}>
+        {steps.map((v) => (
+          <Pressable
+            key={v}
+            style={[styles.volTick, value >= v - 0.02 && styles.volTickOn]}
+            onPress={() => onChange(v)}
+          />
+        ))}
+        <Text style={styles.volPct}>{Math.round(value * 100)}%</Text>
+      </View>
     </View>
   );
 }
 
-/**
- * Full audio settings — track picks persist in localStorage and cloud save.
- */
 export default function AudioSettingsScreen({ onBack, activeProfileId }) {
   const [draft, setDraft] = useState(() => loadAudioSettings());
   const [savedFlash, setSavedFlash] = useState(false);
@@ -87,22 +65,19 @@ export default function AudioSettingsScreen({ onBack, activeProfileId }) {
 
   function handleTest(kind) {
     setTesting(kind);
-    unlockBattleAudio();
+    unlockAudio();
     if (kind === 'bgm') {
       startBattleMusic();
       setTimeout(() => {
         stopBattleMusic();
         setTesting(null);
-      }, 1800);
+      }, 2000);
       return;
     }
-    const map = {
-      dice: 'button',
-      attack: 'attack',
-      critical: 'critical',
-      super: 'critical',
-    };
-    playGameSfx(map[kind] || 'attack', 1);
+    if (kind === 'button') playButton();
+    if (kind === 'attack') playAttack();
+    if (kind === 'critical') playCritical();
+    if (kind === 'shop') playShop();
     setTimeout(() => setTesting(null), 600);
   }
 
@@ -118,57 +93,20 @@ export default function AudioSettingsScreen({ onBack, activeProfileId }) {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollInner}>
         <View style={styles.currentBox}>
           <Text style={styles.currentTitle}>Currently saved</Text>
-          <Text style={styles.currentLine}>Music: {summary.bgmTrackLabel}</Text>
-          <Text style={styles.currentLine}>Dice: {summary.diceTrackLabel}</Text>
-          <Text style={styles.currentLine}>Attack: {summary.attackTrackLabel}</Text>
-          <Text style={styles.currentLine}>Critical: {summary.criticalTrackLabel}</Text>
-          <Text style={styles.currentLine}>Super: {summary.superTrackLabel}</Text>
+          <Text style={styles.currentLine}>Music: {Math.round(summary.bgmVolume * 100)}%</Text>
+          <Text style={styles.currentLine}>SFX: {Math.round(summary.sfxVolume * 100)}%</Text>
           <Text style={styles.currentLine}>{summary.muted ? '🔇 Muted' : '🔊 Sound on'}</Text>
         </View>
 
-        <View style={styles.previewBox}>
-          <Text style={styles.previewTitle}>Draft (not saved yet)</Text>
-          <Text style={styles.previewLine}>{labelForField('bgmTrack', draft.bgmTrack)}</Text>
-          <Text style={styles.previewLine}>{labelForField('diceTrack', draft.diceTrack)}</Text>
-          <Text style={styles.previewLine}>{labelForField('attackTrack', draft.attackTrack)}</Text>
-          <Text style={styles.previewLine}>{labelForField('criticalTrack', draft.criticalTrack)}</Text>
-          <Text style={styles.previewLine}>{labelForField('superTrack', draft.superTrack)}</Text>
-        </View>
-
-        <TrackDropdown
-          label="Background Music"
-          field="bgmTrack"
-          value={draft.bgmTrack}
-          options={BGM_TRACK_OPTIONS}
-          onChange={(bgmTrack) => patch({ bgmTrack })}
+        <VolSlider
+          label="Music volume"
+          value={draft.bgmVolume}
+          onChange={(bgmVolume) => patch({ bgmVolume })}
         />
-        <TrackDropdown
-          label="Dice Sound"
-          field="diceTrack"
-          value={draft.diceTrack}
-          options={DICE_TRACK_OPTIONS}
-          onChange={(diceTrack) => patch({ diceTrack })}
-        />
-        <TrackDropdown
-          label="Attack Sound"
-          field="attackTrack"
-          value={draft.attackTrack}
-          options={ATTACK_TRACK_OPTIONS}
-          onChange={(attackTrack) => patch({ attackTrack })}
-        />
-        <TrackDropdown
-          label="Critical Sound"
-          field="criticalTrack"
-          value={draft.criticalTrack}
-          options={CRITICAL_TRACK_OPTIONS}
-          onChange={(criticalTrack) => patch({ criticalTrack })}
-        />
-        <TrackDropdown
-          label="Super Power Sound"
-          field="superTrack"
-          value={draft.superTrack}
-          options={SUPER_TRACK_OPTIONS}
-          onChange={(superTrack) => patch({ superTrack })}
+        <VolSlider
+          label="Sound effects"
+          value={draft.sfxVolume}
+          onChange={(sfxVolume) => patch({ sfxVolume })}
         />
 
         <Pressable style={styles.muteRow} onPress={() => patch({ muted: !draft.muted })}>
@@ -180,11 +118,11 @@ export default function AudioSettingsScreen({ onBack, activeProfileId }) {
           <Text style={styles.testTitle}>Test sound</Text>
           <View style={styles.testBtns}>
             {[
-              { id: 'bgm', label: 'Music' },
-              { id: 'dice', label: 'Dice' },
+              { id: 'bgm', label: 'Battle music' },
+              { id: 'button', label: 'Button' },
               { id: 'attack', label: 'Attack' },
-              { id: 'critical', label: 'Crit' },
-              { id: 'super', label: 'Super' },
+              { id: 'critical', label: 'Critical' },
+              { id: 'shop', label: 'Shop' },
             ].map((t) => (
               <Pressable
                 key={t.id}
@@ -201,7 +139,9 @@ export default function AudioSettingsScreen({ onBack, activeProfileId }) {
           <Text style={styles.saveBtnTxt}>Save & apply</Text>
         </TouchableOpacity>
         {savedFlash ? (
-          <Text style={styles.savedMsg}>Saved — audio updated{Platform.OS === 'web' ? ' (stored in this browser)' : ''}.</Text>
+          <Text style={styles.savedMsg}>
+            Saved — audio updated{Platform.OS === 'web' ? ' (stored in this browser)' : ''}.
+          </Text>
         ) : null}
       </ScrollView>
     </View>
@@ -234,50 +174,17 @@ const styles = StyleSheet.create({
   },
   currentTitle: { fontWeight: '900', fontSize: 14, color: '#1e8449', marginBottom: 4 },
   currentLine: { fontWeight: '700', fontSize: 13, color: ART.textInk },
-  previewBox: {
-    backgroundColor: 'rgba(52, 152, 219, 0.1)',
-    borderRadius: ART.radiusMd,
-    borderWidth: 2,
-    borderColor: '#3498db',
-    padding: 12,
-    gap: 2,
-  },
-  previewTitle: { fontWeight: '900', fontSize: 13, color: '#2471a3', marginBottom: 4 },
-  previewLine: { fontWeight: '600', fontSize: 12, color: ART.textMuted },
   field: { gap: 6 },
   fieldLabel: { fontWeight: '800', fontSize: 14, color: ART.textInk },
-  dropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: ART.panelBorder,
-    borderRadius: ART.radiusSm,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 44,
+  volRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  volTick: {
+    flex: 1,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#dfe6e9',
   },
-  dropdownValue: { flex: 1, fontWeight: '700', fontSize: 14, color: ART.textInk },
-  dropdownCaret: { fontSize: 12, color: ART.textMuted, marginLeft: 8 },
-  optionList: {
-    borderWidth: 2,
-    borderColor: ART.panelBorder,
-    borderRadius: ART.radiusSm,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-  },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ecf0f1',
-  },
-  optionRowActive: { backgroundColor: 'rgba(230, 126, 34, 0.15)' },
-  optionTxt: { flex: 1, fontWeight: '600', fontSize: 14, color: ART.textInk },
-  optionTxtActive: { fontWeight: '900', color: '#d35400' },
-  check: { fontWeight: '900', color: '#27ae60', fontSize: 16 },
+  volTickOn: { backgroundColor: ART.panelAccent },
+  volPct: { width: 44, fontWeight: '800', fontSize: 12, color: ART.textInk, textAlign: 'right' },
   muteRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

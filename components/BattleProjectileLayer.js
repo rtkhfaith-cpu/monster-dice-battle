@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { fx } from '../utils/battleEffectScale';
 import { getProjectile } from '../utils/battleProjectiles';
-import { COMBAT_FEEDBACK_COLOR, COMBAT_FEEDBACK_MS } from '../utils/battleCombatFeedback';
+import { COMBAT_FEEDBACK_COLOR } from '../utils/battleCombatFeedback';
 
 function MoveCallout({ moveName, emoji, laneY, calloutOp }) {
   if (!moveName && !emoji) return null;
@@ -21,9 +21,15 @@ function MoveCallout({ moveName, emoji, laneY, calloutOp }) {
 }
 
 /**
- * Skill-matched battle VFX — projectiles, clouds, waves travel across arena (500–900ms).
+ * Skill-matched battle VFX — timing driven by effect.actionTiming (fixed ms).
  */
-export default function BattleProjectileLayer({ effect, onImpact, onComplete, active = true }) {
+export default function BattleProjectileLayer({
+  effect,
+  onImpact,
+  onComplete,
+  active = true,
+  sequenceControlled = false,
+}) {
   const [arenaH, setArenaH] = useState(360);
   const progress = useRef(new Animated.Value(0)).current;
   const splat = useRef(new Animated.Value(0)).current;
@@ -34,6 +40,7 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
   const burst = useRef(new Animated.Value(0)).current;
   const calloutOp = useRef(new Animated.Value(0)).current;
   const runId = useRef(0);
+  const impactFired = useRef(false);
 
   const atkId = effect?.attackerId ?? 1;
   const defId = effect?.defenderId ?? (atkId === 1 ? 2 : 1);
@@ -52,38 +59,61 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
   const isLunge = animKind === 'fly_lunge' || animKind === 'bite_lunge';
   const arcLift = fx(animKind === 'egg_bomb' ? 28 : isLunge ? 10 : 14);
 
+  const timing = effect?.actionTiming;
+  const flyMs = sequenceControlled && timing?.travelMs
+    ? timing.travelMs
+    : effect?.critical
+      ? 480
+      : animKind === 'cloud_spread'
+        ? 720
+        : animKind === 'water_wave'
+          ? 640
+          : isLunge
+            ? 460
+            : 380;
+
+  const splatHoldMs = sequenceControlled
+    ? Math.max(80, (timing?.total ?? 900) - (timing?.impactAt ?? 600) - 80)
+    : effect?.defended
+      ? 320
+      : 280;
+
   const finish = () => {
+    if (sequenceControlled) return;
     if (typeof onComplete === 'function') onComplete();
   };
 
-  const flyMs =
-    effect?.critical ? 480
-    : animKind === 'cloud_spread' ? 720
-    : animKind === 'water_wave' ? 640
-    : animKind === 'fire_blast' ? 520
-    : animKind === 'egg_bomb' ? 580
-    : animKind === 'rush' ? 300
-    : animKind === 'sparkle' ? 420
-    : isLunge ? 460
-    : animKind === 'metal_slash' ? 400
-    : 380;
-
-  const triggerImpact = (id) => {
-    if (runId.current !== id) return;
+  const fireImpact = (id) => {
+    if (impactFired.current || runId.current !== id) return;
+    impactFired.current = true;
     if (!effect.dodged && typeof onImpact === 'function') onImpact(defId, effect);
     const splatPeak = effect.critical ? 1.35 : effect.defended ? 0.7 : 1;
     splat.setValue(0);
     dmgUp.setValue(0);
     burst.setValue(0);
     Animated.parallel([
-      Animated.timing(splat, { toValue: splatPeak, duration: effect.critical ? 220 : 170, useNativeDriver: true }),
-      Animated.timing(burst, { toValue: 1, duration: effect.critical ? 280 : 220, useNativeDriver: true }),
-      Animated.timing(dmgUp, { toValue: 1, duration: 580, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(splat, {
+        toValue: splatPeak,
+        duration: effect.critical ? 220 : 170,
+        useNativeDriver: true,
+      }),
+      Animated.timing(burst, {
+        toValue: 1,
+        duration: effect.critical ? 280 : 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(dmgUp, {
+        toValue: 1,
+        duration: 580,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
     ]).start(() => {
+      if (sequenceControlled) return;
       if (effect.defended) {
         setTimeout(() => {
           if (runId.current === id) finish();
-        }, COMBAT_FEEDBACK_MS);
+        }, splatHoldMs);
         return;
       }
       Animated.timing(splat, { toValue: 0, duration: 280, useNativeDriver: true }).start(() => {
@@ -96,6 +126,7 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
     if (!active || !effect || effect.superBomb) return undefined;
 
     const id = ++runId.current;
+    impactFired.current = false;
     progress.setValue(0);
     splat.setValue(0);
     dmgUp.setValue(0);
@@ -110,21 +141,18 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
     ]).start();
 
     if (effect.dodged) {
-      missFade.setValue(1);
+      const dodgeTravel = sequenceControlled ? flyMs : 420;
       Animated.timing(progress, {
         toValue: 1,
-        duration: isLunge ? 420 : 420,
+        duration: dodgeTravel,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }).start();
       const holdT = setTimeout(() => {
         if (runId.current !== id) return;
-        Animated.timing(missFade, { toValue: 0, duration: 200, useNativeDriver: true }).start(
-          ({ finished }) => {
-            if (finished && runId.current === id) finish();
-          },
-        );
-      }, COMBAT_FEEDBACK_MS);
+        Animated.timing(missFade, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+        if (!sequenceControlled) finish();
+      }, sequenceControlled ? Math.max(120, (timing?.total ?? 800) - dodgeTravel) : 1000);
       return () => {
         runId.current += 1;
         clearTimeout(holdT);
@@ -141,14 +169,14 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
     }
 
     const safety = setTimeout(() => {
-      if (runId.current === id) finish();
+      if (!sequenceControlled && runId.current === id) finish();
     }, flyMs + 1400);
 
     const onFlyDone = ({ finished }) => {
       if (spinLoop) spinLoop.stop();
       clearTimeout(safety);
       if (!finished || runId.current !== id) return;
-      triggerImpact(id);
+      fireImpact(id);
     };
 
     if (animKind === 'cloud_spread') {
@@ -173,7 +201,12 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
       if (spinLoop) spinLoop.stop();
       clearTimeout(safety);
     };
-  }, [active, effect?.seq, effect?.superBomb, effect?.dodged, effect?.projectileId, animKind]);
+  }, [active, effect?.seq, effect?.superBomb, effect?.dodged, effect?.projectileId, animKind, flyMs]);
+
+  useEffect(() => {
+    if (!active || !effect?.revealDamage || effect.dodged || impactFired.current) return;
+    fireImpact(runId.current);
+  }, [effect?.revealDamage, effect?.seq]);
 
   if (!active || !effect || effect.superBomb) return null;
 
@@ -211,7 +244,11 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
   const sparkleOp = progress.interpolate({ inputRange: [0, 0.15, 0.85, 1], outputRange: [0, 1, 1, 0.3] });
   const sparkleScale = progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 1.2, 0.9] });
 
-  const showDmg = !effect.dodged && typeof effect.damage === 'number' && effect.damage > 0;
+  const showDmg =
+    effect.revealDamage
+    && !effect.dodged
+    && typeof effect.damage === 'number'
+    && effect.damage > 0;
   const dmgColor = effect.critical ? '#f39c12' : effect.defended ? '#48cae4' : '#e74c3c';
   const dmgLabel = effect.critical ? `${effect.damage}!` : `${effect.damage}`;
   const sickly = effect.sicklyFlash && !effect.dodged;

@@ -47,10 +47,8 @@ export default function BattleAudioControls({ muted, onToggleMute }) {
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation?.()}>
             <Text style={styles.title}>Audio</Text>
-            <VolRow label="Music" value={settings.bgm} onChange={(bgm) => patch({ bgm })} />
-            <VolRow label="SFX" value={settings.sfx} onChange={(sfx) => patch({ sfx })} />
-            <VolRow label="UI" value={settings.ui} onChange={(ui) => patch({ ui })} />
-            <VolRow label="Impacts" value={settings.impact} onChange={(impact) => patch({ impact })} />
+            <VolRow label="Music" value={settings.bgmVolume} onChange={(bgmVolume) => patch({ bgmVolume })} />
+            <VolRow label="SFX" value={settings.sfxVolume} onChange={(sfxVolume) => patch({ sfxVolume })} />
             <Pressable
               style={styles.muteRow}
               onPress={() => {

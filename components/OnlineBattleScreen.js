@@ -21,7 +21,7 @@ import {
   toggleBattleMuted,
   unlockBattleAudio,
 } from '../utils/battleAudio';
-import { playUiSfx } from '../utils/sounds';
+import { playUiSfx, playSound } from '../utils/sounds';
 import { BATTLE } from '../utils/gameTheme';
 import { isCombatFeedbackMessage } from '../utils/battleCombatFeedback';
 import {
@@ -166,6 +166,13 @@ export default function OnlineBattleScreen({
     if (norm.winner && !finishedRef.current) {
       finishedRef.current = true;
       setBattleState('finished');
+      if (norm.winner === 'draw') {
+        /* no win/lose sting */
+      } else if (norm.winner === myPlayerId) {
+        playSound('win');
+      } else {
+        playSound('lose');
+      }
       const outcome =
         norm.winner === 'draw' ? 'draw' : norm.winner === myPlayerId ? myPlayerId : myPlayerId === 1 ? 2 : 1;
       onFinish?.({

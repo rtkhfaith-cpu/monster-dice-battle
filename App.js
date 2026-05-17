@@ -33,7 +33,7 @@ import {
 } from './utils/onlineSocketManager';
 import RewardScreen from './components/RewardScreen';
 import { buildAiFighter, fighterFromOwned } from './utils/fighterFromOwned';
-import { initGameSounds } from './utils/gameSounds';
+import { initAudio } from './utils/audioManager';
 import { pickFunnyWinTitle, winTitleForRarity } from './utils/rewards';
 import {
   activeWallet,
@@ -315,7 +315,7 @@ export default function App() {
 
   useEffect(() => {
     applyAudioSettings();
-    void initGameSounds();
+    initAudio();
     void loadSaveApiConfig();
     loadGameSave().then((gd) => {
       const activeId = gd.session?.activeProfileId ?? gd.players?.[0]?.id ?? null;

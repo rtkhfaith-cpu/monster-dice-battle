@@ -44,8 +44,9 @@ import {
   COMBAT_FEEDBACK_MS,
   isCombatFeedbackMessage,
 } from '../utils/battleCombatFeedback';
+import { getActionTiming } from '../utils/battleActionTiming';
 
-const ATTACK_WINDUP_MS = ART.windup;
+const RESULT_SFX_DELAY_MS = 450;
 const PLAYER_ID = 1;
 const CPU_ID = 2;
 
@@ -142,6 +143,7 @@ export default function BattleScreen({
   const [bannerMessage, setBannerMessage] = useState('Choose your move');
   const [bannerCombatHighlight, setBannerCombatHighlight] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [isActionPlaying, setIsActionPlaying] = useState(false);
   const [currentEffect, setCurrentEffect] = useState(null);
   const [activeAttackEffect, setActiveAttackEffect] = useState(null);
   const [defendGlowP1, setDefendGlowP1] = useState(false);
@@ -164,6 +166,7 @@ export default function BattleScreen({
   const shakeX = useRef(new Animated.Value(0)).current;
   const hitStopScale = useRef(new Animated.Value(1)).current;
   const pendingStrikeRef = useRef(null);
+  const actionSfxRef = useRef({ launch: false, dodge: false, impact: false });
   const combatBannerTimerRef = useRef(null);
   const p1Ref = useRef(p1);
   const p2Ref = useRef(p2);
@@ -280,16 +283,25 @@ export default function BattleScreen({
   function wrapUpBattle(winnerSide, np1, np2) {
     clearTimers();
     clearAttackEffects();
-    setBusy(false);
+    setIsActionPlaying(false);
+    setBusy(true);
     resetPoses();
+    showBanner(
+      winnerSide === PLAYER_ID ? `${labelP1} wins!` : winnerSide === CPU_ID ? `${labelCpu} wins!` : 'Draw!',
+    );
     const winner = winnerSide === PLAYER_ID ? PLAYER_ID : winnerSide === CPU_ID ? CPU_ID : 'draw';
-    if (winner === PLAYER_ID) playSound('win');
-    else if (winner === CPU_ID) playSound('lose');
-    onFinish({
-      winner,
-      player1Snapshot: snapshotFight(np1),
-      player2Snapshot: snapshotFight(np2),
-      battleExtras: { ...battleExtras, mode: 'onePlayer' },
+    schedule(RESULT_SFX_DELAY_MS, () => {
+      if (winner === PLAYER_ID) playSound('win');
+      else if (winner === CPU_ID) playSound('lose');
+    });
+    schedule(RESULT_SFX_DELAY_MS + 280, () => {
+      setBusy(false);
+      onFinish({
+        winner,
+        player1Snapshot: snapshotFight(np1),
+        player2Snapshot: snapshotFight(np2),
+        battleExtras: { ...battleExtras, mode: 'onePlayer' },
+      });
     });
   }
 
@@ -326,6 +338,7 @@ export default function BattleScreen({
     setBattlePhase('chooseAction');
     setMenuMode('main');
     setBusy(false);
+    setIsActionPlaying(false);
     showBanner(bannerOverride || ticked.message || 'Choose your move');
   }
 
@@ -350,7 +363,20 @@ export default function BattleScreen({
     };
   }
 
-  function handleProjectileImpact(defId, fx) {
+  function playImpactSfx(fx) {
+    if (actionSfxRef.current.impact) return;
+    actionSfxRef.current.impact = true;
+    if (fx?.critical && fx?.damage > 0) {
+      playSound('critical');
+    } else if (fx?.damage > 0 && fx?.strikeKind !== 'magic') {
+      if (fx?.sfxKey) playSound(fx.sfxKey);
+      else playSound('hit', { effectType: fx?.effectType });
+    } else if (fx?.superBomb && fx?.damage > 0) {
+      playSound('super');
+    }
+  }
+
+  function applyImpactVisuals(defId, fx) {
     setDefenderFlash(defId);
     if (fx?.sicklyFlash) {
       setSicklyFlash(defId);
@@ -362,21 +388,36 @@ export default function BattleScreen({
       triggerHitStop(fx?.critical ? ART.hitStopCrit : ART.hitStop);
     }
     if (fx?.critical && fx?.damage > 0) {
-      playSound('critical');
       doShake('crit');
     } else if (fx?.damage > 0) {
-      if (fx?.sfxKey) playSound(fx.sfxKey);
-      else playSound('hit', { effectType: fx?.effectType });
       doShake('normal');
     }
+    playImpactSfx(fx);
   }
 
-  function handleProjectileComplete() {
-    clearAttackEffects();
+  function applyPendingHp() {
     const pending = pendingStrikeRef.current;
+    if (!pending?.np1After || !pending?.np2After) return;
+    setP1(pending.np1After);
+    setP2(pending.np2After);
+    p1Ref.current = pending.np1After;
+    p2Ref.current = pending.np2After;
+    setActiveAttackEffect((prev) =>
+      prev ? { ...prev, revealDamage: true, damage: pending.dmg } : prev,
+    );
+  }
+
+  function finishActionSequence() {
+    const pending = pendingStrikeRef.current;
+    if (!pending) return;
     pendingStrikeRef.current = null;
-    if (pending?.safetyId) clearTimeout(pending.safetyId);
-    if (pending?.onDone) pending.onDone(pending.np1, pending.np2);
+    if (pending.safetyId) clearTimeout(pending.safetyId);
+    clearAttackEffects();
+    resetPoses();
+    setIsActionPlaying(false);
+    setBusy(false);
+    setBattlePhase('chooseAction');
+    if (pending.onDone) pending.onDone(pending.np1After, pending.np2After);
   }
 
   function runAttack({
@@ -386,7 +427,10 @@ export default function BattleScreen({
     onComplete,
     skill: skillIn,
     strikeKind: strikeKindIn,
+    superBomb = false,
   }) {
+    if (isActionPlaying) return;
+
     const curP1 = p1Ref.current;
     const curP2 = p2Ref.current;
     const atk = attackerId === PLAYER_ID ? curP1 : curP2;
@@ -404,29 +448,10 @@ export default function BattleScreen({
     if (strikeKind === 'magic' && !canAffordSkill(atk, skill)) {
       showBanner('Not enough MP!');
       setBusy(false);
+      setIsActionPlaying(false);
       setBattlePhase('chooseAction');
       setMenuMode('magic');
       return;
-    }
-
-    showBanner(bannerText);
-    setBattlePhase('resolveAttack');
-    setMenuMode('main');
-    setBusy(true);
-
-    if (attackerId === PLAYER_ID) {
-      setP1Pose('cast');
-      setP2Pose('idle');
-    } else {
-      setP2Pose('cast');
-      setP1Pose('idle');
-    }
-    if (attackerId === PLAYER_ID) {
-      setP1Emotion('happy');
-      setP2Emotion('angry');
-    } else {
-      setP2Emotion('happy');
-      setP1Emotion('angry');
     }
 
     const resolved =
@@ -442,60 +467,66 @@ export default function BattleScreen({
 
     const dmg = resolved.dodged ? 0 : resolved.damage;
     const mpCost = strikeKind === 'magic' ? skill?.mpCost ?? 0 : 0;
-
-    if (resolved.dodged) showBanner('Dodged!');
-    else if (resolved.critical) showBanner('Critical Hit!');
-    else if (resolved.weak) showBanner('Weak Hit!');
-    else if (strikeKind === 'magic') {
-      const elMsg = elementBannerText(resolved.elementRelation);
-      if (elMsg) showBanner(elMsg);
-    }
-
-    schedule(Math.round(ATTACK_WINDUP_MS * 0.55), () => {
-      if (attackerId === PLAYER_ID) setP1Pose('lunge');
-      else setP2Pose('lunge');
-      if (resolved.dodged) {
-        if (defenderId === PLAYER_ID) setP1Pose('dodge');
-        else setP2Pose('dodge');
-      } else {
-        if (attackerId === PLAYER_ID) setP2Pose('hit');
-        else setP1Pose('hit');
-      }
+    const timing = getActionTiming({
+      strikeKind,
+      dodged: resolved.dodged,
+      defended: resolved.defended,
+      critical: resolved.critical,
+      superBomb,
     });
 
-    let nextAtk = { ...atk, mp: Math.max(0, atk.mp - mpCost) };
+    actionSfxRef.current = { launch: false, dodge: false, impact: false };
+    setIsActionPlaying(true);
+    setBusy(true);
+    setBattlePhase('resolveAttack');
+    setMenuMode('main');
+    clearAttackEffects();
+    showBanner(bannerText || skill?.name || 'Attack');
+
+    if (attackerId === PLAYER_ID) {
+      setP1Pose(superBomb ? 'superWindup' : 'cast');
+      setP2Pose('idle');
+      setP1Emotion('happy');
+      setP2Emotion('angry');
+    } else {
+      setP2Pose(superBomb ? 'superWindup' : 'cast');
+      setP1Pose('idle');
+      setP2Emotion('happy');
+      setP1Emotion('angry');
+    }
+
+    const mpSpentAtk = { ...atk, mp: Math.max(0, atk.mp - mpCost) };
+    setP1(attackerId === PLAYER_ID ? mpSpentAtk : curP1);
+    setP2(attackerId === CPU_ID ? mpSpentAtk : curP2);
+    if (attackerId === PLAYER_ID) p1Ref.current = mpSpentAtk;
+    else p2Ref.current = mpSpentAtk;
+
     let nextDef = resolved.dodged ? { ...def } : { ...def, hp: Math.max(0, def.hp - dmg) };
     if (dmg > 0 && strikeKind === 'magic' && !resolved.dodged) {
       nextDef = maybeApplySkillStatus(nextDef, skill);
     }
 
-    const np1 =
+    const np1After =
       attackerId === PLAYER_ID
-        ? nextAtk
+        ? mpSpentAtk
         : defenderId === PLAYER_ID
           ? nextDef
           : { ...curP1 };
-    const np2 =
+    const np2After =
       attackerId === CPU_ID
-        ? nextAtk
+        ? mpSpentAtk
         : defenderId === CPU_ID
           ? nextDef
           : { ...curP2 };
 
-    setP1(np1);
-    setP2(np2);
-    p1Ref.current = np1;
-    p2Ref.current = np2;
-
     const visuals = resolveAttackVisuals(skill, { templateId: atk.monsterTemplateId });
     const isFly = visuals.animKind === 'fly_lunge' || visuals.animKind === 'bite_lunge';
-    setFlyStrikeP1(attackerId === PLAYER_ID && isFly);
-    setFlyStrikeP2(attackerId === CPU_ID && isFly);
 
     effectSeqRef.current += 1;
     const effectPayload = {
       type: strikeKind === 'magic' ? 'magic' : 'normal',
       moveName: skill?.name ?? 'Attack',
+      strikeKind,
       effectType: skill?.effectType ?? 'normal',
       emoji: skill?.emoji,
       skillId: skill?.id,
@@ -510,43 +541,95 @@ export default function BattleScreen({
       dodged: !!resolved.dodged,
       defended: !!resolved.defended,
       damage: dmg,
-      superBomb: false,
+      revealDamage: false,
+      superBomb,
       attackerId,
       defenderId,
       attackerTemplateId: atk.monsterTemplateId,
       projectileId: visuals.projectileId,
       useProjectileAnim: true,
+      actionTiming: timing,
       seq: effectSeqRef.current,
     };
 
-    const safetyId = schedule(5000, () => {
-      if (pendingStrikeRef.current) handleProjectileComplete();
+    const safetyId = schedule(timing.total + 400, () => {
+      if (pendingStrikeRef.current) finishActionSequence();
     });
 
     pendingStrikeRef.current = {
-      np1,
-      np2,
+      np1After,
+      np2After,
+      dmg,
+      effectPayload,
+      defenderId,
+      resolved,
       safetyId,
-      onDone: () => {
-        if (np1.hp <= 0) {
-          wrapUpBattle(CPU_ID, np1, np2);
+      onDone: (finalP1, finalP2) => {
+        if (finalP1.hp <= 0) {
+          wrapUpBattle(CPU_ID, finalP1, finalP2);
           return;
         }
-        if (np2.hp <= 0) {
-          wrapUpBattle(PLAYER_ID, np1, np2);
+        if (finalP2.hp <= 0) {
+          wrapUpBattle(PLAYER_ID, finalP1, finalP2);
           return;
         }
-        if (onComplete) onComplete(np1, np2);
-        else endRound(np1, np2);
+        if (onComplete) onComplete(finalP1, finalP2);
+        else endRound(finalP1, finalP2);
       },
     };
 
-    clearAttackEffects();
-    schedule(ATTACK_WINDUP_MS, () => {
-      if (resolved.dodged) playSound('dodge');
-      else playSoundForSkill(skill, strikeKind);
-      setActiveAttackEffect(effectPayload);
+    if (strikeKind === 'magic' && !actionSfxRef.current.launch) {
+      actionSfxRef.current.launch = true;
+      playSoundForSkill(skill, strikeKind);
+    }
+
+    schedule(timing.attackerEnd, () => {
+      setFlyStrikeP1(attackerId === PLAYER_ID && isFly);
+      setFlyStrikeP2(attackerId === CPU_ID && isFly);
+      if (attackerId === PLAYER_ID) setP1Pose('lunge');
+      else setP2Pose('lunge');
+      setActiveAttackEffect({ ...effectPayload, seq: effectSeqRef.current });
     });
+
+    schedule(timing.defenderAt, () => {
+      if (resolved.dodged) {
+        if (!actionSfxRef.current.dodge) {
+          actionSfxRef.current.dodge = true;
+          playSound('dodge');
+        }
+        showBanner('Dodged!');
+        if (defenderId === PLAYER_ID) setP1Pose('dodge');
+        else setP2Pose('dodge');
+        return;
+      }
+      if (resolved.defended) {
+        if (defenderId === PLAYER_ID) setDefendGlowP1(true);
+        else setDefendGlowP2(true);
+        showBanner('Blocked!');
+        schedule(520, () => {
+          setDefendGlowP1(false);
+          setDefendGlowP2(false);
+        });
+      }
+      if (attackerId === PLAYER_ID) setP2Pose('hit');
+      else setP1Pose('hit');
+    });
+
+    schedule(timing.impactAt, () => {
+      if (!resolved.dodged) {
+        applyPendingHp();
+        applyImpactVisuals(defenderId, { ...effectPayload, damage: dmg });
+        if (resolved.critical) showBanner('Critical Hit!');
+        else if (resolved.weak) showBanner('Weak Hit!');
+        else if (resolved.defended) showBanner('Blocked!');
+        else if (strikeKind === 'magic') {
+          const elMsg = elementBannerText(resolved.elementRelation);
+          if (elMsg) showBanner(elMsg);
+        }
+      }
+    });
+
+    schedule(timing.total, () => finishActionSequence());
   }
 
   function runCpuCounter(np1, np2) {
@@ -570,7 +653,7 @@ export default function BattleScreen({
   }
 
   function handleFight() {
-    if (busy || battlePhase !== 'chooseAction') return;
+    if (isActionPlaying || busy || battlePhase !== 'chooseAction') return;
     unlockBattleAudio();
     startBattleMusic();
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
@@ -591,21 +674,21 @@ export default function BattleScreen({
   }
 
   function handleMagicOpen() {
-    if (busy || battlePhase !== 'chooseAction') return;
+    if (isActionPlaying || busy || battlePhase !== 'chooseAction') return;
     tapUi();
     setMenuMode('magic');
     showBanner('Pick a magic skill');
   }
 
   function handleMagicBack() {
-    if (busy) return;
+    if (isActionPlaying || busy) return;
     tapUi();
     setMenuMode('main');
     showBanner('Choose your move');
   }
 
   function handleMagicSkill(skill) {
-    if (busy || battlePhase !== 'chooseAction' || !skill) return;
+    if (isActionPlaying || busy || battlePhase !== 'chooseAction' || !skill) return;
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     if (!canAffordSkill(attacker, skill)) {
       showBanner('Not enough MP!');
@@ -624,7 +707,7 @@ export default function BattleScreen({
   }
 
   function handleRun() {
-    if (busy) return;
+    if (isActionPlaying || busy) return;
     if (typeof onExitBattle === 'function') {
       onExitBattle();
       return;
@@ -645,7 +728,7 @@ export default function BattleScreen({
 
   const p1Mood = moodFor(p1, p1Emotion);
   const p2Mood = moodFor(p2, p2Emotion);
-  const actionsEnabled = !busy && battlePhase === 'chooseAction';
+  const actionsEnabled = !isActionPlaying && !busy && battlePhase === 'chooseAction';
   const actingFighter = activeBattler === CPU_ID ? p2 : p1;
   const magicSkills =
     actingFighter?.skills?.magic ?? getMagicSkills(actingFighter?.monsterTemplateId ?? '');
@@ -668,7 +751,7 @@ export default function BattleScreen({
             p2Mood={p2Mood}
             p1Pose={p1Pose}
             p2Pose={p2Pose}
-            activeTurn={busy ? CPU_ID : activeBattler}
+            activeTurn={isActionPlaying || busy ? CPU_ID : activeBattler}
             round={round}
             turnBadge={bannerMessage}
             turnBadgeCombatHighlight={bannerCombatHighlight}
@@ -690,8 +773,7 @@ export default function BattleScreen({
             <BattleProjectileLayer
               effect={activeAttackEffect}
               active
-              onImpact={handleProjectileImpact}
-              onComplete={handleProjectileComplete}
+              sequenceControlled
             />
           ) : null}
           </View>
@@ -701,7 +783,7 @@ export default function BattleScreen({
           {menuMode === 'magic' ? (
             <View style={styles.magicPanel}>
               <View style={styles.magicHeader}>
-                <Pressable style={styles.magicBackBtn} onPress={handleMagicBack} disabled={busy}>
+                <Pressable style={styles.magicBackBtn} onPress={handleMagicBack} disabled={isActionPlaying || busy}>
                   <Text style={styles.magicBackTxt}>← Back</Text>
                 </Pressable>
                 <Text style={styles.magicMp}>
