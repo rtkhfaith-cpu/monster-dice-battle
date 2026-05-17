@@ -124,15 +124,30 @@ function tryPlayFile(path, bus = 'sfx', vol = 1) {
 }
 
 export function playFileSfx(key, vol = 1, bus = 'impact') {
-  const path = SFX_FILES[key];
-  if (!path) return false;
   const s = settings();
   const scale = bus === 'ui' ? s.ui : bus === 'impact' ? s.impact : s.sfx;
+  try {
+    const { playHowlerSfx, howlerWebAvailable, isHowlerUnlocked } = require('./audioHowlerWeb');
+    if (howlerWebAvailable() && isHowlerUnlocked() && playHowlerSfx(key, bus, vol * scale)) {
+      return true;
+    }
+  } catch {
+    /* howler optional */
+  }
+  const path = SFX_FILES[key];
+  if (!path) return false;
   return tryPlayFile(path, bus, vol * scale);
 }
 
 export function unlockAudio() {
   unlocked = true;
+  try {
+    const { initHowlerWeb, unlockHowlerWeb } = require('./audioHowlerWeb');
+    initHowlerWeb();
+    unlockHowlerWeb();
+  } catch {
+    /* howler optional */
+  }
   applySettingsToGains();
   const audio = getCtx();
   if (!audio) return;

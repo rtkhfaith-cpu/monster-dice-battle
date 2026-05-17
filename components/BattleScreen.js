@@ -38,6 +38,7 @@ import {
   unlockBattleAudio,
 } from '../utils/battleAudio';
 import { playUiSfx } from '../utils/sounds';
+import BattleAudioControls from './BattleAudioControls';
 import { ART } from '../utils/artDirection';
 import { BATTLE } from '../utils/gameTheme';
 import {
@@ -659,17 +660,10 @@ export default function BattleScreen({
     <View style={styles.root}>
       <View style={styles.battleFrame}>
         <View style={styles.arenaField} pointerEvents="box-none">
-          <Animated.View
-            style={[
-              styles.arenaInner,
-              { transform: [{ translateX: shakeX }, { scale: hitStopScale }] },
-            ]}
-          >
+          <View style={styles.arenaInner}>
           <RpgBattleArena
             topHudExtra={
-              <TouchableOpacity style={styles.muteBtn} onPress={handleMutePress}>
-                <Text style={styles.muteBtnTxt}>{audioMuted ? '🔇' : '🔊'}</Text>
-              </TouchableOpacity>
+              <BattleAudioControls muted={audioMuted} onToggleMute={handleMutePress} />
             }
             p1={p1}
             p2={p2}
@@ -684,8 +678,8 @@ export default function BattleScreen({
             player1Label={labelP1}
             player2Label={labelCpu}
             battleDim={battleDim}
-            shakeX={new Animated.Value(0)}
-            stageZoom={stageZoom}
+            shakeX={shakeX}
+            stageZoom={hitStopScale}
             defendGlowP1={defendGlowP1}
             defendGlowP2={defendGlowP2}
             defenderFlashP1={defenderFlash === PLAYER_ID}
@@ -703,7 +697,7 @@ export default function BattleScreen({
               onComplete={handleProjectileComplete}
             />
           ) : null}
-          </Animated.View>
+          </View>
         </View>
 
         <View style={[styles.actionDock, battleMobile && styles.actionDockMobile]}>

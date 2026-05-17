@@ -4,7 +4,7 @@
 import { loadAudioSettings, saveAudioSettings } from '../../utils/audioSettings';
 import { getPlayerProfile, cloneGameData } from '../../utils/gameStorage';
 import { DEFAULT_GEAR_SLOTS } from '../../utils/gearSlots';
-import { hashPlayerKey } from '../../utils/playerKey';
+import { normalizePlayerKey } from '../../utils/playerKey';
 
 /**
  * @param {object} gameData
@@ -33,10 +33,7 @@ export function toCloudProfile(gameData, profileID) {
     unlockedGearSlots[om.id] = om.gearSlotCount ?? DEFAULT_GEAR_SLOTS;
   }
 
-  const keyHash =
-    (p.playerKeyHash && String(p.playerKeyHash).startsWith('pk_')
-      ? p.playerKeyHash
-      : '') || (p.pin ? hashPlayerKey(p.pin) : '');
+  const playerKey = normalizePlayerKey(p.pin || p.playerKey || '');
 
   const row = {
     profileID: String(profileID),
@@ -54,9 +51,8 @@ export function toCloudProfile(gameData, profileID) {
     updatedAt: p.updatedAt ?? new Date().toISOString(),
   };
 
-  if (keyHash) {
-    row.playerKeyHash = keyHash;
-    row.pinHash = keyHash;
+  if (playerKey.length === 4) {
+    row.playerKey = playerKey;
   }
 
   return row;
@@ -99,14 +95,12 @@ export function applyCloudProfile(gameData, cloud) {
   }
 
   p.name = String(normalized.playerName || cloud.playerName || p.name).slice(0, 24);
-  const cloudKey = normalized.playerKeyHash || normalized.pinHash || cloud.playerKeyHash || cloud.pinHash;
-  if (typeof cloudKey === 'string' && cloudKey) {
-    if (String(cloudKey).startsWith('pk_')) {
-      p.playerKeyHash = cloudKey;
-      delete p.pin;
-    } else if (/^\d{4}$/.test(String(cloudKey).replace(/\D/g, '').slice(0, 4))) {
-      p.pin = String(cloudKey).replace(/\D/g, '').slice(0, 4).padStart(4, '0');
-    }
+  const cloudPin = normalizePlayerKey(
+    normalized.playerKey || cloud.playerKey || normalized.pin || cloud.pin || '',
+  );
+  if (cloudPin.length === 4) {
+    p.pin = cloudPin;
+    delete p.playerKeyHash;
   }
   if (normalized.createdAt) p.createdAt = normalized.createdAt;
   if (normalized.updatedAt) p.updatedAt = normalized.updatedAt;

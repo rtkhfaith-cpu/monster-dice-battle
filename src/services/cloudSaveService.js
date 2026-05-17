@@ -91,18 +91,20 @@ export async function saveCloudProfile(profile, opts = {}) {
   if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
   if (!profile?.profileID) return { ok: false, error: 'Missing profileID' };
 
-  const hasHash =
-    (profile.playerKeyHash && String(profile.playerKeyHash).startsWith('pk_')) ||
-    (profile.pinHash && String(profile.pinHash).startsWith('pk_'));
-  if (!hasHash && !opts.allowNoKey) {
-    return { ok: false, error: 'Cannot sync profile without a player key hash' };
+  const key = normalizePlayerKey(profile.playerKey);
+  if (key.length !== 4 && !opts.allowNoKey) {
+    return { ok: false, error: 'Missing key — set a 4-digit Player Key before cloud sync' };
   }
+  const payload = { ...profile, playerKey: key.length === 4 ? key : profile.playerKey };
+  delete payload.playerKeyHash;
+  delete payload.pinHash;
+  delete payload.pin;
 
   try {
     const res = await apiRequest(base, '/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profile),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const errText = await readApiError(res);
@@ -269,7 +271,8 @@ export async function recallCloudProfile(profileID, playerKey, opts = {}) {
 
   const login = await loginCloudProfile(profileID, key);
   if (login.status === 401) {
-    return { ok: false, status: 401, error: 'Incorrect key. Please try again.' };
+    const msg = login.error || 'Incorrect key. Please try again.';
+    return { ok: false, status: 401, error: msg };
   }
   if (login.ok && hasFullCloudPayload(login.data)) {
     return login;
@@ -331,23 +334,23 @@ export async function deleteCloudProfile(profileID, playerKey, opts = {}) {
   if (key.length !== 4) {
     return { ok: false, status: 400, error: 'Enter your 4-digit Player Key.' };
   }
-  const keyBody = { playerKey: key };
+  const deletePayload = { profileID: String(profileID), playerKey: key };
 
-  try {
-    const res = await apiRequest(base, `/save/${id}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(keyBody),
-    });
+  async function finishDelete(res) {
     if (res.status === 401) {
-      return { ok: false, status: 401, error: 'Incorrect key. Player was not deleted.' };
+      const errText = await readApiError(res);
+      return {
+        ok: false,
+        status: 401,
+        error: errText || 'Incorrect key. Player was not deleted.',
+      };
     }
     if (res.status === 404) {
       return { ok: true, notFound: true };
     }
     if (!res.ok) {
       const errText = await readApiError(res);
-      if (DEV) console.warn('[cloud-save] DELETE failed', res.status, errText);
+      if (DEV) console.warn('[cloud-save] delete failed', res.status, errText);
       return { ok: false, status: res.status, error: errText || `HTTP ${res.status}` };
     }
     let body = {};
@@ -360,8 +363,37 @@ export async function deleteCloudProfile(profileID, playerKey, opts = {}) {
       return { ok: false, status: res.status, error: body.error || 'Delete rejected' };
     }
     return { ok: true };
+  }
+
+  try {
+    // POST body is reliable on API Gateway; DELETE query/body is often dropped.
+    let res = await apiRequest(base, '/save/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Player-Key': key,
+      },
+      body: JSON.stringify(deletePayload),
+    });
+
+    if (res.status === 404) {
+      res = await apiRequest(
+        base,
+        `/save/${id}?playerKey=${encodeURIComponent(key)}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Player-Key': key,
+          },
+          body: JSON.stringify(deletePayload),
+        },
+      );
+    }
+
+    return await finishDelete(res);
   } catch (err) {
-    if (DEV) console.warn('[cloud-save] DELETE error', err?.message || err);
+    if (DEV) console.warn('[cloud-save] delete error', err?.message || err);
     return { ok: false, error: formatFetchError(err) };
   }
 }
@@ -374,7 +406,7 @@ export async function syncProfileToCloud(profileID, gameData = null) {
   const gd = gameData || (await loadGameSave());
   const cloud = toCloudProfile(gd, profileID);
   if (!cloud) return { ok: false, error: 'Profile not found locally' };
-  if (!cloud.playerKeyHash && !cloud.pinHash) {
+  if (!cloud.playerKey || normalizePlayerKey(cloud.playerKey).length !== 4) {
     return { ok: false, error: 'Set a Player Key on this profile before cloud sync' };
   }
   return saveCloudProfile(cloud);

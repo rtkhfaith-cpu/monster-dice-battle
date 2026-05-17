@@ -210,7 +210,12 @@ export default function RpgBattleArena({
       style={[
         styles.arenaOuter,
         battleDim && styles.arenaDim,
-        { transform: [{ translateX: shakeX }, { scale: stageZoom }] },
+        {
+          transform: [
+            { translateX: shakeX ?? 0 },
+            { scale: stageZoom ?? 1 },
+          ],
+        },
       ]}
     >
       <View style={styles.vignetteTop} pointerEvents="none" />

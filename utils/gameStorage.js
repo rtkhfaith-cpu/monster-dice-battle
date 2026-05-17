@@ -377,7 +377,7 @@ export function ensureProfilesFromGuest(gameData) {
 }
 
 /** @returns {{ gameData: object, playerId?: string, error?: string }} */
-export function createPlayerProfile(gameData, name, playerKeyHash = '') {
+export function createPlayerProfile(gameData, name, playerKey = '') {
   const gd = cloneGameData(gameData);
   if (gd.players.length >= MAX_PLAYER_PROFILES) {
     gd.players = [];
@@ -420,12 +420,12 @@ export function enforceSingleActiveProfile(gameData, activeProfileId) {
 }
 
 /** @returns {object} */
-export function setPlayerKeyForProfile(gameData, profileId, playerKeyHash) {
+export function setPlayerKeyForProfile(gameData, profileId, playerKey) {
   const gd = cloneGameData(gameData);
   const p = gd.players.find((x) => x.id === profileId);
   if (!p) return gd;
-  p.playerKeyHash = String(playerKeyHash || '');
-  delete p.pin;
+  p.pin = String(playerKey || '').replace(/\D/g, '').slice(0, 4);
+  delete p.playerKeyHash;
   p.updatedAt = new Date().toISOString();
   if (!p.createdAt) p.createdAt = p.updatedAt;
   return gd;

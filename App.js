@@ -61,7 +61,7 @@ import { commitProfileDeleted, commitSave, setCloudSyncProfileID } from './src/s
 import { emitSaveStatus } from './src/services/saveStatusBus';
 import ConfirmDialog from './components/ConfirmDialog';
 import {
-  hashPlayerKey,
+  normalizePlayerKey,
   profileNeedsPlayerKeyMigration,
   validatePlayerKeyPair,
   verifyPlayerKeyForProfile,
@@ -452,8 +452,8 @@ export default function App() {
         setKeyModalError(pairErr);
         return;
       }
-      const hash = hashPlayerKey(key);
-      const next = setPlayerKeyForProfile(gameData, profileId, hash);
+      const pin = normalizePlayerKey(key);
+      const next = setPlayerKeyForProfile(gameData, profileId, pin);
       markProfileUnlocked(profileId);
       persistSave(next, 'player_key_migrated', profileId);
       setKeyModal(null);
@@ -524,8 +524,7 @@ export default function App() {
       }
 
       const baseGd = gameData || (await loadGameSave());
-      const keyHash =
-        requiresKey && playerKey && playerKey.length === 4 ? hashPlayerKey(playerKey) : '';
+      const pin = normalizePlayerKey(playerKey);
       const resolvedId = String(login.data?.profileID || login.data?.id || profileId).trim();
       let next = applyCloudProfile(baseGd, login.data);
       const applied = next.players?.find((p) => p.id === resolvedId || p.id === profileId);
@@ -534,7 +533,7 @@ export default function App() {
         return;
       }
       const activeId = applied.id;
-      if (keyHash) next = setPlayerKeyForProfile(next, activeId, keyHash);
+      if (requiresKey && pin.length === 4) next = setPlayerKeyForProfile(next, activeId, pin);
       next = enforceSingleActiveProfile(next, activeId);
 
       setGameData(next);
@@ -623,8 +622,8 @@ export default function App() {
       return;
     }
 
-    const playerKeyHash = hashPlayerKey(playerKey);
-    const res = createPlayerProfile(gameData, trimmed, playerKeyHash);
+    const pin = normalizePlayerKey(playerKey);
+    const res = createPlayerProfile(gameData, trimmed, pin);
     const newId = res.playerId;
     markProfileUnlocked(newId);
     const next = enforceSingleActiveProfile(res.gameData, newId);
