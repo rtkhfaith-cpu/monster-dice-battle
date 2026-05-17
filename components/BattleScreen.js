@@ -13,8 +13,7 @@ import {
 import { isMobileLayout } from '../utils/battleLayout';
 import BattleProjectileLayer from './BattleProjectileLayer';
 import RpgBattleArena from './RpgBattleArena';
-import { pickProjectile } from '../utils/battleProjectiles';
-import { getSkillAnimMeta } from '../utils/skillAnimations';
+import { resolveAttackVisuals } from '../utils/battleProjectiles';
 import { playSound, playSoundForSkill } from '../utils/sounds';
 import {
   maybeApplySkillStatus,
@@ -488,8 +487,8 @@ export default function BattleScreen({
     p1Ref.current = np1;
     p2Ref.current = np2;
 
-    const animMeta = getSkillAnimMeta(skill);
-    const isFly = animMeta.animKind === 'fly_lunge' || animMeta.animKind === 'bite_lunge';
+    const visuals = resolveAttackVisuals(skill, { templateId: atk.monsterTemplateId });
+    const isFly = visuals.animKind === 'fly_lunge' || visuals.animKind === 'bite_lunge';
     setFlyStrikeP1(attackerId === PLAYER_ID && isFly);
     setFlyStrikeP2(attackerId === CPU_ID && isFly);
 
@@ -500,9 +499,12 @@ export default function BattleScreen({
       effectType: skill?.effectType ?? 'normal',
       emoji: skill?.emoji,
       skillId: skill?.id,
-      animKind: animMeta.animKind,
-      sfxKey: animMeta.sfxKey,
-      sicklyFlash: animMeta.sicklyFlash,
+      animKind: visuals.animKind,
+      sfxKey: visuals.sfxKey,
+      sicklyFlash: visuals.sicklyFlash,
+      displayEmoji: visuals.displayEmoji,
+      cloudEmojis: visuals.cloudEmojis,
+      splatEmoji: visuals.splatEmoji,
       critical: resolved.critical,
       weak: resolved.weak,
       dodged: !!resolved.dodged,
@@ -512,11 +514,7 @@ export default function BattleScreen({
       attackerId,
       defenderId,
       attackerTemplateId: atk.monsterTemplateId,
-      projectileId: pickProjectile({
-        templateId: atk.monsterTemplateId,
-        effectType: skill?.effectType ?? 'normal',
-        projectileId: animMeta.projectileId,
-      }),
+      projectileId: visuals.projectileId,
       useProjectileAnim: true,
       seq: effectSeqRef.current,
     };

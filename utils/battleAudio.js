@@ -1,8 +1,9 @@
 import { Platform } from 'react-native';
-import { playSfx } from './gameSounds';
+import { playGameSfx, playMenuSfx } from './gameSfx';
 import {
   duckBgm as duckBgmChannel,
   playFileSfx,
+  playFileAtPath,
   setBattleMusicIntensity,
   setAudioMuted as setGlobalAudioMuted,
   startBattleMusicLoop,
@@ -11,6 +12,7 @@ import {
   loadAudioSettings,
   isAudioMuted,
 } from './audioManager';
+import { getTrackByField } from './audioCatalog';
 
 let unlocked = false;
 let muted = false;
@@ -24,9 +26,13 @@ let duckUntil = 0;
 let musicTargetVol = 0.31;
 let fadeTimer = null;
 
-/** BGM ~30%, SFX ~85% — punchy arcade mix */
-const SFX_BASE = 0.85;
-const MUSIC_BASE = 0.31;
+function sfxBase() {
+  return loadAudioSettings().sfx ?? 0.88;
+}
+
+function musicBase() {
+  return loadAudioSettings().bgm ?? 0.3;
+}
 
 const SFX_VOLUME_BOOST = {
   attack: 1.2,
@@ -269,7 +275,36 @@ const FILE_SFX_MAP = {
   button: 'ui_click',
 };
 
-function playProfile(name, volScale = 1, bus = 'sfx') {
+function playCategoryTrack(category, volScale = 1) {
+  const field =
+    category === 'dice' ? 'diceTrack'
+    : category === 'attack' ? 'attackTrack'
+    : category === 'critical' ? 'criticalTrack'
+    : category === 'super' ? 'superTrack'
+    : null;
+  if (!field) return false;
+  const s = loadAudioSettings();
+  const track = getTrackByField(field, s[field]);
+  duckBgmChannel(380);
+  try {
+    const { playHowlerCategory, howlerWebAvailable, isHowlerUnlocked } = require('./audioHowlerWeb');
+    if (howlerWebAvailable() && isHowlerUnlocked() && playHowlerCategory(category, volScale)) {
+      return true;
+    }
+  } catch {
+    /* optional */
+  }
+  if (track.path && playFileAtPath(track.path, category === 'dice' ? 'ui' : 'impact', volScale)) {
+    return true;
+  }
+  if (track.synth) {
+    playSynthProfile(track.synth, volScale, category === 'dice' ? 'ui' : 'sfx');
+    return true;
+  }
+  return false;
+}
+
+function playSynthProfile(name, volScale = 1, bus = 'sfx') {
   duckBgmChannel(380);
   const fileKey = FILE_SFX_MAP[name];
   if (fileKey && playFileSfx(fileKey, volScale, bus === 'music' ? 'sfx' : bus === 'ui' ? 'ui' : 'impact')) {
@@ -279,9 +314,10 @@ function playProfile(name, volScale = 1, bus = 'sfx') {
   if (!steps) return;
   const boost = SFX_VOLUME_BOOST[name] ?? 1;
   const pitch = 0.95 + Math.random() * 0.1;
+  const base = sfxBase();
   steps.forEach((s, i) => {
     setTimeout(() => {
-      const vol = SFX_BASE * volScale * boost * (s.vol ?? 1);
+      const vol = base * volScale * boost * (s.vol ?? 1);
       if (s.noise) {
         synthNoise(s.d, vol * 0.35, s.filter ?? 600);
       } else {
@@ -289,6 +325,13 @@ function playProfile(name, volScale = 1, bus = 'sfx') {
       }
     }, i * 38);
   });
+}
+
+function playProfile(name, volScale = 1, bus = 'sfx') {
+  if (name === 'dice' && playCategoryTrack('dice', volScale)) return;
+  if ((name === 'attack' || name === 'hit') && playCategoryTrack('attack', volScale)) return;
+  if (name === 'critical' && playCategoryTrack('critical', volScale)) return;
+  playSynthProfile(name, volScale, bus);
 }
 
 export function duckBgm(ms = 400) {
@@ -305,16 +348,17 @@ function playBgmStep() {
   const mel = BGM_MELODY[musicStep % BGM_MELODY.length];
   const bass = BGM_BASS[Math.floor(musicStep / 2) % BGM_BASS.length];
   const harm = BGM_HARMONY[Math.floor(musicStep / 4) % BGM_HARMONY.length];
+  const base = musicBase();
   updateMusicGain();
-  synthTone(mel.f, mel.d, mel.t, MUSIC_BASE * mel.v, 'music');
+  synthTone(mel.f, mel.d, mel.t, base * mel.v, 'music');
   if (musicStep % 2 === 0) {
-    synthTone(bass.f, bass.d, bass.t, MUSIC_BASE * bass.v * 0.95, 'music');
+    synthTone(bass.f, bass.d, bass.t, base * bass.v * 0.95, 'music');
   }
   if (musicStep % 4 === 0) {
-    synthTone(harm.f, harm.d, harm.t, MUSIC_BASE * harm.v, 'music');
+    synthTone(harm.f, harm.d, harm.t, base * harm.v, 'music');
   }
   if (musicStep % 2 === 0) {
-    synthTone(BGM_KICK.f, BGM_KICK.d, BGM_KICK.t, MUSIC_BASE * BGM_KICK.v * 0.9, 'music');
+    synthTone(BGM_KICK.f, BGM_KICK.d, BGM_KICK.t, base * BGM_KICK.v * 0.9, 'music');
   }
   musicStep += 1;
 }
@@ -323,10 +367,12 @@ function fadeMusicIn() {
   if (!musicGain || !ctx) return;
   let step = 0;
   const steps = 12;
+  const target = musicBase();
+  musicTargetVol = target;
   if (fadeTimer) clearInterval(fadeTimer);
   fadeTimer = setInterval(() => {
     step += 1;
-    musicTargetVol = (0.31 * step) / steps;
+    musicTargetVol = (target * step) / steps;
     updateMusicGain();
     if (step >= steps) {
       clearInterval(fadeTimer);
@@ -340,6 +386,13 @@ function preloadSynthProfiles() {
   Object.keys(SFX_PROFILES).forEach((key) => {
     playProfile(key, 0.01);
   });
+}
+
+export function syncBattleAudioFromSettings(nextSettings) {
+  const s = nextSettings || loadAudioSettings();
+  muted = !!s.muted;
+  musicTargetVol = s.bgm;
+  updateMusicGain();
 }
 
 export function unlockBattleAudio() {
@@ -374,7 +427,7 @@ export function setBattleMuted(next) {
     stopBattleMusic();
   } else {
     bgmStarted = false;
-    musicTargetVol = loadAudioSettings().bgm ?? MUSIC_BASE;
+    musicTargetVol = loadAudioSettings().bgm ?? musicBase();
     updateMusicGain();
     startBattleMusic();
   }
@@ -390,75 +443,65 @@ export function toggleBattleMuted() {
   return next;
 }
 
+const BATTLE_SFX_MAP = {
+  attack: 'attack',
+  hit: 'attack',
+  physical: 'attack',
+  magic: 'attack',
+  critical: 'critical',
+  super: 'critical',
+  dodge: 'dodge',
+  win: 'win',
+  victory: 'win',
+  lose: 'lose',
+  defeat: 'lose',
+  shop: 'shop',
+  coin: 'shop',
+  levelUp: 'levelUp',
+  button: 'button',
+  ui: 'button',
+  dice: 'button',
+  water: 'attack',
+  fire: 'attack',
+  poison: 'attack',
+  bacteria: 'attack',
+  fly: 'attack',
+  bite: 'attack',
+  egg: 'attack',
+  metal: 'attack',
+  roar: 'attack',
+  defend: 'attack',
+  shield: 'attack',
+};
+
 export async function playBattleSfx(key, opts = {}) {
-  if (!unlocked || muted) return;
+  if (muted) return;
   const vol = typeof opts.volume === 'number' ? opts.volume : 1;
+  const kind = BATTLE_SFX_MAP[key] || 'attack';
 
-  const wavKeys = {
-    dice: 'dice',
-    attack: 'attackP1',
-    win: 'winP1',
-    lose: 'winP2',
-  };
-  if (wavKeys[key]) {
-    try {
-      duckBgm(350);
-      await playSfx(wavKeys[key], { volume: vol * 0.85 });
-      return;
-    } catch {
-      /* synth fallback */
-    }
-  }
+  duckBgm(350);
 
-  const profileMap = {
-    dice: 'dice',
-    hit: 'hit',
-    attack: 'attack',
-    physical: 'attack',
-    magic: 'magic',
-    critical: 'critical',
-    super: 'critical',
-    dodge: 'dodge',
-    defend: 'defend',
-    shield: 'defend',
-    water: 'water',
-    fire: 'fire',
-    poison: 'poison',
-    bacteria: 'bacteria',
-    stink: 'poop',
-    poop: 'poop',
-    milk: 'water',
-    bottle: 'water',
-    fly: 'fly',
-    bite: 'bite',
-    egg: 'egg',
-    metal: 'metal',
-    roar: 'roar',
-    win: 'win',
-    lose: 'lose',
-    victory: 'win',
-    defeat: 'lose',
-    button: 'button',
-    ui: 'button',
-  };
-  const profile = profileMap[key] || 'hit';
+  if (playGameSfx(kind, vol)) return;
+
+  if (kind === 'attack' && playCategoryTrack('attack', vol)) return;
+  if (kind === 'critical' && playCategoryTrack('critical', vol)) return;
+  if (key === 'super' && playCategoryTrack('super', vol)) return;
+
+  const profile =
+    kind === 'critical' ? 'critical'
+    : kind === 'dodge' ? 'dodge'
+    : kind === 'win' ? 'win'
+    : kind === 'lose' ? 'lose'
+    : 'attack';
   playProfile(profile, vol);
 }
 
-export function playAttackSfxForEffect(effectType) {
-  if (effectType === 'fire') return playBattleSfx('fire');
-  if (effectType === 'water') return playBattleSfx('water');
-  if (effectType === 'poison') return playBattleSfx('bacteria');
-  if (effectType === 'smellySocks' || effectType === 'toiletPaper' || effectType === 'egg') return playBattleSfx('egg');
-  if (effectType === 'bottle') return playBattleSfx('water');
-  if (effectType === 'cactus') return playBattleSfx('metal');
-  if (effectType === 'magic67') return playBattleSfx('magic');
-  if (effectType === 'roar') return playBattleSfx('roar');
-  return playBattleSfx('hit');
+export function playAttackSfxForEffect(_effectType) {
+  return playBattleSfx('attack');
 }
 
 export function playUiSfx() {
-  return playBattleSfx('button');
+  return playMenuSfx();
 }
 
 let bgmStarted = false;
@@ -467,11 +510,9 @@ export function startBattleMusic() {
   if (!unlocked || muted || bgmStarted) return;
   bgmStarted = true;
   musicStep = 0;
-  fadeMusicIn();
-  startBattleMusicLoop(() => {
-    if (muted) return;
-    playBgmStep();
-  });
+  musicTargetVol = loadAudioSettings().bgm ?? musicBase();
+  updateMusicGain();
+  startBattleMusicLoop(null);
 }
 
 export function stopBattleMusic() {

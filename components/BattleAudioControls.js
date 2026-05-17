@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ART } from '../utils/artDirection';
-import { loadAudioSettings, saveAudioSettings } from '../utils/audioSettings';
-import { setAudioVolumes, setAudioMuted, isAudioMuted } from '../utils/audioManager';
+import { loadAudioSettings, applyAudioSettings } from '../utils/audioSettings';
+import { isAudioMuted } from '../utils/audioManager';
 
 function VolRow({ label, value, onChange }) {
   const pct = Math.round(value * 100);
@@ -31,10 +31,8 @@ export default function BattleAudioControls({ muted, onToggleMute }) {
   const [settings, setSettings] = useState(() => loadAudioSettings());
 
   function patch(patch) {
-    const next = { ...settings, ...patch };
+    const next = applyAudioSettings(patch);
     setSettings(next);
-    saveAudioSettings(patch);
-    setAudioVolumes(patch);
   }
 
   return (
@@ -57,7 +55,7 @@ export default function BattleAudioControls({ muted, onToggleMute }) {
               style={styles.muteRow}
               onPress={() => {
                 const m = !isAudioMuted();
-                setAudioMuted(m);
+                applyAudioSettings({ muted: m });
                 onToggleMute?.();
                 setSettings(loadAudioSettings());
               }}

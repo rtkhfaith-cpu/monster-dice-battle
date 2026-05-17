@@ -2,32 +2,10 @@
  * Silly battle projectile presets — emoji-based, lightweight.
  */
 
-export const PROJECTILES = {
-  poop: { emoji: '💩', splat: '💥', spin: true },
-  milkBottle: { emoji: '🍼', splat: '💦' },
-  toiletRoll: { emoji: '🧻', splat: '✨' },
-  slipper: { emoji: '🩴', splat: '💢' },
-  rottenEgg: { emoji: '🥚', splat: '🍳' },
-  eggBomb: { emoji: '🥚', splat: '🍳', crack: '🥚💥', spin: true },
-  socks: { emoji: '🧦', splat: '💨' },
-  waterSpray: { emoji: '💦', splat: '💧' },
-  waterWave: { emoji: '🌊', splat: '💧', wide: true },
-  cactus: { emoji: '🌵', splat: '🌵' },
-  burger: { emoji: '🍔', splat: '💥' },
-  pencil: { emoji: '✏️', splat: '✨', spin: true },
-  tissue: { emoji: '🧻', splat: '✨' },
-  feather: { emoji: '🪶', splat: '✨' },
-  stinkCloud: { emoji: '💨', splat: '☁️' },
-  fireball: { emoji: '🔥', splat: '💥' },
-  fireBlast: { emoji: '🔥', splat: '💥', trail: true },
-  bacteria: { emoji: '🦠', splat: '☁️', cloud: true },
-  flyBug: { emoji: '🪰', splat: '💥' },
-  bite: { emoji: '🦷', splat: '💢', spin: false },
-  phone: { emoji: '📱', splat: '⚡' },
-  crocs: { emoji: '🐊', splat: '💢' },
-  homework: { emoji: '📚', splat: '📄' },
-  bubbleTea: { emoji: '🧋', splat: '💦' },
-};
+const { PROJECTILES, getProjectile, getCloudEmojis } = require('./battleProjectilesData');
+import { getSkillAnimMeta } from './skillAnimations';
+
+export { PROJECTILES, getProjectile, getCloudEmojis };
 
 const EFFECT_TO_PROJECTILE = {
   fire: 'fireball',
@@ -43,7 +21,6 @@ const EFFECT_TO_PROJECTILE = {
   magic67: 'pencil',
 };
 
-/** Default projectile pools per monster template. */
 const MONSTER_POOLS = {
   cockroachsaurus: ['poop', 'toiletRoll', 'stinkCloud'],
   chickenzilla: ['rottenEgg', 'feather', 'milkBottle'],
@@ -62,10 +39,6 @@ const MONSTER_POOLS = {
 
 const FALLBACK_POOL = ['poop', 'slipper', 'rottenEgg', 'socks', 'pencil'];
 
-export function getProjectile(id) {
-  return PROJECTILES[id] ?? PROJECTILES.poop;
-}
-
 /**
  * Pick a projectile style from move effect + attacker monster.
  */
@@ -78,4 +51,28 @@ export function pickProjectile({ templateId, effectType, projectileId }) {
   const pool = MONSTER_POOLS[templateId] || FALLBACK_POOL;
   const pick = pool[Math.floor(Math.random() * pool.length)];
   return PROJECTILES[pick] ? pick : 'poop';
+}
+
+/**
+ * Resolve full attack VFX payload fields for battle screens.
+ */
+export function resolveAttackVisuals(skill, { templateId } = {}) {
+  const meta = getSkillAnimMeta(skill);
+  const projectileId = pickProjectile({
+    templateId,
+    effectType: skill?.effectType ?? 'normal',
+    projectileId: meta.projectileId,
+  });
+  const projectile = getProjectile(projectileId);
+  const skillEmoji = skill?.emoji;
+  return {
+    animKind: meta.animKind,
+    sfxKey: meta.sfxKey,
+    sicklyFlash: !!meta.sicklyFlash,
+    projectileId,
+    skillEmoji,
+    displayEmoji: skillEmoji || projectile.emoji,
+    cloudEmojis: getCloudEmojis(skillEmoji, projectile),
+    splatEmoji: projectile.splat || skillEmoji || '💥',
+  };
 }

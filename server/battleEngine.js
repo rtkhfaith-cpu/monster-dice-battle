@@ -4,28 +4,8 @@
 const { resolvePhysicalBattleDamage, resolveMagicBattleDamage } = require('./battleDamage');
 const { getPhysicalSkill, getMagicSkills, canAffordSkill } = require('./battleSkills');
 
-const SKILL_ANIM = {
-  fly_face: { animKind: 'fly_lunge', projectileId: 'flyBug' },
-  dirty_bite: { animKind: 'bite_lunge', projectileId: 'bite' },
-  spread_bacteria: { animKind: 'cloud_spread', projectileId: 'bacteria', sicklyFlash: true },
-  egg_bomb: { animKind: 'egg_bomb', projectileId: 'eggBomb' },
-  cold_splash: { animKind: 'water_wave', projectileId: 'waterWave' },
-  crush_wave: { animKind: 'water_wave', projectileId: 'waterWave' },
-  tail_slam: { animKind: 'fire_blast', projectileId: 'fireBlast' },
-  spicy_noodles: { animKind: 'fire_blast', projectileId: 'fireBlast' },
-  spell_burst: { animKind: 'sparkle', projectileId: 'pencil' },
-  skibidi_beam: { animKind: 'water_wave', projectileId: 'waterWave' },
-};
-
-function skillAnimMeta(skill) {
-  const id = skill?.id ?? '';
-  if (SKILL_ANIM[id]) return { animKind: 'projectile', projectileId: 'poop', ...SKILL_ANIM[id] };
-  const effectType = skill?.effectType ?? 'normal';
-  if (effectType === 'water') return { animKind: 'water_wave', projectileId: 'waterWave' };
-  if (effectType === 'fire') return { animKind: 'fire_blast', projectileId: 'fireBlast' };
-  if (effectType === 'toiletPaper') return { animKind: 'cloud_spread', projectileId: 'toiletRoll' };
-  return { animKind: 'projectile', projectileId: 'poop' };
-}
+const { getSkillAnimMeta } = require('../utils/skillAnimRegistry');
+const { getProjectile, getCloudEmojis } = require('../utils/battleProjectilesData');
 
 function cloneFighter(f) {
   return JSON.parse(JSON.stringify(f));
@@ -173,15 +153,21 @@ function pickSkill(fighter, strikeKind, skillId) {
 }
 
 function buildEffect(skill, resolved, attackerId, defenderId, strikeKind) {
-  const anim = skillAnimMeta(skill);
+  const anim = getSkillAnimMeta(skill);
+  const projectile = getProjectile(anim.projectileId);
+  const skillEmoji = skill?.emoji;
   return {
     type: strikeKind === 'magic' ? 'magic' : 'normal',
     moveName: skill?.name ?? 'Attack',
     effectType: skill?.effectType ?? 'normal',
-    emoji: skill?.emoji,
+    emoji: skillEmoji,
     skillId: skill?.id,
     animKind: anim.animKind,
+    sfxKey: anim.sfxKey,
     sicklyFlash: !!anim.sicklyFlash,
+    displayEmoji: skillEmoji || projectile.emoji,
+    cloudEmojis: getCloudEmojis(skillEmoji, projectile),
+    splatEmoji: projectile.splat || skillEmoji || '💥',
     critical: resolved.critical,
     weak: resolved.weak,
     dodged: !!resolved.dodged,

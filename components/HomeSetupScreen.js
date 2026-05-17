@@ -63,6 +63,7 @@ export default function HomeSetupScreen({
   onRequestSelectCloudProfile,
   onUpdateProfileName,
   onResetSave,
+  onOpenAudioSettings,
   coins,
 }) {
   const { width } = useWindowDimensions();
@@ -165,6 +166,15 @@ export default function HomeSetupScreen({
       >
         <Text style={styles.shopBtnTxt}>🥚 Monsters</Text>
       </TouchableOpacity>
+      {onOpenAudioSettings ? (
+        <TouchableOpacity
+          style={[styles.shopBtn, isMobile && styles.shopBtnFull]}
+          onPress={onOpenAudioSettings}
+          activeOpacity={0.88}
+        >
+          <Text style={styles.shopBtnTxt}>🔊 Audio</Text>
+        </TouchableOpacity>
+      ) : null}
       {onResetSave ? (
         <TouchableOpacity
           style={[styles.shopBtn, isMobile && styles.shopBtnFull, styles.shopBtnWarn]}
@@ -195,6 +205,11 @@ export default function HomeSetupScreen({
         <TouchableOpacity style={styles.menuChip} onPress={onOpenMonsterMart}>
           <Text style={styles.menuChipTxt}>Monsters</Text>
         </TouchableOpacity>
+        {onOpenAudioSettings ? (
+          <TouchableOpacity style={styles.menuChipAlt} onPress={onOpenAudioSettings}>
+            <Text style={styles.menuChipTxt}>Audio</Text>
+          </TouchableOpacity>
+        ) : null}
         {onResetSave ? (
           <TouchableOpacity style={styles.menuChipWarn} onPress={onResetSave}>
             <Text style={styles.menuChipTxt}>Reset</Text>

@@ -1,7 +1,7 @@
 /**
  * Map local player profile ↔ cloud DynamoDB document (profileID key).
  */
-import { loadAudioSettings, saveAudioSettings } from '../../utils/audioSettings';
+import { loadAudioSettings, applyAudioSettings } from '../../utils/audioSettings';
 import { getPlayerProfile, cloneGameData } from '../../utils/gameStorage';
 import { DEFAULT_GEAR_SLOTS } from '../../utils/gearSlots';
 import { normalizePlayerKey } from '../../utils/playerKey';
@@ -135,7 +135,7 @@ export function applyCloudProfile(gameData, cloud) {
   if (normalized.meta) p.meta = normalized.meta;
 
   if (normalized.audioSettings && typeof normalized.audioSettings === 'object') {
-    saveAudioSettings(normalized.audioSettings);
+    applyAudioSettings(normalized.audioSettings);
   }
 
   return gd;

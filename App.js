@@ -18,6 +18,7 @@ import MonsterGearScreen from './components/MonsterGearScreen';
 import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
 import HomeSetupScreen from './components/HomeSetupScreen';
+import AudioSettingsScreen from './components/AudioSettingsScreen';
 import OnlineLobbyScreen from './components/OnlineLobbyScreen';
 import OnlineRoomBanner from './components/OnlineRoomBanner';
 import { loadOnlineSession } from './utils/onlineSession';
@@ -32,7 +33,7 @@ import {
 } from './utils/onlineSocketManager';
 import RewardScreen from './components/RewardScreen';
 import { buildAiFighter, fighterFromOwned } from './utils/fighterFromOwned';
-import { initGameSounds, playSfx } from './utils/gameSounds';
+import { initGameSounds } from './utils/gameSounds';
 import { pickFunnyWinTitle, winTitleForRarity } from './utils/rewards';
 import {
   activeWallet,
@@ -71,6 +72,10 @@ import { loadSaveApiConfig } from './utils/saveApiConfig';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
 import { playSound } from './utils/sounds';
+import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
+import { startMenuMusic, stopMenuMusic } from './utils/audioManager';
+
+const LOBBY_PHASES = new Set(['menu', 'online', 'gameOver', 'audioSettings']);
 
 const BG = '#dceaf8';
 
@@ -251,7 +256,7 @@ export default function App() {
     const html = document.documentElement;
     const body = document.body;
     const root = document.getElementById('root');
-    const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'gameOver';
+    const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'gameOver' || phase === 'audioSettings';
     if (scrollableLobby) {
       // Lobby scrolls inside the app (ScrollView), not the document — fixed viewport + inner overflow.
       html.style.overflow = 'hidden';
@@ -297,6 +302,19 @@ export default function App() {
   }, [phase]);
 
   useEffect(() => {
+    if (loadAudioSettings().muted) {
+      stopMenuMusic();
+      return;
+    }
+    if (LOBBY_PHASES.has(phase)) {
+      startMenuMusic();
+    } else if (phase === 'battle') {
+      stopMenuMusic();
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    applyAudioSettings();
     void initGameSounds();
     void loadSaveApiConfig();
     loadGameSave().then((gd) => {
@@ -657,6 +675,7 @@ export default function App() {
       setSetupP1Id(newOm.id);
     }
     persistSave(nextGd, 'coins_changed', slotProfileId);
+    playSound('shop');
     Alert.alert('Monster Mart', `${getMonsterTemplate(templateId)?.name ?? 'Monster'} joined your team!`);
   }
 
@@ -689,6 +708,7 @@ export default function App() {
       return;
     }
     persistSave(res.gameData, 'gear_bought', gearProfileId || null);
+    playSound('shop');
   }
 
   function handleBuyGearMart(gearId) {
@@ -700,6 +720,7 @@ export default function App() {
       return;
     }
     persistSave(res.gameData, 'gear_bought', profileId);
+    playSound('shop');
   }
 
   function handleEquipGear(gearId, slotIndex = null) {
@@ -848,9 +869,10 @@ export default function App() {
     const title =
       outcome === 'draw' ? 'Peace Treaty Signed' : winTpl ? winTitleForRarity(winTpl.rarity) : pickFunnyWinTitle();
     setRewardTitle(title);
-    playSound('coin');
-    if (outcome === 1) void playSfx('winP1');
-    else if (outcome === 2) void playSfx('winP2');
+    playSound('shop');
+    if (summary?.expP1?.levelsGained > 0 || summary?.expP2?.levelsGained > 0) {
+      playSound('levelUp');
+    }
     setPhase('gameOver');
   }
 
@@ -957,13 +979,27 @@ export default function App() {
             <Text style={styles.coinsStripText}>
               Coins 🪙 <Text style={styles.coinsAmt}>{coins}</Text>
             </Text>
-            <TouchableOpacity style={styles.miniShop} onPress={() => setGearMartOpen(true)} accessibilityLabel="Gear mart">
+            <TouchableOpacity
+              style={styles.miniShop}
+              onPress={() => {
+                playSound('shop');
+                setGearMartOpen(true);
+              }}
+              accessibilityLabel="Gear mart"
+            >
               <Text style={styles.miniShopTxt}>Gear Mart</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.miniShop} onPress={openMonsterGearForActiveSlot} accessibilityLabel="Monster gear">
               <Text style={styles.miniShopTxt}>Equip</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.miniShop} onPress={() => setMonsterMartOpen(true)} accessibilityLabel="Monster mart">
+            <TouchableOpacity
+              style={styles.miniShop}
+              onPress={() => {
+                playSound('shop');
+                setMonsterMartOpen(true);
+              }}
+              accessibilityLabel="Monster mart"
+            >
               <Text style={styles.miniShopTxt}>Monsters</Text>
             </TouchableOpacity>
           </View>
@@ -1058,11 +1094,25 @@ export default function App() {
               }
             }}
             onOpenMonsterGearShop={openMonsterGearForActiveSlot}
-            onOpenGearMart={() => setGearMartOpen(true)}
-            onOpenMonsterMart={() => setMonsterMartOpen(true)}
+            onOpenGearMart={() => {
+              playSound('shop');
+              setGearMartOpen(true);
+            }}
+            onOpenMonsterMart={() => {
+              playSound('shop');
+              setMonsterMartOpen(true);
+            }}
             onResetSave={handleResetSave}
+            onOpenAudioSettings={() => setPhase('audioSettings')}
           />
         )}
+
+        {phase === 'audioSettings' ? (
+          <AudioSettingsScreen
+            activeProfileId={activeProfileId}
+            onBack={() => setPhase('menu')}
+          />
+        ) : null}
 
         {phase === 'battle' && gameMode === 'online' && onlineRoom?.battle ? (
           <OnlineBattleScreen
@@ -1151,6 +1201,7 @@ export default function App() {
         onUnequip={handleUnequipGear}
         onUnlockSlot={handleUnlockGearSlot}
         onOpenGearMart={() => {
+          playSound('shop');
           setGearOpen(false);
           setGearMartOpen(true);
         }}

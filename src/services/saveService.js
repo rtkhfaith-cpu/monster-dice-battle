@@ -8,7 +8,7 @@ import {
   cloneGameData,
   SAVE_KEY,
 } from '../../utils/gameStorage';
-import { loadAudioSettings, saveAudioSettings } from '../../utils/audioSettings';
+import { loadAudioSettings, applyAudioSettings } from '../../utils/audioSettings';
 
 export { SAVE_KEY };
 
@@ -111,7 +111,7 @@ export async function importSaveData(saveJson) {
         : getDefaultGameData();
   await saveGameSave(gd);
   if (parsed?.audioSettings && typeof parsed.audioSettings === 'object') {
-    saveAudioSettings(parsed.audioSettings);
+    applyAudioSettings(parsed.audioSettings);
   }
   return gd;
 }

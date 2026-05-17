@@ -1,62 +1,71 @@
-import { getSkillAnimMeta } from './skillAnimations';
-import { playAttackSfxForEffect, playBattleSfx, playUiSfx } from './battleAudio';
+import { playGameSfx, playMenuSfx, playShopSfx } from './gameSfx';
+import { unlockBattleAudio } from './battleAudio';
 
 /**
- * Central sound hook — maps battle events to synth/WAV clips.
- * @param {'dice'|'hit'|'critical'|'super'|'dodge'|'coin'|'rage'|'defend'|'win'|'lose'|'victory'|'button'|'magic'|'physical'|'fly'|'egg'|'bacteria'|'metal'|'water'|'fire'|'roar'} name
+ * Central sound hook — maps game events to public/audio/sfx WAV files.
+ * @param {'dice'|'hit'|'critical'|'super'|'dodge'|'coin'|'rage'|'defend'|'win'|'lose'|'victory'|'defeat'|'button'|'ui'|'shop'|'levelUp'|'attack'|'magic'|'physical'} name
  * @param {{ effectType?: string, volume?: number }} [opts]
  */
 export function playSound(name, opts = {}) {
   if (name === 'button' || name === 'ui') {
-    void playUiSfx();
+    playMenuSfx(opts.volume ?? 1);
     return;
   }
-  if (name === 'hit' && opts.effectType) {
-    void playAttackSfxForEffect(opts.effectType);
+
+  if (name === 'coin' || name === 'shop') {
+    playShopSfx(opts.volume ?? 1);
     return;
   }
+
+  if (name === 'levelUp') {
+    playGameSfx('levelUp', opts.volume ?? 1);
+    return;
+  }
+
+  if (name === 'hit' || name === 'attack' || name === 'physical' || name === 'magic') {
+    playGameSfx('attack', opts.volume ?? (name === 'magic' ? 1.05 : 1.1));
+    return;
+  }
+
   const map = {
-    hit: 'hit',
-    physical: 'attack',
-    magic: 'magic',
-    attack: 'attack',
     critical: 'critical',
     super: 'critical',
     dodge: 'dodge',
-    defend: 'defend',
-    shield: 'defend',
-    rage: 'fire',
-    coin: 'dice',
+    defend: 'attack',
+    shield: 'attack',
     win: 'win',
     victory: 'win',
     lose: 'lose',
     defeat: 'lose',
-    fly: 'fly',
-    egg: 'egg',
-    bacteria: 'bacteria',
-    metal: 'metal',
-    water: 'water',
-    fire: 'fire',
-    roar: 'roar',
+    fly: 'attack',
+    egg: 'attack',
+    bacteria: 'attack',
+    metal: 'attack',
+    water: 'attack',
+    fire: 'attack',
+    roar: 'attack',
+    rage: 'attack',
+    dice: 'button',
   };
-  const key = map[name];
-  if (key) {
-    void playBattleSfx(key, {
-      volume:
-        opts.volume ??
-        (name === 'critical' ? 1.35 : name === 'hit' ? 1.2 : name === 'magic' ? 1.15 : 1),
-    });
+
+  const kind = map[name];
+  if (kind) {
+    const vol =
+      opts.volume ??
+      (name === 'critical' || name === 'super' ? 1.2 : name === 'dodge' ? 1 : 1);
+    unlockBattleAudio();
+    playGameSfx(kind, vol);
   }
 }
 
-/** Wind-up SFX matched to skill name / animation */
-export function playSoundForSkill(skill, strikeKind = 'physical') {
-  if (!skill) {
-    void playBattleSfx(strikeKind === 'magic' ? 'magic' : 'attack');
-    return;
-  }
-  const meta = getSkillAnimMeta(skill);
-  void playBattleSfx(meta.sfxKey || (strikeKind === 'magic' ? 'magic' : 'attack'), { volume: 1.1 });
+/** Wind-up SFX when a skill is used in battle. */
+export function playSoundForSkill(_skill, _strikeKind = 'physical') {
+  unlockBattleAudio();
+  playGameSfx('attack', 1.05);
 }
 
-export { playUiSfx };
+export function playUiSfx() {
+  return playMenuSfx();
+}
+
+export { playMenuSfx, playShopSfx };
