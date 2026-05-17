@@ -23,6 +23,7 @@ import MonsterLadderCollectionScreen from './components/MonsterLadderCollectionS
 import MonsterLadderGearScreen from './components/MonsterLadderGearScreen';
 import MonsterLadderChestRevealModal from './components/MonsterLadderChestRevealModal';
 import AudioSettingsScreen from './components/AudioSettingsScreen';
+import PhaserBattleLabScreen from './components/PhaserBattleLabScreen';
 import OnlineLobbyScreen from './components/OnlineLobbyScreen';
 import OnlineRoomBanner from './components/OnlineRoomBanner';
 import { loadOnlineSession } from './utils/onlineSession';
@@ -117,6 +118,9 @@ export default function App() {
   const lobbyMobile = isLobbyMobileWidth(width);
   const [gameData, setGameData] = useState(null);
   const [phase, setPhase] = useState('menu');
+  const [isPhaserLab, setIsPhaserLab] = useState(() => (
+    Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hash === '#/phaser-lab'
+  ));
   const [gameMode, setGameMode] = useState(/** @type {'twoPlayer'|'onePlayer'|'online'|'monsterLadder'} */ ('onePlayer'));
   const [ladderCollectionOpen, setLadderCollectionOpen] = useState(false);
   const [ladderGearOpen, setLadderGearOpen] = useState(false);
@@ -264,6 +268,14 @@ export default function App() {
     setRewardTitle(iWon ? 'Online Victory!' : outcome === 'draw' ? 'Online Draw' : 'Online Defeat');
     setPhase('gameOver');
   }, [gameMode, phase, onlineRoom?.battle?.winner, onlineRoom?.battle?.seq, onlineSlot]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const syncHashRoute = () => setIsPhaserLab(window.location.hash === '#/phaser-lab');
+    syncHashRoute();
+    window.addEventListener('hashchange', syncHashRoute);
+    return () => window.removeEventListener('hashchange', syncHashRoute);
+  }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
@@ -1077,6 +1089,23 @@ export default function App() {
     return (
       <SafeAreaView style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]}>
         <Text style={styles.loading}>Loading save…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (isPhaserLab) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar style="light" />
+        <PhaserBattleLabScreen
+          onBack={() => {
+            if (Platform.OS === 'web' && typeof window !== 'undefined') {
+              window.location.hash = '';
+            }
+            setIsPhaserLab(false);
+            setPhase('menu');
+          }}
+        />
       </SafeAreaView>
     );
   }

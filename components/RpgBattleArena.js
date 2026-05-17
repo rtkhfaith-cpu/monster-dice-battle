@@ -93,6 +93,9 @@ export default function RpgBattleArena({
   player1Label = 'You',
   player2Label = 'Foe',
   topHudExtra = null,
+  ladderFloor = null,
+  ladderRegionName = '',
+  ladderBossName = '',
   battleDim,
   shakeX,
   stageZoom,
@@ -259,6 +262,19 @@ export default function RpgBattleArena({
 
       {/* z-index 10: top HUD */}
       <View style={styles.muteSlot}>{topHudExtra}</View>
+      {ladderFloor ? (
+        <View style={styles.stageBadge} pointerEvents="none">
+          <Text style={styles.stageBadgeFloor}>Floor {ladderFloor}</Text>
+          <Text style={styles.stageBadgeRegion} numberOfLines={1}>
+            {ladderRegionName || 'Monster Ladder'}
+          </Text>
+          {ladderBossName ? (
+            <Text style={styles.stageBadgeBoss} numberOfLines={1}>
+              vs {ladderBossName}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {turnShort ? (
         <View style={[styles.turnBadge, combatCallout && styles.turnBadgeCombat]} pointerEvents="none">
           <Text
@@ -773,13 +789,38 @@ const styles = StyleSheet.create({
 
   muteSlot: {
     position: 'absolute',
-    top: '2%',
-    left: '1.5%',
+    top: '24%',
+    left: '5%',
     zIndex: 10,
   },
+  stageBadge: {
+    position: 'absolute',
+    top: '3.5%',
+    left: '50%',
+    marginLeft: -82,
+    width: 164,
+    minHeight: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(108, 92, 231, 0.92)',
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.24)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    zIndex: 12,
+    shadowColor: '#2d2d44',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  stageBadgeFloor: { fontWeight: '900', fontSize: 18, color: '#fff', lineHeight: 22 },
+  stageBadgeRegion: { fontWeight: '900', fontSize: 13, color: '#f8f1ff', marginTop: 2 },
+  stageBadgeBoss: { fontWeight: '800', fontSize: 11, color: '#ffeaa7', marginTop: 3 },
   turnBadge: {
     position: 'absolute',
-    top: '25%',
+    top: '27%',
     left: '5%',
     right: '5%',
     alignItems: 'center',
@@ -831,26 +872,26 @@ const styles = StyleSheet.create({
 
   playerStats: {
     position: 'absolute',
-    left: '2.5%',
-    top: '6%',
+    left: '5%',
+    top: '8.5%',
     zIndex: 6,
   },
   enemyStats: {
     position: 'absolute',
-    right: '2.5%',
-    top: '6%',
+    right: '5%',
+    top: '8.5%',
     zIndex: 6,
   },
   playerMonster: {
     position: 'absolute',
-    left: '4%',
+    left: '8%',
     zIndex: 3,
     alignItems: 'flex-start',
     justifyContent: 'flex-end',
   },
   enemyMonster: {
     position: 'absolute',
-    right: '4%',
+    right: '8%',
     zIndex: 3,
     alignItems: 'flex-end',
     justifyContent: 'flex-end',

@@ -1,4 +1,5 @@
 import { DEFAULT_GEAR_SLOTS } from '../gearSlots';
+import { applyMonsterTheme } from '../monsterThemes';
 import { getLadderMonsterTemplate } from './ladderMonsterCatalog';
 import { normalizeMonsterLadder } from './ladderProgress';
 
@@ -9,7 +10,7 @@ function uid(prefix) {
 export function mergeLadderMonsterParts(templateId, parts = {}) {
   const t = getLadderMonsterTemplate(templateId);
   const base = t?.visualProfile?.defaultParts ?? {};
-  return { ...base, ...parts, ladderPremium: true };
+  return applyMonsterTheme(templateId, { ...base, ...parts, ladderPremium: true }, t);
 }
 
 /** @param {import('./ladderProgress').MonsterLadderState} ml */

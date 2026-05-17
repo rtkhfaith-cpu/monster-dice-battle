@@ -9,6 +9,7 @@ import {
   normalizeEquippedSlots,
   setGearAtSlot,
 } from './gearSlots';
+import { getLadderGear } from './monsterLadder/ladderGearCatalog';
 
 /** @typedef {'stat'|'element'|'fun'} GearCategory */
 
@@ -78,7 +79,17 @@ export const GEAR_CATEGORY_LABELS = {
 export const GEAR_SLOT_LABELS = GEAR_CATEGORY_LABELS;
 
 export function getGear(id) {
-  return GEAR_CATALOG.find((g) => g.id === id) ?? null;
+  const normalGear = GEAR_CATALOG.find((g) => g.id === id);
+  if (normalGear) return normalGear;
+  const ladderGear = getLadderGear(id);
+  if (!ladderGear) return null;
+  return {
+    ...ladderGear,
+    category: ladderGear.category ?? 'ladder',
+    price: ladderGear.price ?? 0,
+    emoji: ladderGear.emoji ?? '✨',
+    ladderExclusive: true,
+  };
 }
 
 /** Sum bonuses from equipped gear ids (compact list) */

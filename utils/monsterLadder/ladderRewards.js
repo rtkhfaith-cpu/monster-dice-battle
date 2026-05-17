@@ -17,6 +17,30 @@ import {
 } from './ladderProfile';
 import { cloneGameData, getPlayerProfile } from '../gameStorage';
 
+function profileOwnsTemplate(profile, templateId) {
+  return profile.ownedMonsters?.some((m) => m.templateId === templateId);
+}
+
+function addLadderMonsterToMainInventory(profile, row) {
+  if (!Array.isArray(profile.ownedMonsters)) profile.ownedMonsters = [];
+  if (profileOwnsTemplate(profile, row.templateId)) return null;
+  const mainRow = {
+    ...row,
+    id: row.id,
+    equippedGear: Array.isArray(row.equippedGear) ? row.equippedGear : [],
+    unlockedVisualTags: Array.isArray(row.unlockedVisualTags) ? row.unlockedVisualTags : [],
+  };
+  delete mainRow.equippedLadderGear;
+  profile.ownedMonsters.push(mainRow);
+  if (!profile.selectedMonsterId) profile.selectedMonsterId = mainRow.id;
+  return mainRow;
+}
+
+function addLadderGearToMainInventory(profile, gearId) {
+  if (!Array.isArray(profile.cosmeticsOwned)) profile.cosmeticsOwned = [];
+  profile.cosmeticsOwned = [...new Set([...profile.cosmeticsOwned, gearId])];
+}
+
 /**
  * @param {object} gameData
  * @param {string} profileId
@@ -70,7 +94,7 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
     const kind = getStageKind(stage.subLevel);
     if (kind === 'miniBoss') {
       if (!ml.gearChestClaimedToday) {
-        chestDrop = resolveChestOpen(ml, 'gear');
+        chestDrop = resolveChestOpen(profile, ml, 'gear');
         ml.gearChestClaimedToday = true;
         ml.pity.gearChestsOpened += 1;
         ml.stats.gearChestsOpened += 1;
@@ -79,7 +103,7 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
       }
     } else if (kind === 'bigBoss') {
       if (!ml.monsterChestClaimedToday) {
-        chestDrop = resolveChestOpen(ml, 'monster');
+        chestDrop = resolveChestOpen(profile, ml, 'monster');
         ml.monsterChestClaimedToday = true;
         ml.pity.monsterChestsOpened += 1;
         ml.stats.monsterChestsOpened += 1;
@@ -110,29 +134,33 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
   };
 }
 
-/** @param {import('./ladderProgress').MonsterLadderState} ml @param {'gear'|'monster'} type */
-function resolveChestOpen(ml, type) {
+/** @param {object} profile @param {import('./ladderProgress').MonsterLadderState} ml @param {'gear'|'monster'} type */
+function resolveChestOpen(profile, ml, type) {
   const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
   const roll = rollChestDrop(type, ml.pity[pityKey]);
   if (!roll) return null;
 
   if (roll.kind === 'monster') {
-    if (ml.ownedMonsters.some((m) => m.templateId === roll.id)) {
+    if (ml.ownedMonsters.some((m) => m.templateId === roll.id) || profileOwnsTemplate(profile, roll.id)) {
       const shards = LADDER_SHARDS_BY_RARITY[roll.rarity] ?? 8;
       ml.ladderShards += shards;
       return { ...roll, duplicate: true, shardsGained: shards };
     }
     const row = generateLadderOwnedMonster(roll.id);
     ml.ownedMonsters.push(row);
+    const mainRow = addLadderMonsterToMainInventory(profile, row);
     if (!ml.activeMonsterId) ml.activeMonsterId = row.id;
-    return { ...roll, duplicate: false, ownedId: row.id };
+    return { ...roll, duplicate: false, ownedId: row.id, mainOwnedId: mainRow?.id ?? row.id };
   }
 
-  if (ml.ownedGear.includes(roll.id)) {
+  if (ml.ownedGear.includes(roll.id) || profile.cosmeticsOwned?.includes(roll.id)) {
+    if (!ml.ownedGear.includes(roll.id)) ml.ownedGear.push(roll.id);
+    addLadderGearToMainInventory(profile, roll.id);
     const shards = LADDER_SHARDS_BY_RARITY[roll.rarity] ?? 8;
     ml.ladderShards += shards;
     return { ...roll, duplicate: true, shardsGained: shards };
   }
   ml.ownedGear.push(roll.id);
+  addLadderGearToMainInventory(profile, roll.id);
   return { ...roll, duplicate: false };
 }

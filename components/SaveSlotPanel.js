@@ -12,6 +12,7 @@ import {
 import MonsterPreview from './MonsterPreview';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { getMonsterTemplate } from '../utils/monsterTemplates';
+import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { MAX_PLAYER_PROFILES } from '../utils/gameStorage';
 import { gamePanelStyle } from '../utils/artDirection';
 import { LOBBY } from '../utils/gameTheme';
@@ -239,7 +240,7 @@ export default function SaveSlotPanel({
             const selected = isProfileHighlighted(p.id);
             const sessionSelected = p.id === activeProfileId;
             const { om, fighter } = profileMonster(p);
-            const tpl = om ? getMonsterTemplate(om.templateId) : null;
+            const tpl = om ? getMonsterTemplate(om.templateId) ?? getLadderMonsterTemplate(om.templateId) : null;
             const deleteBusy = deleteBusyProfileId === p.id;
 
             return (
@@ -400,7 +401,9 @@ export default function SaveSlotPanel({
               ) : null}
               {cloudPlayers.map((cp) => {
                 const selected = cp.profileID === activeProfileId;
-                const cloudTpl = cp.monsterTemplateId ? getMonsterTemplate(cp.monsterTemplateId) : null;
+                const cloudTpl = cp.monsterTemplateId
+                  ? getMonsterTemplate(cp.monsterTemplateId) ?? getLadderMonsterTemplate(cp.monsterTemplateId)
+                  : null;
                 return (
                   <Pressable
                     key={cp.profileID}

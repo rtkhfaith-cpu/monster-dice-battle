@@ -36,7 +36,7 @@ function GearShopRow({ g, have, worn, afford, selectedSlot, slotsFull, onBuy, on
       <View style={styles.mid}>
         <Text style={[styles.name, { fontSize: type.stat }]}>{g.name}</Text>
         <Text style={[styles.slot, { fontSize: type.statSm }]}>
-          {GEAR_CATEGORY_LABELS[g.category]} · {g.price} coins
+          {GEAR_CATEGORY_LABELS[g.category] ?? g.category ?? 'Ladder'} · {g.ladderExclusive ? 'Chest reward' : `${g.price} coins`}
         </Text>
         <Text style={[styles.bonusLine, { fontSize: type.statSm }]}>{bonusLines.join(' · ')}</Text>
         <Text style={[styles.status, { fontSize: type.statSm }]}>
@@ -110,7 +110,10 @@ export default function MonsterGearScreen({
     return GEAR_CATALOG.filter((g) => g.category === filterCat);
   }, [filterCat]);
 
-  const ownedCatalog = useMemo(() => GEAR_CATALOG.filter((g) => ownedSet.has(g.id)), [ownedSet]);
+  const ownedCatalog = useMemo(
+    () => (ownedGearIds || []).map((id) => getGear(id)).filter(Boolean),
+    [ownedGearIds],
+  );
 
   function handleEquip(gearId) {
     if (typeof selectedSlot === 'number') onEquip?.(gearId, selectedSlot);

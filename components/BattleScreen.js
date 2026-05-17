@@ -756,22 +756,12 @@ export default function BattleScreen({
           <RpgBattleArena
             topHudExtra={
               <View style={styles.topHudWrap}>
-                {ladderFloor ? (
-                  <View style={styles.ladderHud}>
-                    <Text style={styles.ladderHudFloor}>Floor {ladderFloor}</Text>
-                    <Text style={styles.ladderHudRegion} numberOfLines={1}>
-                      {ladderRegionName || 'Monster Ladder'}
-                    </Text>
-                    {ladderBossName ? (
-                      <Text style={styles.ladderHudBoss} numberOfLines={1}>
-                        vs {ladderBossName}
-                      </Text>
-                    ) : null}
-                  </View>
-                ) : null}
                 <BattleAudioControls muted={audioMuted} onToggleMute={handleMutePress} />
               </View>
             }
+            ladderFloor={ladderFloor}
+            ladderRegionName={ladderRegionName}
+            ladderBossName={ladderBossName}
             p1={p1}
             p2={p2}
             p1Mood={p1Mood}
@@ -865,7 +855,7 @@ export default function BattleScreen({
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.fightFace]} pointerEvents="none">
                   <View style={styles.fightBtnShine} />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.fightBtnTxt]}>
-                    Fight
+                    ⚔ Fight
                   </Text>
                 </View>
               </Pressable>
@@ -883,7 +873,7 @@ export default function BattleScreen({
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.magicFace]} pointerEvents="none">
                   <View style={styles.magicBtnShine} />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.magicBtnTxt]}>
-                    Magic
+                    ✨ Magic
                   </Text>
                 </View>
               </Pressable>
@@ -903,7 +893,7 @@ export default function BattleScreen({
             >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.runFace]} pointerEvents="none">
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.runBtnTxt]}>
-                    Run
+                    🏃 Run
                   </Text>
                 </View>
               </Pressable>
@@ -949,13 +939,13 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   actionDockMobile: {
-    paddingHorizontal: 8,
-    paddingTop: 6,
-    paddingBottom: Platform.OS === 'web' ? 12 : 10,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'web' ? 18 : 14,
   },
   menuRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap' },
   menuRowMobile: {
-    gap: 8,
+    gap: 12,
     flexWrap: 'nowrap',
   },
   magicPanel: { gap: 6 },
@@ -1006,7 +996,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 9,
     borderTopRightRadius: 9,
   },
-  magicBtnTxt: { color: '#f8f0ff', fontSize: 15 },
+  magicBtnTxt: { color: '#f8f0ff', fontSize: 18 },
   arcadeBtn: {
     flex: 1,
     minWidth: 76,
@@ -1036,13 +1026,13 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   btnFaceMobile: {
-    minHeight: 46,
-    borderRadius: 10,
-    borderWidth: 2,
-    paddingHorizontal: 2,
+    minHeight: 72,
+    borderRadius: 15,
+    borderWidth: 3,
+    paddingHorizontal: 4,
   },
   arcadeBtnTxtMobile: {
-    fontSize: 13,
+    fontSize: 22,
     letterSpacing: 0,
   },
   fightBtn: {
@@ -1108,22 +1098,9 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   fightBtnTxt: { color: '#fff9f0', fontSize: 18 },
-  fightBtnTxtMobile: { fontSize: 14 },
+  fightBtnTxtMobile: { fontSize: 23 },
   defendBtnTxt: { color: '#f0fbff' },
-  runBtnTxt: { color: '#3d4a5c', fontSize: 15, fontWeight: '800' },
+  runBtnTxt: { color: '#3d4a5c', fontSize: 18, fontWeight: '900' },
   disabledBtn: { opacity: 0.42 },
-  topHudWrap: { alignItems: 'flex-end', gap: 4 },
-  ladderHud: {
-    alignItems: 'flex-end',
-    maxWidth: 200,
-    backgroundColor: 'rgba(108, 92, 231, 0.85)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-  },
-  ladderHudFloor: { fontWeight: '900', fontSize: 11, color: '#fff' },
-  ladderHudRegion: { fontWeight: '800', fontSize: 10, color: '#dfe6e9' },
-  ladderHudBoss: { fontWeight: '700', fontSize: 9, color: '#ffeaa7', fontStyle: 'italic' },
+  topHudWrap: { alignItems: 'flex-start', gap: 4 },
 });

@@ -3,6 +3,7 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-nativ
 import MonsterPreview from './MonsterPreview';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { getMonsterTemplate } from '../utils/monsterTemplates';
+import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { MAX_PLAYER_PROFILES } from '../utils/gameStorage';
 import { useReadableType } from '../utils/readableType';
 
@@ -13,7 +14,7 @@ function profileMonsterRow(profile) {
     null;
   if (!om) return { om: null, fighter: null, tpl: null };
   const fighter = fighterFromOwned(om);
-  const tpl = getMonsterTemplate(om.templateId);
+  const tpl = getMonsterTemplate(om.templateId) ?? getLadderMonsterTemplate(om.templateId);
   return { om, fighter, tpl };
 }
 

@@ -13,8 +13,16 @@ export function isPhoneLayout(width) {
 export function getStrictLayout(width, height) {
   const mobile = isMobileLayout(width, height);
   const phone = isPhoneLayout(width);
-  const monster = phone ? 150 : mobile ? 165 : 280;
-  const statsW = phone ? 118 : mobile ? 132 : 188;
+  const monster = phone
+    ? Math.max(138, Math.min(165, width * 0.38))
+    : mobile
+      ? Math.max(185, Math.min(225, width * 0.36))
+      : 280;
+  const statsW = phone
+    ? Math.max(138, Math.min(156, width * 0.39))
+    : mobile
+      ? Math.max(162, Math.min(184, width * 0.32))
+      : 188;
   return {
     /** Both fighters same scale — arcade mirror match */
     p1Monster: monster,
@@ -25,7 +33,7 @@ export function getStrictLayout(width, height) {
     diceActive: mobile ? 68 : 92,
     diceInactive: mobile ? 48 : 64,
     /** Shared ground line (% from bottom) */
-    monsterBottom: mobile ? '11%' : '10%',
+    monsterBottom: mobile ? '13%' : '10%',
     monsterLaneY: 0.48,
     compactHud: mobile,
     phone,

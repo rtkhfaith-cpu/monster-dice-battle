@@ -6,6 +6,7 @@ import { evolutionFormForMonster } from '../utils/monsterEvolutionForms';
 import { visualFormTierFromLevel } from '../utils/evolution';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
+import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { gamePanelStyle } from '../utils/artDirection';
 import { LOBBY } from '../utils/gameTheme';
 
@@ -63,7 +64,7 @@ export default function MonsterGridPanel({
         <GridWrap {...gridWrapProps}>
           {monsters.map((om) => {
             const f = fighterFromOwned(om);
-            const t = getMonsterTemplate(om.templateId);
+            const t = getMonsterTemplate(om.templateId) ?? getLadderMonsterTemplate(om.templateId);
             if (!f || !t) return null;
             const picked = is1P ? selectedP1Id === om.id : selectedP1Id === om.id || selectedP2Id === om.id;
             const tag = is1P
@@ -98,7 +99,7 @@ export default function MonsterGridPanel({
                   HP {hp} · MP {f.stats.mp}
                 </Text>
                 <Text style={[styles.stat, isMobile && styles.statMobile]} numberOfLines={1}>
-                  {ROLE_LABELS[t.role] ?? t.role}
+                  {ROLE_LABELS[t.role] ?? t.role} {f.isLadderMonster ? '· Ladder' : ''}
                 </Text>
                 <Text style={[styles.stat, isMobile && styles.statMobile]} numberOfLines={1}>
                   {form.name} · Lv {om.level}

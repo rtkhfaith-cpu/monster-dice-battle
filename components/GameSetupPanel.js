@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import MonsterPreview from './MonsterPreview';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { getMonsterTemplate } from '../utils/monsterTemplates';
+import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { gamePanelStyle } from '../utils/artDirection';
 import { LOBBY } from '../utils/gameTheme';
 
@@ -13,7 +14,7 @@ function rosterLine(wallet, ownedId, profileName) {
   const om = wallet.ownedMonsters.find((x) => x.id === ownedId);
   if (!om) return { ok: false, title: profileName, sub: 'Pick monster →' };
   const f = fighterFromOwned(om);
-  const t = getMonsterTemplate(om.templateId);
+  const t = getMonsterTemplate(om.templateId) ?? getLadderMonsterTemplate(om.templateId);
   const name = om.nickname || t?.name || 'Monster';
   return {
     ok: true,

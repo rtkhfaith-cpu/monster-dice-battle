@@ -7,6 +7,10 @@ import { mergeMonsterParts } from './gameStorage';
 import { getMonsterSkillSet } from './monsterSkills';
 import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
 import { computeBattleStats } from './statsCalc';
+import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
+import { getLadderMonsterSkillSet } from './monsterLadder/ladderMonsterSkills';
+import { computeLadderBattleStats } from './monsterLadder/ladderStatsCalc';
+import { mergeLadderMonsterParts } from './monsterLadder/ladderProfile';
 
 /**
  * Build runtime fighter object used by BattleScreen from persisted owned monster row.
@@ -14,6 +18,8 @@ import { computeBattleStats } from './statsCalc';
  */
 export function fighterFromOwned(owned) {
   const tpl = getMonsterTemplate(owned.templateId);
+  const ladderTpl = tpl ? null : getLadderMonsterTemplate(owned.templateId);
+  if (!tpl && ladderTpl) return fighterFromLadderOwnedInMainInventory(owned, ladderTpl);
   const built = computeBattleStats(owned.templateId, owned.level);
   if (!built || !tpl) return null;
   const st = evolutionStageFromLevel(owned.level);
@@ -54,6 +60,50 @@ export function fighterFromOwned(owned) {
     battleExpToNext: expToAdvanceFrom(owned.level ?? 1),
     element,
     skills,
+    status: null,
+  };
+}
+
+function fighterFromLadderOwnedInMainInventory(owned, tpl) {
+  const built = computeLadderBattleStats(owned.templateId, owned.level);
+  if (!built || !tpl) return null;
+  const st = evolutionStageFromLevel(owned.level);
+  const visualTier = visualFormTierFromLevel(owned.level);
+  const form = evolutionFormForMonster(owned.templateId, visualTier);
+  const gearIds = compactGearIds(owned.equippedGear);
+  const { stats: finalStats, bonuses: gearBonuses } = applyGearBonuses(built.stats, gearIds);
+  const parts = {
+    ...mergeLadderMonsterParts(owned.templateId, owned.monsterParts || {}),
+    evolutionTierIndex: st.tierIndex,
+    evolutionStageKey: st.key,
+    visualFormTier: visualTier,
+    evolutionFormName: form.name,
+    evolutionFormTagline: form.tagline,
+    visualFlair: tpl.visualProfile?.moveFlair ?? 'none',
+    cosmetics: [...gearIds],
+    equippedGearSlots: owned.equippedGear,
+    gearSlotCount: owned.gearSlotCount,
+    ladderPremium: true,
+  };
+
+  return {
+    monsterParts: parts,
+    stats: finalStats,
+    baseStats: built.stats,
+    gearBonuses,
+    equippedGear: gearIds,
+    monsterTemplateId: owned.templateId,
+    ownedMonsterId: owned.id,
+    superNeedThreshold: 3,
+    displayName: owned.nickname || tpl.name,
+    rarity: tpl.rarity,
+    role: tpl.role,
+    level: owned.level ?? 1,
+    battleExp: owned.exp ?? 0,
+    battleExpToNext: expToAdvanceFrom(owned.level ?? 1),
+    element: tpl.element,
+    skills: getLadderMonsterSkillSet(owned.templateId),
+    isLadderMonster: true,
     status: null,
   };
 }

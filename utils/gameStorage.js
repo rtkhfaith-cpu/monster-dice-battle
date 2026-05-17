@@ -19,6 +19,8 @@ import {
 import { expMultiplierFromGear } from './gearStats';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
+import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
+import { mergeLadderMonsterParts } from './monsterLadder/ladderProfile';
 import { assertShopGearPurchase, assertShopMonsterPurchase } from './shopGuards';
 import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
@@ -177,7 +179,11 @@ function normalizeOwnedMonster(om) {
     const id = om.equippedGear[i];
     if (id && !getGear(id)) om.equippedGear[i] = null;
   }
-  if (!om.monsterParts) om.monsterParts = mergeMonsterParts(om.templateId);
+  if (!om.monsterParts) {
+    om.monsterParts = getLadderMonsterTemplate(om.templateId)
+      ? mergeLadderMonsterParts(om.templateId)
+      : mergeMonsterParts(om.templateId);
+  }
 }
 
 function migrateLegacyWalletGear(wallet) {
@@ -208,6 +214,32 @@ function normalizeWalletMonsters(wallet) {
   migrateLegacyWalletGear(wallet);
 }
 
+function syncLadderRewardsToMainInventory(profile) {
+  const ml = profile.monsterLadder;
+  if (!ml) return;
+
+  const ownedGear = new Set(profile.cosmeticsOwned || []);
+  for (const gearId of ml.ownedGear || []) {
+    if (getGear(gearId)) ownedGear.add(gearId);
+  }
+  profile.cosmeticsOwned = [...ownedGear];
+
+  if (!Array.isArray(profile.ownedMonsters)) profile.ownedMonsters = [];
+  const mainTemplateIds = new Set(profile.ownedMonsters.map((m) => m.templateId));
+  for (const lm of ml.ownedMonsters || []) {
+    if (!getLadderMonsterTemplate(lm.templateId) || mainTemplateIds.has(lm.templateId)) continue;
+    const row = {
+      ...lm,
+      equippedGear: Array.isArray(lm.equippedGear) ? lm.equippedGear : [],
+      unlockedVisualTags: Array.isArray(lm.unlockedVisualTags) ? lm.unlockedVisualTags : [],
+    };
+    delete row.equippedLadderGear;
+    normalizeOwnedMonster(row);
+    profile.ownedMonsters.push(row);
+    mainTemplateIds.add(row.templateId);
+  }
+}
+
 function normalizePlayerProfile(p) {
   if (!p.name || typeof p.name !== 'string') p.name = 'Player';
   p.name = String(p.name).slice(0, 24);
@@ -224,6 +256,7 @@ function normalizePlayerProfile(p) {
   if (!p.battleProgress) p.battleProgress = defaultBattleProgress();
   if (!p.meta) p.meta = defaultProfileMeta();
   p.monsterLadder = normalizeMonsterLadder(p.monsterLadder, p.ladderProgress);
+  syncLadderRewardsToMainInventory(p);
   delete p.ladderProgress;
 }
 

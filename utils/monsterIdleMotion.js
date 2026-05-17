@@ -20,6 +20,12 @@ const BY_BODY = {
   skibidi: { bobMs: 750, swayMs: 600, twistMs: 480, squashMs: 650, bobMul: 1.2, swayMul: 1.1, twistDeg: 6, jitter: true, jitterMs: 110, jitterAmp: 2.8 },
   bubble_tea: { bobMs: 1500, swayMs: 1900, twistMs: 2100, squashMs: 950, bobMul: 1.05, swayMul: 0.6, twistDeg: 2 },
   sixtyseven: { bobMs: 700, swayMs: 900, twistMs: 800, squashMs: 550, bobMul: 1.3, swayMul: 1.25, twistDeg: 6, jitter: true, jitterMs: 85, jitterAmp: 4 },
+  nugget_dragon: { bobMs: 920, swayMs: 1300, twistMs: 1200, squashMs: 620, bobMul: 1.25, swayMul: 0.75, twistDeg: 3.2 },
+  cable_serpent: { bobMs: 760, swayMs: 520, twistMs: 620, squashMs: 720, bobMul: 0.65, swayMul: 1.9, twistDeg: 7, jitter: true, jitterMs: 115, jitterAmp: 2.6 },
+  pizza_meteor: { bobMs: 1350, swayMs: 900, twistMs: 680, squashMs: 1200, bobMul: 0.8, swayMul: 1.05, twistDeg: 8 },
+  wifi_wraith: { bobMs: 2100, swayMs: 2600, twistMs: 3000, squashMs: 1400, bobMul: 0.7, swayMul: 0.5, twistDeg: 1.2, jitter: true, jitterMs: 180, jitterAmp: 1.8 },
+  toiletron: { bobMs: 1800, swayMs: 700, twistMs: 900, squashMs: 680, bobMul: 0.55, swayMul: 0.35, twistDeg: 1.6, jitter: true, jitterMs: 160, jitterAmp: 1.4 },
+  durian_knight: { bobMs: 1500, swayMs: 800, twistMs: 760, squashMs: 700, bobMul: 0.75, swayMul: 0.45, twistDeg: 2.2, jitter: true, jitterMs: 130, jitterAmp: 1.6 },
 };
 
 const DEFAULT_PROFILE = {

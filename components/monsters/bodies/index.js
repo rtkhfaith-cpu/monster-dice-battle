@@ -1,20 +1,26 @@
 import React from 'react';
 import BodyBubbleTea from './BodyBubbleTea';
+import BodyCableSerpent from './BodyCableSerpent';
 import BodyChicken from './BodyChicken';
 import BodyCockroach from './BodyCockroach';
 import BodyCrocs from './BodyCrocs';
+import BodyDurianKnight from './BodyDurianKnight';
 import BodyHomework from './BodyHomework';
 import BodyIphone from './BodyIphone';
 import BodyLunchbox from './BodyLunchbox';
+import BodyNuggetDragon from './BodyNuggetDragon';
 import BodyPencil from './BodyPencil';
+import BodyPizzaMeteor from './BodyPizzaMeteor';
 import BodyPoop from './BodyPoop';
 import BodySchoolbag from './BodySchoolbag';
 import BodySixtySeven from './BodySixtySeven';
 import BodySkibidi from './BodySkibidi';
 import BodyTablet from './BodyTablet';
 import BodyToiletPaper from './BodyToiletPaper';
+import BodyToiletron from './BodyToiletron';
 import BodyTrex from './BodyTrex';
 import BodyWaterBottle from './BodyWaterBottle';
+import BodyWifiWraith from './BodyWifiWraith';
 import { FALLBACK_PALETTE } from './shared';
 import EvolutionOverlay, { evolutionBodyTransform } from '../evolution/EvolutionOverlay';
 import { G } from 'react-native-svg';
@@ -36,6 +42,12 @@ const BODY_MAP = {
   bubble_tea: BodyBubbleTea,
   sixtyseven: BodySixtySeven,
   poop: BodyPoop,
+  nugget_dragon: BodyNuggetDragon,
+  cable_serpent: BodyCableSerpent,
+  pizza_meteor: BodyPizzaMeteor,
+  wifi_wraith: BodyWifiWraith,
+  toiletron: BodyToiletron,
+  durian_knight: BodyDurianKnight,
 };
 
 /**
