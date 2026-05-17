@@ -454,7 +454,7 @@ export default function BattleScreen({
 
   function applyImpactVisuals(defId, fx) {
     if (usePhaserBattleRenderer && !phaserFailed) {
-      if (fx?.damage > 0) duckBgm(fx?.critical ? 480 : 380);
+      if (fx?.damage > 0) duckBgm(fx?.critical ? 300 : 220);
       playImpactSfx(fx);
       return;
     }
@@ -465,7 +465,7 @@ export default function BattleScreen({
     }
     schedule(400, () => setDefenderFlash(0));
     if (fx?.damage > 0) {
-      duckBgm(fx?.critical ? 480 : 380);
+      duckBgm(fx?.critical ? 300 : 220);
       triggerHitStop(fx?.critical ? ART.hitStopCrit : ART.hitStop);
     }
     if (fx?.critical && fx?.damage > 0) {

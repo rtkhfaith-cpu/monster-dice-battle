@@ -117,7 +117,7 @@ export function saveAudioSettings(patch) {
 
 function bgmVolumeNow() {
   let v = settings.bgmVolume;
-  if (Date.now() < duckUntil) v *= 0.22;
+  if (Date.now() < duckUntil) v *= 0.58;
   return clamp01(v);
 }
 

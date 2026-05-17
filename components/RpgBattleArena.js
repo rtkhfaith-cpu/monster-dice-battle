@@ -256,9 +256,6 @@ export default function RpgBattleArena({
       <View style={styles.foreGrass} />
       <View style={styles.battlePlatform} />
       <View style={styles.platformEdge} pointerEvents="none" />
-      <View style={styles.centerCombatZone} />
-      <View style={styles.shadowP1} />
-      <View style={styles.shadowP2} />
 
       {/* z-index 10: top HUD */}
       <View style={styles.muteSlot}>{topHudExtra}</View>
@@ -753,40 +750,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(45, 53, 97, 0.14)',
     zIndex: 1,
   },
-  centerCombatZone: {
-    position: 'absolute',
-    left: '32%',
-    right: '32%',
-    bottom: '22%',
-    top: '28%',
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    borderStyle: 'dashed',
-    zIndex: 1,
-  },
-  shadowP1: {
-    position: 'absolute',
-    left: '10%',
-    bottom: '9%',
-    width: 120,
-    height: 18,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    zIndex: 2,
-  },
-  shadowP2: {
-    position: 'absolute',
-    right: '10%',
-    bottom: '9%',
-    width: 120,
-    height: 18,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    zIndex: 2,
-  },
-
   muteSlot: {
     position: 'absolute',
     top: '24%',
