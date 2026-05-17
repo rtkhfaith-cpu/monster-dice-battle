@@ -6,11 +6,25 @@ import { normalizePlayerKey } from '../../utils/playerKey';
 import { loadGameSave, saveGameSave } from './saveService';
 import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
 
-function formatFetchError(err) {
+function apiHostLabel(base) {
+  if (!base) return '';
+  try {
+    return new URL(base).host;
+  } catch {
+    return base.slice(0, 48);
+  }
+}
+
+function formatFetchError(err, base = '') {
   const msg = String(err?.message || err || 'Network error');
-  if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+  if (/failed to fetch|networkerror|load failed|aborted/i.test(msg)) {
+    const host = apiHostLabel(base);
+    const target = host ? ` (${host})` : '';
     return (
-      'Could not reach the cloud save API. Check VITE_SAVE_API_URL in Amplify, redeploy the save Lambda, and CORS settings.'
+      `Could not reach the cloud save API${target}. ` +
+      'Check: (1) VITE_SAVE_API_URL in Amplify matches API Gateway invoke URL, ' +
+      '(2) GET /players works in the browser, (3) HTTP API CORS allows your Amplify domain, ' +
+      '(4) redeploy Amplify after changing env vars.'
     );
   }
   return msg;
@@ -221,8 +235,8 @@ export async function listCloudPlayers() {
       }));
     return { ok: true, players };
   } catch (err) {
-    if (DEV) console.warn('[cloud-save] GET /players error', err?.message || err);
-    return { ok: false, error: formatFetchError(err) };
+    if (DEV) console.warn('[cloud-save] GET /players error', base, err?.message || err);
+    return { ok: false, error: formatFetchError(err, base) };
   }
 }
 

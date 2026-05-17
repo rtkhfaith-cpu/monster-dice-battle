@@ -75,10 +75,34 @@ function parseBody(event) {
   }
 }
 
+/** HTTP API v2 (rawPath) and REST API (path) — strip stage prefix e.g. /prod/players → /players */
 function normalizePath(event) {
-  let path = event.path || event.rawPath || event.requestContext?.http?.path || '';
-  path = path.replace(/^\/prod/, '').replace(/^\/default/, '');
+  let path =
+    event.rawPath ||
+    event.path ||
+    event.requestContext?.http?.path ||
+    event.requestContext?.resourcePath ||
+    '';
+  if (typeof path !== 'string') path = String(path || '');
+  // /prod, /default, /dev, /stage at start of path
+  path = path.replace(/^\/(prod|default|dev|stage|test)(?=\/|$)/i, '');
+  if (!path || path === '') path = '/';
+  if (!path.startsWith('/')) path = `/${path}`;
+  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
   return path;
+}
+
+function getHttpMethod(event) {
+  const method =
+    event.httpMethod ||
+    event.requestContext?.http?.method ||
+    event.requestContext?.httpMethod ||
+    'GET';
+  return String(method).toUpperCase();
+}
+
+function isPlayersListPath(path) {
+  return path === '/players';
 }
 
 function profileIdFromPath(path) {
@@ -87,11 +111,11 @@ function profileIdFromPath(path) {
 }
 
 /** API Gateway often passes {profileID} here instead of embedding it in path. */
-function profileIdFromEvent(event) {
+function profileIdFromEvent(event, normalizedPath) {
   const params = event.pathParameters || {};
   const fromParam = params.profileID ?? params.profileId ?? params.id ?? params.proxy;
   if (fromParam) return decodeURIComponent(String(fromParam)).trim();
-  return profileIdFromPath(normalizePath(event));
+  return profileIdFromPath(normalizedPath ?? normalizePath(event));
 }
 
 function getQueryPlayerKey(event) {
@@ -186,6 +210,7 @@ async function verifyKeyOrRepair(profileID, playerKey, item) {
   return { ok: false };
 }
 
+/** GET /players — scan DynamoDB and return public profile summaries. */
 async function handleListPlayers(event) {
   const scan = await client.send(
     new ScanCommand({
@@ -193,12 +218,12 @@ async function handleListPlayers(event) {
       Limit: 200,
     }),
   );
-  const items = (scan.Items || [])
+  const players = (scan.Items || [])
     .map(toPublicListItem)
     .filter(Boolean)
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
     .slice(0, MAX_LIST);
-  return respond(event, 200, { players: items });
+  return respond(event, 200, { players });
 }
 
 async function handleLogin(event) {
@@ -306,7 +331,7 @@ async function handleDeleteSave(event, profileID) {
 }
 
 exports.handler = async (event) => {
-  const method = (event.httpMethod || event.requestContext?.http?.method || 'GET').toUpperCase();
+  const method = getHttpMethod(event);
   const path = normalizePath(event);
 
   if (method === 'OPTIONS') {
@@ -314,19 +339,19 @@ exports.handler = async (event) => {
   }
 
   try {
-    if (method === 'GET' && (path === '/players' || path === '/players/')) {
+    if (method === 'GET' && isPlayersListPath(path)) {
       return await handleListPlayers(event);
     }
 
-    if (method === 'POST' && (path === '/login' || path === '/login/')) {
+    if (method === 'POST' && path === '/login') {
       return await handleLogin(event);
     }
 
-    if (method === 'POST' && (path === '/save' || path === '/save/')) {
+    if (method === 'POST' && path === '/save') {
       return await handlePostSave(event);
     }
 
-    const profileID = profileIdFromEvent(event);
+    const profileID = profileIdFromEvent(event, path);
     if (profileID) {
       if (method === 'GET') return await handleGetSave(event, profileID);
       if (method === 'DELETE') return await handleDeleteSave(event, profileID);
@@ -334,7 +359,7 @@ exports.handler = async (event) => {
 
     return respond(event, 404, { error: 'Not found', path, method });
   } catch (err) {
-    console.error('[save-api]', err?.message || err);
+    console.error('[save-api]', err?.message || err, { path, method });
     return respond(event, 500, { error: 'Internal server error' });
   }
 };
