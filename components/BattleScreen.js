@@ -447,7 +447,6 @@ export default function BattleScreen({
     if (resolved.dodged) showBanner('Dodged!');
     else if (resolved.critical) showBanner('Critical Hit!');
     else if (resolved.weak) showBanner('Weak Hit!');
-    else if (resolved.defended) showBanner('Blocked!');
     else if (strikeKind === 'magic') {
       const elMsg = elementBannerText(resolved.elementRelation);
       if (elMsg) showBanner(elMsg);

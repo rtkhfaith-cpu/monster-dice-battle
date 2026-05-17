@@ -79,7 +79,8 @@ export function resolvePhysicalBattleDamage({ attacker, defender, skill = null }
   }
 
   const damage = Math.max(1, Math.round(raw));
-  const defended = mit >= 0.18 && damage > 0;
+  // Defense is baked into damage — do not flag every mitigated hit as "Blocked" UI.
+  const defended = false;
 
   return {
     damage,
@@ -152,7 +153,7 @@ export function resolveMagicBattleDamage({
   }
 
   const damage = Math.max(1, Math.round(raw));
-  const defended = mit >= 0.18 && damage > 0;
+  const defended = false;
 
   return {
     damage,

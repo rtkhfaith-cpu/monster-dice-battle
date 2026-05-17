@@ -102,11 +102,11 @@ export async function commitProfileDeleted(profileID, playerKey, gameData, opts 
   const localProfile = getPlayerProfile(gameData, profileID);
 
   if (cloudApi) {
-    const del = await deleteCloudProfile(profileID, playerKey, { requiresKey: true });
+    const del = await deleteCloudProfile(profileID, playerKey);
     if (!del.ok) {
       return {
         ok: false,
-        error: del.error || 'Incorrect key. Player was not deleted.',
+        error: del.error || 'Delete failed.',
       };
     }
   } else if (localProfile) {

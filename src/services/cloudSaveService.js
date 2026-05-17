@@ -15,9 +15,14 @@ function apiHostLabel(base) {
   }
 }
 
+function isFetchNetworkError(err) {
+  const msg = String(err?.message || err || '');
+  return /failed to fetch|networkerror|load failed|aborted|network request failed/i.test(msg);
+}
+
 function formatFetchError(err, base = '') {
   const msg = String(err?.message || err || 'Network error');
-  if (/failed to fetch|networkerror|load failed|aborted/i.test(msg)) {
+  if (isFetchNetworkError(err)) {
     const host = apiHostLabel(base);
     const target = host ? ` (${host})` : '';
     return (
@@ -28,6 +33,29 @@ function formatFetchError(err, base = '') {
     );
   }
   return msg;
+}
+
+/**
+ * @param {number} status
+ * @param {string} message
+ * @param {string} url
+ */
+function formatApiFailure(prefix, status, message, url) {
+  const detail = String(message || `HTTP ${status}`).trim();
+  return `${prefix}: ${status} ${detail} (${url})`;
+}
+
+/**
+ * @param {Response} res
+ */
+async function readResponse(res) {
+  const text = await res.text().catch(() => '');
+  if (!text) return { text: '', body: {} };
+  try {
+    return { text, body: JSON.parse(text) };
+  } catch {
+    return { text, body: {} };
+  }
 }
 
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
@@ -322,79 +350,84 @@ export async function recallCloudProfile(profileID, playerKey, opts = {}) {
 }
 
 /**
+ * Delete cloud player — POST /save/delete only (plain profileID + playerKey).
  * @param {string} profileID
  * @param {string} playerKey
- * @param {{ requiresKey?: boolean }} [opts]
  */
-export async function deleteCloudProfile(profileID, playerKey, opts = {}) {
+export async function deleteCloudProfile(profileID, playerKey) {
+  await loadSaveApiConfig();
   const base = await ensureBaseUrl();
-  if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
-  const id = encodeURIComponent(String(profileID));
-  const key = normalizePlayerKey(playerKey);
-  if (key.length !== 4) {
-    return { ok: false, status: 400, error: 'Enter your 4-digit Player Key.' };
+  if (!base) {
+    return { ok: false, skipped: true, error: 'Cloud save is not configured' };
   }
-  const deletePayload = { profileID: String(profileID), playerKey: key };
 
-  async function finishDelete(res) {
-    if (res.status === 401) {
-      const errText = await readApiError(res);
-      return {
-        ok: false,
-        status: 401,
-        error: errText || 'Incorrect key. Player was not deleted.',
-      };
-    }
-    if (res.status === 404) {
-      return { ok: true, notFound: true };
-    }
-    if (!res.ok) {
-      const errText = await readApiError(res);
-      if (DEV) console.warn('[cloud-save] delete failed', res.status, errText);
-      return { ok: false, status: res.status, error: errText || `HTTP ${res.status}` };
-    }
-    let body = {};
-    try {
-      body = await res.json();
-    } catch {
-      body = {};
-    }
-    if (body.ok === false || body.error) {
-      return { ok: false, status: res.status, error: body.error || 'Delete rejected' };
-    }
-    return { ok: true };
+  const profileId = String(profileID || '').trim();
+  const key = normalizePlayerKey(playerKey);
+  if (!profileId) {
+    return { ok: false, status: 400, error: 'Delete failed: 400 Missing profileID' };
   }
+  if (key.length !== 4) {
+    return {
+      ok: false,
+      status: 400,
+      error: formatApiFailure('Delete failed', 400, 'Missing key', `${base}/save/delete`),
+    };
+  }
+
+  const url = `${base}/save/delete`;
+  const payload = { profileID: profileId, playerKey: key };
+
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), REQUEST_MS) : null;
 
   try {
-    // POST body is reliable on API Gateway; DELETE query/body is often dropped.
-    let res = await apiRequest(base, '/save/delete', {
+    const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Player-Key': key,
-      },
-      body: JSON.stringify(deletePayload),
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+      signal: ctrl?.signal,
     });
 
-    if (res.status === 404) {
-      res = await apiRequest(
-        base,
-        `/save/${id}?playerKey=${encodeURIComponent(key)}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Player-Key': key,
-          },
-          body: JSON.stringify(deletePayload),
-        },
-      );
+    const { text, body } = await readResponse(res);
+    const apiError = body?.error || body?.message || text.trim() || `HTTP ${res.status}`;
+
+    if (DEV) {
+      console.warn('[cloud-save] POST /save/delete', res.status, { url, payload, body, text });
     }
 
-    return await finishDelete(res);
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        error: formatApiFailure('Delete failed', res.status, apiError, url),
+      };
+    }
+
+    if (body?.ok === false || body?.error) {
+      return {
+        ok: false,
+        status: res.status,
+        error: formatApiFailure('Delete failed', res.status, body.error || 'Delete rejected', url),
+      };
+    }
+
+    return { ok: true };
   } catch (err) {
-    if (DEV) console.warn('[cloud-save] delete error', err?.message || err);
-    return { ok: false, error: formatFetchError(err) };
+    if (DEV) console.warn('[cloud-save] POST /save/delete fetch error', url, err);
+    if (isFetchNetworkError(err)) {
+      return { ok: false, error: formatFetchError(err, base) };
+    }
+    return {
+      ok: false,
+      error: formatApiFailure(
+        'Delete failed',
+        0,
+        String(err?.message || err || 'Request error'),
+        url,
+      ),
+    };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 

@@ -143,10 +143,6 @@ export default function BattleEffect({ currentEffect, instruction }) {
         </View>
       ) : null}
 
-      {!ce?.superBomb && ce?.defended && !ce?.dodged ? (
-        <Text style={styles.combatLbl}>Blocked!</Text>
-      ) : null}
-
       {ce?.dodged ? <Text style={styles.combatLbl}>Dodged!</Text> : null}
 
       {!ce?.useProjectileAnim && !ce?.superBomb && !ce?.dodged && typeof ce?.damage === 'number' ? (

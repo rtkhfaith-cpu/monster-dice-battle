@@ -375,9 +375,6 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
       {effect.dodged ? (
         <Animated.Text style={[styles.combatPop, { top: endY - 24, opacity: missFade }]}>Dodged!</Animated.Text>
       ) : null}
-      {effect.defended && !effect.dodged ? (
-        <Animated.Text style={[styles.combatPop, { top: endY - 24, opacity: missFade }]}>Blocked!</Animated.Text>
-      ) : null}
     </View>
   );
 }

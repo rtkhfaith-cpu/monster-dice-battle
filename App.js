@@ -565,7 +565,7 @@ export default function App() {
       const gd = gameData || (await loadGameSave());
       const res = await commitProfileDeleted(profileId, playerKey, gd, { requiresKey });
       if (!res.ok) {
-        setKeyModalError(res.error || 'Incorrect key. Player was not deleted.');
+        setKeyModalError(res.error || 'Delete failed.');
         return;
       }
 
