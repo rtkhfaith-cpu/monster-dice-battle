@@ -33,6 +33,7 @@ import {
   setBattleMusicIntensity,
   startBattleMusic,
   stopBattleMusic,
+  isBattleMuted,
   toggleBattleMuted,
   unlockBattleAudio,
 } from '../utils/battleAudio';
@@ -150,7 +151,7 @@ export default function BattleScreen({
   const [p2Emotion, setP2Emotion] = useState('neutral');
   const [battleDim] = useState(false);
   const [stageZoom] = useState(() => new Animated.Value(1));
-  const [audioMuted, setAudioMuted] = useState(false);
+  const [audioMuted, setAudioMuted] = useState(() => isBattleMuted());
 
   const effectSeqRef = useRef(0);
   const timerRef = useRef(null);

@@ -18,10 +18,14 @@ function hashPlayerKey(key) {
   return `pk_${(h >>> 0).toString(16)}`;
 }
 
+function hashLooksValid(saved) {
+  return !!(saved && String(saved).startsWith('pk_') && String(saved).length >= 12);
+}
+
 function hasStoredKey(item) {
   if (!item || typeof item !== 'object') return false;
   const saved = item.pinHash || item.playerKeyHash;
-  if (saved && String(saved).startsWith('pk_')) return true;
+  if (hashLooksValid(saved)) return true;
   const legacy = String(item.pin || '')
     .replace(/\D/g, '')
     .slice(0, 4);
@@ -31,7 +35,7 @@ function hasStoredKey(item) {
 function verifyPlayerKey(inputKey, item) {
   if (!item || typeof item !== 'object') return false;
   const saved = item.pinHash || item.playerKeyHash;
-  if (saved && String(saved).startsWith('pk_')) {
+  if (hashLooksValid(saved)) {
     return hashPlayerKey(inputKey) === saved;
   }
   const legacy = String(item.pin || saved || '')
@@ -56,6 +60,7 @@ function applyKeyToItem(item, inputKey) {
 module.exports = {
   normalizePlayerKey,
   hashPlayerKey,
+  hashLooksValid,
   verifyPlayerKey,
   hasStoredKey,
   applyKeyToItem,

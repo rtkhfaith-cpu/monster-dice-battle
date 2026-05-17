@@ -14,6 +14,7 @@ const {
   verifyPlayerKey,
   normalizePlayerKey,
   hasStoredKey,
+  hashLooksValid,
   applyKeyToItem,
 } = require('./playerKeyHash');
 
@@ -76,13 +77,30 @@ function parseBody(event) {
 
 function normalizePath(event) {
   let path = event.path || event.rawPath || event.requestContext?.http?.path || '';
-  path = path.replace(/^\/prod/, '');
+  path = path.replace(/^\/prod/, '').replace(/^\/default/, '');
   return path;
 }
 
 function profileIdFromPath(path) {
-  const m = path.match(/^\/save\/([^/]+)\/?$/);
+  const m = path.match(/^\/save\/([^/]+)\/?$/i);
   return m ? decodeURIComponent(m[1]) : null;
+}
+
+/** API Gateway often passes {profileID} here instead of embedding it in path. */
+function profileIdFromEvent(event) {
+  const params = event.pathParameters || {};
+  const fromParam = params.profileID ?? params.profileId ?? params.id ?? params.proxy;
+  if (fromParam) return decodeURIComponent(String(fromParam)).trim();
+  return profileIdFromPath(normalizePath(event));
+}
+
+function getQueryPlayerKey(event) {
+  const q = event.queryStringParameters || {};
+  const raw = q.playerKey ?? q.playerkey ?? q.PlayerKey ?? '';
+  if (raw) return normalizePlayerKey(raw);
+  const multi = event.multiValueQueryStringParameters || {};
+  const mk = multi.playerKey?.[0] ?? multi.playerkey?.[0];
+  return normalizePlayerKey(mk || '');
 }
 
 function pickLevel(item) {
@@ -93,12 +111,17 @@ function pickLevel(item) {
 }
 
 function toPublicListItem(item) {
-  if (!item?.profileID) return null;
-  const monsters = Array.isArray(item.monsters) ? item.monsters : [];
+  const profileID = String(item?.profileID || item?.id || '').trim();
+  if (!profileID) return null;
+  const monsters = Array.isArray(item.monsters)
+    ? item.monsters
+    : Array.isArray(item.ownedMonsters)
+      ? item.ownedMonsters
+      : [];
   const sel = item.selectedMonsterId;
   const om = monsters.find((m) => m.id === sel) || monsters[0];
   return {
-    profileID: String(item.profileID),
+    profileID,
     playerName: String(item.playerName || 'Player').slice(0, 24),
     selectedMonsterId: item.selectedMonsterId ?? null,
     monsterTemplateId: om?.templateId ?? null,
@@ -111,13 +134,30 @@ function toPublicListItem(item) {
 async function getProfile(profileID) {
   const id = String(profileID || '').trim();
   if (!id) return null;
-  const res = await client.send(
+
+  const byPk = await client.send(
     new GetCommand({
       TableName: TABLE_NAME,
       Key: { profileID: id },
     }),
   );
-  return res.Item || null;
+  if (byPk.Item) return byPk.Item;
+
+  // Rows visible in Scan (/players) but missing profileID partition key — match by attribute.
+  const scan = await client.send(
+    new ScanCommand({
+      TableName: TABLE_NAME,
+      FilterExpression: 'profileID = :id OR #idAttr = :id',
+      ExpressionAttributeNames: { '#idAttr': 'id' },
+      ExpressionAttributeValues: { ':id': id },
+      Limit: 25,
+    }),
+  );
+  const hit = (scan.Items || []).find(
+    (row) => String(row.profileID || row.id || '').trim() === id,
+  );
+  if (!hit) return null;
+  return { ...hit, profileID: String(hit.profileID || hit.id || id) };
 }
 
 function stripSecrets(item) {
@@ -130,7 +170,9 @@ async function verifyKeyOrRepair(profileID, playerKey, item) {
   if (verifyPlayerKey(playerKey, item)) {
     return { ok: true, item };
   }
-  if (!hasStoredKey(item)) {
+  const saved = item.pinHash || item.playerKeyHash;
+  const canRepair = !hasStoredKey(item) || !hashLooksValid(saved);
+  if (canRepair) {
     const updated = applyKeyToItem({ ...item, profileID: String(profileID) }, playerKey);
     await client.send(
       new PutCommand({
@@ -178,17 +220,15 @@ async function handleLogin(event) {
 
 async function handleGetSave(event, profileID) {
   const item = await getProfile(profileID);
-  if (!item) return respond(event, 404, { error: 'Not found' });
+  if (!item) return respond(event, 404, { error: 'Profile not found' });
 
-  const qk = normalizePlayerKey(
-    event.queryStringParameters?.playerKey || event.queryStringParameters?.playerkey || '',
-  );
+  const qk = getQueryPlayerKey(event);
   if (qk.length === 4) {
     const auth = await verifyKeyOrRepair(profileID, qk, item);
     if (!auth.ok) {
       return respond(event, 401, { error: 'Incorrect key' });
     }
-    return respond(event, 200, stripSecrets(auth.item));
+    return respond(event, 200, { profile: stripSecrets(auth.item) });
   }
 
   const publicItem = toPublicListItem(item);
@@ -198,7 +238,7 @@ async function handleGetSave(event, profileID) {
 
 async function handlePostSave(event) {
   const body = parseBody(event);
-  const profileID = String(body.profileID || '').trim();
+  const profileID = String(body.profileID || body.id || '').trim();
   if (!profileID) return respond(event, 400, { error: 'Missing profileID' });
 
   const now = new Date().toISOString();
@@ -265,7 +305,7 @@ exports.handler = async (event) => {
       return await handlePostSave(event);
     }
 
-    const profileID = profileIdFromPath(path);
+    const profileID = profileIdFromEvent(event);
     if (profileID) {
       if (method === 'GET') return await handleGetSave(event, profileID);
       if (method === 'DELETE') return await handleDeleteSave(event, profileID);

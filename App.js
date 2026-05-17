@@ -22,6 +22,7 @@ import OnlineLobbyScreen from './components/OnlineLobbyScreen';
 import OnlineRoomBanner from './components/OnlineRoomBanner';
 import { loadOnlineSession } from './utils/onlineSession';
 import {
+  disconnectOnline,
   ensureOnlineSocket,
   emitBattleAction,
   leaveOnlineRoom,
@@ -119,6 +120,7 @@ export default function App() {
   const [setupP2ProfileId, setSetupP2ProfileId] = useState(null);
   const unlockedProfileIdsRef = useRef(new Set());
   const dismissedOnlineBattleRef = useRef(false);
+  const onlineFinishHandledRef = useRef(false);
   const [keyModal, setKeyModal] = useState(null);
   const [keyModalError, setKeyModalError] = useState('');
   const [keyModalBusy, setKeyModalBusy] = useState(false);
@@ -188,9 +190,26 @@ export default function App() {
     setOnlineSlot(slot);
     setGameMode('online');
     setWinner(null);
+    onlineFinishHandledRef.current = false;
     setBattleKey((k) => k + 1);
     setPhase('battle');
   }
+
+  const exitOnlineAndHome = useCallback(() => {
+    dismissedOnlineBattleRef.current = true;
+    onlineFinishHandledRef.current = true;
+    leaveOnlineRoom();
+    disconnectOnline();
+    setOnlineRoom(null);
+    setOnlineSlot(null);
+    setGameMode('onePlayer');
+    setWinner(null);
+    setPlayer1(null);
+    setPlayer2(null);
+    setRewardSummary(null);
+    setBattleKey((k) => k + 1);
+    setPhase('menu');
+  }, []);
 
   useEffect(() => {
     if (onlineRoom?.status !== 'battle') return;
@@ -204,6 +223,27 @@ export default function App() {
     if (phase === 'battle' || phase === 'gameOver') return;
     if (phase === 'online') handleOnlineBattleStart(onlineRoom);
   }, [onlineRoom?.status, onlineRoom?.battle?.seq, onlineRoom?.battle?.winner, onlineRoom?.playerCount, phase]);
+
+  useEffect(() => {
+    if (gameMode !== 'online' || phase !== 'battle') return;
+    const snap = onlineRoom?.battle;
+    const winner = snap?.winner;
+    if (!winner || onlineFinishHandledRef.current) return;
+
+    onlineFinishHandledRef.current = true;
+    const myId = onlineSlot === 'p2' ? 2 : 1;
+    const outcome =
+      winner === 'draw' ? 'draw' : winner === myId ? myId : myId === 1 ? 2 : 1;
+
+    setPlayer1(snap.p1 ?? null);
+    setPlayer2(snap.p2 ?? null);
+    setWinner(outcome);
+    dismissedOnlineBattleRef.current = true;
+    const iWon = outcome === myId;
+    setRewardSummary({ coinsAwarded: 0, expP1: null, expP2: null, online: true, iWon });
+    setRewardTitle(iWon ? 'Online Victory!' : outcome === 'draw' ? 'Online Draw' : 'Online Defeat');
+    setPhase('gameOver');
+  }, [gameMode, phase, onlineRoom?.battle?.winner, onlineRoom?.battle?.seq, onlineSlot]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
@@ -470,23 +510,26 @@ export default function App() {
 
       const baseGd = gameData || (await loadGameSave());
       const keyHash = hashPlayerKey(playerKey);
+      const resolvedId = String(login.data?.profileID || login.data?.id || profileId).trim();
       let next = applyCloudProfile(baseGd, login.data);
-      if (!next.players?.some((p) => p.id === profileId)) {
+      const applied = next.players?.find((p) => p.id === resolvedId || p.id === profileId);
+      if (!applied) {
         setKeyModalError('Could not apply cloud save. Try again or redeploy the save API.');
         return;
       }
-      next = setPlayerKeyForProfile(next, profileId, keyHash);
-      next = enforceSingleActiveProfile(next, profileId);
+      const activeId = applied.id;
+      next = setPlayerKeyForProfile(next, activeId, keyHash);
+      next = enforceSingleActiveProfile(next, activeId);
 
       setGameData(next);
-      markProfileUnlocked(profileId);
+      markProfileUnlocked(activeId);
       setKeyModal(null);
       setKeyModalError('');
 
       await saveGameSave(next);
-      persistSave(next, 'profile_loaded', profileId);
+      persistSave(next, 'profile_loaded', activeId);
       emitSaveStatus('player_loaded');
-      applyProfileSelection(profileId, next);
+      applyProfileSelection(activeId, next);
     } catch (err) {
       if (typeof __DEV__ !== 'undefined' && __DEV__) {
         console.warn('[cloud] finalizeCloudLogin failed', err);
@@ -750,6 +793,8 @@ export default function App() {
     }
 
     if (battleExtras?.online) {
+      if (onlineFinishHandledRef.current) return;
+      onlineFinishHandledRef.current = true;
       dismissedOnlineBattleRef.current = true;
       const myId = onlineSlot === 'p2' ? 2 : 1;
       const iWon = outcome === myId;
@@ -797,14 +842,22 @@ export default function App() {
   }
 
   const resetToMenu = useCallback(() => {
+    if (gameMode === 'online') {
+      leaveOnlineRoom();
+      disconnectOnline();
+      setOnlineRoom(null);
+      setOnlineSlot(null);
+      setGameMode('onePlayer');
+    }
     dismissedOnlineBattleRef.current = true;
+    onlineFinishHandledRef.current = true;
     setWinner(null);
     setPlayer1(null);
     setPlayer2(null);
     setRewardSummary(null);
     setBattleKey((k) => k + 1);
     setPhase('menu');
-  }, []);
+  }, [gameMode]);
 
   const handleResetSave = useCallback(() => {
     Alert.alert(
@@ -993,7 +1046,7 @@ export default function App() {
           />
         )}
 
-        {phase === 'battle' && gameMode === 'online' && onlineRoom?.battle && !onlineRoom.battle.winner ? (
+        {phase === 'battle' && gameMode === 'online' && onlineRoom?.battle ? (
           <OnlineDiceBattleScreen
             key={battleKey}
             mySlot={onlineSlot ?? loadOnlineSession()?.playerSlot ?? 'p1'}
@@ -1003,7 +1056,8 @@ export default function App() {
             player1Name={onlineRoom?.players?.p1?.profile?.name ?? 'Player 1'}
             player2Name={onlineRoom?.players?.p2?.profile?.name ?? 'Player 2'}
             onFinish={handleBattleFinish}
-            onExitBattle={resetToMenu}
+            onFlee={exitOnlineAndHome}
+            onExitBattle={exitOnlineAndHome}
           />
         ) : null}
 

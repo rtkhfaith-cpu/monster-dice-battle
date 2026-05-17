@@ -73,6 +73,44 @@ function findRoomBySocket(socketId) {
   return { code: null, room: null };
 }
 
+function findRoomForSocket(socketId, roomCodeHint) {
+  const hint = normalizeCode(roomCodeHint);
+  if (hint && rooms[hint]) {
+    const room = rooms[hint];
+    if (room.players.p1?.socketId === socketId || room.players.p2?.socketId === socketId) {
+      return { code: hint, room };
+    }
+  }
+  return findRoomBySocket(socketId);
+}
+
+function leaveSocketFromAllRooms(socket) {
+  for (const code of Object.keys(rooms)) {
+    const room = rooms[code];
+    const slot = playerSlot(room, socket.id);
+    if (!slot) continue;
+
+    clearBattleTimer(room);
+    removePlayerSlot(room, slot);
+    socket.leave(code);
+
+    if (isRoomEmpty(room)) {
+      delete rooms[code];
+    } else {
+      room.opponentLeftMessage = 'Opponent left the room.';
+      if (room.status === 'battle' || room.status === 'finished') {
+        room.status = 'lobby';
+        room.battle = null;
+      }
+      io.to(code).emit('opponentDisconnected', {
+        roomCode: code,
+        message: room.opponentLeftMessage,
+      });
+      emitRoomUpdate(code);
+    }
+  }
+}
+
 function playerSlot(room, socketId) {
   if (room.players.p1?.socketId === socketId) return 'p1';
   if (room.players.p2?.socketId === socketId) return 'p2';
@@ -298,6 +336,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('createRoom', (_payload, ack) => {
+    leaveSocketFromAllRooms(socket);
     let roomCode = randomRoomCode();
     while (rooms[roomCode]) roomCode = randomRoomCode();
 
@@ -312,6 +351,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('joinRoom', (payload = {}, ack) => {
+    leaveSocketFromAllRooms(socket);
     const roomCode = normalizeCode(payload.roomCode);
     const room = rooms[roomCode];
 
@@ -349,7 +389,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('syncProfile', (payload = {}) => {
-    const { code, room } = findRoomBySocket(socket.id);
+    const { code, room } = findRoomForSocket(socket.id, payload.roomCode);
     if (!code || !room) return;
     const slot = playerSlot(room, socket.id);
     if (!slot) return;
@@ -376,7 +416,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('battleAction', (payload = {}, ack) => {
-    const { code, room } = findRoomBySocket(socket.id);
+    const { code, room } = findRoomForSocket(socket.id, payload.roomCode);
     if (!code || !room || room.status !== 'battle' || !room.battle) {
       if (typeof ack === 'function') ack({ error: 'No active battle' });
       return;
@@ -405,17 +445,21 @@ io.on('connection', (socket) => {
     if (room.battle.winner) {
       room.status = 'finished';
       console.log('[battle] finished', code, 'winner', room.battle.winner);
+      const endSnap = snapshotForClient(room.battle);
       io.to(code).emit('battleEnded', {
         winner: room.battle.winner,
-        battle: snapshotForClient(room.battle),
+        battle: endSnap,
       });
+      io.to(code).emit('battleUpdate', { battle: endSnap });
+      emitRoomUpdate(code);
       setTimeout(() => {
         const r = rooms[code];
         if (!r || r.status !== 'finished') return;
         r.status = 'lobby';
         r.battle = null;
+        r.opponentLeftMessage = null;
         emitRoomUpdate(code);
-      }, 8000);
+      }, 12000);
     }
 
     if (typeof ack === 'function') ack({ ok: true });

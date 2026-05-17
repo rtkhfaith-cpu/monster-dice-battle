@@ -287,7 +287,7 @@ export function startBattleMusicLoop(tickFn) {
   const tick = () => {
     if (muted) return;
     tickFn?.();
-    musicTimer = setTimeout(tick, musicState === 'danger' ? 260 : musicState === 'tension' ? 280 : 300);
+    musicTimer = setTimeout(tick, musicState === 'danger' ? 220 : musicState === 'tension' ? 240 : 260);
   };
   tick();
 }

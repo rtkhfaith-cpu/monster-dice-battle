@@ -4,10 +4,12 @@ import {
   duckBgm as duckBgmChannel,
   playFileSfx,
   setBattleMusicIntensity,
+  setAudioMuted as setGlobalAudioMuted,
   startBattleMusicLoop,
   stopBattleMusic as stopMusicChannels,
   unlockAudio,
   loadAudioSettings,
+  isAudioMuted,
 } from './audioManager';
 
 let unlocked = false;
@@ -46,28 +48,29 @@ const SFX_VOLUME_BOOST = {
   roar: 1.2,
 };
 
-/** Cheerful cartoon battle loop — layered melody + bass */
+/** Upbeat arcade battle loop — faster melody + punchy bass */
 const BGM_MELODY = [
-  { f: 523, d: 0.14, t: 'triangle', v: 0.42 },
-  { f: 659, d: 0.14, t: 'triangle', v: 0.38 },
-  { f: 784, d: 0.14, t: 'triangle', v: 0.44 },
-  { f: 659, d: 0.14, t: 'triangle', v: 0.36 },
-  { f: 587, d: 0.14, t: 'triangle', v: 0.4 },
-  { f: 698, d: 0.14, t: 'triangle', v: 0.38 },
-  { f: 880, d: 0.16, t: 'triangle', v: 0.46 },
-  { f: 698, d: 0.14, t: 'triangle', v: 0.35 },
+  { f: 587, d: 0.1, t: 'square', v: 0.32 },
+  { f: 740, d: 0.1, t: 'square', v: 0.34 },
+  { f: 880, d: 0.1, t: 'square', v: 0.38 },
+  { f: 988, d: 0.1, t: 'square', v: 0.4 },
+  { f: 880, d: 0.1, t: 'square', v: 0.36 },
+  { f: 740, d: 0.1, t: 'square', v: 0.34 },
+  { f: 659, d: 0.1, t: 'square', v: 0.32 },
+  { f: 988, d: 0.12, t: 'square', v: 0.42 },
 ];
 const BGM_HARMONY = [
-  { f: 392, d: 0.28, t: 'sine', v: 0.22 },
-  { f: 494, d: 0.28, t: 'sine', v: 0.2 },
+  { f: 440, d: 0.2, t: 'triangle', v: 0.24 },
+  { f: 554, d: 0.2, t: 'triangle', v: 0.22 },
+  { f: 659, d: 0.2, t: 'triangle', v: 0.26 },
 ];
 const BGM_BASS = [
-  { f: 131, d: 0.24, t: 'triangle', v: 0.38 },
-  { f: 165, d: 0.24, t: 'triangle', v: 0.34 },
-  { f: 196, d: 0.24, t: 'triangle', v: 0.38 },
-  { f: 165, d: 0.24, t: 'triangle', v: 0.32 },
+  { f: 147, d: 0.16, t: 'triangle', v: 0.42 },
+  { f: 175, d: 0.16, t: 'triangle', v: 0.4 },
+  { f: 196, d: 0.16, t: 'triangle', v: 0.44 },
+  { f: 220, d: 0.16, t: 'triangle', v: 0.4 },
 ];
-const BGM_KICK = { f: 55, d: 0.08, t: 'triangle', v: 0.5 };
+const BGM_KICK = { f: 62, d: 0.06, t: 'square', v: 0.55 };
 
 const SFX_PROFILES = {
   attack: [
@@ -364,18 +367,27 @@ export function unlockBattleAudio() {
 }
 
 export function setBattleMuted(next) {
-  muted = !!next;
-  if (muted) stopBattleMusic();
-  else updateMusicGain();
+  const on = !!next;
+  muted = on;
+  setGlobalAudioMuted(on);
+  if (on) {
+    stopBattleMusic();
+  } else {
+    bgmStarted = false;
+    musicTargetVol = loadAudioSettings().bgm ?? MUSIC_BASE;
+    updateMusicGain();
+    startBattleMusic();
+  }
 }
 
 export function isBattleMuted() {
-  return muted;
+  return isAudioMuted();
 }
 
 export function toggleBattleMuted() {
-  setBattleMuted(!muted);
-  return muted;
+  const next = !isAudioMuted();
+  setBattleMuted(next);
+  return next;
 }
 
 export async function playBattleSfx(key, opts = {}) {

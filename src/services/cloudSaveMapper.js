@@ -118,7 +118,8 @@ export function applyCloudProfile(gameData, cloud) {
       ? normalized.unlockedGearSlots
       : {};
 
-  p.ownedMonsters = (normalized.monsters || []).map((om) => ({
+  const cloudMonsters = normalized.monsters || normalized.ownedMonsters || [];
+  p.ownedMonsters = cloudMonsters.map((om) => ({
     id: om.id,
     templateId: om.templateId,
     nickname: om.nickname ?? '',

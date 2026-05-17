@@ -4,7 +4,7 @@ import { applyGearBonuses } from './gearStats';
 import { compactGearIds, resolveFighterElement } from './cosmetics';
 import { mergeMonsterParts } from './gameStorage';
 import { getMonsterSkillSet } from './monsterSkills';
-import { getMonsterTemplate } from './monsterTemplates';
+import { getMonsterTemplate, MONSTER_CATALOG } from './monsterTemplates';
 import { computeBattleStats } from './statsCalc';
 
 /**
@@ -72,20 +72,30 @@ function scaleStatsBundle(stats, ratio) {
   };
 }
 
-/** CPU opponent ~10% weaker than the human fighter (for 1P leveling). */
+/** Pick a random monster from the full catalog (optionally excluding the player's template). */
+function pickRandomCpuTemplate(excludeTemplateId = null) {
+  const pool = MONSTER_CATALOG.filter((m) => m?.id && m.id !== excludeTemplateId);
+  const list = pool.length > 0 ? pool : MONSTER_CATALOG;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+/** CPU opponent — random catalog monster, ~10% weaker than the human (for 1P). */
 export function buildAiFighter(humanFighter, _gameData = null, _profileId = null) {
-  const tplId = humanFighter.monsterTemplateId;
-  const tpl = tplId ? getMonsterTemplate(tplId) : null;
-  const playerLevel = humanFighter.level ?? 1;
-  const level = playerLevel > 1 ? Math.max(1, playerLevel - 1) : playerLevel;
+  const excludeId = humanFighter?.monsterTemplateId || null;
+  const picked = pickRandomCpuTemplate(excludeId);
+  const tplId = picked?.id || 'cockroachsaurus';
+  const tpl = getMonsterTemplate(tplId);
+  const playerLevel = humanFighter?.level ?? 1;
+  const levelJitter = Math.floor(Math.random() * 3) - 1;
+  const level = Math.max(1, Math.min(99, playerLevel + levelJitter));
 
   const fakeOwned = {
     id: `ai_${Date.now().toString(36)}`,
-    templateId: tplId || 'cockroachsaurus',
+    templateId: tplId,
     nickname: tpl?.name ?? 'CPU',
     level,
     exp: 0,
-    monsterParts: mergeMonsterParts(tplId || 'cockroachsaurus'),
+    monsterParts: mergeMonsterParts(tplId),
   };
   const f = fighterFromOwned(fakeOwned);
   if (!f) return null;

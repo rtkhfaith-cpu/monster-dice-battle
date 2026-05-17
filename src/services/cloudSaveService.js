@@ -233,21 +233,15 @@ export async function recallCloudProfile(profileID, playerKey) {
   const login = await loginCloudProfile(profileID, playerKey);
   if (login.ok) return login;
 
-  const tryGet =
-    login.status === 404 ||
-    login.status === 403 ||
-    (login.error && /not found|404/i.test(String(login.error)));
+  // POST /login may be missing on older API deployments — always try GET with key.
+  const loaded = await loadCloudProfileWithKey(profileID, playerKey);
+  if (loaded.ok) return loaded;
 
-  if (tryGet) {
-    const loaded = await loadCloudProfileWithKey(profileID, playerKey);
-    if (loaded.ok) return loaded;
-    if (login.status === 401 || login.error === 'Incorrect key') {
-      return login;
-    }
-    return loaded;
+  if (login.status === 401 || login.error === 'Incorrect key') {
+    return login;
   }
 
-  return login;
+  return loaded.error ? loaded : login;
 }
 
 /**

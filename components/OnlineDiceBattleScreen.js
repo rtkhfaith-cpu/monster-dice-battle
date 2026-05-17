@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import BattleDiceButton from './BattleDiceButton';
+import ConfirmDialog from './ConfirmDialog';
 import RpgBattleArena from './RpgBattleArena';
 import { isMobileLayout } from '../utils/battleLayout';
 import {
+  isBattleMuted,
   startBattleMusic,
   stopBattleMusic,
   toggleBattleMuted,
@@ -55,6 +57,7 @@ export default function OnlineDiceBattleScreen({
   player1Name = 'Player 1',
   player2Name = 'Player 2',
   onFinish,
+  onFlee,
   onExitBattle,
 }) {
   const myPlayerId = mySlot === 'p2' ? 2 : 1;
@@ -69,12 +72,15 @@ export default function OnlineDiceBattleScreen({
   const [diceP2, setDiceP2] = useState(null);
   const [attackerId, setAttackerId] = useState(null);
   const [bannerMessage, setBannerMessage] = useState('Roll your dice!');
-  const [audioMuted, setAudioMuted] = useState(false);
+  const [audioMuted, setAudioMuted] = useState(() => isBattleMuted());
   const [diceRolling, setDiceRolling] = useState(false);
   const [pendingRollValue, setPendingRollValue] = useState(1);
+  const [actionError, setActionError] = useState('');
+  const [runConfirmOpen, setRunConfirmOpen] = useState(false);
 
   const lastSeqRef = useRef(0);
   const finishedRef = useRef(false);
+  const prevPhaseRef = useRef('player1Dice');
 
   const { width, height } = useWindowDimensions();
   const battleMobile = isMobileLayout(width, height);
@@ -87,7 +93,6 @@ export default function OnlineDiceBattleScreen({
     if (!snapshot) return;
     const seq = snapshot.seq ?? 0;
     if (seq > 0 && seq < lastSeqRef.current) return;
-    if (seq === lastSeqRef.current && !snapshot.winner) return;
     lastSeqRef.current = Math.max(lastSeqRef.current, seq);
 
     const nextP1 = fighterFromServer(snapshot.p1);
@@ -96,20 +101,17 @@ export default function OnlineDiceBattleScreen({
     if (nextP2) setP2(nextP2);
     if (snapshot.phase) setPhase(snapshot.phase);
     if (typeof snapshot.round === 'number') setRound(snapshot.round);
-    if (snapshot.diceP1 !== undefined) {
-      setDiceP1(snapshot.diceP1);
-      if (diceRolling && snapshot.phase === 'player1Dice' && snapshot.diceP1 != null) {
-        setPendingRollValue(snapshot.diceP1);
-      }
-    }
-    if (snapshot.diceP2 !== undefined) {
-      setDiceP2(snapshot.diceP2);
-      if (diceRolling && snapshot.phase === 'player2Dice' && snapshot.diceP2 != null) {
-        setPendingRollValue(snapshot.diceP2);
-      }
-    }
+    if (snapshot.diceP1 !== undefined) setDiceP1(snapshot.diceP1);
+    if (snapshot.diceP2 !== undefined) setDiceP2(snapshot.diceP2);
     if (snapshot.attackerId !== undefined) setAttackerId(snapshot.attackerId);
     if (snapshot.bannerMessage) setBannerMessage(snapshot.bannerMessage);
+
+    if (snapshot.phase && snapshot.phase !== prevPhaseRef.current) {
+      prevPhaseRef.current = snapshot.phase;
+      if (snapshot.phase === 'player1Dice' || snapshot.phase === 'player2Dice') {
+        setDiceRolling(false);
+      }
+    }
 
     if (snapshot.winner && !finishedRef.current) {
       finishedRef.current = true;
@@ -133,6 +135,7 @@ export default function OnlineDiceBattleScreen({
   const isDefender = phase === 'chooseDefense' && attackerId !== myPlayerId;
 
   const actionHint = useMemo(() => {
+    if (actionError) return actionError;
     if (phase === 'player1Dice' || phase === 'player2Dice') {
       return isMyDiceTurn ? 'Tap your die to ROLL' : 'Waiting for opponent to roll…';
     }
@@ -144,7 +147,7 @@ export default function OnlineDiceBattleScreen({
     }
     if (phase === 'resolveAttack') return bannerMessage || 'Resolving attack…';
     return bannerMessage || '';
-  }, [phase, isMyDiceTurn, isAttacker, isDefender, bannerMessage]);
+  }, [phase, isMyDiceTurn, isAttacker, isDefender, bannerMessage, actionError]);
 
   function tapUi() {
     unlockBattleAudio();
@@ -152,9 +155,13 @@ export default function OnlineDiceBattleScreen({
     playUiSfx();
   }
 
-  function submit(action, payload = {}) {
+  async function submit(action, payload = {}) {
     if (!emitAction) return;
-    emitAction(action, payload);
+    setActionError('');
+    const res = await emitAction(action, payload);
+    if (res?.error) {
+      setActionError(res.error);
+    }
   }
 
   function handleRollPress() {
@@ -165,7 +172,7 @@ export default function OnlineDiceBattleScreen({
     const preview = typeof expected === 'number' ? expected : Math.floor(Math.random() * 6) + 1;
     setPendingRollValue(preview);
     setDiceRolling(true);
-    submit('rollDice');
+    void submit('rollDice');
   }
 
   function onDiceRollComplete() {
@@ -175,7 +182,14 @@ export default function OnlineDiceBattleScreen({
   function handleRun() {
     if (diceRolling) return;
     tapUi();
-    submit('run');
+    setRunConfirmOpen(true);
+  }
+
+  function confirmFlee() {
+    setRunConfirmOpen(false);
+    finishedRef.current = true;
+    stopBattleMusic();
+    onFlee?.();
   }
 
   function handleMutePress() {
@@ -193,6 +207,17 @@ export default function OnlineDiceBattleScreen({
 
   return (
     <View style={styles.root}>
+      <ConfirmDialog
+        visible={runConfirmOpen}
+        title="Flee battle?"
+        message="You will leave the room and return home. Your opponent will be notified."
+        confirmLabel="Flee"
+        cancelLabel="Stay"
+        destructive
+        onCancel={() => setRunConfirmOpen(false)}
+        onConfirm={confirmFlee}
+      />
+
       <View style={styles.battleFrame}>
         <View style={styles.arenaField}>
           <RpgBattleArena
@@ -216,7 +241,7 @@ export default function OnlineDiceBattleScreen({
         </View>
 
         <View style={[styles.actionDock, battleMobile && styles.actionDockMobile]}>
-          <Text style={styles.banner} numberOfLines={2}>
+          <Text style={[styles.banner, actionError ? styles.bannerErr : null]} numberOfLines={2}>
             {actionHint}
           </Text>
 
@@ -254,12 +279,12 @@ export default function OnlineDiceBattleScreen({
 
           {phase === 'chooseAttack' && isAttacker ? (
             <View style={styles.btnRow}>
-              <Pressable style={[styles.btn, styles.fightBtn]} onPress={() => { tapUi(); submit('pickStrike', { kind: 'normal' }); }}>
+              <Pressable style={[styles.btn, styles.fightBtn]} onPress={() => { tapUi(); void submit('pickStrike', { kind: 'normal' }); }}>
                 <Text style={styles.btnTxt}>Fight</Text>
               </Pressable>
               <Pressable
                 style={[styles.btn, styles.magicBtn]}
-                onPress={() => { tapUi(); submit('pickStrike', { kind: 'magic' }); }}
+                onPress={() => { tapUi(); void submit('pickStrike', { kind: 'magic' }); }}
               >
                 <Text style={styles.btnTxt}>Magic</Text>
               </Pressable>
@@ -270,13 +295,13 @@ export default function OnlineDiceBattleScreen({
             <View style={styles.btnRow}>
               <Pressable
                 style={[styles.btn, styles.defendBtn]}
-                onPress={() => { tapUi(); submit('pickDefense', { mode: 'defend' }); }}
+                onPress={() => { tapUi(); void submit('pickDefense', { mode: 'defend' }); }}
               >
                 <Text style={styles.btnTxt}>Defend</Text>
               </Pressable>
               <Pressable
                 style={[styles.btn, styles.dodgeBtn]}
-                onPress={() => { tapUi(); submit('pickDefense', { mode: 'dodge' }); }}
+                onPress={() => { tapUi(); void submit('pickDefense', { mode: 'dodge' }); }}
               >
                 <Text style={styles.btnTxt}>Dodge</Text>
               </Pressable>
@@ -339,6 +364,7 @@ const styles = StyleSheet.create({
     color: '#f8f9fa',
     lineHeight: 20,
   },
+  bannerErr: { color: '#ff6b6b' },
   diceRow: {
     flexDirection: 'row',
     alignItems: 'center',

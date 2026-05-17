@@ -471,9 +471,12 @@ export function syncOnlineProfile(profilePayload) {
 }
 
 export function emitBattleAction(action, payload = {}) {
-  if (!socket?.connected) return;
-  devLog('action submitted', action);
-  socket.emit('battleAction', { action, ...payload });
+  if (!socket?.connected) {
+    return Promise.resolve({ error: 'Not connected' });
+  }
+  const roomCode = roomState?.roomCode || loadOnlineSession()?.roomCode || '';
+  devLog('action submitted', action, roomCode);
+  return emitWithAck(socket, 'battleAction', { action, roomCode, ...payload });
 }
 
 export function disconnectOnline() {
