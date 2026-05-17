@@ -89,6 +89,7 @@ export default function GameSetupPanel({
   selectedP2Id,
   onOpenMonsterGear,
   onEnterMultiplayer,
+  onOpenMonsterLadder,
   embedInScroll = false,
   isMobile = false,
 }) {
@@ -136,8 +137,16 @@ export default function GameSetupPanel({
               <Text style={[styles.modeTxtOnline, isMobile && styles.modeTxtMobile]}>🌐 Online Multiplayer</Text>
             </TouchableOpacity>
           ) : null}
+          {onOpenMonsterLadder ? (
+            <TouchableOpacity
+              style={[styles.modeBtnLadder, isMobile && styles.modeBtnMobile]}
+              onPress={onOpenMonsterLadder}
+            >
+              <Text style={[styles.modeTxtLadder, isMobile && styles.modeTxtMobile]}>🪜 Monster Ladder</Text>
+            </TouchableOpacity>
+          ) : null}
           <Text style={[styles.modeHint, isMobile && styles.modeHintMobile]}>
-            Fight the CPU solo, or use Online Multiplayer with a room code.
+            Fight the CPU solo, climb the 25-floor ladder, or play online with a room code.
           </Text>
         </View>
 
@@ -247,6 +256,17 @@ const styles = StyleSheet.create({
   },
   modeHintMobile: { fontSize: 12, lineHeight: 18, marginTop: 6 },
   modeTxtOnline: { fontWeight: '900', fontSize: 13, color: '#1b1b2f' },
+  modeBtnLadder: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#6c5ce7',
+    backgroundColor: '#a29bfe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  modeTxtLadder: { fontWeight: '900', fontSize: 13, color: '#1b1b2f' },
   rosterRow: { flexDirection: 'row', gap: 8, marginBottom: 6 },
   rosterRowMobile: { flexDirection: 'column', gap: 10, marginBottom: 8 },
   rosterCard: {

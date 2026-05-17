@@ -40,6 +40,13 @@ export default function RewardScreen({
   onOpenMonsterGear,
   onOpenMonsterMart,
   onBackToHome,
+  playAgainLabel = 'Play Again',
+  backToHomeLabel = 'Back to Home',
+  hideShopButtons = false,
+  ladderBonusCoins = 0,
+  ladderFirstClear = false,
+  ladderFloor,
+  ladderRegionName,
 }) {
   const line =
     winner === 'draw'
@@ -61,6 +68,16 @@ export default function RewardScreen({
       <Text style={styles.sub}>{line}</Text>
 
       {bonusUnderdog ? <Text style={styles.underdog}>UNDERDOG BONUS! +10 coins · +10 EXP</Text> : null}
+
+      {ladderFloor ? (
+        <Text style={styles.ladderMeta}>
+          Floor {ladderFloor}
+          {ladderRegionName ? ` · ${ladderRegionName}` : ''}
+        </Text>
+      ) : null}
+      {ladderFirstClear && ladderBonusCoins > 0 ? (
+        <Text style={styles.ladderBonus}>First clear bonus: +{ladderBonusCoins} coins</Text>
+      ) : null}
 
       <Text style={styles.coins}>
         Coins banked this match: <Text style={styles.coinsStrong}>+{coinsAwarded}</Text>
@@ -88,16 +105,16 @@ export default function RewardScreen({
       ))}
 
       <TouchableOpacity style={styles.primary} onPress={onPlayAgain}>
-        <Text style={styles.primaryTxt}>Play Again</Text>
+        <Text style={styles.primaryTxt}>{playAgainLabel}</Text>
       </TouchableOpacity>
 
-      {onOpenMonsterMart ? (
+      {!hideShopButtons && onOpenMonsterMart ? (
         <TouchableOpacity style={styles.secondary} onPress={onOpenMonsterMart}>
           <Text style={styles.secondaryTxt}>Go to Monster Mart 🛒</Text>
         </TouchableOpacity>
       ) : null}
 
-      {onOpenMonsterGear ? (
+      {!hideShopButtons && onOpenMonsterGear ? (
         <TouchableOpacity style={styles.tertiary} onPress={onOpenMonsterGear}>
           <Text style={styles.tertiaryTxt}>Monster Gear — look & power</Text>
         </TouchableOpacity>
@@ -105,7 +122,7 @@ export default function RewardScreen({
 
       {onBackToHome ? (
         <TouchableOpacity style={styles.ghost} onPress={onBackToHome}>
-          <Text style={styles.ghostTxt}>Back to Home</Text>
+          <Text style={styles.ghostTxt}>{backToHomeLabel}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -130,6 +147,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#2980b9',
     marginBottom: 10,
+    textAlign: 'center',
+  },
+  ladderMeta: {
+    fontWeight: '800',
+    fontSize: 14,
+    color: '#6c5ce7',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  ladderBonus: {
+    fontWeight: '900',
+    fontSize: 15,
+    color: '#d35400',
+    marginBottom: 8,
     textAlign: 'center',
   },
   boom: {

@@ -220,6 +220,19 @@ function normalizePlayerProfile(p) {
   if (!p.selectedMonsterId && p.ownedMonsters[0]) p.selectedMonsterId = p.ownedMonsters[0].id;
   if (!p.battleProgress) p.battleProgress = defaultBattleProgress();
   if (!p.meta) p.meta = defaultProfileMeta();
+  if (!p.ladderProgress) {
+    p.ladderProgress = { highestFloorCleared: 0, attempts: 0, wins: 0, losses: 0, lastFloor: null, lastResult: null };
+  } else {
+    const h = typeof p.ladderProgress.highestFloorCleared === 'number' ? p.ladderProgress.highestFloorCleared : 0;
+    p.ladderProgress = {
+      highestFloorCleared: Math.max(0, Math.min(25, Math.floor(h))),
+      attempts: typeof p.ladderProgress.attempts === 'number' ? p.ladderProgress.attempts : 0,
+      wins: typeof p.ladderProgress.wins === 'number' ? p.ladderProgress.wins : 0,
+      losses: typeof p.ladderProgress.losses === 'number' ? p.ladderProgress.losses : 0,
+      lastFloor: p.ladderProgress.lastFloor ?? null,
+      lastResult: p.ladderProgress.lastResult ?? null,
+    };
+  }
 }
 
 function ensureStarterMonsters(wallet) {

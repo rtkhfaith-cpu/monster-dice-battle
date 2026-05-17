@@ -42,6 +42,7 @@ export default function HomeSetupScreen({
   selectedP2Id,
   onSelectMonster,
   onStartGame,
+  onOpenMonsterLadder,
   onOpenMonsterGear,
   onEnterMultiplayer,
   onlineRoom,
@@ -128,6 +129,7 @@ export default function HomeSetupScreen({
     selectedP2Id,
     onOpenMonsterGear,
     onEnterMultiplayer,
+    onOpenMonsterLadder,
     embedInScroll: usePageScroll,
     ...panelLayout,
   };
@@ -245,6 +247,16 @@ export default function HomeSetupScreen({
   const startSection = (
     <View style={[styles.bottom, isMobile && styles.bottomMobile]}>
       {missingMsg && !canStart ? <Text style={styles.missing}>{missingMsg}</Text> : null}
+      {onOpenMonsterLadder ? (
+        <TouchableOpacity
+          style={[styles.ladderBtn, isMobile && styles.ladderBtnMobile, !canStart && styles.startOff]}
+          disabled={!canStart}
+          onPress={onOpenMonsterLadder}
+          activeOpacity={0.9}
+        >
+          <Text style={[styles.ladderTxt, isMobile && styles.startTxtMobile]}>🪜 MONSTER LADDER</Text>
+        </TouchableOpacity>
+      ) : null}
       <TouchableOpacity
         style={[styles.startBtn, isMobile && styles.startBtnMobile, !canStart && styles.startOff]}
         disabled={!canStart}
@@ -513,6 +525,28 @@ const styles = StyleSheet.create({
     color: '#b85450',
     textAlign: 'center',
     marginBottom: 10,
+  },
+  ladderBtn: {
+    backgroundColor: '#6c5ce7',
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#4834d4',
+    alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  ladderBtnMobile: {
+    width: '100%',
+    minHeight: 52,
+    paddingVertical: 14,
+  },
+  ladderTxt: {
+    fontWeight: '900',
+    fontSize: 17,
+    color: '#fff',
+    letterSpacing: 0.5,
   },
   startBtn: {
     backgroundColor: LOBBY.start,

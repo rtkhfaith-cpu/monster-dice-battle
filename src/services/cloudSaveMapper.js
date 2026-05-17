@@ -46,6 +46,14 @@ export function toCloudProfile(gameData, profileID) {
     unlockedGearSlots,
     audioSettings: loadAudioSettings(),
     battleProgress: p.battleProgress ?? { totalBattles: 0, winStreak: 0, lossStreak: 0 },
+    ladderProgress: p.ladderProgress ?? {
+      highestFloorCleared: 0,
+      attempts: 0,
+      wins: 0,
+      losses: 0,
+      lastFloor: null,
+      lastResult: null,
+    },
     meta: p.meta ?? null,
     createdAt: p.createdAt ?? new Date().toISOString(),
     updatedAt: p.updatedAt ?? new Date().toISOString(),
@@ -132,6 +140,7 @@ export function applyCloudProfile(gameData, cloud) {
   }));
 
   if (normalized.battleProgress) p.battleProgress = normalized.battleProgress;
+  if (normalized.ladderProgress) p.ladderProgress = normalized.ladderProgress;
   if (normalized.meta) p.meta = normalized.meta;
 
   if (normalized.audioSettings && typeof normalized.audioSettings === 'object') {

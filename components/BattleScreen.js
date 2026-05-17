@@ -133,6 +133,9 @@ export default function BattleScreen({
 }) {
   const labelP1 = player1Name || fighter1?.displayName || 'You';
   const labelCpu = opponentIsAi ? 'CPU' : player2Name || fighter2?.displayName || 'CPU';
+  const ladderFloor = battleExtras?.ladderFloor;
+  const ladderRegionName = battleExtras?.ladderRegionName;
+  const ladderBossName = battleExtras?.ladderBossName;
 
   const [round, setRound] = useState(1);
   const [battlePhase, setBattlePhase] = useState('chooseAction');
@@ -743,7 +746,22 @@ export default function BattleScreen({
           <View style={styles.arenaInner}>
           <RpgBattleArena
             topHudExtra={
-              <BattleAudioControls muted={audioMuted} onToggleMute={handleMutePress} />
+              <View style={styles.topHudWrap}>
+                {ladderFloor ? (
+                  <View style={styles.ladderHud}>
+                    <Text style={styles.ladderHudFloor}>Floor {ladderFloor}</Text>
+                    <Text style={styles.ladderHudRegion} numberOfLines={1}>
+                      {ladderRegionName || 'Monster Ladder'}
+                    </Text>
+                    {ladderBossName ? (
+                      <Text style={styles.ladderHudBoss} numberOfLines={1}>
+                        vs {ladderBossName}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+                <BattleAudioControls muted={audioMuted} onToggleMute={handleMutePress} />
+              </View>
             }
             p1={p1}
             p2={p2}
@@ -1085,4 +1103,18 @@ const styles = StyleSheet.create({
   defendBtnTxt: { color: '#f0fbff' },
   runBtnTxt: { color: '#3d4a5c', fontSize: 15, fontWeight: '800' },
   disabledBtn: { opacity: 0.42 },
+  topHudWrap: { alignItems: 'flex-end', gap: 4 },
+  ladderHud: {
+    alignItems: 'flex-end',
+    maxWidth: 200,
+    backgroundColor: 'rgba(108, 92, 231, 0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  ladderHudFloor: { fontWeight: '900', fontSize: 11, color: '#fff' },
+  ladderHudRegion: { fontWeight: '800', fontSize: 10, color: '#dfe6e9' },
+  ladderHudBoss: { fontWeight: '700', fontSize: 9, color: '#ffeaa7', fontStyle: 'italic' },
 });

@@ -18,6 +18,7 @@ import MonsterGearScreen from './components/MonsterGearScreen';
 import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
 import HomeSetupScreen from './components/HomeSetupScreen';
+import MonsterLadderScreen from './components/MonsterLadderScreen';
 import AudioSettingsScreen from './components/AudioSettingsScreen';
 import OnlineLobbyScreen from './components/OnlineLobbyScreen';
 import OnlineRoomBanner from './components/OnlineRoomBanner';
@@ -33,6 +34,13 @@ import {
 } from './utils/onlineSocketManager';
 import RewardScreen from './components/RewardScreen';
 import { buildAiFighter, fighterFromOwned } from './utils/fighterFromOwned';
+import { buildLadderBossFighter } from './utils/ladderFighters';
+import { getLadderRegion } from './utils/ladderRegions';
+import {
+  applyLadderBattleResult,
+  getLadderProgress,
+  isFloorUnlocked,
+} from './utils/ladderProgress';
 import { initAudio } from './utils/audioManager';
 import { pickFunnyWinTitle, winTitleForRarity } from './utils/rewards';
 import {
@@ -75,7 +83,7 @@ import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
 import { startMenuMusic, stopMenuMusic } from './utils/audioManager';
 
-const LOBBY_PHASES = new Set(['menu', 'online', 'gameOver', 'audioSettings']);
+const LOBBY_PHASES = new Set(['menu', 'ladder', 'online', 'gameOver', 'audioSettings']);
 
 const BG = '#dceaf8';
 
@@ -106,7 +114,8 @@ export default function App() {
   const lobbyMobile = isLobbyMobileWidth(width);
   const [gameData, setGameData] = useState(null);
   const [phase, setPhase] = useState('menu');
-  const [gameMode, setGameMode] = useState(/** @type {'twoPlayer'|'onePlayer'|'online'} */ ('onePlayer'));
+  const [gameMode, setGameMode] = useState(/** @type {'twoPlayer'|'onePlayer'|'online'|'ladder'} */ ('onePlayer'));
+  const [ladderFloor, setLadderFloor] = useState(/** @type {number|null} */ (null));
   const [onlineRoom, setOnlineRoom] = useState(null);
   const [onlineSlot, setOnlineSlot] = useState(() => loadOnlineSession()?.playerSlot ?? null);
   const [player1, setPlayer1] = useState(null);
@@ -772,7 +781,57 @@ export default function App() {
       Alert.alert('Player setup', 'Could not build CPU opponent. Try again.');
       return;
     }
+    setGameMode('onePlayer');
+    setLadderFloor(null);
     beginBattle(f1, ai);
+  }
+
+  function openMonsterLadder() {
+    if (!setupP1ProfileId) {
+      Alert.alert('Monster Ladder', 'Select or create a player profile first.');
+      return;
+    }
+    if (!setupP1Id) {
+      Alert.alert('Monster Ladder', 'Pick your monster before climbing the ladder.');
+      return;
+    }
+    setLadderFloor(null);
+    setPhase('ladder');
+  }
+
+  function returnToLadder() {
+    setWinner(null);
+    setPlayer1(null);
+    setPlayer2(null);
+    setRewardSummary(null);
+    setBattleKey((k) => k + 1);
+    setPhase('ladder');
+  }
+
+  function startLadderBattle(floor) {
+    if (!setupP1ProfileId || !gameData) {
+      Alert.alert('Monster Ladder', 'Select a player profile first.');
+      return;
+    }
+    const f1 = fighterFromSetupId(setupP1Id, setupP1ProfileId);
+    if (!f1) {
+      Alert.alert('Monster Ladder', 'Pick your monster before fighting.');
+      return;
+    }
+    const profile = getPlayerProfile(gameData, setupP1ProfileId);
+    const prog = getLadderProgress(profile);
+    if (!isFloorUnlocked(prog, floor)) {
+      Alert.alert('Monster Ladder', `Clear floor ${floor - 1} before challenging floor ${floor}.`);
+      return;
+    }
+    const boss = buildLadderBossFighter(floor, f1);
+    if (!boss) {
+      Alert.alert('Monster Ladder', 'Could not build floor boss. Try again.');
+      return;
+    }
+    setGameMode('ladder');
+    setLadderFloor(floor);
+    beginBattle(f1, boss);
   }
 
   function beginBattle(p1Fighter, p2Fighter) {
@@ -838,6 +897,70 @@ export default function App() {
       return;
     }
 
+    const ladderMode = battleExtras?.mode === 'ladder' || gameMode === 'ladder';
+    const floor = battleExtras?.ladderFloor ?? ladderFloor ?? 1;
+    if (ladderMode) {
+      const profile = getPlayerProfile(gameData, setupP1ProfileId);
+      const prevCleared = getLadderProgress(profile).highestFloorCleared;
+      let nextGd = gameData;
+      if (outcome === 1) {
+        nextGd = applyLadderBattleResult(nextGd, setupP1ProfileId, floor, 'win');
+      } else if (outcome === 2) {
+        nextGd = applyLadderBattleResult(nextGd, setupP1ProfileId, floor, 'lose');
+      }
+
+      const lastAiWeak = (player2Snapshot?.aiPowerRatio ?? 2) < 0.82;
+      const { gameData: rewardedGd, summary } = awardBattleRewards(nextGd, {
+        outcome,
+        mode: 'onePlayer',
+        p1ProfileId: setupP1ProfileId,
+        p2ProfileId: null,
+        p1OwnedId: player1Snapshot?.ownedMonsterId ?? null,
+        p2OwnedId: null,
+        p1TemplateId: player1Snapshot?.monsterTemplateId ?? null,
+        p2TemplateId: player2Snapshot?.monsterTemplateId ?? null,
+        p1Level: player1Snapshot?.level ?? 1,
+        p2Level: player2Snapshot?.level ?? 1,
+        lastAiWasMuchWeaker: lastAiWeak,
+        aiPowerRatio: player2Snapshot?.aiPowerRatio ?? null,
+      });
+
+      const region = getLadderRegion(floor);
+      let ladderBonusCoins = 0;
+      if (outcome === 1 && floor > prevCleared) {
+        const w = walletForProfile(rewardedGd, setupP1ProfileId);
+        w.coins += region.coinReward;
+        ladderBonusCoins = region.coinReward;
+      }
+
+      persistSave(rewardedGd, 'ladder_battle_ended', [setupP1ProfileId]);
+
+      const iWon = outcome === 1;
+      setRewardSummary({
+        ...summary,
+        coinsAwarded: (summary?.coinsAwarded ?? 0) + ladderBonusCoins,
+        ladder: true,
+        ladderFloor: floor,
+        ladderRegionName: region.name,
+        ladderBossName: region.boss,
+        ladderBonusCoins,
+        ladderFirstClear: iWon && floor > prevCleared,
+      });
+      setRewardTitle(
+        outcome === 'draw'
+          ? `Floor ${floor} — stalemate`
+          : iWon
+            ? floor > prevCleared
+              ? `Floor ${floor} cleared!`
+              : `Floor ${floor} — victory`
+            : `Floor ${floor} — defeated`,
+      );
+      playSound(iWon ? 'win' : outcome === 2 ? 'lose' : 'shop');
+      if (summary?.expP1?.levelsGained > 0) playSound('levelUp');
+      setPhase('gameOver');
+      return;
+    }
+
     const lastAiWeak = battleExtras?.mode === 'onePlayer' && (player2Snapshot?.aiPowerRatio ?? 2) < 0.82;
 
     const { gameData: nextGd, summary } = awardBattleRewards(gameData, {
@@ -890,6 +1013,8 @@ export default function App() {
     setPlayer1(null);
     setPlayer2(null);
     setRewardSummary(null);
+    setLadderFloor(null);
+    if (gameMode === 'ladder') setGameMode('onePlayer');
     setBattleKey((k) => k + 1);
     setPhase('menu');
   }, [gameMode]);
@@ -1012,7 +1137,7 @@ export default function App() {
             ? styles.cardShellBattle
             : phase === 'online'
               ? styles.cardShellOnline
-            : phase === 'menu'
+            : phase === 'menu' || phase === 'ladder'
               ? [styles.cardShellMenu, lobbyMobile && styles.cardShellMenuMobile]
               : styles.cardShell
         }
@@ -1065,6 +1190,7 @@ export default function App() {
             onRequestSelectCloudProfile={handleRequestSelectCloudProfile}
             onUpdateProfileName={handleUpdateProfileName}
             onStartGame={startGameFromSetup}
+            onOpenMonsterLadder={openMonsterLadder}
             onOpenMonsterGear={openMonsterGear}
             onlineRoom={onlineRoom}
             onlineSlot={onlineSlot}
@@ -1114,6 +1240,22 @@ export default function App() {
           />
         ) : null}
 
+        {phase === 'ladder' ? (
+          <MonsterLadderScreen
+            profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
+            monsterName={
+              fighterFromSetupId(setupP1Id, setupP1ProfileId)?.displayName ??
+              walletP1?.ownedMonsters?.find((m) => m.id === setupP1Id)?.nickname ??
+              '—'
+            }
+            progress={getPlayerProfile(gameData, setupP1ProfileId)?.ladderProgress}
+            canFight={!!setupP1Id}
+            missingMsg={!setupP1Id ? 'Pick your monster on the home screen first.' : ''}
+            onBack={resetToMenu}
+            onChallengeFloor={startLadderBattle}
+          />
+        ) : null}
+
         {phase === 'battle' && gameMode === 'online' && onlineRoom?.battle ? (
           <OnlineBattleScreen
             key={battleKey}
@@ -1134,22 +1276,27 @@ export default function App() {
             fighter1={player1}
             fighter2={player2}
             onFinish={handleBattleFinish}
-            onExitBattle={resetToMenu}
+            onExitBattle={gameMode === 'ladder' ? returnToLadder : resetToMenu}
             player1Name={
               gameData.players.find((p) => p.id === setupP1ProfileId)?.name ??
               player1.displayName ??
               'Player 1'
             }
             player2Name={
-              gameMode === 'onePlayer'
-                ? player2.displayName ?? 'CPU'
+              gameMode === 'onePlayer' || gameMode === 'ladder'
+                ? player2.displayName ?? player2.ladderBossName ?? 'CPU'
                 : gameData.players.find((p) => p.id === setupP2ProfileId)?.name ??
                   player2.displayName ??
                   'Player 2'
             }
-            opponentLabel={gameMode === 'onePlayer' ? 'CPU' : 'Player 2'}
-            opponentIsAi={gameMode === 'onePlayer'}
-            battleExtras={{ mode: gameMode }}
+            opponentLabel={gameMode === 'ladder' ? 'Boss' : gameMode === 'onePlayer' ? 'CPU' : 'Player 2'}
+            opponentIsAi={gameMode === 'onePlayer' || gameMode === 'ladder'}
+            battleExtras={{
+              mode: gameMode,
+              ladderFloor: gameMode === 'ladder' ? ladderFloor : undefined,
+              ladderRegionName: player2?.ladderRegionName,
+              ladderBossName: player2?.ladderBossName,
+            }}
           />
         ) : null}
 
@@ -1159,6 +1306,10 @@ export default function App() {
               winner={winner}
               coinsAwarded={rewardSummary?.coinsAwarded ?? 0}
               bonusUnderdog={!!rewardSummary?.bonusUnderdog}
+              ladderBonusCoins={rewardSummary?.ladderBonusCoins ?? 0}
+              ladderFirstClear={!!rewardSummary?.ladderFirstClear}
+              ladderFloor={rewardSummary?.ladderFloor}
+              ladderRegionName={rewardSummary?.ladderRegionName}
               expP1={rewardSummary?.expP1}
               expP2={rewardSummary?.expP2}
               funnyTitle={rewardTitle}
@@ -1166,16 +1317,23 @@ export default function App() {
               player2={player2}
               totalCoins={coins}
               encourageLines={encourage}
-              onPlayAgain={resetToMenu}
-              onOpenMonsterGear={() => {
-                const id = setupP1Id || wallet.ownedMonsters?.[0]?.id;
-                if (id) {
-                  setGearMonsterId(id);
-                  setGearOpen(true);
-                }
-              }}
-              onOpenMonsterMart={() => setMonsterMartOpen(true)}
-              onBackToHome={resetToMenu}
+              playAgainLabel={rewardSummary?.ladder ? 'Continue climb' : 'Play Again'}
+              hideShopButtons={!!rewardSummary?.ladder}
+              onPlayAgain={rewardSummary?.ladder ? returnToLadder : resetToMenu}
+              onOpenMonsterGear={
+                rewardSummary?.ladder
+                  ? undefined
+                  : () => {
+                      const id = setupP1Id || wallet.ownedMonsters?.[0]?.id;
+                      if (id) {
+                        setGearMonsterId(id);
+                        setGearOpen(true);
+                      }
+                    }
+              }
+              onOpenMonsterMart={rewardSummary?.ladder ? undefined : () => setMonsterMartOpen(true)}
+              onBackToHome={rewardSummary?.ladder ? returnToLadder : resetToMenu}
+              backToHomeLabel={rewardSummary?.ladder ? 'Monster Ladder map' : 'Back to Home'}
             />
           </ScrollView>
         )}
