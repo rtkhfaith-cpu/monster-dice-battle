@@ -3,6 +3,7 @@ import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import MonsterPreview from './MonsterPreview';
 import { mergeMonsterParts } from '../utils/gameStorage';
 import { MONSTER_CATALOG, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
+import { monsterShopPrice } from '../src/gameBalance/shop';
 
 /** Count owned instances per template id */
 function ownedCounts(wallet) {
@@ -25,7 +26,9 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
             {MONSTER_CATALOG.map((m) => {
               const ru = RARITY_UI[m.rarity];
               const count = counts[m.id] || 0;
-              const afford = (coins ?? 0) >= m.price;
+              const price = monsterShopPrice(m);
+              const purchasable = typeof price === 'number';
+              const afford = purchasable && (coins ?? 0) >= price;
               const previewParts = mergeMonsterParts(m.id);
               return (
                 <View key={m.id} style={[styles.row, { borderLeftColor: ru.border }]}>
@@ -42,11 +45,11 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
                     <Text style={styles.ownedLbl}>{count ? `Owned ×${count}` : 'Not owned yet'}</Text>
                   </View>
                   <View style={styles.right}>
-                    <Text style={styles.price}>{m.price} 🪙</Text>
+                    <Text style={styles.price}>{purchasable ? `${price} 🪙` : 'Event only'}</Text>
                     <TouchableOpacity
-                      style={[styles.buy, (!afford || !onBuy) && styles.buyOff]}
-                      disabled={!afford || !onBuy}
-                      onPress={() => onBuy?.(m.id, m.price)}
+                      style={[styles.buy, (!afford || !onBuy || !purchasable) && styles.buyOff]}
+                      disabled={!afford || !onBuy || !purchasable}
+                      onPress={() => onBuy?.(m.id, price)}
                     >
                       <Text style={styles.buyTxt}>Buy</Text>
                     </TouchableOpacity>

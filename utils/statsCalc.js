@@ -1,13 +1,14 @@
 import { evolutionStageFromLevel } from './evolution';
 import { getMonsterTemplate, MONSTER_CATALOG } from './monsterTemplates';
+import { baseSpeedForRole, growthForRole } from '../src/gameBalance/monsters';
 
 /** Flat rarity bumps — keeps commons playable while highs feel premium */
 export const RARITY_FLAT = {
-  common: { hp: 0, mp: 0, atk: 0, mag: 0, def: 0, md: 0, crit: 0, dodge: 0 },
-  rare: { hp: 10, mp: 6, atk: 1, mag: 1, def: 1, md: 1, crit: 1, dodge: 1 },
-  epic: { hp: 22, mp: 14, atk: 2, mag: 2, def: 2, md: 2, crit: 2, dodge: 1 },
-  legendary: { hp: 38, mp: 26, atk: 3, mag: 3, def: 3, md: 3, crit: 3, dodge: 2 },
-  mythic: { hp: 58, mp: 42, atk: 5, mag: 5, def: 4, md: 4, crit: 4, dodge: 3 },
+  common: { hp: 0, mp: 0, atk: 0, mag: 0, def: 0, md: 0, crit: 0, dodge: 0, speed: 0 },
+  rare: { hp: 10, mp: 6, atk: 1, mag: 1, def: 1, md: 1, crit: 1, dodge: 1, speed: 1 },
+  epic: { hp: 22, mp: 14, atk: 2, mag: 2, def: 2, md: 2, crit: 2, dodge: 1, speed: 1 },
+  legendary: { hp: 38, mp: 26, atk: 3, mag: 3, def: 3, md: 3, crit: 3, dodge: 2, speed: 2 },
+  mythic: { hp: 58, mp: 42, atk: 5, mag: 5, def: 4, md: 4, crit: 4, dodge: 3, speed: 3 },
 };
 
 const ROLE_SUPER_NEED = {
@@ -38,15 +39,17 @@ export function computeBattleStats(templateId, level) {
 
   const lv = Math.max(1, Math.floor(level || 1));
   const g = t.growthProfile;
+  const roleGrowth = growthForRole(t.role);
   const b = { ...t.baseStats };
   const L = lv - 1;
 
-  const hpGain = Math.round((g.hpPerLevel ?? 4) * L);
-  const mpGain = Math.round((g.mpPerLevel ?? 1) * L);
-  const atkSteps = Math.floor(L / Math.max(1, g.attackEveryLevels ?? 4));
-  const magSteps = Math.floor(L / Math.max(1, g.magicEveryLevels ?? 4));
-  const defSteps = Math.floor(L / Math.max(1, g.defEveryLevels ?? 5));
-  const mdSteps = Math.floor(L / Math.max(1, g.magicDefEveryLevels ?? 5));
+  const hpGain = Math.round((roleGrowth.hp ?? g.hpPerLevel ?? 4) * L);
+  const mpGain = Math.round((roleGrowth.mp ?? g.mpPerLevel ?? 1) * L);
+  const atkSteps = Math.floor((roleGrowth.attack ?? 2) * L);
+  const magSteps = Math.floor((roleGrowth.magic ?? 2) * L);
+  const defSteps = Math.floor((roleGrowth.defense ?? 2) * L);
+  const mdSteps = Math.floor((roleGrowth.defense ?? 2) * L);
+  const speedSteps = Math.floor((roleGrowth.speed ?? 2) * L);
   const critSteps = Math.floor(L / Math.max(1, g.criticalEveryLevels ?? 6));
   const dodgeSteps = Math.floor(L / Math.max(1, g.dodgeEveryLevels ?? 7));
 
@@ -62,6 +65,7 @@ export function computeBattleStats(templateId, level) {
   let mdMax = b.magicDefMax + mdSteps;
   let crit = b.critical + critSteps;
   let dodge = b.dodge + dodgeSteps;
+  let speed = (b.speed ?? baseSpeedForRole(t.role)) + speedSteps;
 
   const rf = RARITY_FLAT[t.rarity] ?? RARITY_FLAT.common;
   hp += rf.hp;
@@ -76,6 +80,7 @@ export function computeBattleStats(templateId, level) {
   mdMax += rf.md;
   crit += rf.crit;
   dodge += rf.dodge;
+  speed += rf.speed ?? 0;
 
   /** Tiny evolution scaling inside tier — rewards leveling without exploding numbers */
   const stage = evolutionStageFromLevel(lv);
@@ -88,6 +93,7 @@ export function computeBattleStats(templateId, level) {
   magMax += Math.floor(tierBoost * 0.35);
   crit += Math.floor(stage.tierIndex * 0.35);
   dodge += Math.floor(stage.tierIndex * 0.25);
+  speed += Math.floor(stage.tierIndex * 0.5);
 
   const atk = clampRange(atkMin, atkMax);
   const mag = clampRange(magMin, magMax);
@@ -102,7 +108,8 @@ export function computeBattleStats(templateId, level) {
     def,
     magicDef,
     critPct: Math.min(55, Math.max(4, Math.round(crit))),
-    dodgePct: Math.min(45, Math.max(5, Math.round(dodge))),
+    dodgePct: Math.min(25, Math.max(3, Math.round(dodge))),
+    speed: Math.max(1, Math.round(speed)),
   };
 
   const superNeedThreshold = ROLE_SUPER_NEED[t.role] ?? 3;
@@ -137,7 +144,8 @@ export function powerScoreFromBundle(stats) {
     defAvg * 10 +
     mdAvg * 9 +
     stats.critPct * 7 +
-    stats.dodgePct * 6
+    stats.dodgePct * 6 +
+    (stats.speed ?? 10) * 8
   );
 }
 

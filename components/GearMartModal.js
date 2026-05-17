@@ -5,6 +5,7 @@ import {
   GEAR_CATEGORY_LABELS,
   formatGearBonusLines,
 } from '../utils/cosmetics';
+import { gearShopPrice } from '../src/gameBalance/shop';
 
 /**
  * Standalone gear shop — buy items into profile inventory.
@@ -49,7 +50,8 @@ export default function GearMartModal({ visible, coins, ownedGearIds, onClose, o
           >
             {catalog.map((g) => {
               const have = ownedSet.has(g.id);
-              const afford = !have && (coins ?? 0) >= g.price;
+              const price = gearShopPrice(g);
+              const afford = !have && (coins ?? 0) >= price;
               const bonusLines = formatGearBonusLines(g);
               return (
                 <View key={g.id} style={styles.row}>
@@ -57,7 +59,7 @@ export default function GearMartModal({ visible, coins, ownedGearIds, onClose, o
                   <View style={styles.mid}>
                     <Text style={styles.name}>{g.name}</Text>
                     <Text style={styles.meta}>
-                      {GEAR_CATEGORY_LABELS[g.category]} · {g.price} coins
+                      {GEAR_CATEGORY_LABELS[g.category]} · {price} coins
                     </Text>
                     <Text style={styles.bonus}>{bonusLines.join(' · ')}</Text>
                     <Text style={styles.status}>{have ? '✓ Owned' : 'Not owned'}</Text>

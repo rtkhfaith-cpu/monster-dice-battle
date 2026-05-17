@@ -1,7 +1,13 @@
 import { randInt } from './random';
-import { getElementRelation, getElementalDamageModifier } from './elements';
+import { getElementRelation } from './elements';
 import { applyStatus, statusStatMultiplier } from './statusEffects';
 import { getLadderGear } from './monsterLadder/ladderGearCatalog';
+import {
+  COMBAT_BALANCE,
+  dodgeChance,
+  elementalDamageMultiplier,
+  randomVariance as balancedVariance,
+} from '../src/gameBalance/combat';
 
 /**
  * @param {{min:number,max:number}} range
@@ -26,9 +32,14 @@ function statMid(range, fallback) {
   return Math.round((range.min + range.max) / 2);
 }
 
-/** Auto dodge roll from defender dodge % (capped). */
-function rollAutoDodge(defender) {
-  const pct = Math.max(0, Math.min(55, defender?.stats?.dodgePct ?? 15));
+/** Auto dodge roll from speed delta (capped). */
+function rollAutoDodge(attacker, defender, magic = false) {
+  const pct = dodgeChance({
+    attackerSpeed: attacker?.stats?.speed ?? attacker?.stats?.dodgePct ?? 10,
+    defenderSpeed: defender?.stats?.speed ?? defender?.stats?.dodgePct ?? 10,
+    magic,
+    bossKind: attacker?.ladderStageKind ?? null,
+  });
   return rollPercentChance(pct);
 }
 
@@ -62,7 +73,7 @@ function defenseMitigationRatio(defStat, attackPower) {
  * @param {{ attacker: object, defender: object, skill?: { power?: number } }} opts
  */
 export function resolvePhysicalBattleDamage({ attacker, defender, skill = null }) {
-  if (rollAutoDodge(defender)) {
+  if (rollAutoDodge(attacker, defender, false)) {
     return {
       damage: 0,
       critical: false,
@@ -79,13 +90,9 @@ export function resolvePhysicalBattleDamage({ attacker, defender, skill = null }
   const defMult = statusStatMultiplier(defender, 'def');
 
   const baseAttack = statMid(attacker?.stats?.attack, 10) * atkMult * powerMult;
-  const levelBonus = (attacker?.level ?? 1) * 1.5;
   const defStat = statMid(defender?.stats?.def, 5) * defMult;
-  const randomVariance = 0.85 + Math.random() * 0.3;
 
-  const attackPower = baseAttack + levelBonus;
-  const mit = defenseMitigationRatio(defStat, attackPower);
-  let raw = attackPower * randomVariance * (1 - mit);
+  let raw = (baseAttack - defStat * COMBAT_BALANCE.physicalDefenseScalar) * balancedVariance();
   const elementBoost = ladderEffectPct(attacker, 'elementBoost', (fx) => fx.element === attacker?.element);
   const bossBoost = defender?.isLadderEnemy && defender?.ladderStageKind === 'bigBoss'
     ? ladderEffectPct(attacker, 'bossDamagePct')
@@ -94,9 +101,9 @@ export function resolvePhysicalBattleDamage({ attacker, defender, skill = null }
 
   let critical = false;
   let weak = false;
-  if (rollPercentChance(attacker?.stats?.critPct ?? 10)) {
+  if (rollPercentChance(attacker?.stats?.critPct ?? COMBAT_BALANCE.baseCritChance)) {
     critical = true;
-    raw *= 1.5;
+    raw *= COMBAT_BALANCE.critMultiplier;
   } else if (rollPercentChance(8)) {
     weak = true;
     raw *= 0.75;
@@ -134,7 +141,7 @@ export function resolveMagicBattleDamage({
   defElement,
 }) {
   const extraMiss = ladderEffectPct(defender, 'enemyMissMagicChance');
-  if (rollAutoDodge(defender) || rollPercentChance(extraMiss)) {
+  if (rollAutoDodge(attacker, defender, true) || rollPercentChance(extraMiss)) {
     const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';
     const dEl = defElement ?? defender?.element ?? 'earth';
     return {
@@ -154,18 +161,14 @@ export function resolveMagicBattleDamage({
   const defMult = statusStatMultiplier(defender, 'def');
 
   const baseMagic = statMid(attacker?.stats?.magic, 10) * powerMult;
-  const levelBonus = (attacker?.level ?? 1) * 1.8;
-  const defStat = statMid(defender?.stats?.magicDef, 5) * defMult;
-  const randomVariance = 0.88 + Math.random() * 0.28;
+  const defStat = statMid(defender?.stats?.def, 5) * defMult;
 
   const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';
   const dEl = defElement ?? defender?.element ?? 'earth';
   const elementRelation = getElementRelation(aEl, dEl);
-  const elementalModifier = getElementalDamageModifier(elementRelation);
+  const elementalModifier = elementalDamageMultiplier(elementRelation);
 
-  const attackPower = baseMagic * 1.35 + levelBonus;
-  const mit = defenseMitigationRatio(defStat, attackPower);
-  let raw = attackPower * randomVariance * elementalModifier * (1 - mit);
+  let raw = (baseMagic - defStat * COMBAT_BALANCE.magicDefenseScalar) * balancedVariance() * elementalModifier;
   const magicBoost = ladderEffectPct(attacker, 'magicDamagePct');
   const elementBoost = ladderEffectPct(attacker, 'elementBoost', (fx) => fx.element === aEl);
   const bossBoost = defender?.isLadderEnemy && defender?.ladderStageKind === 'bigBoss'
@@ -175,9 +178,9 @@ export function resolveMagicBattleDamage({
 
   let critical = false;
   let weak = false;
-  if (rollPercentChance((attacker?.stats?.critPct ?? 10) + 2)) {
+  if (rollPercentChance(attacker?.stats?.critPct ?? COMBAT_BALANCE.baseCritChance)) {
     critical = true;
-    raw *= 1.5;
+    raw *= COMBAT_BALANCE.critMultiplier;
   } else if (rollPercentChance(6)) {
     weak = true;
     raw *= 0.75;

@@ -13,7 +13,6 @@ import {
   nextRewardHints,
 } from '../utils/monsterLadder';
 import { getLadderRewardDayKey } from '../utils/monsterLadder/ladderDailyReset';
-import { fighterFromLadderOwned } from '../utils/monsterLadder/ladderFighters';
 
 function StageNode({ sub, current, cleared, kind }) {
   const isBoss = kind === 'miniBoss' || kind === 'bigBoss';
@@ -36,6 +35,7 @@ function StageNode({ sub, current, cleared, kind }) {
 export default function MonsterLadderHubScreen({
   profileName,
   monsterLadder,
+  activeFighter,
   onBack,
   onStartBattle,
   onOpenCollection,
@@ -46,8 +46,6 @@ export default function MonsterLadderHubScreen({
   const theme = useMemo(() => getLadderTheme(stage.mainLevel), [stage.mainLevel]);
   const hints = useMemo(() => nextRewardHints(ml), [ml]);
 
-  const activeOm = ml.ownedMonsters.find((m) => m.id === ml.activeMonsterId);
-  const activeFighter = activeOm ? fighterFromLadderOwned(activeOm) : null;
   const featuredTpl = getLadderMonsterTemplate(theme.featuredMonsterId);
 
   const canFight = !!activeFighter;
@@ -60,7 +58,7 @@ export default function MonsterLadderHubScreen({
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>Monster Ladder</Text>
-          <Text style={styles.subtitle}>Separate progression · ladder monsters only</Text>
+          <Text style={styles.subtitle}>Use your own monster · ladder rewards stay separate</Text>
         </View>
       </View>
 
@@ -122,7 +120,7 @@ export default function MonsterLadderHubScreen({
         </View>
 
         <View style={styles.activePanel}>
-          <Text style={styles.panelTitle}>Active ladder monster</Text>
+          <Text style={styles.panelTitle}>Your ladder fighter</Text>
           {activeFighter ? (
             <View style={styles.activeRow}>
               <MonsterPreview parts={activeFighter.monsterParts} size={72} mood="happy" />
@@ -134,16 +132,16 @@ export default function MonsterLadderHubScreen({
               </View>
             </View>
           ) : (
-            <Text style={styles.missing}>No ladder monster equipped. Open your collection.</Text>
+            <Text style={styles.missing}>No monster selected. Pick one from the home setup first.</Text>
           )}
           {onOpenCollection ? (
             <View style={styles.inlineActions}>
               <TouchableOpacity style={styles.secondaryBtn} onPress={onOpenCollection}>
-                <Text style={styles.secondaryTxt}>Ladder collection</Text>
+                <Text style={styles.secondaryTxt}>Chest collection</Text>
               </TouchableOpacity>
               {onOpenGear ? (
                 <TouchableOpacity style={styles.secondaryBtn} onPress={onOpenGear}>
-                  <Text style={styles.secondaryTxt}>Ladder gear</Text>
+                  <Text style={styles.secondaryTxt}>Monster gear</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -183,7 +181,7 @@ export default function MonsterLadderHubScreen({
           <Text style={styles.startTxt}>Start Ladder Battle</Text>
         </TouchableOpacity>
         {!canFight ? (
-          <Text style={styles.footerHint}>Equip a ladder monster from your collection first.</Text>
+          <Text style={styles.footerHint}>Select one of your own monsters first.</Text>
         ) : null}
       </View>
     </View>

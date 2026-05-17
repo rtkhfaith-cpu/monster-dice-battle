@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Easing,
   Platform,
@@ -125,7 +126,6 @@ export default function BattleScreen({
   fighter1,
   fighter2,
   onFinish,
-  onExitBattle,
   player1Name = '',
   player2Name = '',
   opponentIsAi = true,
@@ -711,16 +711,25 @@ export default function BattleScreen({
 
   function handleRun() {
     if (isActionPlaying || busy) return;
-    if (typeof onExitBattle === 'function') {
-      onExitBattle();
-      return;
-    }
-    onFinish({
-      winner: CPU_ID,
-      player1Snapshot: snapshotFight(p1),
-      player2Snapshot: snapshotFight(p2),
-      battleExtras: { ...battleExtras, mode: 'onePlayer', fled: true },
-    });
+    Alert.alert(
+      'Flee battle?',
+      'Running away will count as a loss. Are you sure?',
+      [
+        { text: 'Stay', style: 'cancel' },
+        {
+          text: 'Flee',
+          style: 'destructive',
+          onPress: () => {
+            onFinish({
+              winner: CPU_ID,
+              player1Snapshot: snapshotFight({ ...p1, hp: 0 }),
+              player2Snapshot: snapshotFight(p2),
+              battleExtras: { ...battleExtras, fled: true },
+            });
+          },
+        },
+      ],
+    );
   }
 
   function handleMutePress() {

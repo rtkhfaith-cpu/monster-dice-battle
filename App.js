@@ -19,7 +19,6 @@ import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
 import HomeSetupScreen from './components/HomeSetupScreen';
 import MonsterLadderHubScreen from './components/MonsterLadderHubScreen';
-import MonsterLadderIntroModal from './components/MonsterLadderIntroModal';
 import MonsterLadderCollectionScreen from './components/MonsterLadderCollectionScreen';
 import MonsterLadderGearScreen from './components/MonsterLadderGearScreen';
 import MonsterLadderChestRevealModal from './components/MonsterLadderChestRevealModal';
@@ -39,19 +38,12 @@ import {
 import RewardScreen from './components/RewardScreen';
 import { buildAiFighter, fighterFromOwned } from './utils/fighterFromOwned';
 import { mergeLadderMonsterParts } from './utils/monsterLadder/ladderProfile';
-import {
-  buildLadderEnemyFighter,
-  fighterFromLadderOwned,
-} from './utils/monsterLadder/ladderFighters';
-import {
-  applyMonsterLadderBattleRewards,
-  grantTutorialLadderChest,
-} from './utils/monsterLadder/ladderRewards';
+import { buildLadderEnemyFighter } from './utils/monsterLadder/ladderFighters';
+import { applyMonsterLadderBattleRewards } from './utils/monsterLadder/ladderRewards';
 import {
   getCurrentStage,
   getMonsterLadderState,
 } from './utils/monsterLadder';
-import { getLadderMonsterTemplate } from './utils/monsterLadder/ladderMonsterCatalog';
 import { initAudio } from './utils/audioManager';
 import { pickFunnyWinTitle, winTitleForRarity } from './utils/rewards';
 import {
@@ -66,7 +58,6 @@ import {
   equipOwnedGear,
   getPlayerProfile,
   mergeMonsterParts,
-  resetGameData,
   setActiveProfile,
   setPlayerKeyForProfile,
   setProfileSelectedMonster,
@@ -127,7 +118,6 @@ export default function App() {
   const [gameData, setGameData] = useState(null);
   const [phase, setPhase] = useState('menu');
   const [gameMode, setGameMode] = useState(/** @type {'twoPlayer'|'onePlayer'|'online'|'monsterLadder'} */ ('onePlayer'));
-  const [ladderIntroOpen, setLadderIntroOpen] = useState(false);
   const [ladderCollectionOpen, setLadderCollectionOpen] = useState(false);
   const [ladderGearOpen, setLadderGearOpen] = useState(false);
   const [ladderChestDrop, setLadderChestDrop] = useState(null);
@@ -805,29 +795,6 @@ export default function App() {
       Alert.alert('Monster Ladder', 'Select or create a player profile first.');
       return;
     }
-    const profile = getPlayerProfile(gameData, setupP1ProfileId);
-    const ml = getMonsterLadderState(profile);
-    if (!ml.introSeen || !ml.tutorialChestGranted) {
-      setLadderIntroOpen(true);
-      return;
-    }
-    setPhase('ladder');
-  }
-
-  function finishLadderIntro() {
-    if (!setupP1ProfileId || !gameData) return;
-    const gd = cloneGameData(gameData);
-    const { gameData: nextGd, drop } = grantTutorialLadderChest(gd, setupP1ProfileId);
-    persistSave(nextGd, 'ladder_tutorial_chest', setupP1ProfileId);
-    setGameData(nextGd);
-    setLadderIntroOpen(false);
-    const name = drop?.id ? getLadderMonsterTemplate(drop.id)?.name : 'Ladder monster';
-    if (drop?.duplicate) {
-      Alert.alert('Tutorial chest', `Duplicate converted to ${drop.shardsGained} ladder shards.`);
-    } else {
-      Alert.alert('Tutorial chest', `${name} joined your ladder roster!`);
-    }
-    if (drop) setLadderChestDrop({ ...drop, rarity: drop.rarity ?? 'common' });
     setPhase('ladder');
   }
 
@@ -838,6 +805,19 @@ export default function App() {
     setRewardSummary(null);
     setBattleKey((k) => k + 1);
     setPhase('ladder');
+  }
+
+  function playAgainFromReward() {
+    setWinner(null);
+    setPlayer1(null);
+    setPlayer2(null);
+    const wasLadder = !!rewardSummary?.monsterLadder;
+    setRewardSummary(null);
+    if (wasLadder) {
+      startMonsterLadderBattle();
+    } else {
+      startGameFromSetup();
+    }
   }
 
   function setActiveLadderMonster(ownedId) {
@@ -900,15 +880,16 @@ export default function App() {
     }
     const profile = getPlayerProfile(gameData, setupP1ProfileId);
     const ml = getMonsterLadderState(profile);
-    const owned = ml.ownedMonsters.find((m) => m.id === ml.activeMonsterId);
+    const owned = profile?.ownedMonsters?.find((m) => m.id === setupP1Id)
+      ?? profile?.ownedMonsters?.find((m) => m.id === profile?.selectedMonsterId)
+      ?? profile?.ownedMonsters?.[0];
     if (!owned) {
-      Alert.alert('Monster Ladder', 'Equip a ladder monster from your collection first.');
-      setLadderCollectionOpen(true);
+      Alert.alert('Monster Ladder', 'Pick one of your monsters before entering the ladder.');
       return;
     }
-    const f1 = fighterFromLadderOwned(owned);
+    const f1 = fighterFromOwned(owned);
     if (!f1) {
-      Alert.alert('Monster Ladder', 'Could not build ladder fighter.');
+      Alert.alert('Monster Ladder', 'Could not build your ladder fighter.');
       return;
     }
     const stage = getCurrentStage(ml);
@@ -1086,32 +1067,6 @@ export default function App() {
     setBattleKey((k) => k + 1);
     setPhase('menu');
   }, [gameMode]);
-
-  const handleResetSave = useCallback(() => {
-    Alert.alert(
-      'Reset all saves?',
-      'This clears every player profile and all progress. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: () => {
-            void resetGameData().then((fresh) => {
-              setGameData(fresh);
-              const p1 = fresh.players[0]?.id ?? null;
-              const p2 = fresh.players[1]?.id ?? p1;
-              setSetupP1ProfileId(p1);
-              setSetupP2ProfileId(p2);
-              syncSetupMonstersFromProfiles(fresh, p1, p2);
-              setSetupActiveSlot(1);
-              setPhase('menu');
-            });
-          },
-        },
-      ],
-    );
-  }, []);
 
   const encourage = useMemo(() => {
     if (!gameData || !rewardSummary) return [];
@@ -1296,7 +1251,6 @@ export default function App() {
               playSound('shop');
               setMonsterMartOpen(true);
             }}
-            onResetSave={handleResetSave}
             onOpenAudioSettings={() => setPhase('audioSettings')}
           />
         )}
@@ -1312,10 +1266,17 @@ export default function App() {
           <MonsterLadderHubScreen
             profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
             monsterLadder={getMonsterLadderState(getPlayerProfile(gameData, setupP1ProfileId))}
+            activeFighter={fighterFromSetupId(setupP1Id, setupP1ProfileId)}
             onBack={resetToMenu}
             onStartBattle={startMonsterLadderBattle}
             onOpenCollection={() => setLadderCollectionOpen(true)}
-            onOpenGear={() => setLadderGearOpen(true)}
+            onOpenGear={() => {
+              const id = setupP1Id || wallet.ownedMonsters?.[0]?.id;
+              if (id) {
+                setGearMonsterId(id);
+                setGearOpen(true);
+              }
+            }}
           />
         ) : null}
 
@@ -1339,7 +1300,6 @@ export default function App() {
             fighter1={player1}
             fighter2={player2}
             onFinish={handleBattleFinish}
-            onExitBattle={gameMode === 'monsterLadder' ? returnToLadder : resetToMenu}
             player1Name={
               gameData.players.find((p) => p.id === setupP1ProfileId)?.name ??
               player1.displayName ??
@@ -1389,9 +1349,9 @@ export default function App() {
               player2={player2}
               totalCoins={rewardSummary?.monsterLadder ? rewardSummary?.ladderGoldTotal : coins}
               encourageLines={encourage}
-              playAgainLabel={rewardSummary?.monsterLadder ? 'Continue climb' : 'Play Again'}
+              playAgainLabel={rewardSummary?.monsterLadder ? 'Next Ladder Battle' : 'Play Again'}
               hideShopButtons={!!rewardSummary?.monsterLadder}
-              onPlayAgain={rewardSummary?.monsterLadder ? returnToLadder : resetToMenu}
+              onPlayAgain={playAgainFromReward}
               onOpenMonsterGear={
                 rewardSummary?.monsterLadder
                   ? undefined
@@ -1420,7 +1380,6 @@ export default function App() {
         )}
       </View>
 
-      <MonsterLadderIntroModal visible={ladderIntroOpen} onContinue={finishLadderIntro} />
       <MonsterLadderCollectionScreen
         visible={ladderCollectionOpen}
         ownedMonsters={

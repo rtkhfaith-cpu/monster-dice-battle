@@ -1,6 +1,5 @@
-/**
- * EXP thresholds — tuned simple for offline progression.
- */
+import { expToNextForLevel } from '../src/gameBalance/leveling';
+import { lossExpPenalty, normalExpForEnemyLevel } from '../src/gameBalance/rewards';
 
 /** EXP granted defaults (used as fallbacks; battle rewards compute per-level amounts). */
 export const EXP_WINNER = 25;
@@ -22,21 +21,17 @@ export function cumulativeExpForLevel(targetLevel) {
 
 /** EXP needed to go from currentLevel → currentLevel+1 */
 export function expToAdvanceFrom(currentLevel) {
-  const L = Math.max(1, Math.floor(currentLevel || 1));
-  const n = L - 1;
-  return 50 + n * 35 + n * n * 10;
+  return expToNextForLevel(currentLevel);
 }
 
 /** Win EXP scaled to opponent level. */
 export function expWinForEnemyLevel(enemyLevel) {
-  const lv = Math.max(1, Math.floor(enemyLevel || 1));
-  return 15 + lv * 5;
+  return normalExpForEnemyLevel(enemyLevel);
 }
 
 /** EXP lost on defeat (no level-down). */
 export function expLossPenalty(playerLevel) {
-  const lv = Math.max(1, Math.floor(playerLevel || 1));
-  return Math.min(15, Math.max(5, 5 + Math.floor(lv / 3)));
+  return lossExpPenalty(playerLevel);
 }
 
 /**

@@ -20,6 +20,7 @@ import { expMultiplierFromGear } from './gearStats';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { assertShopGearPurchase, assertShopMonsterPurchase } from './shopGuards';
+import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
@@ -493,8 +494,10 @@ export function buyMonster(gameData, playerId, monsterTypeId) {
   if (!guard.ok) return { gameData: gd, error: guard.error };
   const t = getMonsterTemplate(monsterTypeId);
   if (!t) return { gameData: gd, error: 'Unknown monster' };
-  if (wallet.coins < t.price) return { gameData: gd, error: 'Not enough coins' };
-  wallet.coins -= t.price;
+  const price = monsterShopPrice(t);
+  if (typeof price !== 'number') return { gameData: gd, error: 'This monster is not normally purchasable.' };
+  if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
+  wallet.coins -= price;
   const om = generateOwnedMonster(monsterTypeId);
   wallet.ownedMonsters.push(om);
   return { gameData: gd, ownedMonster: om };
@@ -510,8 +513,9 @@ export function buyGearItem(gameData, playerId, gearId) {
   const item = getGear(gearId);
   if (!item) return { gameData: gd, error: 'Unknown gear' };
   if (wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Already owned' };
-  if (wallet.coins < item.price) return { gameData: gd, error: 'Not enough coins' };
-  wallet.coins -= item.price;
+  const price = gearShopPrice(item);
+  if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
+  wallet.coins -= price;
   wallet.cosmeticsOwned = [...new Set([...wallet.cosmeticsOwned, gearId])];
   return { gameData: gd };
 }
@@ -528,11 +532,12 @@ export function buyGearForMonster(gameData, playerId, ownedMonsterId, gearId) {
   const item = getGear(gearId);
   if (!item) return { gameData: gd, error: 'Unknown gear' };
   if (wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Already owned' };
-  if (wallet.coins < item.price) return { gameData: gd, error: 'Not enough coins' };
+  const price = gearShopPrice(item);
+  if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
   const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
   if (!om) return { gameData: gd, error: 'Monster not found' };
 
-  wallet.coins -= item.price;
+  wallet.coins -= price;
   wallet.cosmeticsOwned = [...new Set([...wallet.cosmeticsOwned, gearId])];
   const maxSlots = getUnlockedSlotCount(om);
   const next = equipToFirstEmptySlot(om.equippedGear || [], gearId, maxSlots);
@@ -750,26 +755,21 @@ export function awardBattleRewards(gameData, payload) {
   if (payload.mode === 'onePlayer') {
     const p1Lvl = Math.max(1, Math.floor(p1Level || 1));
     const cpuLvl = Math.max(1, Math.floor(oppLevelForP1 || p1Lvl));
-    const earlyTrainer = p1Lvl <= 15;
 
     if (payload.outcome === 1) {
-      const winCoins = earlyTrainer
-        ? 14 + Math.floor(Math.random() * 9)
-        : coinWinForEnemyLevel(cpuLvl);
+      const winCoins = coinWinForEnemyLevel(cpuLvl);
       walletP1.coins += winCoins;
       coinsAwarded = winCoins;
-      expP1 = earlyTrainer
-        ? 28 + Math.floor(Math.random() * 14)
-        : expWinForEnemyLevel(cpuLvl);
+      expP1 = expWinForEnemyLevel(cpuLvl);
       expP2 = 0;
     } else if (payload.outcome === 2) {
-      expP1 = earlyTrainer ? -(3 + Math.floor(Math.random() * 4)) : -expLossPenalty(p1Lvl);
+      expP1 = -expLossPenalty(p1Lvl);
       expP2 = 0;
     } else {
-      const drawCoins = earlyTrainer ? 6 + Math.floor(Math.random() * 3) : DRAW_COINS_EACH;
+      const drawCoins = Math.max(1, Math.floor(coinWinForEnemyLevel(cpuLvl) * 0.4));
       walletP1.coins += drawCoins;
       coinsAwarded = drawCoins;
-      expP1 = earlyTrainer ? 16 + Math.floor(Math.random() * 10) : 12;
+      expP1 = Math.max(1, Math.floor(expWinForEnemyLevel(cpuLvl) * 0.5));
       expP2 = 0;
     }
   } else {

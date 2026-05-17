@@ -1,14 +1,11 @@
 /** Per-monster gear slot progression (3 default → 6 max). */
+import { GEAR_SLOT_UNLOCK_COSTS } from '../src/gameBalance/shop';
 
 export const DEFAULT_GEAR_SLOTS = 3;
 export const MAX_GEAR_SLOTS = 6;
 
 /** @type {Record<number, number>} */
-export const GEAR_SLOT_UNLOCK_COST = {
-  4: 30,
-  5: 60,
-  6: 100,
-};
+export const GEAR_SLOT_UNLOCK_COST = GEAR_SLOT_UNLOCK_COSTS;
 
 /** @param {{ gearSlotCount?: number }|null|undefined} ownedMonster */
 export function getUnlockedSlotCount(ownedMonster) {

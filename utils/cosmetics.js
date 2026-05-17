@@ -124,17 +124,16 @@ export function formatGearBonusLines(gearDef) {
   if (!gearDef?.bonuses) return [];
   const b = gearDef.bonuses;
   const lines = [];
-  if (b.hp) lines.push(`+${b.hp} HP`);
-  if (b.mp) lines.push(`+${b.mp} MP`);
+  if (b.hp) lines.push(`+${Math.min(25, b.hp)}% HP`);
+  if (b.mp) lines.push(`+${Math.min(25, b.mp)}% MP`);
   if (b.attackMin || b.attackMax) {
-    const a = b.attackMin === b.attackMax ? `+${b.attackMin}` : `+${b.attackMin ?? 0}–${b.attackMax ?? 0}`;
-    lines.push(`${a} Attack`);
+    lines.push(`+${Math.min(20, ((b.attackMin || 0) + (b.attackMax || 0)) * 2)}% Attack`);
   }
-  if (b.magicMin || b.magicMax) lines.push(`+${b.magicMin ?? 0} Magic`);
-  if (b.defMin || b.defMax) lines.push(`+${b.defMin ?? 0} Defense`);
-  if (b.magicDefMin || b.magicDefMax) lines.push(`+${b.magicDefMin ?? 0} Magic Def`);
+  if (b.magicMin || b.magicMax) lines.push(`+${Math.min(20, ((b.magicMin || 0) + (b.magicMax || 0)) * 2)}% Magic`);
+  if (b.defMin || b.defMax) lines.push(`+${Math.min(20, ((b.defMin || 0) + (b.defMax || 0)) * 2)}% Defense`);
+  if (b.magicDefMin || b.magicDefMax) lines.push(`+${Math.min(20, ((b.magicDefMin || 0) + (b.magicDefMax || 0)) * 2)}% Magic Def`);
   if (b.critPct) lines.push(`+${b.critPct}% Crit`);
-  if (b.dodgePct) lines.push(`+${b.dodgePct}% Dodge`);
+  if (b.dodgePct) lines.push(`+${Math.min(25, b.dodgePct * 2)}% Speed`);
   if (b.expPct) lines.push(`+${b.expPct}% EXP`);
   if (gearDef.element) {
     const mode = gearDef.elementMode === 'override' ? 'becomes' : 'boosts';

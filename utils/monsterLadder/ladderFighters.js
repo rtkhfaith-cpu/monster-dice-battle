@@ -12,7 +12,7 @@ import { getLadderGear } from './ladderGearCatalog';
 function sumLadderGearBonuses(gearIds) {
   const b = {
     hp: 0, mp: 0, attackMin: 0, attackMax: 0, magicMin: 0, magicMax: 0,
-    defMin: 0, defMax: 0, magicDefMin: 0, magicDefMax: 0, critPct: 0, dodgePct: 0,
+    defMin: 0, defMax: 0, magicDefMin: 0, magicDefMax: 0, critPct: 0, dodgePct: 0, speed: 0,
   };
   for (const id of gearIds || []) {
     const g = getLadderGear(id);
@@ -30,6 +30,7 @@ function sumLadderGearBonuses(gearIds) {
     b.magicDefMax += x.magicDefMax ?? 0;
     b.critPct += x.critPct ?? 0;
     b.dodgePct += x.dodgePct ?? 0;
+    b.speed += x.speed ?? 0;
   }
   return b;
 }
@@ -43,7 +44,8 @@ function applyBonuses(stats, b) {
     def: { min: stats.def.min + b.defMin, max: stats.def.max + b.defMax },
     magicDef: { min: stats.magicDef.min + b.magicDefMin, max: stats.magicDef.max + b.magicDefMax },
     critPct: Math.min(55, stats.critPct + b.critPct),
-    dodgePct: Math.min(45, stats.dodgePct + b.dodgePct),
+    dodgePct: Math.min(25, stats.dodgePct + b.dodgePct),
+    speed: Math.max(1, (stats.speed ?? 10) + b.speed + (b.dodgePct * 2 || 0)),
   };
 }
 
@@ -69,6 +71,7 @@ function scaleStatsBundle(stats, ratio) {
     },
     critPct: stats.critPct,
     dodgePct: stats.dodgePct,
+    speed: Math.max(1, Math.round((stats.speed ?? 10) * ratio)),
   };
 }
 
