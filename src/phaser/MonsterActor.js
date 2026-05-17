@@ -53,6 +53,7 @@ export default class MonsterActor {
     this.scene = scene;
     this.Phaser = Phaser;
     this.key = config.key;
+    this.templateId = config.templateId ?? '';
     this.x = config.x;
     this.y = config.y;
     this.facing = config.facing ?? 1;
@@ -61,6 +62,7 @@ export default class MonsterActor {
     this.element = config.element ?? 'fire';
     this.theme = config.theme ?? 'default';
     this.parts = config.parts && typeof config.parts === 'object' ? config.parts : {};
+    this.asset = config.asset ?? null;
     this.stageKind = config.stageKind ?? 'normal';
     this.scale = config.scale ?? 1;
     this.depth = config.depth ?? 10;
@@ -89,6 +91,23 @@ export default class MonsterActor {
   }
 
   drawBody() {
+    if (this.asset?.key && this.scene.textures.exists(this.asset.key)) {
+      const img = this.scene.add.image(0, 8 * this.scale, this.asset.key).setOrigin(0.5, 0.72);
+      const tex = this.scene.textures.get(this.asset.key)?.getSourceImage?.();
+      const maxDim = Math.max(tex?.width ?? 220, tex?.height ?? 220);
+      const baseScale = 190 / Math.max(1, maxDim);
+      img.setScale(baseScale, baseScale);
+      // Avoid reversing readable details in concept art; only mirror assets explicitly marked safe.
+      if (this.facing < 0 && !this.asset.mirrorSafe) img.setScale(-baseScale, baseScale);
+      this.container.add(img);
+      this.bodyGraphic = img;
+      return;
+    }
+
+    if (this.asset?.key) {
+      console.warn('[phaser-assets] Falling back to procedural monster:', this.templateId || this.name);
+    }
+
     const g = this.scene.add.graphics();
     g.lineStyle(5, 0x111827, 1);
 

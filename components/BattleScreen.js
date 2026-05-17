@@ -57,6 +57,7 @@ function fighterToPhaserState(fighter, fallbackName) {
   const maxMp = fighter?.maxMp ?? fighter?.stats?.mp ?? 0;
   return {
     name: fighter?.displayName || fallbackName || 'Monster',
+    templateId: fighter?.monsterTemplateId,
     hp: fighter?.hp ?? maxHp,
     maxHp,
     mp: fighter?.mp ?? maxMp,

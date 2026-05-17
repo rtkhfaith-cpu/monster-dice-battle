@@ -1,5 +1,6 @@
 import BattleAnimationController from './BattleAnimationController';
 import MonsterActor from './MonsterActor';
+import { NORMAL_MONSTER_ASSETS, getNormalMonsterAsset } from './monsterAssetManifest';
 
 export function createPhaserBattleScene(Phaser) {
   return class PhaserBattleScene extends Phaser.Scene {
@@ -12,6 +13,15 @@ export function createPhaserBattleScene(Phaser) {
       this.actors = {};
       this.isAnimatingAction = false;
       this.visualEventComplete = null;
+    }
+
+    preload() {
+      Object.values(NORMAL_MONSTER_ASSETS).forEach((asset) => {
+        this.load.image(asset.key, asset.path);
+      });
+      this.load.on('loaderror', (file) => {
+        console.warn('[phaser-assets] Monster asset missing or failed to load:', file?.src || file?.key);
+      });
     }
 
     create() {
@@ -80,6 +90,7 @@ export function createPhaserBattleScene(Phaser) {
         facing,
         depth,
         scale: (key === 'player' ? 1 : 1.03) * bossScale,
+        asset: getNormalMonsterAsset(fighter.templateId),
         ...fighter,
       });
     }
