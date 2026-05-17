@@ -134,7 +134,7 @@ export default function PhaserBattleView({
           width: '100%',
           height: '100%',
           overflow: 'hidden',
-          borderRadius: 18,
+          borderRadius: 0,
         },
       })}
       {error ? (
@@ -149,11 +149,10 @@ export default function PhaserBattleView({
 const styles = StyleSheet.create({
   wrap: {
     width: '100%',
-    borderRadius: 18,
+    flex: 1,
+    borderRadius: 0,
     overflow: 'hidden',
     backgroundColor: '#111827',
-    borderWidth: 3,
-    borderColor: '#1f2937',
   },
   fallback: {
     alignItems: 'center',

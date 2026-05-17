@@ -64,6 +64,7 @@ function fighterToPhaserState(fighter, fallbackName) {
     element: fighter?.element ?? 'normal',
     rarity: fighter?.rarity ?? 'common',
     baseRarity: fighter?.baseRarity,
+    parts: fighter?.monsterParts || {},
     theme: fighter?.monsterParts?.themeBody ?? 'default',
     stageKind: fighter?.ladderStageKind ?? 'normal',
   };
@@ -169,7 +170,8 @@ export default function BattleScreen({
   const ladderStageKind = battleExtras?.ladderStageKind ?? fighter2?.ladderStageKind ?? 'normal';
   const ladderStageLabel = battleExtras?.ladderStageLabel ?? '';
   const bossStageBanner = ladderStageBanner(ladderStageKind);
-  const usePhaserBattleRenderer = Platform.OS === 'web';
+  // Live battles use the React/SVG renderer until Phaser has real monster textures.
+  const usePhaserBattleRenderer = false;
 
   const [round, setRound] = useState(1);
   const [battlePhase, setBattlePhase] = useState('chooseAction');
@@ -858,6 +860,10 @@ export default function BattleScreen({
   const actingElementUi = ELEMENT_UI[actingFighter?.element] ?? ELEMENT_UI.earth;
   const { width, height } = useWindowDimensions();
   const battleMobile = isMobileLayout(width, height);
+  const phaserArenaHeight = Math.max(
+    battleMobile ? 420 : 560,
+    Math.min(battleMobile ? 560 : 760, height - (battleMobile ? 170 : 135)),
+  );
   const phaserBattleState = useMemo(() => ({
     player: fighterToPhaserState(p1, labelP1),
     enemy: fighterToPhaserState(p2, labelCpu),
@@ -890,7 +896,7 @@ export default function BattleScreen({
                   console.warn('[battle-animation] Phaser renderer fallback:', message);
                   setPhaserFailed(true);
                 }}
-                height={430}
+                height={phaserArenaHeight}
               />
               <View style={styles.phaserAudioSlot} pointerEvents="box-none">
                 <BattleAudioControls muted={audioMuted} onToggleMute={handleMutePress} />

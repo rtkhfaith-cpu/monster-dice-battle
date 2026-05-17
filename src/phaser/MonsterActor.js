@@ -26,6 +26,17 @@ const PALETTES = {
   default: { base: 0x8e44ad, light: 0xc084fc, dark: 0x4c1d95, accent: 0x22d3ee },
 };
 
+const GENERATED_PALETTES = [
+  { base: 0xff7b7b, light: 0xffb3b3, dark: 0xb91c1c, accent: 0xffd166 },
+  { base: 0x5ed4d0, light: 0xbef8f2, dark: 0x0f766e, accent: 0xfacc15 },
+  { base: 0xffe066, light: 0xfff3b0, dark: 0xa16207, accent: 0xf97316 },
+  { base: 0x7ad99a, light: 0xbbf7d0, dark: 0x166534, accent: 0x38bdf8 },
+  { base: 0xb794f6, light: 0xddd6fe, dark: 0x6d28d9, accent: 0xf472b6 },
+  { base: 0xffa94d, light: 0xfed7aa, dark: 0xc2410c, accent: 0xef4444 },
+  { base: 0x74c0fc, light: 0xbfdbfe, dark: 0x1d4ed8, accent: 0xa78bfa },
+  { base: 0xff9ece, light: 0xfbcfe8, dark: 0xbe185d, accent: 0x67e8f9 },
+];
+
 function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
@@ -49,11 +60,14 @@ export default class MonsterActor {
     this.rarity = config.rarity ?? 'common';
     this.element = config.element ?? 'fire';
     this.theme = config.theme ?? 'default';
+    this.parts = config.parts && typeof config.parts === 'object' ? config.parts : {};
     this.stageKind = config.stageKind ?? 'normal';
     this.scale = config.scale ?? 1;
     this.depth = config.depth ?? 10;
     this.visualTier = bossVisualTier(this.stageKind, this.rarity);
-    this.palette = PALETTES[this.theme] ?? PALETTES.default;
+    this.palette = PALETTES[this.theme]
+      ?? GENERATED_PALETTES[Math.abs(Number(this.parts.colorIdx ?? 0)) % GENERATED_PALETTES.length]
+      ?? PALETTES.default;
     this.idleTweens = [];
     this.fxTweens = [];
     this.isKo = false;
@@ -226,13 +240,54 @@ export default class MonsterActor {
 
   drawDefault(g) {
     const p = this.palette;
+    const species = Math.max(0, Math.min(3, Number(this.parts.species ?? this.parts.body ?? 0) || 0));
+    const horn = Number(this.parts.horn ?? 0) || 0;
+    const tail = Number(this.parts.tail ?? 0) || 0;
+    const hands = Number(this.parts.hands ?? 0) || 0;
+
+    if (tail > 0) {
+      g.fillStyle(p.accent, 0.9);
+      g.fillTriangle(-58, 26, -112, -6, -82, 54);
+      g.strokeTriangle?.(-58, 26, -112, -6, -82, 54);
+    }
+
     g.fillStyle(p.base, 1);
-    g.fillEllipse(0, 0, 112, 132);
-    g.strokeEllipse(0, 0, 112, 132);
+    if (species === 1) {
+      g.fillRoundedRect(-66, -76, 132, 150, 44);
+      g.strokeRoundedRect(-66, -76, 132, 150, 44);
+    } else if (species === 2) {
+      g.fillTriangle(-58, -58, 76, -34, -12, 82);
+      g.lineStyle(5, 0x111827, 1);
+      g.lineBetween(-58, -58, 76, -34);
+      g.lineBetween(76, -34, -12, 82);
+      g.lineBetween(-12, 82, -58, -58);
+    } else if (species === 3) {
+      g.fillRoundedRect(-68, -62, 136, 126, 18);
+      g.strokeRoundedRect(-68, -62, 136, 126, 18);
+      g.fillStyle(p.dark, 0.85);
+      g.fillRoundedRect(-42, 44, 84, 22, 8);
+    } else {
+      g.fillEllipse(0, 0, 118, 136);
+      g.strokeEllipse(0, 0, 118, 136);
+    }
+
     g.fillStyle(p.light, 0.5);
     g.fillEllipse(-12, 14, 72, 54);
-    this.drawEyes(g, 0, -18, 30);
-    this.drawMouth(g, 0, 10, true);
+
+    if (horn > 0) {
+      g.fillStyle(p.accent, 1);
+      g.fillTriangle(-28, -62, -12, -96, 2, -58);
+      if (horn > 1) g.fillTriangle(24, -62, 44, -92, 48, -54);
+    }
+
+    if (hands > 0) {
+      g.fillStyle(p.dark, 0.9);
+      g.fillCircle(-72, 16, 16);
+      g.fillCircle(72, 16, 16);
+    }
+
+    this.drawEyes(g, species === 2 ? 8 : 0, -18, species === 3 ? 38 : 30, species === 2 || species === 3);
+    this.drawMouth(g, species === 2 ? 8 : 0, 12, species !== 3);
   }
 
   createLabel() {
@@ -244,6 +299,7 @@ export default class MonsterActor {
       stroke: '#ffffff',
       strokeThickness: 4,
     }).setOrigin(0.5);
+    this.label.setScale(this.facing < 0 ? -1 : 1, 1);
     this.container.add(this.label);
   }
 

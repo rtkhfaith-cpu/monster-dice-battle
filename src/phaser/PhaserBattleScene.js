@@ -16,8 +16,8 @@ export function createPhaserBattleScene(Phaser) {
 
     create() {
       this.drawBattlefield();
-      this.createMonsterActor('player', 210, 330, 1, 12);
-      this.createMonsterActor('enemy', 610, 250, -1, 10);
+      this.createMonsterActor('player', this.scale.width * 0.25, this.scale.height * 0.72, 1, 12);
+      this.createMonsterActor('enemy', this.scale.width * 0.72, this.scale.height * 0.58, -1, 10);
       this.animationController = new BattleAnimationController(this, Phaser);
       this.createHud();
       this.game.events.emit('phaser-battle-ready', this);
