@@ -133,20 +133,17 @@ export default class MonsterActor {
 
   drawCableSerpent(g) {
     const p = this.palette;
+    const nodes = [[-82, 46], [-44, 70], [6, 58], [50, 24], [24, -4], [72, -42]];
     g.lineStyle(25, 0x111827, 1);
-    g.beginPath();
-    g.moveTo(-82, 46);
-    g.quadraticBezierTo(-42, 76, 20, 56);
-    g.quadraticBezierTo(78, 34, 28, -4);
-    g.quadraticBezierTo(34, -34, 72, -42);
-    g.strokePath();
+    for (let i = 1; i < nodes.length; i += 1) {
+      g.lineBetween(nodes[i - 1][0], nodes[i - 1][1], nodes[i][0], nodes[i][1]);
+    }
     g.lineStyle(17, p.base, 1);
-    g.beginPath();
-    g.moveTo(-82, 46);
-    g.quadraticBezierTo(-42, 76, 20, 56);
-    g.quadraticBezierTo(78, 34, 28, -4);
-    g.quadraticBezierTo(34, -34, 72, -42);
-    g.strokePath();
+    for (let i = 1; i < nodes.length; i += 1) {
+      g.lineBetween(nodes[i - 1][0], nodes[i - 1][1], nodes[i][0], nodes[i][1]);
+    }
+    g.fillStyle(p.accent, 0.95);
+    nodes.slice(1, -1).forEach(([x, y], i) => g.fillCircle(x, y, i % 2 ? 4 : 5));
     g.fillStyle(p.light, 1);
     g.fillEllipse(72, -46, 74, 50);
     g.strokeEllipse(72, -46, 74, 50);
@@ -198,7 +195,10 @@ export default class MonsterActor {
     g.fillTriangle(-70, 16, -118, -6, -82, -36);
     g.fillStyle(p.base, 1);
     g.fillTriangle(-52, -70, 82, -36, -4, 82);
-    g.strokeTriangle(-52, -70, 82, -36, -4, 82);
+    g.lineStyle(5, 0x111827, 1);
+    g.lineBetween(-52, -70, 82, -36);
+    g.lineBetween(82, -36, -4, 82);
+    g.lineBetween(-4, 82, -52, -70);
     g.fillStyle(p.light, 0.75);
     g.fillTriangle(-34, -52, 56, -30, -2, 52);
     g.fillStyle(p.accent, 1);

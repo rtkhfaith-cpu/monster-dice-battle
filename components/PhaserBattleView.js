@@ -6,6 +6,7 @@ export default function PhaserBattleView({
   visualEvent,
   onReady,
   onVisualEventComplete,
+  onError,
   height = 430,
 }) {
   const hostRef = useRef(null);
@@ -15,6 +16,7 @@ export default function PhaserBattleView({
   const visualEventRef = useRef(visualEvent);
   const onReadyRef = useRef(onReady);
   const onVisualEventCompleteRef = useRef(onVisualEventComplete);
+  const onErrorRef = useRef(onError);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -34,8 +36,14 @@ export default function PhaserBattleView({
   }, [onVisualEventComplete]);
 
   useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  useEffect(() => {
     if (Platform.OS !== 'web') return undefined;
     let disposed = false;
+    let ready = false;
+    let readyTimer = null;
 
     async function mountPhaser() {
       try {
@@ -67,7 +75,15 @@ export default function PhaserBattleView({
         });
 
         gameRef.current = game;
+        readyTimer = setTimeout(() => {
+          if (disposed || ready) return;
+          const msg = 'Phaser battle renderer did not start in time.';
+          setError(msg);
+          onErrorRef.current?.(msg);
+        }, 1600);
         game.events.once('phaser-battle-ready', (scene) => {
+          ready = true;
+          if (readyTimer) clearTimeout(readyTimer);
           sceneRef.current = scene;
           scene.setVisualEventComplete?.((event) => onVisualEventCompleteRef.current?.(event));
           scene.updateBattleState(battleStateRef.current);
@@ -75,13 +91,16 @@ export default function PhaserBattleView({
           onReadyRef.current?.(scene);
         });
       } catch (err) {
-        setError(err?.message || 'Could not start Phaser.');
+        const msg = err?.message || 'Could not start Phaser.';
+        setError(msg);
+        onErrorRef.current?.(msg);
       }
     }
 
     mountPhaser();
     return () => {
       disposed = true;
+      if (readyTimer) clearTimeout(readyTimer);
       sceneRef.current = null;
       if (gameRef.current) {
         gameRef.current.destroy(true);

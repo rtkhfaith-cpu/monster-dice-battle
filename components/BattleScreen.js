@@ -198,6 +198,7 @@ export default function BattleScreen({
   const [audioMuted, setAudioMuted] = useState(() => isBattleMuted());
   const [phaserVisualEvent, setPhaserVisualEvent] = useState(null);
   const [battleIntro, setBattleIntro] = useState(() => !!bossStageBanner);
+  const [phaserFailed, setPhaserFailed] = useState(false);
 
   const effectSeqRef = useRef(0);
   const timerRef = useRef(null);
@@ -252,7 +253,7 @@ export default function BattleScreen({
   }, [bossStageBanner, ladderStageKind]);
 
   useEffect(() => {
-    if (!usePhaserBattleRenderer || isActionPlaying || busy) return;
+    if (!usePhaserBattleRenderer || phaserFailed || isActionPlaying || busy) return;
     phaserEventSeqRef.current += 1;
     setPhaserVisualEvent({
       id: phaserEventSeqRef.current,
@@ -261,7 +262,7 @@ export default function BattleScreen({
       text: activeBattler === PLAYER_ID ? 'Your Turn' : `${labelCpu}'s Turn`,
       actionType: 'turn',
     });
-  }, [activeBattler, busy, isActionPlaying, labelCpu, usePhaserBattleRenderer]);
+  }, [activeBattler, busy, isActionPlaying, labelCpu, phaserFailed, usePhaserBattleRenderer]);
 
   useEffect(() => () => stopBattleMusic(), []);
 
@@ -450,7 +451,7 @@ export default function BattleScreen({
   }
 
   function applyImpactVisuals(defId, fx) {
-    if (usePhaserBattleRenderer) {
+    if (usePhaserBattleRenderer && !phaserFailed) {
       if (fx?.damage > 0) duckBgm(fx?.critical ? 480 : 380);
       playImpactSfx(fx);
       return;
@@ -474,7 +475,7 @@ export default function BattleScreen({
   }
 
   function emitPhaserActionResult(result) {
-    if (!usePhaserBattleRenderer) return;
+    if (!usePhaserBattleRenderer || phaserFailed) return;
     phaserEventSeqRef.current += 1;
     setPhaserVisualEvent({
       id: phaserEventSeqRef.current,
@@ -690,7 +691,7 @@ export default function BattleScreen({
     }
 
     schedule(timing.attackerEnd, () => {
-      if (usePhaserBattleRenderer) return;
+      if (usePhaserBattleRenderer && !phaserFailed) return;
       setFlyStrikeP1(attackerId === PLAYER_ID && isFly);
       setFlyStrikeP2(attackerId === CPU_ID && isFly);
       if (attackerId === PLAYER_ID) setP1Pose('lunge');
@@ -705,14 +706,14 @@ export default function BattleScreen({
           playSound('dodge');
         }
         showBanner('Dodged!');
-        if (!usePhaserBattleRenderer) {
+        if (!usePhaserBattleRenderer || phaserFailed) {
           if (defenderId === PLAYER_ID) setP1Pose('dodge');
           else setP2Pose('dodge');
         }
         return;
       }
       if (resolved.defended) {
-        if (!usePhaserBattleRenderer) {
+        if (!usePhaserBattleRenderer || phaserFailed) {
           if (defenderId === PLAYER_ID) setDefendGlowP1(true);
           else setDefendGlowP2(true);
         }
@@ -722,7 +723,7 @@ export default function BattleScreen({
           setDefendGlowP2(false);
         });
       }
-      if (!usePhaserBattleRenderer) {
+      if (!usePhaserBattleRenderer || phaserFailed) {
         if (attackerId === PLAYER_ID) setP2Pose('hit');
         else setP1Pose('hit');
       }
@@ -870,7 +871,7 @@ export default function BattleScreen({
       <View style={styles.battleFrame}>
         <View style={styles.arenaField} pointerEvents="box-none">
           <View style={styles.arenaInner}>
-          {usePhaserBattleRenderer ? (
+          {usePhaserBattleRenderer && !phaserFailed ? (
             <>
               <PhaserBattleView
                 battleState={phaserBattleState}
@@ -884,6 +885,10 @@ export default function BattleScreen({
                       dodged: !!event?.dodged,
                     });
                   }
+                }}
+                onError={(message) => {
+                  console.warn('[battle-animation] Phaser renderer fallback:', message);
+                  setPhaserFailed(true);
                 }}
                 height={430}
               />
