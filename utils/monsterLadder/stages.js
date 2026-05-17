@@ -28,6 +28,22 @@ export function formatStageLabel(mainLevel, subLevel) {
   return `${mainLevel}-${subLevel}`;
 }
 
+export function stageTypeLabel(kind) {
+  if (kind === 'miniBoss') return 'Mini Boss';
+  if (kind === 'bigBoss') return 'Boss';
+  return 'Stage';
+}
+
+export function stageTypeBanner(kind) {
+  if (kind === 'miniBoss') return 'MINI BOSS STAGE';
+  if (kind === 'bigBoss') return 'BOSS STAGE';
+  return '';
+}
+
+export function isBossStageKind(kind) {
+  return kind === 'miniBoss' || kind === 'bigBoss';
+}
+
 export function cpuPowerForStage(stageIndex) {
   const { mainLevel, subLevel } = decodeStage(stageIndex);
   const kind = getStageKind(subLevel);

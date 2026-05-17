@@ -8,7 +8,15 @@ export {
   advanceMonsterLadderStage,
   nextRewardHints,
 } from './ladderProgress';
-export { formatStageLabel, getStageKind, encodeStage, decodeStage } from './stages';
+export {
+  formatStageLabel,
+  getStageKind,
+  stageTypeLabel,
+  stageTypeBanner,
+  isBossStageKind,
+  encodeStage,
+  decodeStage,
+} from './stages';
 export * from './ladderMonsterCatalog';
 export * from './ladderMonsterSkills';
 export * from './ladderGearCatalog';

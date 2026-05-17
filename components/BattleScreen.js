@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { isMobileLayout } from '../utils/battleLayout';
 import BattleProjectileLayer from './BattleProjectileLayer';
+import PhaserBattleView from './PhaserBattleView';
 import RpgBattleArena from './RpgBattleArena';
 import { resolveAttackVisuals } from '../utils/battleProjectiles';
 import { playSound, playSoundForSkill } from '../utils/sounds';
@@ -50,6 +51,35 @@ import { getActionTiming } from '../utils/battleActionTiming';
 const RESULT_SFX_DELAY_MS = 450;
 const PLAYER_ID = 1;
 const CPU_ID = 2;
+
+function fighterToPhaserState(fighter, fallbackName) {
+  const maxHp = fighter?.maxHp ?? fighter?.stats?.hp ?? 1;
+  const maxMp = fighter?.maxMp ?? fighter?.stats?.mp ?? 0;
+  return {
+    name: fighter?.displayName || fallbackName || 'Monster',
+    hp: fighter?.hp ?? maxHp,
+    maxHp,
+    mp: fighter?.mp ?? maxMp,
+    maxMp,
+    element: fighter?.element ?? 'normal',
+    rarity: fighter?.rarity ?? 'common',
+    baseRarity: fighter?.baseRarity,
+    theme: fighter?.monsterParts?.themeBody ?? 'default',
+    stageKind: fighter?.ladderStageKind ?? 'normal',
+  };
+}
+
+function ladderStageBanner(kind) {
+  if (kind === 'miniBoss') return 'MINI BOSS STAGE';
+  if (kind === 'bigBoss') return 'BOSS STAGE';
+  return '';
+}
+
+function ladderIntroTitle(kind) {
+  if (kind === 'miniBoss') return 'Mini Boss Appears!';
+  if (kind === 'bigBoss') return 'BOSS BATTLE!';
+  return '';
+}
 
 function seedFighter(p) {
   if (!p?.stats) return null;
@@ -136,6 +166,10 @@ export default function BattleScreen({
   const ladderFloor = battleExtras?.ladderFloor;
   const ladderRegionName = battleExtras?.ladderRegionName;
   const ladderBossName = battleExtras?.ladderBossName;
+  const ladderStageKind = battleExtras?.ladderStageKind ?? fighter2?.ladderStageKind ?? 'normal';
+  const ladderStageLabel = battleExtras?.ladderStageLabel ?? '';
+  const bossStageBanner = ladderStageBanner(ladderStageKind);
+  const usePhaserBattleRenderer = Platform.OS === 'web';
 
   const [round, setRound] = useState(1);
   const [battlePhase, setBattlePhase] = useState('chooseAction');
@@ -162,6 +196,8 @@ export default function BattleScreen({
   const [battleDim] = useState(false);
   const [stageZoom] = useState(() => new Animated.Value(1));
   const [audioMuted, setAudioMuted] = useState(() => isBattleMuted());
+  const [phaserVisualEvent, setPhaserVisualEvent] = useState(null);
+  const [battleIntro, setBattleIntro] = useState(() => !!bossStageBanner);
 
   const effectSeqRef = useRef(0);
   const timerRef = useRef(null);
@@ -174,6 +210,7 @@ export default function BattleScreen({
   const p1Ref = useRef(p1);
   const p2Ref = useRef(p2);
   const activeBattlerRef = useRef(PLAYER_ID);
+  const phaserEventSeqRef = useRef(0);
 
   useEffect(() => {
     p1Ref.current = p1;
@@ -192,6 +229,39 @@ export default function BattleScreen({
   useEffect(() => {
     activeBattlerRef.current = activeBattler;
   }, [activeBattler]);
+
+  useEffect(() => {
+    unlockBattleAudio();
+    startBattleMusic({ kind: ladderStageKind });
+    if (!bossStageBanner) return undefined;
+    setBusy(true);
+    setBattleIntro(true);
+    playSound('rage', { volume: ladderStageKind === 'bigBoss' ? 1.1 : 0.85 });
+    phaserEventSeqRef.current += 1;
+    setPhaserVisualEvent({
+      id: phaserEventSeqRef.current,
+      kind: 'bossIntro',
+      stageKind: ladderStageKind,
+      title: ladderIntroTitle(ladderStageKind),
+    });
+    const t = setTimeout(() => {
+      setBattleIntro(false);
+      setBusy(false);
+    }, ladderStageKind === 'bigBoss' ? 1250 : 900);
+    return () => clearTimeout(t);
+  }, [bossStageBanner, ladderStageKind]);
+
+  useEffect(() => {
+    if (!usePhaserBattleRenderer || isActionPlaying || busy) return;
+    phaserEventSeqRef.current += 1;
+    setPhaserVisualEvent({
+      id: phaserEventSeqRef.current,
+      kind: 'turn',
+      activeId: activeBattler,
+      text: activeBattler === PLAYER_ID ? 'Your Turn' : `${labelCpu}'s Turn`,
+      actionType: 'turn',
+    });
+  }, [activeBattler, busy, isActionPlaying, labelCpu, usePhaserBattleRenderer]);
 
   useEffect(() => () => stopBattleMusic(), []);
 
@@ -380,6 +450,11 @@ export default function BattleScreen({
   }
 
   function applyImpactVisuals(defId, fx) {
+    if (usePhaserBattleRenderer) {
+      if (fx?.damage > 0) duckBgm(fx?.critical ? 480 : 380);
+      playImpactSfx(fx);
+      return;
+    }
     setDefenderFlash(defId);
     if (fx?.sicklyFlash) {
       setSicklyFlash(defId);
@@ -396,6 +471,16 @@ export default function BattleScreen({
       doShake('normal');
     }
     playImpactSfx(fx);
+  }
+
+  function emitPhaserActionResult(result) {
+    if (!usePhaserBattleRenderer) return;
+    phaserEventSeqRef.current += 1;
+    setPhaserVisualEvent({
+      id: phaserEventSeqRef.current,
+      kind: 'actionResult',
+      ...result,
+    });
   }
 
   function applyPendingHp() {
@@ -487,14 +572,14 @@ export default function BattleScreen({
     showBanner(bannerText || skill?.name || 'Attack');
 
     if (attackerId === PLAYER_ID) {
-      setP1Pose(superBomb ? 'superWindup' : 'cast');
       setP2Pose('idle');
-      setP1Emotion('happy');
+      if (!usePhaserBattleRenderer) setP1Pose(superBomb ? 'superWindup' : 'cast');
+      if (!usePhaserBattleRenderer) setP1Emotion('happy');
       setP2Emotion('angry');
     } else {
-      setP2Pose(superBomb ? 'superWindup' : 'cast');
       setP1Pose('idle');
-      setP2Emotion('happy');
+      if (!usePhaserBattleRenderer) setP2Pose(superBomb ? 'superWindup' : 'cast');
+      if (!usePhaserBattleRenderer) setP2Emotion('happy');
       setP1Emotion('angry');
     }
 
@@ -530,6 +615,7 @@ export default function BattleScreen({
       type: strikeKind === 'magic' ? 'magic' : 'normal',
       moveName: skill?.name ?? 'Attack',
       strikeKind,
+      element: skill?.element ?? atk.element,
       effectType: skill?.effectType ?? 'normal',
       emoji: skill?.emoji,
       skillId: skill?.id,
@@ -581,12 +667,30 @@ export default function BattleScreen({
       },
     };
 
+    emitPhaserActionResult({
+      attackerId,
+      defenderId,
+      actionType: strikeKind === 'magic' ? 'magic' : 'physical',
+      skillId: skill?.id,
+      skillName: skill?.name ?? 'Attack',
+      element: skill?.element ?? atk.element,
+      damage: dmg,
+      crit: !!resolved.critical,
+      dodged: !!resolved.dodged,
+      defended: !!resolved.defended,
+      hpAfter: defenderId === PLAYER_ID ? np1After.hp : np2After.hp,
+      mpAfter: attackerId === PLAYER_ID ? np1After.mp : np2After.mp,
+      miniBoss: ladderStageKind === 'miniBoss',
+      boss: ladderStageKind === 'bigBoss',
+    });
+
     if (strikeKind === 'magic' && !actionSfxRef.current.launch) {
       actionSfxRef.current.launch = true;
       playSoundForSkill(skill, strikeKind);
     }
 
     schedule(timing.attackerEnd, () => {
+      if (usePhaserBattleRenderer) return;
       setFlyStrikeP1(attackerId === PLAYER_ID && isFly);
       setFlyStrikeP2(attackerId === CPU_ID && isFly);
       if (attackerId === PLAYER_ID) setP1Pose('lunge');
@@ -601,21 +705,27 @@ export default function BattleScreen({
           playSound('dodge');
         }
         showBanner('Dodged!');
-        if (defenderId === PLAYER_ID) setP1Pose('dodge');
-        else setP2Pose('dodge');
+        if (!usePhaserBattleRenderer) {
+          if (defenderId === PLAYER_ID) setP1Pose('dodge');
+          else setP2Pose('dodge');
+        }
         return;
       }
       if (resolved.defended) {
-        if (defenderId === PLAYER_ID) setDefendGlowP1(true);
-        else setDefendGlowP2(true);
+        if (!usePhaserBattleRenderer) {
+          if (defenderId === PLAYER_ID) setDefendGlowP1(true);
+          else setDefendGlowP2(true);
+        }
         showBanner('Blocked!');
         schedule(520, () => {
           setDefendGlowP1(false);
           setDefendGlowP2(false);
         });
       }
-      if (attackerId === PLAYER_ID) setP2Pose('hit');
-      else setP1Pose('hit');
+      if (!usePhaserBattleRenderer) {
+        if (attackerId === PLAYER_ID) setP2Pose('hit');
+        else setP1Pose('hit');
+      }
     });
 
     schedule(timing.impactAt, () => {
@@ -658,7 +768,7 @@ export default function BattleScreen({
   function handleFight() {
     if (isActionPlaying || busy || battlePhase !== 'chooseAction') return;
     unlockBattleAudio();
-    startBattleMusic();
+    startBattleMusic({ kind: ladderStageKind });
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     const skill = attacker?.skills?.physical ?? getPhysicalSkill(attacker?.monsterTemplateId);
     const banner =
@@ -698,7 +808,7 @@ export default function BattleScreen({
       return;
     }
     unlockBattleAudio();
-    startBattleMusic();
+    startBattleMusic({ kind: ladderStageKind });
     runAttack({
       attackerId,
       defenderId,
@@ -740,58 +850,116 @@ export default function BattleScreen({
 
   const p1Mood = moodFor(p1, p1Emotion);
   const p2Mood = moodFor(p2, p2Emotion);
-  const actionsEnabled = !isActionPlaying && !busy && battlePhase === 'chooseAction';
+  const actionsEnabled = !battleIntro && !isActionPlaying && !busy && battlePhase === 'chooseAction';
   const actingFighter = activeBattler === CPU_ID ? p2 : p1;
   const magicSkills =
     actingFighter?.skills?.magic ?? getMagicSkills(actingFighter?.monsterTemplateId ?? '');
   const actingElementUi = ELEMENT_UI[actingFighter?.element] ?? ELEMENT_UI.earth;
   const { width, height } = useWindowDimensions();
   const battleMobile = isMobileLayout(width, height);
+  const phaserBattleState = useMemo(() => ({
+    player: fighterToPhaserState(p1, labelP1),
+    enemy: fighterToPhaserState(p2, labelCpu),
+    activeId: activeBattler,
+    round,
+    bannerMessage,
+  }), [activeBattler, bannerMessage, labelCpu, labelP1, p1, p2, round]);
 
   return (
     <View style={styles.root}>
       <View style={styles.battleFrame}>
         <View style={styles.arenaField} pointerEvents="box-none">
           <View style={styles.arenaInner}>
-          <RpgBattleArena
-            topHudExtra={
-              <View style={styles.topHudWrap}>
+          {usePhaserBattleRenderer ? (
+            <>
+              <PhaserBattleView
+                battleState={phaserBattleState}
+                visualEvent={phaserVisualEvent}
+                onVisualEventComplete={(event) => {
+                  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+                    console.debug('[battle-animation] visual event completed', {
+                      type: event?.actionType,
+                      damage: event?.damage,
+                      crit: !!event?.crit,
+                      dodged: !!event?.dodged,
+                    });
+                  }
+                }}
+                height={430}
+              />
+              <View style={styles.phaserAudioSlot} pointerEvents="box-none">
                 <BattleAudioControls muted={audioMuted} onToggleMute={handleMutePress} />
               </View>
-            }
-            ladderFloor={ladderFloor}
-            ladderRegionName={ladderRegionName}
-            ladderBossName={ladderBossName}
-            p1={p1}
-            p2={p2}
-            p1Mood={p1Mood}
-            p2Mood={p2Mood}
-            p1Pose={p1Pose}
-            p2Pose={p2Pose}
-            activeTurn={isActionPlaying || busy ? CPU_ID : activeBattler}
-            round={round}
-            turnBadge={bannerMessage}
-            turnBadgeCombatHighlight={bannerCombatHighlight}
-            player1Label={labelP1}
-            player2Label={labelCpu}
-            battleDim={battleDim}
-            shakeX={shakeX}
-            stageZoom={hitStopScale}
-            defendGlowP1={defendGlowP1}
-            defendGlowP2={defendGlowP2}
-            defenderFlashP1={defenderFlash === PLAYER_ID}
-            defenderFlashP2={defenderFlash === CPU_ID}
-            sicklyFlashP1={sicklyFlash === PLAYER_ID}
-            sicklyFlashP2={sicklyFlash === CPU_ID}
-            flyStrikeP1={flyStrikeP1}
-            flyStrikeP2={flyStrikeP2}
-          />
-          {battlePhase === 'resolveAttack' && activeAttackEffect ? (
-            <BattleProjectileLayer
-              effect={activeAttackEffect}
-              active
-              sequenceControlled
-            />
+            </>
+          ) : (
+            <>
+              <RpgBattleArena
+                topHudExtra={
+                  <View style={styles.topHudWrap}>
+                    <BattleAudioControls muted={audioMuted} onToggleMute={handleMutePress} />
+                  </View>
+                }
+                ladderFloor={ladderFloor}
+                ladderRegionName={ladderRegionName}
+                ladderBossName={ladderBossName}
+                p1={p1}
+                p2={p2}
+                p1Mood={p1Mood}
+                p2Mood={p2Mood}
+                p1Pose={p1Pose}
+                p2Pose={p2Pose}
+                activeTurn={isActionPlaying || busy ? CPU_ID : activeBattler}
+                round={round}
+                turnBadge={bannerMessage}
+                turnBadgeCombatHighlight={bannerCombatHighlight}
+                player1Label={labelP1}
+                player2Label={labelCpu}
+                battleDim={battleDim}
+                shakeX={shakeX}
+                stageZoom={hitStopScale}
+                defendGlowP1={defendGlowP1}
+                defendGlowP2={defendGlowP2}
+                defenderFlashP1={defenderFlash === PLAYER_ID}
+                defenderFlashP2={defenderFlash === CPU_ID}
+                sicklyFlashP1={sicklyFlash === PLAYER_ID}
+                sicklyFlashP2={sicklyFlash === CPU_ID}
+                flyStrikeP1={flyStrikeP1}
+                flyStrikeP2={flyStrikeP2}
+              />
+              {battlePhase === 'resolveAttack' && activeAttackEffect ? (
+                <BattleProjectileLayer
+                  effect={activeAttackEffect}
+                  active
+                  sequenceControlled
+                />
+              ) : null}
+            </>
+          )}
+          {battleExtras?.mode === 'monsterLadder' ? (
+            <View style={[styles.ladderStagePill, bossStageBanner && styles.ladderStagePillBoss]} pointerEvents="none">
+              <Text style={styles.ladderStagePillMain}>{ladderStageLabel || `Stage ${ladderFloor ?? ''}`}</Text>
+              {bossStageBanner ? <Text style={styles.ladderStagePillBossTxt}>{bossStageBanner}</Text> : null}
+            </View>
+          ) : null}
+          {battleIntro && bossStageBanner ? (
+            <View
+              style={[
+                styles.bossIntroOverlay,
+                ladderStageKind === 'bigBoss' && styles.bossIntroOverlayStrong,
+              ]}
+              pointerEvents="none"
+            >
+              <Text style={styles.bossIntroStage}>{ladderStageLabel}</Text>
+              <Text
+                style={[
+                  styles.bossIntroTitle,
+                  ladderStageKind === 'bigBoss' && styles.bossIntroTitleStrong,
+                ]}
+              >
+                {ladderIntroTitle(ladderStageKind)}
+              </Text>
+              <Text style={styles.bossIntroSub}>{bossStageBanner}</Text>
+            </View>
           ) : null}
           </View>
         </View>
@@ -920,6 +1088,68 @@ const styles = StyleSheet.create({
   },
   arenaField: { flex: 1, minHeight: 0, width: '100%', position: 'relative', overflow: 'hidden' },
   arenaInner: { flex: 1, width: '100%', minHeight: 0 },
+  phaserAudioSlot: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    zIndex: 20,
+  },
+  ladderStagePill: {
+    position: 'absolute',
+    top: 10,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.28)',
+    alignItems: 'center',
+    zIndex: 18,
+  },
+  ladderStagePillBoss: {
+    backgroundColor: 'rgba(45, 27, 105, 0.9)',
+    borderColor: '#facc15',
+  },
+  ladderStagePillMain: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  ladderStagePillBossTxt: { color: '#fde68a', fontWeight: '900', fontSize: 11, marginTop: 1 },
+  bossIntroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.58)',
+    padding: 24,
+  },
+  bossIntroOverlayStrong: {
+    backgroundColor: 'rgba(32, 16, 63, 0.74)',
+  },
+  bossIntroStage: {
+    color: '#cbd5e1',
+    fontWeight: '900',
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  bossIntroTitle: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 34,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  bossIntroTitleStrong: {
+    color: '#facc15',
+    fontSize: 42,
+  },
+  bossIntroSub: {
+    marginTop: 8,
+    color: '#fde68a',
+    fontWeight: '900',
+    fontSize: 15,
+    letterSpacing: 1,
+  },
   muteBtn: {
     backgroundColor: 'rgba(26, 26, 46, 0.82)',
     borderWidth: 2,

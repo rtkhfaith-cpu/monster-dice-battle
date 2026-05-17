@@ -1,18 +1,24 @@
+import BattleAnimationController from './BattleAnimationController';
+import MonsterActor from './MonsterActor';
+
 export function createPhaserBattleScene(Phaser) {
   return class PhaserBattleScene extends Phaser.Scene {
     constructor() {
       super('PhaserBattleScene');
       this.fighters = {
-        player: { name: 'Nugget Dragon', hp: 82, maxHp: 100, element: 'fire' },
-        enemy: { name: 'Noise Boss', hp: 120, maxHp: 140, element: 'shadow' },
+        player: { name: 'Nugget Dragon', hp: 82, maxHp: 100, element: 'fire', rarity: 'common', theme: 'nugget_dragon' },
+        enemy: { name: 'Charging Cable Serpent', hp: 120, maxHp: 140, element: 'electric', rarity: 'rare', theme: 'cable_serpent' },
       };
-      this.sprites = {};
+      this.actors = {};
+      this.isAnimatingAction = false;
+      this.visualEventComplete = null;
     }
 
     create() {
       this.drawBattlefield();
-      this.createMonster('player', 210, 330, 0xffb347, 1);
-      this.createMonster('enemy', 610, 250, 0x8e44ad, -1);
+      this.createMonsterActor('player', 210, 330, 1, 12);
+      this.createMonsterActor('enemy', 610, 250, -1, 10);
+      this.animationController = new BattleAnimationController(this, Phaser);
       this.createHud();
       this.game.events.emit('phaser-battle-ready', this);
     }
@@ -58,45 +64,23 @@ export function createPhaserBattleScene(Phaser) {
       });
     }
 
-    createMonster(key, x, y, color, facing) {
-      const depth = key === 'player' ? 12 : 10;
-      const shadow = this.add.ellipse(x, y + 82, 150, 34, 0x000000, 0.22).setDepth(depth - 1);
-      const body = this.add.container(x, y).setDepth(depth);
-      const core = this.add.ellipse(0, 0, 105, 125, color, 1);
-      const glow = this.add.ellipse(0, 2, 132, 148, color, 0.18);
-      const eyeA = this.add.circle(-20 * facing, -18, 9, 0xffffff);
-      const eyeB = this.add.circle(18 * facing, -18, 9, 0xffffff);
-      const pupilA = this.add.circle(-20 * facing, -18, 4, 0x111827);
-      const pupilB = this.add.circle(18 * facing, -18, 4, 0x111827);
-      const label = this.add.text(0, 88, this.fighters[key].name, {
-        fontFamily: 'Arial',
-        fontSize: '16px',
-        fontStyle: '700',
-        color: '#1f2937',
-        stroke: '#ffffff',
-        strokeThickness: 4,
-      }).setOrigin(0.5);
-      body.add([glow, core, eyeA, eyeB, pupilA, pupilB, label]);
-
-      this.sprites[key] = { body, core, glow, shadow, x, y, facing };
-      this.tweens.add({
-        targets: body,
-        y: y - 12,
-        scaleX: 1.035,
-        scaleY: 0.97,
-        duration: key === 'player' ? 920 : 1100,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.inOut',
-      });
-      this.tweens.add({
-        targets: shadow,
-        scaleX: 0.9,
-        alpha: 0.15,
-        duration: key === 'player' ? 920 : 1100,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.inOut',
+    createMonsterActor(key, x, y, facing, depth) {
+      this.actors[key]?.destroy();
+      const fighter = this.fighters[key] || {};
+      const bossScale =
+        key === 'enemy' && fighter.stageKind === 'bigBoss'
+          ? fighter.rarity === 'mythic' ? 1.38 : 1.28
+          : key === 'enemy' && fighter.stageKind === 'miniBoss'
+            ? 1.16
+            : 1;
+      this.actors[key] = new MonsterActor(this, Phaser, {
+        key,
+        x,
+        y,
+        facing,
+        depth,
+        scale: (key === 'player' ? 1 : 1.03) * bossScale,
+        ...fighter,
       });
     }
 
@@ -123,7 +107,14 @@ export function createPhaserBattleScene(Phaser) {
       const bar = this.add.rectangle(x + 22, y + 44, 176 * (fighter.hp / fighter.maxHp), 12, 0x22c55e, 1)
         .setOrigin(0, 0.5)
         .setDepth(32);
-      return { box, name, barBg, bar };
+      const mpBg = this.add.rectangle(x + 110, y + 58, 176, 7, 0x111827, 0.12).setDepth(31);
+      const mpRatio = (fighter.mp ?? fighter.maxMp ?? 1) / Math.max(1, fighter.maxMp ?? fighter.mp ?? 1);
+      const mpBar = this.add.rectangle(x + 22, y + 58, 176 * mpRatio, 7, 0x6366f1, 1)
+        .setOrigin(0, 0.5)
+        .setDepth(32);
+      const flash = this.add.rectangle(x + 110, y + 44, 176, 12, 0xff3b30, 0)
+        .setDepth(33);
+      return { box, name, barBg, bar, mpBg, mpBar, flash };
     }
 
     updateBattleState(next = {}) {
@@ -132,17 +123,51 @@ export function createPhaserBattleScene(Phaser) {
         enemy: { ...this.fighters.enemy, ...(next.enemy || {}) },
       };
       for (const key of ['player', 'enemy']) {
+        const actor = this.actors[key];
+        const fighter = this.fighters[key];
+        if (!actor || !fighter) continue;
+        if (
+          actor.name !== fighter.name
+          || actor.rarity !== fighter.rarity
+          || actor.element !== fighter.element
+          || actor.theme !== fighter.theme
+          || actor.stageKind !== fighter.stageKind
+        ) {
+          this.createMonsterActor(key, actor.x, actor.y, actor.facing, actor.depth);
+        }
+      }
+      for (const key of ['player', 'enemy']) {
+        const actor = this.actors[key];
+        const fighter = this.fighters[key];
+        if (!actor || !fighter) continue;
+        if (fighter.hp <= 0) actor.ko();
+        else if (actor.isKo) actor.idle();
+      }
+      for (const key of ['player', 'enemy']) {
         const panel = this.hud?.[key];
         if (!panel) continue;
         const fighter = this.fighters[key];
-        const ratio = Phaser.Math.Clamp(fighter.hp / Math.max(1, fighter.maxHp), 0, 1);
-        panel.bar.width = 176 * ratio;
+        panel.name.setText(fighter.name);
+        if (!this.isAnimatingAction) this.syncHudPanel(key, fighter);
       }
+    }
+
+    setVisualEventComplete(callback) {
+      this.visualEventComplete = callback;
+    }
+
+    notifyVisualEventComplete(result) {
+      this.visualEventComplete?.(result);
     }
 
     playVisualEvent(event = {}) {
       const kind = event.kind || 'attack';
-      if (kind === 'bossIntro') return this.playBossIntro();
+      if (kind === 'actionResult' || event.actionType) return this.animationController?.play(event);
+      if (kind === 'turn') return this.animationController?.play({ ...event, actionType: 'turn' });
+      if (kind === 'bossIntro') return this.playBossIntro(event);
+      if (kind === 'defend') return this.actors[event.target || 'player']?.defend();
+      if (kind === 'hurt') return this.actors[event.target || 'enemy']?.hurt();
+      if (kind === 'ko') return this.actors[event.target || 'enemy']?.ko();
       if (kind === 'dodge') return this.playDodge(event.target || 'player');
       if (kind === 'crit') return this.playAttack({ ...event, critical: true });
       return this.playAttack(event);
@@ -151,20 +176,13 @@ export function createPhaserBattleScene(Phaser) {
     playAttack(event = {}) {
       const attackerKey = event.attacker || 'player';
       const targetKey = attackerKey === 'player' ? 'enemy' : 'player';
-      const attacker = this.sprites[attackerKey];
-      const target = this.sprites[targetKey];
+      const attacker = this.actors[attackerKey];
+      const target = this.actors[targetKey];
       if (!attacker || !target) return null;
-
-      this.tweens.add({
-        targets: attacker.body,
-        x: attacker.x + 36 * attacker.facing,
-        duration: 120,
-        yoyo: true,
-        ease: 'Quad.out',
-      });
 
       const projectile = this.add.circle(attacker.x + 40 * attacker.facing, attacker.y - 24, event.critical ? 16 : 11, event.critical ? 0xfff200 : 0x38bdf8, 1)
         .setDepth(18);
+      attacker.attack(target, event);
       this.tweens.add({
         targets: projectile,
         x: target.x - 42 * attacker.facing,
@@ -181,21 +199,10 @@ export function createPhaserBattleScene(Phaser) {
     }
 
     playImpact(targetKey, event = {}) {
-      const target = this.sprites[targetKey];
+      const target = this.actors[targetKey];
       if (!target) return;
       this.cameras.main.shake(event.critical ? 180 : 100, event.critical ? 0.018 : 0.01);
-      this.tweens.add({
-        targets: target.body,
-        x: target.x + (targetKey === 'enemy' ? 18 : -18),
-        alpha: 0.62,
-        duration: 70,
-        yoyo: true,
-        repeat: 1,
-        onComplete: () => {
-          target.body.x = target.x;
-          target.body.alpha = 1;
-        },
-      });
+      target.hurt();
 
       const damage = this.add.text(target.x, target.y - 120, event.critical ? 'CRIT 128!' : '42', {
         fontFamily: 'Arial',
@@ -228,17 +235,160 @@ export function createPhaserBattleScene(Phaser) {
       }
     }
 
-    playDodge(targetKey) {
-      const target = this.sprites[targetKey];
-      if (!target) return null;
+    syncHudPanel(key, fighter = this.fighters[key]) {
+      const panel = this.hud?.[key];
+      if (!panel || !fighter) return;
+      const hpRatio = Phaser.Math.Clamp(fighter.hp / Math.max(1, fighter.maxHp), 0, 1);
+      const mpRatio = Phaser.Math.Clamp((fighter.mp ?? fighter.maxMp ?? 1) / Math.max(1, fighter.maxMp ?? fighter.mp ?? 1), 0, 1);
+      panel.bar.width = 176 * hpRatio;
+      panel.mpBar.width = 176 * mpRatio;
+    }
+
+    animateHudTo(key, { hp, mp, heavy = false } = {}) {
+      const panel = this.hud?.[key];
+      const fighter = this.fighters[key];
+      if (!panel || !fighter) return;
+      if (typeof hp === 'number') {
+        fighter.hp = hp;
+        const hpRatio = Phaser.Math.Clamp(hp / Math.max(1, fighter.maxHp), 0, 1);
+        this.tweens.add({
+          targets: panel.bar,
+          width: 176 * hpRatio,
+          duration: heavy ? 520 : 380,
+          ease: 'Cubic.out',
+        });
+        this.tweens.add({
+          targets: panel.flash,
+          alpha: heavy ? 0.55 : 0.34,
+          duration: 90,
+          yoyo: true,
+          ease: 'Quad.out',
+        });
+      }
+      if (typeof mp === 'number') {
+        fighter.mp = mp;
+        const mpRatio = Phaser.Math.Clamp(mp / Math.max(1, fighter.maxMp ?? mp), 0, 1);
+        this.tweens.add({
+          targets: panel.mpBar,
+          width: 176 * mpRatio,
+          duration: 280,
+          ease: 'Cubic.out',
+        });
+      }
+    }
+
+    showFloatingText(x, y, text, options = {}) {
+      const t = this.add.text(x, y, text, {
+        fontFamily: 'Arial',
+        fontSize: `${options.size ?? 26}px`,
+        fontStyle: '900',
+        color: options.color ?? '#ffffff',
+        stroke: options.stroke ?? '#111827',
+        strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(44);
+      t.setScale(0.65);
       this.tweens.add({
-        targets: target.body,
-        x: target.x + (targetKey === 'player' ? -70 : 70),
-        duration: 100,
-        yoyo: true,
-        ease: 'Sine.out',
+        targets: t,
+        y: y - 48,
+        alpha: 0,
+        scale: 1.15,
+        duration: options.duration ?? 760,
+        ease: 'Cubic.out',
+        onComplete: () => t.destroy(),
       });
-      const txt = this.add.text(target.x, target.y - 118, 'Dodged!', {
+      return t;
+    }
+
+    showDamageNumber(actor, result = {}) {
+      if (!actor || result.dodged) return;
+      const damage = Math.max(0, Math.round(result.damage ?? 0));
+      const label = result.crit ? `CRIT! ${damage}` : result.defended ? `Guarded ${damage}` : `${damage}`;
+      this.showFloatingText(actor.x, actor.y - 122, label, {
+        color: result.crit ? '#facc15' : result.defended ? '#bfdbfe' : '#ffffff',
+        size: result.crit ? 34 : result.defended ? 22 : 27,
+        stroke: '#111827',
+      });
+    }
+
+    showTurnText(text) {
+      const label = this.add.text(this.scale.width / 2, 120, text, {
+        fontFamily: 'Arial',
+        fontSize: '32px',
+        fontStyle: '900',
+        color: '#ffffff',
+        stroke: '#0f172a',
+        strokeThickness: 6,
+      }).setOrigin(0.5).setDepth(45);
+      label.setScale(0.72);
+      this.tweens.add({
+        targets: label,
+        y: 92,
+        alpha: 0,
+        scale: 1.08,
+        duration: 720,
+        ease: 'Cubic.out',
+        onComplete: () => label.destroy(),
+      });
+    }
+
+    playDodgeEffect(actor) {
+      for (let i = 0; i < 7; i += 1) {
+        const puff = this.add.circle(actor.x + Phaser.Math.Between(-28, 28), actor.y + 52, Phaser.Math.Between(4, 8), 0xffffff, 0.45)
+          .setDepth(actor.depth + 2);
+        this.tweens.add({
+          targets: puff,
+          x: puff.x - 40 * actor.facing,
+          y: puff.y + Phaser.Math.Between(-12, 12),
+          alpha: 0,
+          scale: 1.8,
+          duration: 360,
+          ease: 'Quad.out',
+          onComplete: () => puff.destroy(),
+        });
+      }
+    }
+
+    playElementImpact(actor, element = 'normal', { critical = false, guarded = false } = {}) {
+      const colorMap = {
+        fire: 0xfb923c,
+        water: 0x38bdf8,
+        electric: 0xfacc15,
+        poison: 0x86efac,
+        bacteria: 0x86efac,
+        tech: 0x22d3ee,
+        glitch: 0x22d3ee,
+        earth: 0xa16207,
+        metal: 0xe5e7eb,
+        food: 0xf97316,
+        shadow: 0xa78bfa,
+        normal: 0xffffff,
+      };
+      const color = guarded ? 0xbfdbfe : colorMap[element] ?? colorMap.normal;
+      const tier = actor.visualTier ?? 0;
+      const count = (critical ? 20 : guarded ? 8 : 13) + tier * 6;
+      for (let i = 0; i < count; i += 1) {
+        const particle = element === 'tech' || element === 'glitch'
+          ? this.add.rectangle(actor.x, actor.y, Phaser.Math.Between(4, 9), Phaser.Math.Between(4, 9), color, 0.85)
+          : this.add.circle(actor.x, actor.y, Phaser.Math.Between(3, 7), color, 0.88);
+        particle.setDepth(actor.depth + 8);
+        this.tweens.add({
+          targets: particle,
+          x: actor.x + Phaser.Math.Between(-82 - tier * 24, 82 + tier * 24),
+          y: actor.y + Phaser.Math.Between(-78 - tier * 18, 42 + tier * 12),
+          alpha: 0,
+          scale: element === 'poison' || element === 'bacteria' ? 1.9 : 0.35,
+          duration: (critical ? 560 : 420) + tier * 90,
+          ease: 'Quad.out',
+          onComplete: () => particle.destroy(),
+        });
+      }
+    }
+
+    playDodge(targetKey) {
+      const actor = this.actors[targetKey];
+      if (!actor) return null;
+      actor.dodge();
+      const txt = this.add.text(actor.x, actor.y - 118, 'Dodged!', {
         fontFamily: 'Arial',
         fontSize: '28px',
         fontStyle: '900',
@@ -257,17 +407,58 @@ export function createPhaserBattleScene(Phaser) {
       return null;
     }
 
-    playBossIntro() {
-      const enemy = this.sprites.enemy;
+    playBossIntro(event = {}) {
+      const enemy = this.actors.enemy;
       if (!enemy) return null;
-      this.cameras.main.zoomTo(1.18, 360, 'Sine.easeInOut');
-      this.cameras.main.pan(enemy.x, enemy.y, 360, 'Sine.easeInOut');
-      this.time.delayedCall(520, () => {
-        this.cameras.main.shake(360, 0.012);
-        this.cameras.main.zoomTo(1, 360, 'Sine.easeInOut');
-        this.cameras.main.pan(this.scale.width / 2, this.scale.height / 2, 360, 'Sine.easeInOut');
+      const boss = event.stageKind === 'bigBoss';
+      const mythic = enemy.rarity === 'mythic';
+      const title = event.title || (boss ? 'BOSS BATTLE!' : 'Mini Boss Appears!');
+      enemy.setActiveGlow(true);
+      this.showTurnText(title);
+      if (boss) this.playBossEnvironmentPulse(mythic);
+      this.cameras.main.zoomTo(mythic ? 1.32 : boss ? 1.24 : 1.14, mythic ? 560 : boss ? 440 : 280, 'Sine.easeInOut');
+      this.cameras.main.pan(enemy.x, enemy.y, mythic ? 560 : boss ? 440 : 280, 'Sine.easeInOut');
+      this.time.delayedCall(mythic ? 700 : boss ? 540 : 360, () => {
+        this.cameras.main.shake(mythic ? 560 : boss ? 420 : 220, mythic ? 0.02 : boss ? 0.014 : 0.008);
+        this.cameras.main.zoomTo(1, mythic ? 520 : boss ? 420 : 280, 'Sine.easeInOut');
+        this.cameras.main.pan(this.scale.width / 2, this.scale.height / 2, mythic ? 520 : boss ? 420 : 280, 'Sine.easeInOut');
+        enemy.setActiveGlow(false);
       });
       return null;
+    }
+
+    playBossEnvironmentPulse(mythic = false) {
+      const tint = this.add.rectangle(
+        this.scale.width / 2,
+        this.scale.height / 2,
+        this.scale.width,
+        this.scale.height,
+        mythic ? 0x4c1d95 : 0x78350f,
+        mythic ? 0.26 : 0.16,
+      ).setDepth(8);
+      this.tweens.add({
+        targets: tint,
+        alpha: 0,
+        duration: mythic ? 920 : 620,
+        ease: 'Sine.out',
+        onComplete: () => tint.destroy(),
+      });
+      const count = mythic ? 28 : 16;
+      for (let i = 0; i < count; i += 1) {
+        const p = mythic
+          ? this.add.rectangle(Phaser.Math.Between(0, this.scale.width), Phaser.Math.Between(40, this.scale.height - 80), Phaser.Math.Between(4, 12), Phaser.Math.Between(4, 12), [0x67e8f9, 0xf472b6, 0xfacc15][Phaser.Math.Between(0, 2)], 0.72)
+          : this.add.circle(Phaser.Math.Between(0, this.scale.width), Phaser.Math.Between(80, this.scale.height - 80), Phaser.Math.Between(3, 7), 0xfacc15, 0.62);
+        p.setDepth(9);
+        this.tweens.add({
+          targets: p,
+          y: p.y - Phaser.Math.Between(30, 90),
+          alpha: 0,
+          scale: mythic ? 1.6 : 0.4,
+          duration: Phaser.Math.Between(520, mythic ? 1100 : 820),
+          ease: 'Quad.out',
+          onComplete: () => p.destroy(),
+        });
+      }
     }
   };
 }

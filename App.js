@@ -42,8 +42,11 @@ import { mergeLadderMonsterParts } from './utils/monsterLadder/ladderProfile';
 import { buildLadderEnemyFighter } from './utils/monsterLadder/ladderFighters';
 import { applyMonsterLadderBattleRewards } from './utils/monsterLadder/ladderRewards';
 import {
+  formatStageLabel,
   getCurrentStage,
   getMonsterLadderState,
+  getStageKind,
+  stageTypeBanner,
 } from './utils/monsterLadder';
 import { initAudio } from './utils/audioManager';
 import { pickFunnyWinTitle, winTitleForRarity } from './utils/rewards';
@@ -1010,12 +1013,15 @@ export default function App() {
       });
       if (summary?.chestDrop) setLadderChestDrop(summary.chestDrop);
       const st = summary?.stage;
+      const stKind = st ? getStageKind(st.subLevel) : 'normal';
+      const stLabel = st ? `Level ${formatStageLabel(st.mainLevel, st.subLevel)}` : '';
+      const stBanner = stageTypeBanner(stKind);
       setRewardTitle(
         outcome === 'draw'
-          ? `Stage ${st?.mainLevel}-${st?.subLevel} — stalemate`
+          ? `${stLabel || 'Stage'} — stalemate`
           : iWon
-            ? `Stage ${st?.mainLevel}-${st?.subLevel} cleared!`
-            : `Stage ${st?.mainLevel}-${st?.subLevel} — try again`,
+            ? `${stLabel || 'Stage'} cleared${stBanner ? ` · ${stBanner}` : ''}!`
+            : `${stLabel || 'Stage'} — try again`,
       );
       playSound(iWon ? 'win' : outcome === 2 ? 'lose' : 'shop');
       if (summary?.expPack?.levelsGained > 0) playSound('levelUp');
@@ -1346,6 +1352,11 @@ export default function App() {
             battleExtras={{
               mode: gameMode,
               ladderFloor: player2?.ladderStageIndex,
+              ladderStageKind: player2?.ladderStageKind,
+              ladderStageLabel:
+                player2?.ladderMainLevel && player2?.ladderSubLevel
+                  ? `Level ${formatStageLabel(player2.ladderMainLevel, player2.ladderSubLevel)}`
+                  : '',
               ladderRegionName: player2?.ladderThemeName,
               ladderBossName: player2?.ladderBossName,
             }}
@@ -1363,7 +1374,7 @@ export default function App() {
               ladderFloor={rewardSummary?.stage ? rewardSummary.stage.mainLevel : undefined}
               ladderRegionName={
                 rewardSummary?.stage
-                  ? `Sub ${rewardSummary.stage.subLevel} · Shards ${rewardSummary?.ladderShardsTotal ?? 0}`
+                  ? `${stageTypeBanner(getStageKind(rewardSummary.stage.subLevel)) || `Stage ${formatStageLabel(rewardSummary.stage.mainLevel, rewardSummary.stage.subLevel)}`} · Shards ${rewardSummary?.ladderShardsTotal ?? 0}`
                   : undefined
               }
               monsterLadder={!!rewardSummary?.monsterLadder}

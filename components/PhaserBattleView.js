@@ -5,13 +5,16 @@ export default function PhaserBattleView({
   battleState,
   visualEvent,
   onReady,
+  onVisualEventComplete,
   height = 430,
 }) {
   const hostRef = useRef(null);
   const gameRef = useRef(null);
   const sceneRef = useRef(null);
   const battleStateRef = useRef(battleState);
+  const visualEventRef = useRef(visualEvent);
   const onReadyRef = useRef(onReady);
+  const onVisualEventCompleteRef = useRef(onVisualEventComplete);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -19,8 +22,16 @@ export default function PhaserBattleView({
   }, [battleState]);
 
   useEffect(() => {
+    visualEventRef.current = visualEvent;
+  }, [visualEvent]);
+
+  useEffect(() => {
     onReadyRef.current = onReady;
   }, [onReady]);
+
+  useEffect(() => {
+    onVisualEventCompleteRef.current = onVisualEventComplete;
+  }, [onVisualEventComplete]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return undefined;
@@ -58,7 +69,9 @@ export default function PhaserBattleView({
         gameRef.current = game;
         game.events.once('phaser-battle-ready', (scene) => {
           sceneRef.current = scene;
+          scene.setVisualEventComplete?.((event) => onVisualEventCompleteRef.current?.(event));
           scene.updateBattleState(battleStateRef.current);
+          if (visualEventRef.current) scene.playVisualEvent(visualEventRef.current);
           onReadyRef.current?.(scene);
         });
       } catch (err) {

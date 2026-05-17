@@ -93,7 +93,8 @@ export default function RewardScreen({
       ) : null}
       {monsterLadder && chestDrop ? (
         <Text style={styles.ladderBonus}>
-          Chest reward: {chestDrop.duplicate ? 'duplicate converted to shards' : 'new reward found'}
+          {chestDrop.kind === 'gear' ? 'Gear Chest' : 'Monster Chest'} reward:{' '}
+          {chestDrop.duplicate ? 'duplicate converted to shards' : 'new reward found'}
         </Text>
       ) : null}
       {monsterLadder && chestBlocked ? (

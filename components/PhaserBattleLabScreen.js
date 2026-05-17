@@ -15,11 +15,17 @@ export default function PhaserBattleLabScreen({ onBack }) {
   const [visualEvent, setVisualEvent] = useState(null);
   const [enemyHp, setEnemyHp] = useState(120);
   const [playerHp, setPlayerHp] = useState(82);
+  const [enemySkin, setEnemySkin] = useState({
+    name: 'Charging Cable Serpent',
+    element: 'electric',
+    rarity: 'rare',
+    theme: 'cable_serpent',
+  });
 
   const battleState = useMemo(() => ({
-    player: { name: 'Nugget Dragon', hp: playerHp, maxHp: 100, element: 'fire' },
-    enemy: { name: 'Noise Boss', hp: enemyHp, maxHp: 140, element: 'shadow' },
-  }), [enemyHp, playerHp]);
+    player: { name: 'Nugget Dragon', hp: playerHp, maxHp: 100, element: 'fire', rarity: 'common', theme: 'nugget_dragon' },
+    enemy: { hp: enemyHp, maxHp: 140, ...enemySkin },
+  }), [enemyHp, enemySkin, playerHp]);
 
   function emit(kind, extra = {}) {
     setTick((n) => n + 1);
@@ -52,32 +58,109 @@ export default function PhaserBattleLabScreen({ onBack }) {
               primary
               label="Player Attack"
               onPress={() => {
-                setEnemyHp((hp) => Math.max(0, hp - 12));
-                emit('attack', { attacker: 'player' });
+                const hpAfter = Math.max(0, enemyHp - 12);
+                setEnemyHp(hpAfter);
+                emit('actionResult', { attackerId: 1, defenderId: 2, actionType: 'physical', damage: 12, hpAfter });
               }}
             />
             <LabButton
               label="Critical Hit"
               onPress={() => {
-                setEnemyHp((hp) => Math.max(0, hp - 28));
-                emit('crit', { attacker: 'player' });
+                const hpAfter = Math.max(0, enemyHp - 28);
+                setEnemyHp(hpAfter);
+                emit('actionResult', { attackerId: 1, defenderId: 2, actionType: 'physical', damage: 28, hpAfter, crit: true });
               }}
             />
             <LabButton
               label="Enemy Attack"
               onPress={() => {
-                setPlayerHp((hp) => Math.max(0, hp - 10));
-                emit('attack', { attacker: 'enemy' });
+                const hpAfter = Math.max(0, playerHp - 10);
+                setPlayerHp(hpAfter);
+                emit('actionResult', { attackerId: 2, defenderId: 1, actionType: 'physical', damage: 10, hpAfter });
               }}
             />
-            <LabButton label="Dodge" onPress={() => emit('dodge', { target: 'player' })} />
+            <LabButton label="Dodge" onPress={() => emit('actionResult', { attackerId: 2, defenderId: 1, actionType: 'physical', damage: 0, dodged: true, hpAfter: playerHp })} />
+            <LabButton label="Defend" onPress={() => emit('actionResult', { defenderId: 1, actionType: 'defend' })} />
+            <LabButton label="Hurt Pose" onPress={() => emit('hurt', { target: 'enemy' })} />
+            <LabButton label="KO Pose" onPress={() => emit('ko', { target: 'enemy' })} />
             <LabButton label="Boss Intro" onPress={() => emit('bossIntro')} />
+            <LabButton
+              label="Fire Magic"
+              onPress={() => {
+                const hpAfter = Math.max(0, enemyHp - 18);
+                setEnemyHp(hpAfter);
+                emit('actionResult', { attackerId: 1, defenderId: 2, actionType: 'magic', element: 'fire', damage: 18, hpAfter, mpAfter: 28 });
+              }}
+            />
+            <LabButton
+              label="Glitch Magic"
+              onPress={() => {
+                const hpAfter = Math.max(0, enemyHp - 16);
+                setEnemyHp(hpAfter);
+                emit('actionResult', { attackerId: 1, defenderId: 2, actionType: 'magic', element: 'tech', damage: 16, hpAfter, mpAfter: 24 });
+              }}
+            />
             <LabButton
               label="Reset HP"
               onPress={() => {
                 setPlayerHp(82);
                 setEnemyHp(120);
               }}
+            />
+          </View>
+        </View>
+
+        <View style={styles.panel}>
+          <Text style={styles.panelTitle}>Monster Actor Samples</Text>
+          <Text style={styles.copy}>
+            These are still procedural placeholder actors, not final art. They test silhouette,
+            facing, aura, element particles, and secondary motion before live battle migration.
+          </Text>
+          <View style={styles.grid}>
+            <LabButton
+              label="Rare Electric Serpent"
+              onPress={() => setEnemySkin({
+                name: 'Charging Cable Serpent',
+                element: 'electric',
+                rarity: 'rare',
+                theme: 'cable_serpent',
+              })}
+            />
+            <LabButton
+              label="Epic Tech Toiletron"
+              onPress={() => setEnemySkin({
+                name: 'Toiletron',
+                element: 'tech',
+                rarity: 'epic',
+                theme: 'toiletron',
+              })}
+            />
+            <LabButton
+              label="Legendary Pizza Meteor"
+              onPress={() => setEnemySkin({
+                name: 'Pizza Meteor',
+                element: 'fire',
+                rarity: 'legendary',
+                theme: 'pizza_meteor',
+              })}
+            />
+            <LabButton
+              label="Mythic Wifi Wraith"
+              onPress={() => setEnemySkin({
+                name: 'Wifi Wraith',
+                element: 'shadow',
+                rarity: 'mythic',
+                theme: 'wifi_wraith',
+              })}
+            />
+            <LabButton
+              label="Poison Durian Knight"
+              onPress={() => setEnemySkin({
+                name: 'Durian Knight',
+                element: 'poison',
+                rarity: 'epic',
+                theme: 'durian_knight',
+              })}
             />
           </View>
         </View>

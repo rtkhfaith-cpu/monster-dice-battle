@@ -9,6 +9,13 @@ import { mergeLadderMonsterParts } from './ladderProfile';
 import { getStageKind, cpuPowerForStage, decodeStage } from './stages';
 import { getLadderGear } from './ladderGearCatalog';
 
+function rarityForStage(mainLevel, subLevel, kind) {
+  if (kind === 'miniBoss') return 'epic';
+  if (kind === 'bigBoss') return mainLevel % 5 === 0 ? 'mythic' : 'legendary';
+  if (subLevel >= 6) return subLevel >= 8 ? 'epic' : 'rare';
+  return subLevel >= 3 ? 'rare' : 'common';
+}
+
 function sumLadderGearBonuses(gearIds) {
   const b = {
     hp: 0, mp: 0, attackMin: 0, attackMax: 0, magicMin: 0, magicMax: 0,
@@ -152,6 +159,7 @@ export function buildLadderEnemyFighter(stageIndex, playerRef) {
   const built = computeLadderBattleStats(templateId, bossLevel);
   if (!built) return null;
   const tpl = getLadderMonsterTemplate(templateId);
+  const encounterRarity = rarityForStage(mainLevel, subLevel, kind);
 
   return {
     monsterParts: mergeLadderMonsterParts(templateId),
@@ -163,7 +171,8 @@ export function buildLadderEnemyFighter(stageIndex, playerRef) {
     isLadderEnemy: true,
     aiPowerRatio: ratio,
     displayName,
-    rarity: tpl?.rarity ?? 'rare',
+    rarity: encounterRarity,
+    baseRarity: tpl?.rarity ?? 'rare',
     role: tpl?.role ?? 'balanced',
     level: bossLevel,
     element: tpl?.element ?? 'earth',

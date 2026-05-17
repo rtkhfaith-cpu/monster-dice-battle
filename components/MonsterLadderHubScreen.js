@@ -11,11 +11,14 @@ import {
   getCurrentStage,
   getStageKind,
   nextRewardHints,
+  stageTypeBanner,
+  stageTypeLabel,
 } from '../utils/monsterLadder';
 import { getLadderRewardDayKey } from '../utils/monsterLadder/ladderDailyReset';
 
 function StageNode({ sub, current, cleared, kind }) {
   const isBoss = kind === 'miniBoss' || kind === 'bigBoss';
+  const label = stageTypeLabel(kind);
   return (
     <View
       style={[
@@ -25,9 +28,10 @@ function StageNode({ sub, current, cleared, kind }) {
         isBoss && styles.nodeBoss,
       ]}
     >
-      <Text style={styles.nodeTxt}>{sub}</Text>
-      {kind === 'miniBoss' ? <Text style={styles.nodeIcon}>🎁</Text> : null}
-      {kind === 'bigBoss' ? <Text style={styles.nodeIcon}>🥚</Text> : null}
+      <Text style={[styles.nodeTxt, isBoss && styles.nodeTxtBoss]}>{sub}</Text>
+      {kind === 'miniBoss' ? <Text style={styles.nodeIcon}>♛</Text> : null}
+      {kind === 'bigBoss' ? <Text style={styles.nodeIcon}>👑</Text> : null}
+      {isBoss ? <Text style={styles.nodeLabel}>{label}</Text> : null}
     </View>
   );
 }
@@ -45,6 +49,18 @@ export default function MonsterLadderHubScreen({
   const stage = useMemo(() => getCurrentStage(ml), [ml]);
   const theme = useMemo(() => getLadderTheme(stage.mainLevel), [stage.mainLevel]);
   const hints = useMemo(() => nextRewardHints(ml), [ml]);
+  const currentKind = getStageKind(stage.subLevel);
+  const bossBanner = stageTypeBanner(currentKind);
+  const mapHint =
+    currentKind === 'miniBoss'
+      ? 'Mini Boss now: win for Gear Chest if today is unclaimed'
+      : currentKind === 'bigBoss'
+        ? 'Boss now: win for Monster Chest if today is unclaimed'
+        : hints.subsToMini > 0
+          ? `Gear chest in ${hints.subsToMini} fight${hints.subsToMini > 1 ? 's' : ''} (sub 5)`
+          : hints.subsToBig > 0
+            ? `Monster chest in ${hints.subsToBig} fight${hints.subsToBig > 1 ? 's' : ''} (sub 10)`
+            : 'Boss rewards on this row complete';
 
   const featuredTpl = getLadderMonsterTemplate(theme.featuredMonsterId);
 
@@ -68,9 +84,10 @@ export default function MonsterLadderHubScreen({
             Handler <Text style={styles.strong}>{profileName || '—'}</Text>
           </Text>
           <Text style={styles.stageBig}>
-            Stage {formatStageLabel(stage.mainLevel, stage.subLevel)}
+            Level {formatStageLabel(stage.mainLevel, stage.subLevel)}
             <Text style={styles.stageIdx}> · {stage.stageIndex}/250</Text>
           </Text>
+          {bossBanner ? <Text style={styles.bossBanner}>{bossBanner}</Text> : null}
           <Text style={styles.themeName}>{theme.name}</Text>
           <Text style={styles.themeTag}>{featuredTpl?.name ?? '—'} region</Text>
 
@@ -97,13 +114,7 @@ export default function MonsterLadderHubScreen({
               );
             })}
           </View>
-          <Text style={styles.mapHint}>
-            {hints.subsToMini > 0
-              ? `Gear chest in ${hints.subsToMini} fight${hints.subsToMini > 1 ? 's' : ''} (sub 5)`
-              : hints.subsToBig > 0
-                ? `Monster chest in ${hints.subsToBig} fight${hints.subsToBig > 1 ? 's' : ''} (sub 10)`
-                : 'Boss rewards on this row complete'}
-          </Text>
+          <Text style={styles.mapHint}>{mapHint}</Text>
         </View>
 
         <View style={styles.dailyPanel}>
@@ -178,7 +189,9 @@ export default function MonsterLadderHubScreen({
           disabled={!canFight}
           onPress={onStartBattle}
         >
-          <Text style={styles.startTxt}>Start Ladder Battle</Text>
+          <Text style={styles.startTxt}>
+            {bossBanner ? `Start ${stageTypeLabel(currentKind)} Battle` : 'Start Ladder Battle'}
+          </Text>
         </TouchableOpacity>
         {!canFight ? (
           <Text style={styles.footerHint}>Select one of your own monsters first.</Text>
@@ -215,6 +228,18 @@ const styles = StyleSheet.create({
   strong: { fontWeight: '900', color: '#6c5ce7' },
   stageBig: { fontWeight: '900', fontSize: 22, color: ART.textInk, marginTop: 4 },
   stageIdx: { fontWeight: '800', fontSize: 14, color: ART.textMuted },
+  bossBanner: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#2d1b69',
+    color: '#ffeaa7',
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
   themeName: { fontWeight: '900', fontSize: 16, color: '#4834d4' },
   themeTag: { fontWeight: '700', fontSize: 12, color: ART.textMuted },
   currencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
@@ -241,9 +266,11 @@ const styles = StyleSheet.create({
   },
   nodeCurrent: { backgroundColor: '#ffeaa7', borderColor: '#e17055', borderWidth: 2 },
   nodeCleared: { backgroundColor: '#d5f5e3', borderColor: '#27ae60' },
-  nodeBoss: { width: 34 },
+  nodeBoss: { width: 48, height: 48, backgroundColor: '#2d1b69', borderColor: '#fdcb6e', borderWidth: 2 },
   nodeTxt: { fontWeight: '900', fontSize: 11, color: '#2d3436' },
-  nodeIcon: { fontSize: 8 },
+  nodeTxtBoss: { color: '#ffeaa7' },
+  nodeIcon: { fontSize: 11, color: '#ffeaa7', lineHeight: 12 },
+  nodeLabel: { fontSize: 7, color: '#fff', fontWeight: '900', lineHeight: 9 },
   mapHint: { fontWeight: '700', fontSize: 12, color: '#636e72', textAlign: 'center' },
   dailyPanel: {
     padding: 12,
