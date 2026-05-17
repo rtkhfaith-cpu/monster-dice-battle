@@ -6,6 +6,22 @@ import { normalizePlayerKey } from '../../utils/playerKey';
 import { loadGameSave, saveGameSave } from './saveService';
 import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
 
+function formatFetchError(err) {
+  const msg = String(err?.message || err || 'Network error');
+  if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+    return (
+      'Could not reach the cloud save API. Check VITE_SAVE_API_URL in Amplify, redeploy the save Lambda, and CORS settings.'
+    );
+  }
+  return msg;
+}
+
+/** @param {object|null|undefined} data */
+function hasFullCloudPayload(data) {
+  if (!data || typeof data !== 'object') return false;
+  return Array.isArray(data.monsters) || Array.isArray(data.ownedMonsters);
+}
+
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 const REQUEST_MS = 12000;
 
@@ -146,16 +162,40 @@ export async function loadCloudProfile(profileID) {
     return { ok: true, data };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] GET error', err?.message || err);
-    return { ok: false, error: err?.message || 'Network error' };
+    return { ok: false, error: formatFetchError(err) };
   }
+}
+
+/**
+ * Load cloud profile without a key (server allows when save has no PIN).
+ * @param {string} profileID
+ */
+export async function recallCloudProfileOpen(profileID) {
+  const loaded = await loadCloudProfile(profileID);
+  if (!loaded.ok) return loaded;
+  if (!hasFullCloudPayload(loaded.data)) {
+    return {
+      ok: false,
+      error: 'This player is protected. Enter your 4-digit Player Key.',
+      needsKey: true,
+    };
+  }
+  return loaded;
 }
 
 /**
  * @returns {Promise<{ ok: boolean, players?: object[], skipped?: boolean, error?: string }>}
  */
 export async function listCloudPlayers() {
+  await loadSaveApiConfig();
   const base = await ensureBaseUrl();
-  if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
+  if (!base) {
+    return {
+      ok: false,
+      skipped: true,
+      error: 'Cloud save is not configured. Set VITE_SAVE_API_URL and redeploy.',
+    };
+  }
 
   try {
     const res = await apiRequest(base, '/players', { method: 'GET' });
@@ -177,11 +217,12 @@ export async function listCloudPlayers() {
         level: row.level ?? 1,
         coins: row.coins ?? 0,
         updatedAt: row.updatedAt ?? null,
+        requiresKey: row.requiresKey !== false,
       }));
     return { ok: true, players };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] GET /players error', err?.message || err);
-    return { ok: false, error: err?.message || 'Network error' };
+    return { ok: false, error: formatFetchError(err) };
   }
 }
 
@@ -220,7 +261,7 @@ export async function loginCloudProfile(profileID, playerKey) {
     return { ok: true, data };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] POST /login error', err?.message || err);
-    return { ok: false, error: err?.message || 'Network error' };
+    return { ok: false, error: formatFetchError(err) };
   }
 }
 
@@ -228,8 +269,12 @@ export async function loginCloudProfile(profileID, playerKey) {
  * Load a cloud player with key — tries POST /login, then GET /save/{id}?playerKey=.
  * @param {string} profileID
  * @param {string} playerKey
+ * @param {{ requiresKey?: boolean }} [opts]
  */
-export async function recallCloudProfile(profileID, playerKey) {
+export async function recallCloudProfile(profileID, playerKey, opts = {}) {
+  if (opts.requiresKey === false) {
+    return recallCloudProfileOpen(profileID);
+  }
   const login = await loginCloudProfile(profileID, playerKey);
   if (login.ok) return login;
 
@@ -247,17 +292,20 @@ export async function recallCloudProfile(profileID, playerKey) {
 /**
  * @param {string} profileID
  * @param {string} playerKey
+ * @param {{ requiresKey?: boolean }} [opts]
  */
-export async function deleteCloudProfile(profileID, playerKey) {
+export async function deleteCloudProfile(profileID, playerKey, opts = {}) {
   const base = await ensureBaseUrl();
   if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
   const id = encodeURIComponent(String(profileID));
+  const keyBody =
+    opts.requiresKey === false ? { playerKey: '' } : { playerKey: normalizePlayerKey(playerKey) };
 
   try {
     const res = await apiRequest(base, `/save/${id}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerKey: normalizePlayerKey(playerKey) }),
+      body: JSON.stringify(keyBody),
     });
     if (res.status === 401) {
       return { ok: false, status: 401, error: 'Incorrect key' };
@@ -272,7 +320,7 @@ export async function deleteCloudProfile(profileID, playerKey) {
     return { ok: true };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] DELETE error', err?.message || err);
-    return { ok: false, error: err?.message || 'Network error' };
+    return { ok: false, error: formatFetchError(err) };
   }
 }
 

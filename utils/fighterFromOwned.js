@@ -72,17 +72,28 @@ function scaleStatsBundle(stats, ratio) {
   };
 }
 
-/** Pick a random monster from the full catalog (optionally excluding the player's template). */
-function pickRandomCpuTemplate(excludeTemplateId = null) {
-  const pool = MONSTER_CATALOG.filter((m) => m?.id && m.id !== excludeTemplateId);
+/** Pick a random monster from the same rarity tier (e.g. common vs common). */
+function pickRandomCpuTemplate(humanRarity, excludeTemplateId = null) {
+  const tier = humanRarity || 'common';
+  let pool = MONSTER_CATALOG.filter(
+    (m) => m?.id && m.rarity === tier && m.id !== excludeTemplateId,
+  );
+  if (pool.length === 0) {
+    pool = MONSTER_CATALOG.filter((m) => m?.id && m.rarity === tier);
+  }
+  if (pool.length === 0) {
+    pool = MONSTER_CATALOG.filter((m) => m?.id && m.id !== excludeTemplateId);
+  }
   const list = pool.length > 0 ? pool : MONSTER_CATALOG;
   return list[Math.floor(Math.random() * list.length)];
 }
 
-/** CPU opponent — random catalog monster, ~10% weaker than the human (for 1P). */
+/** CPU opponent — random same-rarity monster, ~10% weaker than the human (for 1P). */
 export function buildAiFighter(humanFighter, _gameData = null, _profileId = null) {
   const excludeId = humanFighter?.monsterTemplateId || null;
-  const picked = pickRandomCpuTemplate(excludeId);
+  const humanTpl = getMonsterTemplate(humanFighter?.monsterTemplateId);
+  const humanRarity = humanFighter?.rarity ?? humanTpl?.rarity ?? 'common';
+  const picked = pickRandomCpuTemplate(humanRarity, excludeId);
   const tplId = picked?.id || 'cockroachsaurus';
   const tpl = getMonsterTemplate(tplId);
   const playerLevel = humanFighter?.level ?? 1;

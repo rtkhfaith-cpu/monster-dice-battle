@@ -379,7 +379,9 @@ export function ensureProfilesFromGuest(gameData) {
 export function createPlayerProfile(gameData, name, playerKeyHash = '') {
   const gd = cloneGameData(gameData);
   if (gd.players.length >= MAX_PLAYER_PROFILES) {
-    return { gameData: gd, error: 'Only one player at a time. Delete or switch players first.' };
+    gd.players = [];
+    gd.session = gd.session || {};
+    gd.session.activeProfileId = null;
   }
   const id = uid('pl');
   const now = new Date().toISOString();

@@ -407,18 +407,25 @@ export default function App() {
 
   function handleRequestSelectCloudProfile(cloudItem) {
     if (!cloudItem?.profileID) return;
+    const requiresKey = cloudItem.requiresKey !== false;
+    if (!requiresKey) {
+      void finalizeCloudLogin(cloudItem.profileID, '', { requiresKey: false });
+      return;
+    }
     setKeyModalError('');
     setKeyModal({
       mode: 'login',
       profileId: cloudItem.profileID,
       playerName: cloudItem.playerName || 'Player',
       fromCloud: true,
+      requiresKey: true,
     });
   }
 
   async function handleFetchCloudPlayers() {
     setCloudFetchLoading(true);
     setCloudFetchError(null);
+    await loadSaveApiConfig();
     const res = await listCloudPlayers();
     setCloudFetchLoading(false);
     if (!res.ok) {
@@ -482,34 +489,53 @@ export default function App() {
     }
 
     if (mode === 'delete') {
+      const requiresKey = keyModal.requiresKey !== false;
+      if (!requiresKey) {
+        void finalizeProfileDelete(profileId, '', { requiresKey: false });
+        return;
+      }
       if (!key || key.length !== 4) {
         setKeyModalError('Enter your 4-digit Player Key.');
         return;
       }
-      void finalizeProfileDelete(profileId, key);
+      void finalizeProfileDelete(profileId, key, { requiresKey: true });
     }
   }
 
-  async function finalizeCloudLogin(profileId, playerKey) {
+  async function finalizeCloudLogin(profileId, playerKey, { requiresKey = true } = {}) {
     if (keyModalBusy) return;
     setKeyModalBusy(true);
     setKeyModalError('');
 
     try {
-      const login = await recallCloudProfile(profileId, playerKey);
+      const login = await recallCloudProfile(profileId, playerKey, { requiresKey });
       if (!login.ok) {
-        if (login.skipped) {
-          setKeyModalError('Cloud save is not configured on this build.');
-        } else if (login.status === 401) {
-          setKeyModalError('Incorrect key. Please try again.');
-        } else {
-          setKeyModalError(login.error || 'Could not load player from cloud.');
+        const msg =
+          login.skipped
+            ? 'Cloud save is not configured on this build.'
+            : login.status === 401
+              ? 'Incorrect key. Please try again.'
+              : login.error || 'Could not load player from cloud.';
+
+        if (!requiresKey && !login.needsKey && login.status !== 401) {
+          Alert.alert('Load player', msg);
+          return;
         }
+
+        setKeyModal({
+          mode: 'login',
+          profileId,
+          playerName: keyModal?.playerName || 'Player',
+          fromCloud: true,
+          requiresKey: true,
+        });
+        setKeyModalError(msg);
         return;
       }
 
       const baseGd = gameData || (await loadGameSave());
-      const keyHash = hashPlayerKey(playerKey);
+      const keyHash =
+        requiresKey && playerKey && playerKey.length === 4 ? hashPlayerKey(playerKey) : '';
       const resolvedId = String(login.data?.profileID || login.data?.id || profileId).trim();
       let next = applyCloudProfile(baseGd, login.data);
       const applied = next.players?.find((p) => p.id === resolvedId || p.id === profileId);
@@ -518,7 +544,7 @@ export default function App() {
         return;
       }
       const activeId = applied.id;
-      next = setPlayerKeyForProfile(next, activeId, keyHash);
+      if (keyHash) next = setPlayerKeyForProfile(next, activeId, keyHash);
       next = enforceSingleActiveProfile(next, activeId);
 
       setGameData(next);
@@ -540,7 +566,7 @@ export default function App() {
     }
   }
 
-  async function finalizeProfileDelete(profileId, playerKey) {
+  async function finalizeProfileDelete(profileId, playerKey, { requiresKey = true } = {}) {
     if (deleteBusyProfileId) return;
     setKeyModalBusy(true);
     setDeleteBusyProfileId(profileId);
@@ -548,7 +574,7 @@ export default function App() {
 
     try {
       const gd = gameData || (await loadGameSave());
-      const res = await commitProfileDeleted(profileId, playerKey, gd);
+      const res = await commitProfileDeleted(profileId, playerKey, gd, { requiresKey });
       if (!res.ok) {
         setKeyModalError(res.error || 'Incorrect key. Player was not deleted.');
         return;
@@ -581,7 +607,7 @@ export default function App() {
     if (deleteBusyProfileId) return;
     const profile = gameData ? getPlayerProfile(gameData, profileId) : null;
     const name = profile?.name ?? meta.playerName ?? 'Player';
-    setPendingDelete({ profileId, playerName: name });
+    setPendingDelete({ profileId, playerName: name, requiresKey: true, isCloud: false });
   }
 
   function handleRequestDeleteCloudProfile(cloudItem) {
@@ -589,6 +615,8 @@ export default function App() {
     setPendingDelete({
       profileId: cloudItem.profileID,
       playerName: cloudItem.playerName || 'Player',
+      requiresKey: cloudItem.requiresKey !== false,
+      isCloud: true,
     });
   }
 
@@ -607,10 +635,6 @@ export default function App() {
 
     const playerKeyHash = hashPlayerKey(playerKey);
     const res = createPlayerProfile(gameData, trimmed, playerKeyHash);
-    if (res.error) {
-      Alert.alert('Player profiles', res.error);
-      return;
-    }
     const newId = res.playerId;
     markProfileUnlocked(newId);
     const next = enforceSingleActiveProfile(res.gameData, newId);
@@ -928,8 +952,17 @@ export default function App() {
           const pd = pendingDelete;
           setPendingDelete(null);
           if (!pd) return;
+          if (pd.requiresKey === false) {
+            void finalizeProfileDelete(pd.profileId, '', { requiresKey: false });
+            return;
+          }
           setKeyModalError('');
-          setKeyModal({ mode: 'delete', profileId: pd.profileId, playerName: pd.playerName });
+          setKeyModal({
+            mode: 'delete',
+            profileId: pd.profileId,
+            playerName: pd.playerName,
+            requiresKey: true,
+          });
         }}
       />
       {phase !== 'menu' && phase !== 'battle' && phase !== 'online' ? (

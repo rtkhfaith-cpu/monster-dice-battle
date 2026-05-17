@@ -128,6 +128,7 @@ function toPublicListItem(item) {
     level: pickLevel(item),
     coins: typeof item.coins === 'number' ? item.coins : 0,
     updatedAt: item.updatedAt || item.createdAt || null,
+    requiresKey: hasStoredKey(item),
   };
 }
 
@@ -205,10 +206,15 @@ async function handleLogin(event) {
   const profileID = String(body.profileID || '').trim();
   const playerKey = normalizePlayerKey(body.playerKey);
   if (!profileID) return respond(event, 400, { error: 'Missing profileID' });
-  if (playerKey.length !== 4) return respond(event, 400, { error: 'Invalid player key' });
 
   const item = await getProfile(profileID);
   if (!item) return respond(event, 404, { error: 'Profile not found' });
+
+  if (!hasStoredKey(item)) {
+    return respond(event, 200, { profile: stripSecrets(item) });
+  }
+
+  if (playerKey.length !== 4) return respond(event, 400, { error: 'Invalid player key' });
 
   const auth = await verifyKeyOrRepair(profileID, playerKey, item);
   if (!auth.ok) {
@@ -229,6 +235,10 @@ async function handleGetSave(event, profileID) {
       return respond(event, 401, { error: 'Incorrect key' });
     }
     return respond(event, 200, { profile: stripSecrets(auth.item) });
+  }
+
+  if (!hasStoredKey(item)) {
+    return respond(event, 200, { profile: stripSecrets(item) });
   }
 
   const publicItem = toPublicListItem(item);
@@ -266,10 +276,21 @@ async function handlePostSave(event) {
 async function handleDeleteSave(event, profileID) {
   const body = parseBody(event);
   const playerKey = normalizePlayerKey(body.playerKey);
-  if (playerKey.length !== 4) return respond(event, 400, { error: 'Invalid player key' });
 
   const item = await getProfile(profileID);
   if (!item) return respond(event, 404, { error: 'Not found' });
+
+  if (!hasStoredKey(item)) {
+    await client.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: { profileID: String(profileID) },
+      }),
+    );
+    return respond(event, 200, { ok: true, profileID });
+  }
+
+  if (playerKey.length !== 4) return respond(event, 400, { error: 'Invalid player key' });
 
   if (!verifyPlayerKey(playerKey, item)) {
     return respond(event, 401, { error: 'Incorrect key' });

@@ -120,7 +120,7 @@ export default function SaveSlotPanel({
   const pickProfile = onRequestSelectProfile ?? onSelectProfile;
 
   const atMax = profiles.length >= MAX_PLAYER_PROFILES;
-  const canCreate = !atMax;
+  const canCreate = true;
 
   const editProfileId =
     activeProfileId ??
@@ -358,11 +358,13 @@ export default function SaveSlotPanel({
             </TouchableOpacity>
           </View>
         </View>
-      ) : canCreate ? (
+      ) : (
         <TouchableOpacity style={styles.createPrimaryBtn} onPress={handleStartCreate} activeOpacity={0.85}>
-          <Text style={styles.createPrimaryTxt}>+ Create New Player</Text>
+          <Text style={styles.createPrimaryTxt}>
+            {atMax ? '+ Create New Player (replaces current)' : '+ Create New Player'}
+          </Text>
         </TouchableOpacity>
-      ) : null}
+      )}
 
       <View style={[styles.sectionHead, styles.sectionHeadSpaced]}>
         <Text style={styles.sectionTitle}>Cloud saves</Text>
@@ -419,6 +421,7 @@ export default function SaveSlotPanel({
                     <Text style={styles.dropdownItemSub} numberOfLines={1}>
                       Lv {cp.level ?? 1} · 🪙 {cp.coins ?? 0} ·{' '}
                       {cloudTpl?.name ?? 'Cloud save'}
+                      {cp.requiresKey === false ? ' · no PIN' : ''}
                     </Text>
                     <Text style={styles.savedAt}>Saved {formatSavedAt(cp.updatedAt)}</Text>
                   </Pressable>
@@ -491,7 +494,11 @@ export default function SaveSlotPanel({
         </View>
       ) : null}
 
-      {atMax ? <Text style={styles.maxMsg}>Only one player at a time. Delete to create another.</Text> : null}
+      {atMax ? (
+        <Text style={styles.maxMsg}>
+          One active player on this device. Pick a cloud save below to switch — no delete needed.
+        </Text>
+      ) : null}
     </View>
   );
 }

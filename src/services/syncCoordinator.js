@@ -92,8 +92,9 @@ export function scheduleCommitSave(reason, gameData, profileIDs) {
  * @param {string} playerKey
  * @param {object} gameData
  */
-export async function commitProfileDeleted(profileID, playerKey, gameData) {
-  const del = await deleteCloudProfile(profileID, playerKey);
+export async function commitProfileDeleted(profileID, playerKey, gameData, opts = {}) {
+  const requiresKey = opts.requiresKey !== false;
+  const del = await deleteCloudProfile(profileID, playerKey, { requiresKey });
   if (!del.ok && !del.skipped) {
     if (del.status === 401) {
       return { ok: false, error: 'Incorrect key. Player was not deleted.' };
@@ -101,7 +102,7 @@ export async function commitProfileDeleted(profileID, playerKey, gameData) {
     return { ok: false, error: del.error || 'Cloud delete failed' };
   }
 
-  if (del.skipped) {
+  if (del.skipped && requiresKey) {
     const { getPlayerProfile } = await import('../../utils/gameStorage');
     const { verifyPlayerKeyForProfile } = await import('../../utils/playerKey');
     const profile = getPlayerProfile(gameData, profileID);
