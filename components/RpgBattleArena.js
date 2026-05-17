@@ -89,6 +89,7 @@ export default function RpgBattleArena({
   activeTurn,
   round,
   turnBadge = '',
+  turnBadgeCombatHighlight = false,
   player1Label = 'You',
   player2Label = 'Foe',
   topHudExtra = null,
@@ -202,6 +203,7 @@ export default function RpgBattleArena({
 
   const roundLabel = narrow ? `R${round}` : `Round ${round}`;
   const turnShort = turnBadge || '';
+  const combatCallout = !!turnBadgeCombatHighlight;
 
   return (
     <Animated.View
@@ -253,8 +255,11 @@ export default function RpgBattleArena({
       {/* z-index 10: top HUD */}
       <View style={styles.muteSlot}>{topHudExtra}</View>
       {turnShort ? (
-        <View style={styles.turnBadge} pointerEvents="none">
-          <Text style={styles.turnBadgeTxt} numberOfLines={3}>
+        <View style={[styles.turnBadge, combatCallout && styles.turnBadgeCombat]} pointerEvents="none">
+          <Text
+            style={[styles.turnBadgeTxt, combatCallout && styles.turnBadgeTxtCombat]}
+            numberOfLines={3}
+          >
             {turnShort}
           </Text>
         </View>
@@ -776,6 +781,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 10,
   },
+  turnBadgeCombat: {
+    top: '22%',
+    zIndex: 22,
+  },
   turnBadgeTxt: {
     fontWeight: '900',
     fontSize: 17,
@@ -786,6 +795,15 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 8,
     width: '100%',
+  },
+  turnBadgeTxtCombat: {
+    fontSize: 36,
+    lineHeight: 42,
+    color: '#FFD700',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(120, 80, 0, 0.95)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
   },
   roundBadge: {
     position: 'absolute',

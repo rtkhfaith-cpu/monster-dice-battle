@@ -40,6 +40,10 @@ import {
 import { playUiSfx } from '../utils/sounds';
 import { ART } from '../utils/artDirection';
 import { BATTLE } from '../utils/gameTheme';
+import {
+  COMBAT_FEEDBACK_MS,
+  isCombatFeedbackMessage,
+} from '../utils/battleCombatFeedback';
 
 const ATTACK_WINDUP_MS = ART.windup;
 const PLAYER_ID = 1;
@@ -136,6 +140,7 @@ export default function BattleScreen({
   const [p1, setP1] = useState(() => seedFighter(fighter1));
   const [p2, setP2] = useState(() => seedFighter(fighter2));
   const [bannerMessage, setBannerMessage] = useState('Choose your move');
+  const [bannerCombatHighlight, setBannerCombatHighlight] = useState(false);
   const [busy, setBusy] = useState(false);
   const [currentEffect, setCurrentEffect] = useState(null);
   const [activeAttackEffect, setActiveAttackEffect] = useState(null);
@@ -159,6 +164,7 @@ export default function BattleScreen({
   const shakeX = useRef(new Animated.Value(0)).current;
   const hitStopScale = useRef(new Animated.Value(1)).current;
   const pendingStrikeRef = useRef(null);
+  const combatBannerTimerRef = useRef(null);
   const p1Ref = useRef(p1);
   const p2Ref = useRef(p2);
   const activeBattlerRef = useRef(PLAYER_ID);
@@ -191,7 +197,20 @@ export default function BattleScreen({
   }, [battlePhase]);
 
   const showBanner = useCallback((msg) => {
-    if (msg) setBannerMessage(msg);
+    if (!msg) return;
+    if (combatBannerTimerRef.current) {
+      clearTimeout(combatBannerTimerRef.current);
+      combatBannerTimerRef.current = null;
+    }
+    const combat = isCombatFeedbackMessage(msg);
+    setBannerMessage(msg);
+    setBannerCombatHighlight(combat);
+    if (combat) {
+      combatBannerTimerRef.current = setTimeout(() => {
+        setBannerCombatHighlight(false);
+        combatBannerTimerRef.current = null;
+      }, COMBAT_FEEDBACK_MS);
+    }
   }, []);
 
   function clearTimers() {
@@ -210,7 +229,10 @@ export default function BattleScreen({
     return t;
   }
 
-  useEffect(() => () => clearTimers(), []);
+  useEffect(() => () => {
+    clearTimers();
+    if (combatBannerTimerRef.current) clearTimeout(combatBannerTimerRef.current);
+  }, []);
 
   function clearAttackEffects() {
     setActiveAttackEffect(null);
@@ -658,6 +680,7 @@ export default function BattleScreen({
             activeTurn={busy ? CPU_ID : activeBattler}
             round={round}
             turnBadge={bannerMessage}
+            turnBadgeCombatHighlight={bannerCombatHighlight}
             player1Label={labelP1}
             player2Label={labelCpu}
             battleDim={battleDim}

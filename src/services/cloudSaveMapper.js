@@ -104,8 +104,8 @@ export function applyCloudProfile(gameData, cloud) {
     if (String(cloudKey).startsWith('pk_')) {
       p.playerKeyHash = cloudKey;
       delete p.pin;
-    } else {
-      p.pin = cloudKey;
+    } else if (/^\d{4}$/.test(String(cloudKey).replace(/\D/g, '').slice(0, 4))) {
+      p.pin = String(cloudKey).replace(/\D/g, '').slice(0, 4).padStart(4, '0');
     }
   }
   if (normalized.createdAt) p.createdAt = normalized.createdAt;

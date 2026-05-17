@@ -84,15 +84,29 @@ export function profileNeedsPlayerKeyMigration(profile) {
  * @param {object} profile
  * @param {string} inputKey
  */
+function storedHashOnProfile(profile) {
+  if (!profile) return '';
+  const a = profile.playerKeyHash || profile.pinHash || '';
+  if (a && String(a).startsWith('pk_') && String(a).length >= 10) return a;
+  if (profile.pin && String(profile.pin).startsWith('pk_') && String(profile.pin).length >= 10) {
+    return profile.pin;
+  }
+  return a;
+}
+
 export function verifyPlayerKeyForProfile(profile, inputKey) {
   if (!profile) return false;
-  if (profileHasPlayerKey(profile)) {
-    return verifyPlayerKey(inputKey, profile.playerKeyHash);
+  const hash = storedHashOnProfile(profile);
+  if (hash && String(hash).startsWith('pk_')) {
+    return verifyPlayerKey(inputKey, hash);
   }
   const digits = normalizePlayerKey(inputKey);
   const legacy = String(profile.pin || '')
     .replace(/\D/g, '')
     .padStart(4, '0')
     .slice(0, 4);
+  if (legacy.length !== 4 || String(profile.pin || '').startsWith('pk_')) {
+    return false;
+  }
   return digits.length === 4 && digits === legacy;
 }

@@ -23,15 +23,22 @@ function hashLooksValid(saved) {
   return s.startsWith('pk_') && s.length >= 10;
 }
 
-/** Profile row has any key material stored (hash or legacy pin). */
+function storedHash(item) {
+  if (!item || typeof item !== 'object') return '';
+  const a = item.playerKeyHash || item.pinHash || '';
+  if (hashLooksValid(a)) return a;
+  if (hashLooksValid(item.pin)) return item.pin;
+  return a || '';
+}
+
+/** Profile row has a stored key (hash or legacy 4-digit pin). */
 function hasStoredKey(item) {
   if (!item || typeof item !== 'object') return false;
-  const saved = item.pinHash || item.playerKeyHash;
-  if (saved && String(saved).trim()) return true;
+  if (hashLooksValid(storedHash(item))) return true;
   const legacy = String(item.pin || '')
     .replace(/\D/g, '')
     .slice(0, 4);
-  return legacy.length === 4;
+  return legacy.length === 4 && !String(item.pin || '').startsWith('pk_');
 }
 
 function profileHasSaveData(item) {
@@ -47,43 +54,38 @@ function profileHasSaveData(item) {
   return false;
 }
 
-/** Cloud row must not be loaded/deleted without the correct key. */
+/** Any DynamoDB player row requires the correct key — no anonymous access. */
 function profileIsProtected(item) {
-  return hasStoredKey(item) || profileHasSaveData(item);
+  if (!item || typeof item !== 'object') return false;
+  const id = String(item.profileID || item.id || '').trim();
+  return !!id;
 }
 
 function verifyPlayerKey(inputKey, item) {
   if (!item || typeof item !== 'object') return false;
-  const saved = item.pinHash || item.playerKeyHash;
-  if (hashLooksValid(saved)) {
-    return hashPlayerKey(inputKey) === saved;
+
+  const hash = storedHash(item);
+  if (hashLooksValid(hash)) {
+    return hashPlayerKey(inputKey) === hash;
   }
+
   const legacy = String(item.pin || '')
     .replace(/\D/g, '')
     .padStart(4, '0')
     .slice(0, 4);
+  if (legacy.length !== 4 || String(item.pin || '').startsWith('pk_')) {
+    return false;
+  }
   return normalizePlayerKey(inputKey) === legacy;
-}
-
-/** First-time lock only — never call after a failed verify. */
-function applyKeyToItem(item, inputKey) {
-  const hash = hashPlayerKey(inputKey);
-  if (!hash) return item;
-  return {
-    ...item,
-    playerKeyHash: hash,
-    pinHash: hash,
-    pin: undefined,
-  };
 }
 
 module.exports = {
   normalizePlayerKey,
   hashPlayerKey,
   hashLooksValid,
+  storedHash,
   verifyPlayerKey,
   hasStoredKey,
   profileHasSaveData,
   profileIsProtected,
-  applyKeyToItem,
 };

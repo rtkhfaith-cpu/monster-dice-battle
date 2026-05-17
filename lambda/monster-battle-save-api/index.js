@@ -16,12 +16,12 @@ const {
   hasStoredKey,
   hashLooksValid,
   hashPlayerKey,
-  applyKeyToItem,
   profileIsProtected,
 } = require('./playerKeyHash');
 
 const TABLE_NAME = process.env.TABLE_NAME || 'MonsterBattleSaves';
 const MAX_LIST = 50;
+const API_SECURITY_VERSION = 'pin-auth-v2';
 
 const ALLOWED_ORIGINS = new Set([
   'https://monster-dice-battle.rtkhfaith.com',
@@ -56,6 +56,8 @@ function corsHeaders(event) {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Expose-Headers': 'X-Save-Api-Version',
+    'X-Save-Api-Version': API_SECURITY_VERSION,
     'Content-Type': 'application/json',
   };
 }
@@ -193,30 +195,17 @@ function stripSecrets(item) {
   return profileID ? { ...safe, profileID } : safe;
 }
 
-/**
- * Authorize read/login. Unprotected rows can be claimed once with a new 4-digit key.
- * Protected rows require an exact key match — never overwrite hash on failure.
- */
-async function authorizeProfileAccess(profileID, playerKey, item) {
+/** Authorize read/login — exact key match only; never accept or overwrite keys on failure. */
+function authorizeProfileAccess(profileID, playerKey, item) {
   const key = normalizePlayerKey(playerKey);
   if (key.length !== 4) return { ok: false, error: 'Invalid player key' };
-
-  if (verifyPlayerKey(key, item)) {
-    return { ok: true, item };
+  if (!profileIsProtected(item)) {
+    return { ok: false, error: 'Profile not found' };
   }
-
-  if (profileIsProtected(item)) {
+  if (!verifyPlayerKey(key, item)) {
     return { ok: false, error: 'Incorrect key' };
   }
-
-  const updated = applyKeyToItem({ ...item, profileID: String(profileID) }, key);
-  await client.send(
-    new PutCommand({
-      TableName: TABLE_NAME,
-      Item: updated,
-    }),
-  );
-  return { ok: true, item: updated, claimed: true };
+  return { ok: true, item };
 }
 
 /** GET /players — scan DynamoDB and return public profile summaries. */
@@ -244,20 +233,9 @@ async function handleLogin(event) {
   const item = await getProfile(profileID);
   if (!item) return respond(event, 404, { error: 'Profile not found' });
 
-  if (!profileIsProtected(item)) {
-    if (playerKey.length !== 4) {
-      return respond(event, 400, { error: 'Enter your 4-digit Player Key to claim this profile' });
-    }
-    const auth = await authorizeProfileAccess(profileID, playerKey, item);
-    if (!auth.ok) {
-      return respond(event, 401, { error: auth.error || 'Incorrect key' });
-    }
-    return respond(event, 200, { profile: stripSecrets(auth.item) });
-  }
-
   if (playerKey.length !== 4) return respond(event, 400, { error: 'Invalid player key' });
 
-  const auth = await authorizeProfileAccess(profileID, playerKey, item);
+  const auth = authorizeProfileAccess(profileID, playerKey, item);
   if (!auth.ok) {
     return respond(event, 401, { error: auth.error || 'Incorrect key' });
   }
@@ -271,23 +249,11 @@ async function handleGetSave(event, profileID) {
 
   const qk = getQueryPlayerKey(event);
 
-  if (!profileIsProtected(item)) {
-    if (qk.length !== 4) {
-      const publicItem = toPublicListItem(item);
-      return respond(event, 200, publicItem || { profileID, requiresKey: false });
-    }
-    const auth = await authorizeProfileAccess(profileID, qk, item);
-    if (!auth.ok) {
-      return respond(event, 401, { error: auth.error || 'Incorrect key' });
-    }
-    return respond(event, 200, { profile: stripSecrets(auth.item) });
-  }
-
   if (qk.length !== 4) {
     return respond(event, 401, { error: 'Player key required' });
   }
 
-  const auth = await authorizeProfileAccess(profileID, qk, item);
+  const auth = authorizeProfileAccess(profileID, qk, item);
   if (!auth.ok) {
     return respond(event, 401, { error: auth.error || 'Incorrect key' });
   }
@@ -309,12 +275,16 @@ async function handlePostSave(event) {
         return respond(event, 401, { error: 'Incorrect key' });
       }
     } else if (incomingHash && hashLooksValid(incomingHash)) {
-      const saved = existing.pinHash || existing.playerKeyHash;
+      const saved = existing.playerKeyHash || existing.pinHash || '';
       if (incomingHash !== saved) {
         return respond(event, 401, { error: 'Player key required to update save' });
       }
     } else {
       return respond(event, 401, { error: 'Player key required to update save' });
+    }
+  } else if (!existing) {
+    if (verifyKey.length !== 4 && !hashLooksValid(incomingHash)) {
+      return respond(event, 400, { error: 'Player key required for new save' });
     }
   }
 
@@ -360,29 +330,20 @@ async function handleDeleteSave(event, profileID) {
   const item = await getProfile(profileID);
   if (!item) return respond(event, 404, { error: 'Not found' });
 
-  if (!profileIsProtected(item)) {
-    await client.send(
-      new DeleteCommand({
-        TableName: TABLE_NAME,
-        Key: { profileID: String(profileID) },
-      }),
-    );
-    return respond(event, 200, { ok: true, profileID });
-  }
-
   if (playerKey.length !== 4) return respond(event, 400, { error: 'Invalid player key' });
 
   if (!verifyPlayerKey(playerKey, item)) {
     return respond(event, 401, { error: 'Incorrect key' });
   }
 
+  const pk = String(item.profileID || profileID).trim();
   await client.send(
     new DeleteCommand({
       TableName: TABLE_NAME,
-      Key: { profileID: String(profileID) },
+      Key: { profileID: pk },
     }),
   );
-  return respond(event, 200, { ok: true, profileID });
+  return respond(event, 200, { ok: true, profileID: pk });
 }
 
 exports.handler = async (event) => {

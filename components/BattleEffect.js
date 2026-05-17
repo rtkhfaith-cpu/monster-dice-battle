@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import MoveEffect from './MoveEffect';
 import { ATTACK_EFFECT_SCALE, fx } from '../utils/battleEffectScale';
+import { COMBAT_FEEDBACK_COLOR } from '../utils/battleCombatFeedback';
 
 /**
  * @param {{
@@ -142,11 +143,11 @@ export default function BattleEffect({ currentEffect, instruction }) {
         </View>
       ) : null}
 
-      {!ce?.superBomb && ce?.defended ? (
-        <Text style={styles.shieldLbl}>🛡️ Shield shimmer!</Text>
+      {!ce?.superBomb && ce?.defended && !ce?.dodged ? (
+        <Text style={styles.combatLbl}>Blocked!</Text>
       ) : null}
 
-      {ce?.dodged ? <Text style={styles.dodgeLbl}>💨 DODGED!</Text> : null}
+      {ce?.dodged ? <Text style={styles.combatLbl}>Dodged!</Text> : null}
 
       {!ce?.useProjectileAnim && !ce?.superBomb && !ce?.dodged && typeof ce?.damage === 'number' ? (
         <Animated.Text
@@ -250,18 +251,15 @@ const styles = StyleSheet.create({
   fxScale: {
     transform: [{ scale: S }],
   },
-  shieldLbl: {
-    fontSize: fx(16),
-    fontWeight: '800',
-    color: '#1a6a8a',
-    marginTop: 2,
-  },
-  dodgeLbl: {
-    fontSize: fx(22),
+  combatLbl: {
+    fontSize: fx(38),
     fontWeight: '900',
-    color: '#576574',
-    letterSpacing: 0.6,
-    marginVertical: 2,
+    color: COMBAT_FEEDBACK_COLOR,
+    letterSpacing: 1,
+    marginVertical: 4,
+    textShadowColor: 'rgba(120, 80, 0, 0.9)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
   dmgLbl: {
     fontSize: fx(28),

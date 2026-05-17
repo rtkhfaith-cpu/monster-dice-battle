@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { fx } from '../utils/battleEffectScale';
 import { getProjectile } from '../utils/battleProjectiles';
+import { COMBAT_FEEDBACK_COLOR, COMBAT_FEEDBACK_MS } from '../utils/battleCombatFeedback';
 
 /**
  * Skill-matched battle VFX — projectiles, clouds, waves travel across arena (500–900ms).
@@ -78,14 +79,24 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
     cloudGrow.setValue(0);
 
     if (effect.dodged) {
-      Animated.parallel([
-        Animated.timing(progress, { toValue: 1, duration: 340, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-        Animated.timing(missFade, { toValue: 0, duration: 340, useNativeDriver: true }),
-      ]).start(({ finished }) => {
-        if (finished && runId.current === id) finish();
-      });
+      missFade.setValue(1);
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+      const holdT = setTimeout(() => {
+        if (runId.current !== id) return;
+        Animated.timing(missFade, { toValue: 0, duration: 200, useNativeDriver: true }).start(
+          ({ finished }) => {
+            if (finished && runId.current === id) finish();
+          },
+        );
+      }, COMBAT_FEEDBACK_MS);
       return () => {
         runId.current += 1;
+        clearTimeout(holdT);
       };
     }
 
@@ -117,6 +128,12 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
         Animated.timing(burst, { toValue: 1, duration: effect.critical ? 280 : 220, useNativeDriver: true }),
         Animated.timing(dmgUp, { toValue: 1, duration: 580, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]).start(() => {
+        if (effect.defended) {
+          setTimeout(() => {
+            if (runId.current === id) finish();
+          }, COMBAT_FEEDBACK_MS);
+          return;
+        }
         Animated.timing(splat, { toValue: 0, duration: 280, useNativeDriver: true }).start(() => {
           if (runId.current === id) finish();
         });
@@ -356,7 +373,10 @@ export default function BattleProjectileLayer({ effect, onImpact, onComplete, ac
       ) : null}
 
       {effect.dodged ? (
-        <Animated.Text style={[styles.dodgePop, { top: endY - 16, opacity: missFade }]}>Dodged!</Animated.Text>
+        <Animated.Text style={[styles.combatPop, { top: endY - 24, opacity: missFade }]}>Dodged!</Animated.Text>
+      ) : null}
+      {effect.defended && !effect.dodged ? (
+        <Animated.Text style={[styles.combatPop, { top: endY - 24, opacity: missFade }]}>Blocked!</Animated.Text>
       ) : null}
     </View>
   );
@@ -508,13 +528,18 @@ const styles = StyleSheet.create({
     fontSize: fx(18),
     color: '#7f8c8d',
   },
-  dodgePop: {
+  combatPop: {
     position: 'absolute',
     left: 0,
     right: 0,
     textAlign: 'center',
     fontWeight: '900',
-    fontSize: fx(20),
-    color: '#576574',
+    fontSize: fx(38),
+    color: COMBAT_FEEDBACK_COLOR,
+    letterSpacing: 1,
+    textShadowColor: 'rgba(120, 80, 0, 0.9)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+    zIndex: 24,
   },
 });

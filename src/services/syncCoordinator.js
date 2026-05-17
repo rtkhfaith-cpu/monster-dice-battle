@@ -93,29 +93,38 @@ export function scheduleCommitSave(reason, gameData, profileIDs) {
  * @param {object} gameData
  */
 export async function commitProfileDeleted(profileID, playerKey, gameData, opts = {}) {
-  const requiresKey = opts.requiresKey !== false;
-  const del = await deleteCloudProfile(profileID, playerKey, { requiresKey });
-  if (!del.ok && !del.skipped) {
-    if (del.status === 401) {
-      return { ok: false, error: 'Incorrect key. Player was not deleted.' };
-    }
-    return { ok: false, error: del.error || 'Cloud delete failed' };
-  }
+  const { getPlayerProfile } = await import('../../utils/gameStorage');
+  const { verifyPlayerKeyForProfile } = await import('../../utils/playerKey');
+  const { getSaveApiBaseUrl, loadSaveApiConfig } = await import('../../utils/saveApiConfig');
 
-  if (del.skipped && requiresKey) {
-    const { getPlayerProfile } = await import('../../utils/gameStorage');
-    const { verifyPlayerKeyForProfile } = await import('../../utils/playerKey');
-    const profile = getPlayerProfile(gameData, profileID);
-    if (!verifyPlayerKeyForProfile(profile, playerKey)) {
+  await loadSaveApiConfig();
+  const cloudApi = getSaveApiBaseUrl();
+  const localProfile = getPlayerProfile(gameData, profileID);
+
+  if (cloudApi) {
+    const del = await deleteCloudProfile(profileID, playerKey, { requiresKey: true });
+    if (!del.ok) {
+      return {
+        ok: false,
+        error: del.error || 'Incorrect key. Player was not deleted.',
+      };
+    }
+  } else if (localProfile) {
+    if (!verifyPlayerKeyForProfile(localProfile, playerKey)) {
       return { ok: false, error: 'Incorrect key. Player was not deleted.' };
     }
+  } else {
+    return {
+      ok: false,
+      error: 'Cloud save is not configured. Cannot delete this player without the save API.',
+    };
   }
 
   const { deletePlayer } = await import('../../utils/gameStorage');
   const next = deletePlayer(gameData, profileID);
   await commitSave({ reason: 'player_deleted', gameData: next, profileIDs: [], skipCloud: true });
   emitSaveStatus('player_deleted');
-  if (del.ok && !del.skipped) emitSaveStatus('cloud_synced');
+  if (cloudApi) emitSaveStatus('cloud_synced');
   return { ok: true, gameData: next };
 }
 

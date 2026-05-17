@@ -23,6 +23,7 @@ import {
 } from '../utils/battleAudio';
 import { playUiSfx } from '../utils/sounds';
 import { BATTLE } from '../utils/gameTheme';
+import { isCombatFeedbackMessage } from '../utils/battleCombatFeedback';
 import {
   devOnlineBattleLog,
   normalizeOnlineBattleSnapshot,
@@ -193,6 +194,11 @@ export default function OnlineBattleScreen({
     return bannerMessage || turnLabel;
   }, [battleActive, animating, isMyTurn, activePlayerId, labelP1, labelP2, bannerMessage, actionError, turnLabel]);
 
+  const turnBadgeCombatHighlight = useMemo(
+    () => animating && isCombatFeedbackMessage(bannerMessage),
+    [animating, bannerMessage],
+  );
+
   function tapUi() {
     unlockBattleAudio();
     startBattleMusic();
@@ -302,6 +308,7 @@ export default function OnlineBattleScreen({
             activeTurn={busy ? 0 : activeTurn}
             round={round}
             turnBadge={actionHint}
+            turnBadgeCombatHighlight={turnBadgeCombatHighlight}
             player1Label={labelP1}
             player2Label={labelP2}
           />

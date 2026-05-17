@@ -503,7 +503,7 @@ export default function App() {
     setKeyModalError('');
 
     try {
-      const login = await recallCloudProfile(profileId, playerKey, { requiresKey: true });
+      const login = await recallCloudProfile(profileId, playerKey);
       if (!login.ok) {
         const msg =
           login.skipped
@@ -511,11 +511,6 @@ export default function App() {
             : login.status === 401
               ? 'Incorrect key. Please try again.'
               : login.error || 'Could not load player from cloud.';
-
-        if (!requiresKey && !login.needsKey && login.status !== 401) {
-          Alert.alert('Load player', msg);
-          return;
-        }
 
         setKeyModal({
           mode: 'login',

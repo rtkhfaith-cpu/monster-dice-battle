@@ -229,7 +229,7 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
 
   if (resolved.dodged) battle.bannerMessage = 'Dodged!';
   else if (resolved.critical) battle.bannerMessage = 'Critical hit!';
-  else if (resolved.defended) battle.bannerMessage = `Blocked — ${resolved.damage} damage!`;
+  else if (resolved.defended) battle.bannerMessage = 'Blocked!';
   else if (resolved.damage > 0) battle.bannerMessage = `${resolved.damage} damage!`;
   else battle.bannerMessage = 'No damage!';
 
