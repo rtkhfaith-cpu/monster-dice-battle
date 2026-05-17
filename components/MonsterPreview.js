@@ -1,9 +1,10 @@
 import React, { useId, useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { Image, Platform, Text, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 import MonsterLayerStack from './monsters/MonsterLayerStack';
 import MonsterGearLayers from './MonsterGearLayers';
 import { ART } from '../utils/artDirection';
+import { getNormalMonsterImageAsset } from '../utils/monsterImageAssets';
 
 /** Pastel-vibrant cartoon palette */
 export const MONSTER_PALETTE = [
@@ -78,9 +79,9 @@ function BodyGrad({ children, gid, light, dark }) {
  * Whimsical SVG monster — thick cartoon outline, soft shadow, optional cosmetics & mood.
  *
  * `parts`: body, head, eyes, mouth, horn, tail, hands, legs, colorIdx, cosmetics?: string[]
- * @param {{ parts: object, size?: number, mood?: MonsterMood }} props
+ * @param {{ parts: object, size?: number, mood?: MonsterMood, counterMirror?: boolean }} props
  */
-export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) {
+export default function MonsterPreview({ parts, size = 200, mood = 'neutral', counterMirror = false }) {
   const instanceId = useId().replace(/:/g, '');
   const safe = parts && typeof parts === 'object' ? parts : null;
   const ST = 5;
@@ -100,6 +101,23 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
 
   if (!safe) {
     return <View style={{ width: size, height: size * 1.06, alignSelf: 'center' }} />;
+  }
+
+  const imageAsset = Platform.OS === 'web' ? getNormalMonsterImageAsset(safe.templateId) : null;
+  if (imageAsset?.path) {
+    return (
+      <View style={{ width: size, height: size * 1.06, alignSelf: 'center', justifyContent: 'center' }}>
+        <Image
+          source={{ uri: imageAsset.path }}
+          resizeMode="contain"
+          style={{
+            width: size,
+            height: size * 1.06,
+            transform: counterMirror ? [{ scaleX: -1 }] : undefined,
+          }}
+        />
+      </View>
+    );
   }
 
   const b = safe.body ?? 0;

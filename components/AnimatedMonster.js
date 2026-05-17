@@ -297,7 +297,7 @@ export default function AnimatedMonster({
         ]}
       >
         <Animated.View style={[styles.fadeDodge, { opacity: dodgeOp }]}>
-          <MonsterPreview parts={parts} size={scaledSize} mood={mood} />
+          <MonsterPreview parts={parts} size={scaledSize} mood={mood} counterMirror={side === 'right'} />
         </Animated.View>
       </Animated.View>
     </View>

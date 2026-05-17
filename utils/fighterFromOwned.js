@@ -30,6 +30,7 @@ export function fighterFromOwned(owned) {
   const mergedParts = mergeMonsterParts(owned.templateId, owned.monsterParts || {});
   const parts = {
     ...mergedParts,
+    templateId: owned.templateId,
     evolutionTierIndex: st.tierIndex,
     evolutionStageKey: st.key,
     visualFormTier: visualTier,
@@ -74,6 +75,7 @@ function fighterFromLadderOwnedInMainInventory(owned, tpl) {
   const { stats: finalStats, bonuses: gearBonuses } = applyGearBonuses(built.stats, gearIds);
   const parts = {
     ...mergeLadderMonsterParts(owned.templateId, owned.monsterParts || {}),
+    templateId: owned.templateId,
     evolutionTierIndex: st.tierIndex,
     evolutionStageKey: st.key,
     visualFormTier: visualTier,

@@ -134,6 +134,7 @@ export function mergeMonsterParts(templateId, overrides = {}) {
   const t = getMonsterTemplate(templateId);
   const base = t?.visualProfile?.defaultParts ? { ...t.visualProfile.defaultParts } : {};
   const merged = {
+    templateId,
     species: 0,
     body: 0,
     head: 0,
