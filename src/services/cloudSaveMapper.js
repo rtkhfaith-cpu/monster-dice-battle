@@ -5,6 +5,7 @@ import { loadAudioSettings, applyAudioSettings } from '../../utils/audioSettings
 import { getPlayerProfile, cloneGameData } from '../../utils/gameStorage';
 import { DEFAULT_GEAR_SLOTS } from '../../utils/gearSlots';
 import { normalizePlayerKey } from '../../utils/playerKey';
+import { normalizeMonsterLadder } from '../../utils/monsterLadder/ladderProgress';
 
 /**
  * @param {object} gameData
@@ -46,14 +47,7 @@ export function toCloudProfile(gameData, profileID) {
     unlockedGearSlots,
     audioSettings: loadAudioSettings(),
     battleProgress: p.battleProgress ?? { totalBattles: 0, winStreak: 0, lossStreak: 0 },
-    ladderProgress: p.ladderProgress ?? {
-      highestFloorCleared: 0,
-      attempts: 0,
-      wins: 0,
-      losses: 0,
-      lastFloor: null,
-      lastResult: null,
-    },
+    monsterLadder: p.monsterLadder ?? null,
     meta: p.meta ?? null,
     createdAt: p.createdAt ?? new Date().toISOString(),
     updatedAt: p.updatedAt ?? new Date().toISOString(),
@@ -140,7 +134,10 @@ export function applyCloudProfile(gameData, cloud) {
   }));
 
   if (normalized.battleProgress) p.battleProgress = normalized.battleProgress;
-  if (normalized.ladderProgress) p.ladderProgress = normalized.ladderProgress;
+  if (normalized.monsterLadder) p.monsterLadder = normalized.monsterLadder;
+  else if (normalized.ladderProgress) {
+    p.monsterLadder = normalizeMonsterLadder(null, normalized.ladderProgress);
+  }
   if (normalized.meta) p.meta = normalized.meta;
 
   if (normalized.audioSettings && typeof normalized.audioSettings === 'object') {

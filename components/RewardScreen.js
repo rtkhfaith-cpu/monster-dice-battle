@@ -47,9 +47,20 @@ export default function RewardScreen({
   ladderFirstClear = false,
   ladderFloor,
   ladderRegionName,
+  monsterLadder = false,
+  chestDrop = null,
+  chestBlocked = false,
+  ladderGoldTotal,
+  ladderShardsTotal,
 }) {
   const line =
-    winner === 'draw'
+    monsterLadder
+      ? winner === 1
+        ? 'The Ladder shifts upward.'
+        : winner === 'draw'
+          ? 'The Noise holds its breath.'
+          : 'Same stage. Adjust and retry.'
+      : winner === 'draw'
       ? 'Nobody wins but everybody snacks.'
       : winner === 1
         ? 'Player 1 steals the spotlight!'
@@ -71,20 +82,35 @@ export default function RewardScreen({
 
       {ladderFloor ? (
         <Text style={styles.ladderMeta}>
-          Floor {ladderFloor}
+          {monsterLadder ? `Level ${ladderFloor}` : `Floor ${ladderFloor}`}
           {ladderRegionName ? ` · ${ladderRegionName}` : ''}
         </Text>
       ) : null}
       {ladderFirstClear && ladderBonusCoins > 0 ? (
-        <Text style={styles.ladderBonus}>First clear bonus: +{ladderBonusCoins} coins</Text>
+        <Text style={styles.ladderBonus}>
+          {monsterLadder ? `Ladder gold: +${ladderBonusCoins}` : `First clear bonus: +${ladderBonusCoins} coins`}
+        </Text>
+      ) : null}
+      {monsterLadder && chestDrop ? (
+        <Text style={styles.ladderBonus}>
+          Chest reward: {chestDrop.duplicate ? 'duplicate converted to shards' : 'new reward found'}
+        </Text>
+      ) : null}
+      {monsterLadder && chestBlocked ? (
+        <Text style={styles.ladderMeta}>Daily chest already claimed. Reset is 6PM Singapore.</Text>
       ) : null}
 
       <Text style={styles.coins}>
-        Coins banked this match: <Text style={styles.coinsStrong}>+{coinsAwarded}</Text>
+        {monsterLadder ? 'Ladder gold earned' : 'Coins banked this match'}:{' '}
+        <Text style={styles.coinsStrong}>+{coinsAwarded}</Text>
       </Text>
-      <Text style={styles.bank}>Piggy bank: {totalCoins ?? 0}</Text>
+      <Text style={styles.bank}>
+        {monsterLadder
+          ? `Ladder bank: ${ladderGoldTotal ?? totalCoins ?? 0} · Shards: ${ladderShardsTotal ?? 0}`
+          : `Piggy bank: ${totalCoins ?? 0}`}
+      </Text>
 
-      <ExpRow label="Player 1 progress" pack={expP1} />
+      <ExpRow label={monsterLadder ? 'Ladder monster progress' : 'Player 1 progress'} pack={expP1} />
       <ExpRow label="Player 2 progress" pack={expP2} />
 
       <View style={styles.row}>

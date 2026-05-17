@@ -18,6 +18,8 @@ import {
 } from './gearSlots';
 import { expMultiplierFromGear } from './gearStats';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
+import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
+import { assertShopGearPurchase, assertShopMonsterPurchase } from './shopGuards';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
@@ -220,19 +222,8 @@ function normalizePlayerProfile(p) {
   if (!p.selectedMonsterId && p.ownedMonsters[0]) p.selectedMonsterId = p.ownedMonsters[0].id;
   if (!p.battleProgress) p.battleProgress = defaultBattleProgress();
   if (!p.meta) p.meta = defaultProfileMeta();
-  if (!p.ladderProgress) {
-    p.ladderProgress = { highestFloorCleared: 0, attempts: 0, wins: 0, losses: 0, lastFloor: null, lastResult: null };
-  } else {
-    const h = typeof p.ladderProgress.highestFloorCleared === 'number' ? p.ladderProgress.highestFloorCleared : 0;
-    p.ladderProgress = {
-      highestFloorCleared: Math.max(0, Math.min(25, Math.floor(h))),
-      attempts: typeof p.ladderProgress.attempts === 'number' ? p.ladderProgress.attempts : 0,
-      wins: typeof p.ladderProgress.wins === 'number' ? p.ladderProgress.wins : 0,
-      losses: typeof p.ladderProgress.losses === 'number' ? p.ladderProgress.losses : 0,
-      lastFloor: p.ladderProgress.lastFloor ?? null,
-      lastResult: p.ladderProgress.lastResult ?? null,
-    };
-  }
+  p.monsterLadder = normalizeMonsterLadder(p.monsterLadder, p.ladderProgress);
+  delete p.ladderProgress;
 }
 
 function ensureStarterMonsters(wallet) {
@@ -498,6 +489,8 @@ export function buyMonster(gameData, playerId, monsterTypeId) {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const guard = assertShopMonsterPurchase(monsterTypeId);
+  if (!guard.ok) return { gameData: gd, error: guard.error };
   const t = getMonsterTemplate(monsterTypeId);
   if (!t) return { gameData: gd, error: 'Unknown monster' };
   if (wallet.coins < t.price) return { gameData: gd, error: 'Not enough coins' };
@@ -512,6 +505,8 @@ export function buyGearItem(gameData, playerId, gearId) {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const guard = assertShopGearPurchase(gearId);
+  if (!guard.ok) return { gameData: gd, error: guard.error };
   const item = getGear(gearId);
   if (!item) return { gameData: gd, error: 'Unknown gear' };
   if (wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Already owned' };
@@ -528,6 +523,8 @@ export function buyGearForMonster(gameData, playerId, ownedMonsterId, gearId) {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const guard = assertShopGearPurchase(gearId);
+  if (!guard.ok) return { gameData: gd, error: guard.error };
   const item = getGear(gearId);
   if (!item) return { gameData: gd, error: 'Unknown gear' };
   if (wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Already owned' };
