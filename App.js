@@ -25,6 +25,7 @@ import {
   disconnectOnline,
   ensureOnlineSocket,
   emitBattleAction,
+  resolveMyPlayerSlot,
   leaveOnlineRoom,
   subscribeOnline,
   syncOnlineProfile,
@@ -1082,7 +1083,7 @@ export default function App() {
         {phase === 'battle' && gameMode === 'online' && onlineRoom?.battle ? (
           <OnlineBattleScreen
             key={battleKey}
-            mySlot={onlineSlot ?? loadOnlineSession()?.playerSlot ?? 'p1'}
+            mySlot={onlineSlot ?? resolveMyPlayerSlot(setupP1ProfileId)}
             snapshot={onlineRoom.battle}
             activeTurn={onlineRoom.activeTurn ?? null}
             emitAction={(action, payload) => emitBattleAction(action, payload)}

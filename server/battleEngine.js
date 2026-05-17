@@ -45,6 +45,7 @@ function createBattle(fighterP1, fighterP2) {
   return {
     round: 1,
     phase: 'chooseAction',
+    battleState: 'active',
     activePlayerId: 1,
     p1,
     p2,
@@ -54,6 +55,54 @@ function createBattle(fighterP1, fighterP2) {
     winner: null,
     seq: 1,
   };
+}
+
+/** Map legacy dice-era battles to turn-based shape for older clients still connected. */
+function normalizeLegacyBattle(battle) {
+  if (!battle) return battle;
+
+  if (typeof battle.activePlayerId !== 'number') {
+    if (battle.phase === 'player1Dice') battle.activePlayerId = 1;
+    else if (battle.phase === 'player2Dice') battle.activePlayerId = 2;
+    else if (battle.phase === 'chooseAttack' && battle.attackerId) battle.activePlayerId = battle.attackerId;
+    else if (battle.phase === 'chooseDefense' && battle.attackerId) {
+      battle.activePlayerId = battle.attackerId === 1 ? 2 : 1;
+    } else battle.activePlayerId = 1;
+  }
+
+  if (
+    battle.phase === 'player1Dice' ||
+    battle.phase === 'player2Dice' ||
+    battle.phase === 'chooseAttack' ||
+    battle.phase === 'chooseDefense'
+  ) {
+    battle.phase = 'chooseAction';
+  }
+
+  if (battle.winner) battle.phase = 'finished';
+
+  if (battle.phase === 'finished' || battle.winner) battle.battleState = 'finished';
+  else if (battle.phase === 'resolveAttack') battle.battleState = 'animating';
+  else if (battle.phase === 'chooseAction') battle.battleState = 'active';
+  else battle.battleState = 'preparing';
+
+  if (/roll your dice/i.test(String(battle.bannerMessage || ''))) {
+    battle.bannerMessage = `Player ${battle.activePlayerId} — choose your move`;
+  }
+
+  return battle;
+}
+
+function syncBattleStateFields(battle) {
+  if (!battle) return;
+  if (battle.phase === 'finished' || battle.winner) {
+    battle.battleState = 'finished';
+    battle.phase = 'finished';
+  } else if (battle.phase === 'resolveAttack') {
+    battle.battleState = 'animating';
+  } else if (battle.phase === 'chooseAction') {
+    battle.battleState = 'active';
+  }
 }
 
 function pushLog(battle, line) {
@@ -86,9 +135,12 @@ function activeTurnFromPhase(battle) {
 }
 
 function snapshotForClient(battle) {
+  normalizeLegacyBattle(battle);
+  syncBattleStateFields(battle);
   return {
     round: battle.round,
     phase: battle.phase,
+    battleState: battle.battleState,
     activePlayerId: battle.activePlayerId,
     p1: battle.p1,
     p2: battle.p2,
@@ -185,6 +237,7 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill, defend
 
   checkWinner(battle);
   battle.phase = 'resolveAttack';
+  battle.battleState = 'animating';
   bump(battle);
   return { ok: true };
 }
@@ -196,6 +249,7 @@ function endTurnAfterResolve(battle) {
   battle.currentEffect = null;
   battle.activePlayerId = battle.activePlayerId === 1 ? 2 : 1;
   battle.phase = 'chooseAction';
+  battle.battleState = 'active';
   battle.round += 1;
   battle.bannerMessage = `Player ${battle.activePlayerId} — choose your move`;
   bump(battle);
@@ -205,11 +259,28 @@ function endTurnAfterResolve(battle) {
 /**
  * @returns {{ ok?: boolean, error?: string, battle?: object, scheduleEndTurn?: boolean }}
  */
+function resolveActionName(action, payload = {}) {
+  let act = String(action || '').trim();
+  if (act === 'submit_action') {
+    const move = payload.move || payload.kind || payload.type || 'fight';
+    if (move === 'magic' || payload.skillId) return 'magic';
+    if (move === 'defend') return 'defend';
+    if (move === 'run') return 'run';
+    return 'fight';
+  }
+  if (act === 'pickStrike') return payload.kind === 'magic' ? 'magic' : 'fight';
+  if (act === 'pickDefense') return 'defend';
+  if (act === 'rollDice') return 'fight';
+  return act;
+}
+
 function applyBattleAction(battle, playerSlot, action, payload = {}) {
   if (!battle || battle.winner) return { error: 'Battle ended' };
 
+  normalizeLegacyBattle(battle);
+
   const playerId = slotToId(playerSlot);
-  const act = action === 'pickStrike' && payload.kind === 'magic' ? 'magic' : action;
+  const act = resolveActionName(action, payload);
 
   if (act === 'endTurn' || act === 'advanceRound') {
     const res = endTurnAfterResolve(battle);
@@ -228,6 +299,7 @@ function applyBattleAction(battle, playerSlot, action, payload = {}) {
   if (act === 'run') {
     battle.winner = playerId === 1 ? 2 : 1;
     battle.phase = 'finished';
+    battle.battleState = 'finished';
     battle.bannerMessage = 'Opponent fled!';
     pushLog(battle, 'Player fled');
     bump(battle);

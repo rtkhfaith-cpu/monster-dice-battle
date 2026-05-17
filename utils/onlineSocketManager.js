@@ -11,6 +11,11 @@ import {
 } from './socketConfig';
 import { clearOnlineSession, loadOnlineSession, saveOnlineSession } from './onlineSession';
 import { countPlayersInRoom } from './onlineUserMessages';
+import {
+  devOnlineBattleLog,
+  mapClientBattleAction,
+  normalizeOnlineBattleSnapshot,
+} from './onlineBattleState';
 
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 const CONNECT_TIMEOUT_MS = 12000;
@@ -56,7 +61,10 @@ function mergeRoomPayload(incoming) {
     ...prev,
     ...incoming,
     players: mergePlayerSlots(prev.players, incoming.players),
-    battle: incoming.battle !== undefined ? incoming.battle : prev.battle,
+    battle:
+      incoming.battle !== undefined
+        ? normalizeOnlineBattleSnapshot(incoming.battle)
+        : prev.battle,
     missingRequirements: Array.isArray(incoming.missingRequirements)
       ? incoming.missingRequirements
       : prev.missingRequirements,
@@ -123,7 +131,11 @@ function detachSocketListeners(sock) {
   sock.off('opponentJoined');
   sock.off('opponentDisconnected');
   sock.off('battleStarted');
+  sock.off('battle_started');
   sock.off('battleUpdate');
+  sock.off('battle_state_updated');
+  sock.off('action_result');
+  sock.off('turn_changed');
   sock.off('battleEnded');
   sock.off('errorMessage');
   if (listenersAttachedTo === sock) listenersAttachedTo = null;
@@ -176,35 +188,59 @@ function attachSocket(sock) {
     notify();
   });
 
-  sock.on('battleStarted', (p) => {
-    devLog('battleStarted event', p?.roomCode);
-    if (p?.room) {
-      mergeRoomPayload(p.room);
-    } else {
-      mergeRoomPayload({
-        roomCode: p?.roomCode || roomState?.roomCode,
-        status: 'battle',
-        battle: p?.battle,
-        bothJoined: true,
-        canStart: true,
-      });
-    }
-    logRoomPayload('battleStarted merged', roomState);
-    notify();
-  });
-
-  sock.on('battleUpdate', (p) => {
-    devLog('battleUpdate', p?.battle?.phase, 'seq', p?.battle?.seq);
-    const patch = { battle: p?.battle };
+  function onBattleSnapshot(p, label) {
+    const battle = normalizeOnlineBattleSnapshot(p?.battle);
+    devOnlineBattleLog(
+      label,
+      'phase',
+      battle?.phase,
+      'battleState',
+      battle?.battleState,
+      'activePlayerId',
+      battle?.activePlayerId,
+      'seq',
+      battle?.seq,
+    );
+    const patch = { battle };
     const ended =
       roomState?.status === 'finished' ||
       !!roomState?.battle?.winner ||
-      !!p?.battle?.winner;
+      !!battle?.winner;
     if (!ended) {
       patch.status = 'battle';
     }
+    if (typeof battle?.activePlayerId === 'number') {
+      patch.activeTurn = battle.activePlayerId;
+    }
+    if (p?.room) mergeRoomPayload(p.room);
     mergeRoomPayload(patch);
     notify();
+  }
+
+  sock.on('battleStarted', (p) => {
+    devLog('battleStarted event', p?.roomCode);
+    if (p?.room) mergeRoomPayload(p.room);
+    onBattleSnapshot(p, 'battle_started');
+  });
+
+  sock.on('battle_started', (p) => {
+    devLog('battle_started alias', p?.roomCode);
+    if (p?.room) mergeRoomPayload(p.room);
+    onBattleSnapshot(p, 'battle_started');
+  });
+
+  sock.on('battleUpdate', (p) => onBattleSnapshot(p, 'battleUpdate'));
+
+  sock.on('battle_state_updated', (p) => {
+    if (p?.room) mergeRoomPayload(p.room);
+    onBattleSnapshot(p, 'battle_state_updated');
+  });
+
+  sock.on('action_result', (p) => onBattleSnapshot(p, 'action_result'));
+
+  sock.on('turn_changed', (p) => {
+    devOnlineBattleLog('turn_changed', 'activePlayerId', p?.activePlayerId, 'round', p?.round);
+    onBattleSnapshot(p, 'turn_changed');
   });
 
   sock.on('battleEnded', (p) => {
@@ -553,13 +589,26 @@ export function syncOnlineProfile(profilePayload) {
   devLog('profile synced', profilePayload.name);
 }
 
+/** Resolve local slot from session or profile id match in room state. */
+export function resolveMyPlayerSlot(profileId) {
+  const sessionSlot = loadOnlineSession()?.playerSlot;
+  if (sessionSlot === 'p1' || sessionSlot === 'p2') return sessionSlot;
+  if (!profileId || !roomState?.players) return sessionSlot || 'p1';
+  const p1Id = roomState.players.p1?.profile?.profileId;
+  const p2Id = roomState.players.p2?.profile?.profileId;
+  if (p2Id && profileId === p2Id) return 'p2';
+  if (p1Id && profileId === p1Id) return 'p1';
+  return sessionSlot || 'p1';
+}
+
 export function emitBattleAction(action, payload = {}) {
   if (!socket?.connected) {
     return Promise.resolve({ error: 'Not connected' });
   }
   const roomCode = roomState?.roomCode || loadOnlineSession()?.roomCode || '';
-  devLog('action submitted', action, roomCode);
-  return emitWithAck(socket, 'battleAction', { action, roomCode, ...payload });
+  const mapped = mapClientBattleAction(action, payload);
+  devOnlineBattleLog('action submitted', mapped.action, roomCode, mapped.skillId || '');
+  return emitWithAck(socket, 'battleAction', { roomCode, ...mapped });
 }
 
 export function disconnectOnline() {

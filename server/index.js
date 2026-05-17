@@ -243,8 +243,17 @@ function tryAutoStartBattle(roomCode) {
   const roomSnap = roomPayload(room);
   console.log('[battle] auto-started', roomCode, 'playerCount', roomSnap.playerCount);
   io.to(roomCode).emit('battleStarted', { roomCode, battle: snap, room: roomSnap });
+  io.to(roomCode).emit('battle_started', { roomCode, battle: snap, room: roomSnap });
   emitRoomUpdate(roomCode);
   return true;
+}
+
+function emitBattleEvents(roomCode, battle, extra = {}) {
+  const snap = snapshotForClient(battle);
+  const roomSnap = roomPayload(rooms[roomCode]);
+  io.to(roomCode).emit('battleUpdate', { battle: snap, ...extra });
+  io.to(roomCode).emit('battle_state_updated', { battle: snap, room: roomSnap });
+  return snap;
 }
 
 function scheduleEndTurn(roomCode) {
@@ -260,7 +269,12 @@ function scheduleEndTurn(roomCode) {
     const res = endTurnAfterResolve(room.battle);
     if (res.ok) {
       console.log('[battle] turn ended', roomCode, 'round', room.battle.round, 'active', room.battle.activePlayerId);
-      io.to(roomCode).emit('battleUpdate', { battle: snapshotForClient(room.battle) });
+      const snap = emitBattleEvents(roomCode, room.battle);
+      io.to(roomCode).emit('turn_changed', {
+        activePlayerId: room.battle.activePlayerId,
+        round: room.battle.round,
+        battle: snap,
+      });
     }
     emitRoomUpdate(roomCode);
   }, RESOLVE_MS);
@@ -444,14 +458,16 @@ io.on('connection', (socket) => {
     }
 
     const action = payload.action;
-    console.log('[battle] action', code, slot, action);
+    console.log('[battle] action', code, slot, action, payload.skillId || '');
     const res = applyBattleAction(room.battle, slot, action, payload);
     if (res.error) {
+      console.log('[battle] action rejected', code, slot, res.error);
       if (typeof ack === 'function') ack({ error: res.error });
       return;
     }
 
-    io.to(code).emit('battleUpdate', { battle: snapshotForClient(room.battle) });
+    const snap = emitBattleEvents(code, room.battle, { action });
+    io.to(code).emit('action_result', { battle: snap, action });
     emitRoomUpdate(code);
 
     if (res.scheduleEndTurn && !room.battle.winner) {

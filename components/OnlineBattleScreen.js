@@ -23,6 +23,10 @@ import {
 } from '../utils/battleAudio';
 import { playUiSfx } from '../utils/sounds';
 import { BATTLE } from '../utils/gameTheme';
+import {
+  devOnlineBattleLog,
+  normalizeOnlineBattleSnapshot,
+} from '../utils/onlineBattleState';
 
 function fighterFromServer(f) {
   if (!f?.stats) return null;
@@ -66,8 +70,10 @@ export default function OnlineBattleScreen({
   const [p1, setP1] = useState(null);
   const [p2, setP2] = useState(null);
   const [phase, setPhase] = useState('chooseAction');
+  const [battleState, setBattleState] = useState('preparing');
   const [activePlayerId, setActivePlayerId] = useState(1);
   const [round, setRound] = useState(1);
+  const [combatLog, setCombatLog] = useState([]);
   const [bannerMessage, setBannerMessage] = useState('Choose your move');
   const [menuMode, setMenuMode] = useState('main');
   const [activeAttackEffect, setActiveAttackEffect] = useState(null);
@@ -84,9 +90,24 @@ export default function OnlineBattleScreen({
   const battleMobile = isMobileLayout(width, height);
 
   const activeTurn = activeTurnProp ?? activePlayerId ?? 1;
-  const isMyTurn = phase === 'chooseAction' && activePlayerId === myPlayerId;
-  const busy = phase === 'resolveAttack' || submitting;
-  const actionsEnabled = isMyTurn && !busy;
+  const battleActive = battleState === 'active';
+  const animating = battleState === 'animating' || phase === 'resolveAttack';
+  const isMyTurn = battleActive && activePlayerId === myPlayerId;
+  const myFighterAlive = (myPlayerId === 1 ? p1 : p2)?.hp > 0;
+  const busy = animating || submitting;
+  const actionsEnabled = isMyTurn && myFighterAlive && !busy && battleState !== 'finished';
+
+  useEffect(() => {
+    devOnlineBattleLog('button gate', {
+      battleState,
+      phase,
+      activePlayerId,
+      myPlayerId,
+      isMyTurn,
+      busy,
+      actionsEnabled,
+    });
+  }, [battleState, phase, activePlayerId, myPlayerId, isMyTurn, busy, actionsEnabled]);
 
   const actingFighter = myPlayerId === 1 ? p1 : p2;
   const magicSkills =
@@ -96,34 +117,48 @@ export default function OnlineBattleScreen({
 
   useEffect(() => {
     if (!snapshot) return;
-    const seq = snapshot.seq ?? 0;
+    const norm = normalizeOnlineBattleSnapshot(snapshot);
+    if (!norm) return;
+
+    const seq = norm.seq ?? 0;
     if (seq > 0 && seq < lastSeqRef.current) return;
     lastSeqRef.current = Math.max(lastSeqRef.current, seq);
 
-    const nextP1 = fighterFromServer(snapshot.p1);
-    const nextP2 = fighterFromServer(snapshot.p2);
+    devOnlineBattleLog('snapshot', {
+      phase: norm.phase,
+      battleState: norm.battleState,
+      activePlayerId: norm.activePlayerId,
+      myPlayerId,
+      seq,
+    });
+
+    const nextP1 = fighterFromServer(norm.p1);
+    const nextP2 = fighterFromServer(norm.p2);
     if (nextP1) setP1(nextP1);
     if (nextP2) setP2(nextP2);
-    if (snapshot.phase) setPhase(snapshot.phase);
-    if (typeof snapshot.activePlayerId === 'number') setActivePlayerId(snapshot.activePlayerId);
-    if (typeof snapshot.round === 'number') setRound(snapshot.round);
-    if (snapshot.bannerMessage) setBannerMessage(snapshot.bannerMessage);
+    if (norm.phase) setPhase(norm.phase);
+    if (norm.battleState) setBattleState(norm.battleState);
+    if (typeof norm.activePlayerId === 'number') setActivePlayerId(norm.activePlayerId);
+    if (typeof norm.round === 'number') setRound(norm.round);
+    if (norm.bannerMessage) setBannerMessage(norm.bannerMessage);
+    if (Array.isArray(norm.log)) setCombatLog(norm.log.slice(-8));
 
-    const eff = snapshot.currentEffect;
+    const eff = norm.currentEffect;
     const effSeq = eff?.seq ?? 0;
-    if (snapshot.phase === 'resolveAttack' && eff && effSeq > lastEffectSeqRef.current) {
+    if (norm.battleState === 'animating' && eff && effSeq > lastEffectSeqRef.current) {
       lastEffectSeqRef.current = effSeq;
       setActiveAttackEffect(eff);
     }
-    if (snapshot.phase === 'chooseAction') {
+    if (norm.battleState === 'active' || norm.phase === 'chooseAction') {
       setActiveAttackEffect(null);
-      setMenuMode('main');
+      if (!submitting) setMenuMode('main');
     }
 
-    if (snapshot.winner && !finishedRef.current) {
+    if (norm.winner && !finishedRef.current) {
       finishedRef.current = true;
+      setBattleState('finished');
       const outcome =
-        snapshot.winner === 'draw' ? 'draw' : snapshot.winner === myPlayerId ? myPlayerId : myPlayerId === 1 ? 2 : 1;
+        norm.winner === 'draw' ? 'draw' : norm.winner === myPlayerId ? myPlayerId : myPlayerId === 1 ? 2 : 1;
       onFinish?.({
         winner: outcome,
         player1Snapshot: nextP1,
@@ -133,14 +168,22 @@ export default function OnlineBattleScreen({
     }
   }, [snapshot, myPlayerId, onFinish]);
 
+  const turnLabel = useMemo(() => {
+    if (battleState === 'finished') return 'Battle over';
+    if (animating) return bannerMessage || 'Resolving…';
+    if (isMyTurn) return 'Your turn';
+    if (battleActive) return 'Opponent turn';
+    return 'Preparing…';
+  }, [battleState, animating, isMyTurn, battleActive, bannerMessage]);
+
   const actionHint = useMemo(() => {
     if (actionError) return actionError;
-    if (phase === 'chooseAction') {
+    if (battleActive) {
       return isMyTurn ? 'Choose your move' : `Waiting for ${activePlayerId === 1 ? labelP1 : labelP2}…`;
     }
-    if (phase === 'resolveAttack') return bannerMessage || 'Resolving attack…';
-    return bannerMessage || '';
-  }, [phase, isMyTurn, activePlayerId, labelP1, labelP2, bannerMessage, actionError]);
+    if (animating) return bannerMessage || 'Resolving attack…';
+    return bannerMessage || turnLabel;
+  }, [battleActive, animating, isMyTurn, activePlayerId, labelP1, labelP2, bannerMessage, actionError, turnLabel]);
 
   function tapUi() {
     unlockBattleAudio();
@@ -149,13 +192,23 @@ export default function OnlineBattleScreen({
   }
 
   async function submit(action, payload = {}) {
-    if (!emitAction || !actionsEnabled) return;
+    if (!emitAction) return;
+    if (!isMyTurn || busy || battleState === 'finished') {
+      setActionError('Not your turn');
+      devOnlineBattleLog('action blocked locally', action);
+      return;
+    }
     setSubmitting(true);
     setActionError('');
+    devOnlineBattleLog('action submitting', action, payload.skillId || '');
     const res = await emitAction(action, payload);
     setSubmitting(false);
-    if (res?.error) setActionError(res.error);
-    else setMenuMode('main');
+    if (res?.error) {
+      devOnlineBattleLog('action rejected', res.error);
+      setActionError(res.error);
+    } else {
+      setMenuMode('main');
+    }
   }
 
   function handleProjectileComplete() {
@@ -249,16 +302,38 @@ export default function OnlineBattleScreen({
             player1Label={labelP1}
             player2Label={labelP2}
           />
-          {phase === 'resolveAttack' && activeAttackEffect ? (
-            <BattleProjectileLayer
-              effect={activeAttackEffect}
-              active
-              onComplete={handleProjectileComplete}
-            />
+          <View style={styles.turnPillWrap} pointerEvents="none">
+            <View
+              style={[
+                styles.turnPill,
+                isMyTurn && styles.turnPillMine,
+                !isMyTurn && battleActive && styles.turnPillOpp,
+              ]}
+            >
+              <Text style={styles.turnPillTxt}>{turnLabel}</Text>
+            </View>
+          </View>
+          {combatLog.length > 0 ? (
+            <View style={styles.combatLog} pointerEvents="none">
+              {combatLog.map((line, i) => (
+                <Text key={`${i}-${line}`} style={styles.combatLogLine} numberOfLines={1}>
+                  {line}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {animating && activeAttackEffect ? (
+            <View style={styles.projectileWrap} pointerEvents="box-none">
+              <BattleProjectileLayer
+                effect={activeAttackEffect}
+                active
+                onComplete={handleProjectileComplete}
+              />
+            </View>
           ) : null}
         </View>
 
-        <View style={[styles.actionDock, battleMobile && styles.actionDockMobile]}>
+        <View style={[styles.actionDock, battleMobile && styles.actionDockMobile]} pointerEvents="box-none">
           {menuMode === 'magic' ? (
             <View style={styles.magicPanel}>
               <View style={styles.magicHeader}>
@@ -394,6 +469,51 @@ const styles = StyleSheet.create({
     backgroundColor: BATTLE.dockBorder,
   },
   arenaField: { flex: 1, minHeight: 0, width: '100%', position: 'relative', overflow: 'hidden' },
+  turnPillWrap: {
+    position: 'absolute',
+    top: 8,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 12,
+  },
+  turnPill: {
+    backgroundColor: 'rgba(20, 24, 40, 0.88)',
+    borderWidth: 2,
+    borderColor: '#636e72',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+  },
+  turnPillMine: {
+    borderColor: '#ffd166',
+    backgroundColor: 'rgba(255, 209, 102, 0.22)',
+  },
+  turnPillOpp: {
+    borderColor: '#74b9ff',
+    backgroundColor: 'rgba(116, 185, 255, 0.18)',
+  },
+  turnPillTxt: { fontWeight: '900', fontSize: 13, color: '#fff', letterSpacing: 0.4 },
+  combatLog: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    bottom: 8,
+    gap: 2,
+    zIndex: 10,
+  },
+  combatLogLine: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.92)',
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  projectileWrap: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 8,
+  },
   muteBtn: {
     backgroundColor: 'rgba(26, 26, 46, 0.82)',
     borderWidth: 2,
