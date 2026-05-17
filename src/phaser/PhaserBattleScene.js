@@ -1,6 +1,6 @@
 import BattleAnimationController from './BattleAnimationController';
 import MonsterActor from './MonsterActor';
-import { NORMAL_MONSTER_ASSETS, getNormalMonsterAsset } from './monsterAssetManifest';
+import { MONSTER_ASSETS, getNormalMonsterAsset } from './monsterAssetManifest';
 
 export function createPhaserBattleScene(Phaser) {
   return class PhaserBattleScene extends Phaser.Scene {
@@ -16,7 +16,7 @@ export function createPhaserBattleScene(Phaser) {
     }
 
     preload() {
-      Object.values(NORMAL_MONSTER_ASSETS).forEach((asset) => {
+      Object.values(MONSTER_ASSETS).forEach((asset) => {
         this.load.image(asset.key, asset.path);
       });
       this.load.on('loaderror', (file) => {

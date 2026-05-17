@@ -1,7 +1,14 @@
-import { NORMAL_MONSTER_IMAGE_ASSETS, getNormalMonsterImageAsset } from '../../utils/monsterImageAssets';
+import {
+  LADDER_MONSTER_IMAGE_ASSETS,
+  NORMAL_MONSTER_IMAGE_ASSETS,
+  getMonsterImageAsset,
+} from '../../utils/monsterImageAssets';
 
-export const NORMAL_MONSTER_ASSETS = NORMAL_MONSTER_IMAGE_ASSETS;
+export const MONSTER_ASSETS = {
+  ...NORMAL_MONSTER_IMAGE_ASSETS,
+  ...LADDER_MONSTER_IMAGE_ASSETS,
+};
 
 export function getNormalMonsterAsset(templateId) {
-  return getNormalMonsterImageAsset(templateId);
+  return getMonsterImageAsset(templateId);
 }

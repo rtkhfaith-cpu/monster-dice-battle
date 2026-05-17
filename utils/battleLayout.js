@@ -14,12 +14,12 @@ export function getStrictLayout(width, height) {
   const mobile = isMobileLayout(width, height);
   const phone = isPhoneLayout(width);
   const monster = phone
-    ? Math.max(138, Math.min(165, width * 0.38))
+    ? Math.max(118, Math.min(138, width * 0.34))
     : mobile
-      ? Math.max(185, Math.min(225, width * 0.36))
+      ? Math.max(150, Math.min(190, width * 0.31))
       : 280;
   const statsW = phone
-    ? Math.max(138, Math.min(156, width * 0.39))
+    ? Math.max(132, Math.min(150, width * 0.37))
     : mobile
       ? Math.max(162, Math.min(184, width * 0.32))
       : 188;
@@ -29,11 +29,19 @@ export function getStrictLayout(width, height) {
     p2Monster: monster,
     statsP1W: statsW,
     statsP2W: statsW,
-    hudBannerW: mobile ? Math.min(160, width * 0.42) : 260,
+    hudBannerW: phone ? Math.min(136, width * 0.34) : mobile ? Math.min(152, width * 0.38) : 260,
     diceActive: mobile ? 68 : 92,
     diceInactive: mobile ? 48 : 64,
     /** Shared ground line (% from bottom) */
-    monsterBottom: mobile ? '13%' : '10%',
+    monsterBottom: phone ? '15%' : mobile ? '13%' : '10%',
+    monsterSideInset: phone ? '3%' : mobile ? '4%' : '8%',
+    statsTop: phone ? '10.5%' : mobile ? '9.5%' : '8.5%',
+    statsSideInset: phone ? '3%' : '5%',
+    stageBadgeTop: phone ? '1.2%' : mobile ? '2%' : '3.5%',
+    stageBadgeW: phone ? 138 : mobile ? 152 : 164,
+    stageBadgeMinH: phone ? 58 : mobile ? 64 : 76,
+    turnTop: phone ? '25%' : mobile ? '26%' : '27%',
+    combatTurnTop: phone ? '20%' : mobile ? '21%' : '22%',
     monsterLaneY: 0.48,
     compactHud: mobile,
     phone,

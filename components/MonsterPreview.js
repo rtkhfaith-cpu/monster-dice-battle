@@ -4,7 +4,7 @@ import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Polygon, Rec
 import MonsterLayerStack from './monsters/MonsterLayerStack';
 import MonsterGearLayers from './MonsterGearLayers';
 import { ART } from '../utils/artDirection';
-import { getNormalMonsterImageAsset } from '../utils/monsterImageAssets';
+import { getMonsterImageAsset } from '../utils/monsterImageAssets';
 
 /** Pastel-vibrant cartoon palette */
 export const MONSTER_PALETTE = [
@@ -103,7 +103,7 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral', co
     return <View style={{ width: size, height: size * 1.06, alignSelf: 'center' }} />;
   }
 
-  const imageAsset = Platform.OS === 'web' ? getNormalMonsterImageAsset(safe.templateId) : null;
+  const imageAsset = Platform.OS === 'web' ? getMonsterImageAsset(safe.templateId) : null;
   if (imageAsset?.path) {
     return (
       <View style={{ width: size, height: size * 1.06, alignSelf: 'center', justifyContent: 'center' }}>

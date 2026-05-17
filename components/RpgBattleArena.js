@@ -260,7 +260,19 @@ export default function RpgBattleArena({
       {/* z-index 10: top HUD */}
       <View style={styles.muteSlot}>{topHudExtra}</View>
       {ladderFloor ? (
-        <View style={styles.stageBadge} pointerEvents="none">
+        <View
+          style={[
+            styles.stageBadge,
+            {
+              top: L.stageBadgeTop,
+              width: L.stageBadgeW,
+              minHeight: L.stageBadgeMinH,
+              marginLeft: -(L.stageBadgeW / 2),
+            },
+            L.compactHud && styles.stageBadgeCompact,
+          ]}
+          pointerEvents="none"
+        >
           <Text style={styles.stageBadgeFloor}>Floor {ladderFloor}</Text>
           <Text style={styles.stageBadgeRegion} numberOfLines={1}>
             {ladderRegionName || 'Monster Ladder'}
@@ -273,7 +285,14 @@ export default function RpgBattleArena({
         </View>
       ) : null}
       {turnShort ? (
-        <View style={[styles.turnBadge, combatCallout && styles.turnBadgeCombat]} pointerEvents="none">
+        <View
+          style={[
+            styles.turnBadge,
+            { top: combatCallout ? L.combatTurnTop : L.turnTop },
+            combatCallout && styles.turnBadgeCombat,
+          ]}
+          pointerEvents="none"
+        >
           <Text
             style={[styles.turnBadgeTxt, combatCallout && styles.turnBadgeTxtCombat]}
             numberOfLines={3}
@@ -287,7 +306,7 @@ export default function RpgBattleArena({
       </View>
 
       {/* z-index 6: stats (above monsters) */}
-      <View style={[styles.playerStats, { width: L.statsP1W }]}>
+      <View style={[styles.playerStats, { width: L.statsP1W, top: L.statsTop, left: L.statsSideInset }]}>
         <BattlerInfoPanel
           title={player1Label}
           fighter={p1}
@@ -297,7 +316,7 @@ export default function RpgBattleArena({
           compact={L.compactHud}
         />
       </View>
-      <View style={[styles.enemyStats, { width: L.statsP2W }]}>
+      <View style={[styles.enemyStats, { width: L.statsP2W, top: L.statsTop, right: L.statsSideInset }]}>
         <BattlerInfoPanel
           title={player2Label}
           fighter={p2}
@@ -312,7 +331,7 @@ export default function RpgBattleArena({
       <Animated.View
         style={[
           styles.playerMonster,
-          { bottom: L.monsterBottom, opacity: p1Opacity, transform: [{ scale: p1Scale }] },
+          { left: L.monsterSideInset, bottom: L.monsterBottom, opacity: p1Opacity, transform: [{ scale: p1Scale }] },
         ]}
       >
         <Animated.View
@@ -349,7 +368,7 @@ export default function RpgBattleArena({
       <Animated.View
         style={[
           styles.enemyMonster,
-          { bottom: L.monsterBottom, opacity: p2Opacity, transform: [{ scale: p2Scale }] },
+          { right: L.monsterSideInset, bottom: L.monsterBottom, opacity: p2Opacity, transform: [{ scale: p2Scale }] },
         ]}
       >
         <Animated.View
@@ -758,11 +777,7 @@ const styles = StyleSheet.create({
   },
   stageBadge: {
     position: 'absolute',
-    top: '3.5%',
     left: '50%',
-    marginLeft: -82,
-    width: 164,
-    minHeight: 76,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(108, 92, 231, 0.92)',
@@ -778,12 +793,16 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
+  stageBadgeCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
   stageBadgeFloor: { fontWeight: '900', fontSize: 18, color: '#fff', lineHeight: 22 },
   stageBadgeRegion: { fontWeight: '900', fontSize: 13, color: '#f8f1ff', marginTop: 2 },
   stageBadgeBoss: { fontWeight: '800', fontSize: 11, color: '#ffeaa7', marginTop: 3 },
   turnBadge: {
     position: 'absolute',
-    top: '27%',
     left: '5%',
     right: '5%',
     alignItems: 'center',
@@ -791,7 +810,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   turnBadgeCombat: {
-    top: '22%',
     zIndex: 22,
   },
   turnBadgeTxt: {
@@ -835,26 +853,20 @@ const styles = StyleSheet.create({
 
   playerStats: {
     position: 'absolute',
-    left: '5%',
-    top: '8.5%',
     zIndex: 6,
   },
   enemyStats: {
     position: 'absolute',
-    right: '5%',
-    top: '8.5%',
     zIndex: 6,
   },
   playerMonster: {
     position: 'absolute',
-    left: '8%',
     zIndex: 3,
     alignItems: 'flex-start',
     justifyContent: 'flex-end',
   },
   enemyMonster: {
     position: 'absolute',
-    right: '8%',
     zIndex: 3,
     alignItems: 'flex-end',
     justifyContent: 'flex-end',

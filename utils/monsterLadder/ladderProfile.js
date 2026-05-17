@@ -10,7 +10,7 @@ function uid(prefix) {
 export function mergeLadderMonsterParts(templateId, parts = {}) {
   const t = getLadderMonsterTemplate(templateId);
   const base = t?.visualProfile?.defaultParts ?? {};
-  return applyMonsterTheme(templateId, { ...base, ...parts, ladderPremium: true }, t);
+  return applyMonsterTheme(templateId, { ...base, ...parts, templateId, ladderPremium: true }, t);
 }
 
 /** @param {import('./ladderProgress').MonsterLadderState} ml */
