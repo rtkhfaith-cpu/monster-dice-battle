@@ -30,12 +30,6 @@ function formatFetchError(err, base = '') {
   return msg;
 }
 
-/** @param {object|null|undefined} data */
-function hasFullCloudPayload(data) {
-  if (!data || typeof data !== 'object') return false;
-  return Array.isArray(data.monsters) || Array.isArray(data.ownedMonsters);
-}
-
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 const REQUEST_MS = 12000;
 
@@ -181,23 +175,6 @@ export async function loadCloudProfile(profileID) {
 }
 
 /**
- * Load cloud profile without a key (server allows when save has no PIN).
- * @param {string} profileID
- */
-export async function recallCloudProfileOpen(profileID) {
-  const loaded = await loadCloudProfile(profileID);
-  if (!loaded.ok) return loaded;
-  if (!hasFullCloudPayload(loaded.data)) {
-    return {
-      ok: false,
-      error: 'This player is protected. Enter your 4-digit Player Key.',
-      needsKey: true,
-    };
-  }
-  return loaded;
-}
-
-/**
  * @returns {Promise<{ ok: boolean, players?: object[], skipped?: boolean, error?: string }>}
  */
 export async function listCloudPlayers() {
@@ -231,7 +208,7 @@ export async function listCloudPlayers() {
         level: row.level ?? 1,
         coins: row.coins ?? 0,
         updatedAt: row.updatedAt ?? null,
-        requiresKey: row.requiresKey !== false,
+        requiresKey: row.requiresKey === true,
       }));
     return { ok: true, players };
   } catch (err) {
@@ -286,14 +263,16 @@ export async function loginCloudProfile(profileID, playerKey) {
  * @param {{ requiresKey?: boolean }} [opts]
  */
 export async function recallCloudProfile(profileID, playerKey, opts = {}) {
-  if (opts.requiresKey === false) {
-    return recallCloudProfileOpen(profileID);
+  const key = normalizePlayerKey(playerKey);
+  if (opts.requiresKey !== false && key.length !== 4) {
+    return { ok: false, status: 400, error: 'Enter your 4-digit Player Key.' };
   }
-  const login = await loginCloudProfile(profileID, playerKey);
+
+  const login = await loginCloudProfile(profileID, key);
   if (login.ok) return login;
 
   // POST /login may be missing on older API deployments — always try GET with key.
-  const loaded = await loadCloudProfileWithKey(profileID, playerKey);
+  const loaded = await loadCloudProfileWithKey(profileID, key);
   if (loaded.ok) return loaded;
 
   if (login.status === 401 || login.error === 'Incorrect key') {
@@ -312,8 +291,11 @@ export async function deleteCloudProfile(profileID, playerKey, opts = {}) {
   const base = await ensureBaseUrl();
   if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
   const id = encodeURIComponent(String(profileID));
-  const keyBody =
-    opts.requiresKey === false ? { playerKey: '' } : { playerKey: normalizePlayerKey(playerKey) };
+  const key = normalizePlayerKey(playerKey);
+  if (opts.requiresKey !== false && key.length !== 4) {
+    return { ok: false, status: 400, error: 'Enter your 4-digit Player Key.' };
+  }
+  const keyBody = { playerKey: key };
 
   try {
     const res = await apiRequest(base, `/save/${id}`, {

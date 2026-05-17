@@ -2,6 +2,8 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { expToAdvanceFrom } from '../utils/expLevel';
+import { evolutionFormForMonster } from '../utils/monsterEvolutionForms';
+import { visualFormTierFromLevel } from '../utils/evolution';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 import { gamePanelStyle } from '../utils/artDirection';
@@ -77,6 +79,7 @@ export default function MonsterGridPanel({
                     : null;
             const expNeed = expToAdvanceFrom(om.level);
             const hp = f.stats.hp;
+            const form = evolutionFormForMonster(om.templateId, visualFormTierFromLevel(om.level));
 
             return (
               <TouchableOpacity
@@ -98,7 +101,10 @@ export default function MonsterGridPanel({
                   {ROLE_LABELS[t.role] ?? t.role}
                 </Text>
                 <Text style={[styles.stat, isMobile && styles.statMobile]} numberOfLines={1}>
-                  Lv {om.level} · {om.exp ?? 0}/{expNeed} EXP
+                  {form.name} · Lv {om.level}
+                </Text>
+                <Text style={[styles.stat, isMobile && styles.statMobile]} numberOfLines={1}>
+                  {om.exp ?? 0}/{expNeed} EXP
                 </Text>
                 <Text style={[styles.rarity, { color: RARITY_UI[t.rarity].color || '#6c5ce7' }]}>
                   {RARITY_UI[t.rarity].label}

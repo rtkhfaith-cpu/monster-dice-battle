@@ -1,4 +1,5 @@
-import { evolutionStageFromLevel } from './evolution';
+import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
+import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { expToAdvanceFrom } from './expLevel';
 import { applyGearBonuses } from './gearStats';
 import { compactGearIds, resolveFighterElement } from './cosmetics';
@@ -16,6 +17,8 @@ export function fighterFromOwned(owned) {
   const built = computeBattleStats(owned.templateId, owned.level);
   if (!built || !tpl) return null;
   const st = evolutionStageFromLevel(owned.level);
+  const visualTier = visualFormTierFromLevel(owned.level);
+  const form = evolutionFormForMonster(owned.templateId, visualTier);
   const gearIds = compactGearIds(owned.equippedGear);
   const { stats: finalStats, bonuses: gearBonuses } = applyGearBonuses(built.stats, gearIds);
   const mergedParts = mergeMonsterParts(owned.templateId, owned.monsterParts || {});
@@ -23,6 +26,9 @@ export function fighterFromOwned(owned) {
     ...mergedParts,
     evolutionTierIndex: st.tierIndex,
     evolutionStageKey: st.key,
+    visualFormTier: visualTier,
+    evolutionFormName: form.name,
+    evolutionFormTagline: form.tagline,
     visualFlair: tpl.visualProfile.moveFlair ?? 'none',
     cosmetics: [...gearIds],
     equippedGearSlots: owned.equippedGear,

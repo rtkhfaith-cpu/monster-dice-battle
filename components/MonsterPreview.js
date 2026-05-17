@@ -120,6 +120,8 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
   const themeBody = safe.themeBody || null;
   const themePalette = safe.themePalette || null;
   const themeArchetype = safe.themeArchetype || null;
+  const visualFormTier = Math.min(3, Math.max(0, safe.visualFormTier ?? safe.evolutionTierIndex ?? 0));
+  const evolutionFormName = safe.evolutionFormName || null;
   const hasThemedSilhouette = !!themeBody;
 
   return (
@@ -194,7 +196,29 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral' }) 
           eyeWhite={eyeWhite}
           pupil={pupil}
           cosmetics={cosmetics}
+          visualFormTier={visualFormTier}
+          evolutionTier={visualFormTier}
         />
+      ) : null}
+      {evolutionFormName && visualFormTier > 0 ? (
+        <Text
+          style={{
+            position: 'absolute',
+            bottom: size * 0.02,
+            left: size * 0.04,
+            right: size * 0.04,
+            fontSize: Math.max(9, size * 0.09),
+            fontWeight: '800',
+            color: '#ffd166',
+            textAlign: 'center',
+            textShadowColor: 'rgba(0,0,0,0.65)',
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 2,
+          }}
+          numberOfLines={1}
+        >
+          {evolutionFormName}
+        </Text>
       ) : null}
       <Svg width={size} height={size} viewBox="0 0 200 200">
         <G>

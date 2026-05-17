@@ -16,6 +16,8 @@ import BodyToiletPaper from './BodyToiletPaper';
 import BodyTrex from './BodyTrex';
 import BodyWaterBottle from './BodyWaterBottle';
 import { FALLBACK_PALETTE } from './shared';
+import EvolutionOverlay, { evolutionBodyTransform } from '../evolution/EvolutionOverlay';
+import { G } from 'react-native-svg';
 
 const BODY_MAP = {
   cockroach: BodyCockroach,
@@ -48,17 +50,28 @@ const BODY_MAP = {
  *   palette?: object,
  *   archetype?: string,
  *   ST?: number,
+ *   evolutionTier?: number,
  * }} p
  */
 export function ThemedMonsterBody(p) {
   const { themeBody } = p;
   const Body = BODY_MAP[themeBody];
   if (!Body) return null;
+  const tier = Math.min(3, Math.max(0, p.evolutionTier ?? p.visualFormTier ?? 0));
+  const { transform } = evolutionBodyTransform(tier);
+  const palette = p.palette ?? p.themePalette ?? FALLBACK_PALETTE;
   return (
-    <Body
-      {...p}
-      palette={p.palette ?? p.themePalette ?? FALLBACK_PALETTE}
-    />
+    <G>
+      <G transform={transform}>
+        <Body {...p} palette={palette} evolutionTier={tier} />
+      </G>
+      <EvolutionOverlay
+        themeBody={themeBody}
+        evolutionTier={tier}
+        palette={palette}
+        stroke={p.stroke}
+      />
+    </G>
   );
 }
 

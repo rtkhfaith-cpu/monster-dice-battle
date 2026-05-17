@@ -236,9 +236,13 @@ export default function AnimatedMonster({
     ]).start();
   }, [pose, poseTx, poseTy, poseScale, shake, dodgeOp, toward, superJump]);
 
-  const tier = Math.min(5, Math.max(0, Number(parts.evolutionTierIndex) || 0));
-  const scaledSize = size * (1 + tier * 0.04);
-  const baseBob = (themed ? -5.4 : -4.4) - tier * 1.2;
+  const visualTier = Math.min(
+    3,
+    Math.max(0, Number(parts.visualFormTier ?? parts.evolutionTierIndex) || 0),
+  );
+  const statTier = Math.min(5, Math.max(0, Number(parts.evolutionTierIndex) || 0));
+  const scaledSize = size * (1 + visualTier * 0.055 + Math.max(0, statTier - visualTier) * 0.02);
+  const baseBob = (themed ? -5.4 : -4.4) - visualTier * 1.4 - Math.max(0, statTier - visualTier) * 0.5;
   const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, baseBob * profile.bobMul] });
   const swayMag = (themed ? 3.4 : 2.6) * profile.swayMul;
   const swayX = sway.interpolate({ inputRange: [0, 1], outputRange: [0, swayMag * toward * -1] });

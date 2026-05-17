@@ -27,15 +27,23 @@ import {
   devOnlineBattleLog,
   normalizeOnlineBattleSnapshot,
 } from '../utils/onlineBattleState';
+import { visualFormTierFromLevel } from '../utils/evolution';
+import { evolutionFormForMonster } from '../utils/monsterEvolutionForms';
 
 function fighterFromServer(f) {
   if (!f?.stats) return null;
   const parts = f.monsterParts && typeof f.monsterParts === 'object' ? f.monsterParts : {};
+  const level = f.level ?? 1;
+  const templateId = f.monsterTemplateId || parts.templateId;
+  const visualTier = visualFormTierFromLevel(level);
+  const form = templateId ? evolutionFormForMonster(templateId, visualTier) : null;
   return {
     ...f,
     monsterParts: {
       ...parts,
       cosmetics: Array.isArray(parts.cosmetics) ? parts.cosmetics : [],
+      visualFormTier: parts.visualFormTier ?? visualTier,
+      evolutionFormName: parts.evolutionFormName ?? form?.name,
     },
     hp: typeof f.hp === 'number' ? f.hp : f.stats.hp,
     maxHp: typeof f.maxHp === 'number' ? f.maxHp : f.stats.hp,
@@ -51,7 +59,7 @@ function fighterFromServer(f) {
 }
 
 /**
- * Server-authoritative online battle — turn-based (Fight / Magic / Defend / Run), no dice.
+ * Server-authoritative online battle — turn-based (Fight / Magic / Run), no dice.
  */
 export default function OnlineBattleScreen({
   mySlot = 'p1',
@@ -240,11 +248,6 @@ export default function OnlineBattleScreen({
     void submit('magic', { skillId: skill.id });
   }
 
-  function handleDefend() {
-    tapUi();
-    void submit('defend');
-  }
-
   function handleRun() {
     if (busy) return;
     tapUi();
@@ -415,24 +418,6 @@ export default function OnlineBattleScreen({
                 style={({ pressed }) => [
                   styles.arcadeBtn,
                   battleMobile && styles.arcadeBtnMobile,
-                  styles.defendBtn,
-                  pressed && actionsEnabled && styles.arcadeBtnPressed,
-                  !actionsEnabled && styles.disabledBtn,
-                ]}
-                disabled={!actionsEnabled}
-                onPress={handleDefend}
-              >
-                <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.defendFace]} pointerEvents="none">
-                  <View style={styles.defendBtnShine} />
-                  <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.defendBtnTxt]}>
-                    Defend
-                  </Text>
-                </View>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.arcadeBtn,
-                  battleMobile && styles.arcadeBtnMobile,
                   styles.runBtnOuter,
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
@@ -586,7 +571,7 @@ const styles = StyleSheet.create({
   },
   magicBtnTxt: { color: '#f8f0ff', fontSize: 15 },
   arcadeBtn: { flex: 1, minWidth: 76, borderRadius: 14, paddingBottom: 5, overflow: 'visible' },
-  arcadeBtnMobile: { minWidth: 0, flex: 1, maxWidth: '25%' },
+  arcadeBtnMobile: { minWidth: 0, flex: 1, maxWidth: '33.33%' },
   arcadeBtnPressed: { paddingBottom: 1, transform: [{ translateY: 4 }] },
   btnFace: {
     minHeight: 50,

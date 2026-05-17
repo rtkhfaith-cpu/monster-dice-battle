@@ -25,11 +25,36 @@ function statMid(range, fallback) {
   return Math.round((range.min + range.max) / 2);
 }
 
+/** Auto dodge roll from defender dodge % (capped). */
+function rollAutoDodge(defender) {
+  const pct = Math.max(0, Math.min(55, defender?.stats?.dodgePct ?? 15));
+  return rollPercentChance(pct);
+}
+
+/** How much defense shaves off incoming power (0–0.75). */
+function defenseMitigationRatio(defStat, attackPower) {
+  const d = Math.max(0, defStat);
+  const a = Math.max(1, attackPower);
+  return Math.min(0.75, d / (d + a * 0.65 + 14));
+}
+
 /**
- * Physical strike — attack vs defense, no elemental modifiers.
- * @param {{ attacker: object, defender: object, defending?: boolean, skill?: { power?: number } }} opts
+ * Physical strike — attack vs defense, auto dodge, no manual defend.
+ * @param {{ attacker: object, defender: object, skill?: { power?: number } }} opts
  */
-export function resolvePhysicalBattleDamage({ attacker, defender, defending = false, skill = null }) {
+export function resolvePhysicalBattleDamage({ attacker, defender, skill = null }) {
+  if (rollAutoDodge(defender)) {
+    return {
+      damage: 0,
+      critical: false,
+      weak: false,
+      defended: false,
+      dodged: true,
+      strikeKind: 'physical',
+      elementRelation: 'neutral',
+    };
+  }
+
   const powerMult = skill?.power ?? 1;
   const atkMult = statusStatMultiplier(attacker, 'attack');
   const defMult = statusStatMultiplier(defender, 'def');
@@ -39,7 +64,9 @@ export function resolvePhysicalBattleDamage({ attacker, defender, defending = fa
   const defStat = statMid(defender?.stats?.def, 5) * defMult;
   const randomVariance = 0.85 + Math.random() * 0.3;
 
-  let raw = (baseAttack + levelBonus - defStat * 0.6) * randomVariance;
+  const attackPower = baseAttack + levelBonus;
+  const mit = defenseMitigationRatio(defStat, attackPower);
+  let raw = attackPower * randomVariance * (1 - mit);
 
   let critical = false;
   let weak = false;
@@ -51,14 +78,14 @@ export function resolvePhysicalBattleDamage({ attacker, defender, defending = fa
     raw *= 0.75;
   }
 
-  if (defending) raw *= 0.6;
-
   const damage = Math.max(1, Math.round(raw));
+  const defended = mit >= 0.18 && damage > 0;
+
   return {
     damage,
     critical,
     weak,
-    defended: !!defending,
+    defended,
     dodged: false,
     strikeKind: 'physical',
     elementRelation: 'neutral',
@@ -71,17 +98,32 @@ export function resolveTurnBattleDamage(opts) {
 }
 
 /**
- * Magic strike — stronger base, uses magic stats + element cycle.
- * @param {{ attacker: object, defender: object, defending?: boolean, skill: object, atkElement?: string, defElement?: string }} opts
+ * Magic strike — stronger base, uses magic stats + element cycle + auto dodge.
+ * @param {{ attacker: object, defender: object, skill: object, atkElement?: string, defElement?: string }} opts
  */
 export function resolveMagicBattleDamage({
   attacker,
   defender,
-  defending = false,
   skill,
   atkElement,
   defElement,
 }) {
+  if (rollAutoDodge(defender)) {
+    const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';
+    const dEl = defElement ?? defender?.element ?? 'earth';
+    return {
+      damage: 0,
+      critical: false,
+      weak: false,
+      defended: false,
+      dodged: true,
+      strikeKind: 'magic',
+      elementRelation: getElementRelation(aEl, dEl),
+      atkElement: aEl,
+      defElement: dEl,
+    };
+  }
+
   const powerMult = skill?.power ?? 1.2;
   const defMult = statusStatMultiplier(defender, 'def');
 
@@ -95,7 +137,9 @@ export function resolveMagicBattleDamage({
   const elementRelation = getElementRelation(aEl, dEl);
   const elementalModifier = getElementalDamageModifier(elementRelation);
 
-  let raw = (baseMagic * 1.35 + levelBonus - defStat * 0.55) * randomVariance * elementalModifier;
+  const attackPower = baseMagic * 1.35 + levelBonus;
+  const mit = defenseMitigationRatio(defStat, attackPower);
+  let raw = attackPower * randomVariance * elementalModifier * (1 - mit);
 
   let critical = false;
   let weak = false;
@@ -107,14 +151,14 @@ export function resolveMagicBattleDamage({
     raw *= 0.75;
   }
 
-  if (defending) raw *= 0.6;
-
   const damage = Math.max(1, Math.round(raw));
+  const defended = mit >= 0.18 && damage > 0;
+
   return {
     damage,
     critical,
     weak,
-    defended: !!defending,
+    defended,
     dodged: false,
     strikeKind: 'magic',
     elementRelation,

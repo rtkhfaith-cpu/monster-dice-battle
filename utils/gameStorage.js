@@ -17,7 +17,8 @@ import {
   normalizeEquippedSlots,
 } from './gearSlots';
 import { expMultiplierFromGear } from './gearStats';
-import { evolutionStageFromLevel } from './evolution';
+import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
+import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
 
@@ -650,6 +651,7 @@ function grantExpInWallet(wallet, ownedId, amount) {
     };
   }
   const prevStage = evolutionStageFromLevel(om.level).key;
+  const prevFormTier = visualFormTierFromLevel(om.level);
   const prevLvl = om.level;
   const mult = expMultiplierFromGear(om.equippedGear || []);
   const raw = Math.floor(amount * mult);
@@ -663,12 +665,18 @@ function grantExpInWallet(wallet, ownedId, amount) {
   om.level = res.level;
   om.exp = res.exp;
   const nextStage = evolutionStageFromLevel(om.level).key;
-  const evolved = prevStage !== nextStage && res.levelsGained > 0;
+  const nextFormTier = visualFormTierFromLevel(om.level);
+  const formEvolved = prevFormTier !== nextFormTier && res.levelsGained > 0;
+  const evolved = (prevStage !== nextStage || formEvolved) && res.levelsGained > 0;
+  const nextForm = evolutionFormForMonster(om.templateId, nextFormTier);
   return {
     levelsGained: res.levelsGained ?? 0,
     evolved,
     prevStage,
     nextStage,
+    evolutionFormName: nextForm.name,
+    prevFormTier,
+    nextFormTier,
     level: om.level,
     exp: om.exp,
     expToNext: expToAdvanceFrom(om.level),

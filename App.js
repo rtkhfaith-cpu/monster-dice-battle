@@ -408,11 +408,6 @@ export default function App() {
 
   function handleRequestSelectCloudProfile(cloudItem) {
     if (!cloudItem?.profileID) return;
-    const requiresKey = cloudItem.requiresKey !== false;
-    if (!requiresKey) {
-      void finalizeCloudLogin(cloudItem.profileID, '', { requiresKey: false });
-      return;
-    }
     setKeyModalError('');
     setKeyModal({
       mode: 'login',
@@ -490,11 +485,6 @@ export default function App() {
     }
 
     if (mode === 'delete') {
-      const requiresKey = keyModal.requiresKey !== false;
-      if (!requiresKey) {
-        void finalizeProfileDelete(profileId, '', { requiresKey: false });
-        return;
-      }
       if (!key || key.length !== 4) {
         setKeyModalError('Enter your 4-digit Player Key.');
         return;
@@ -505,11 +495,15 @@ export default function App() {
 
   async function finalizeCloudLogin(profileId, playerKey, { requiresKey = true } = {}) {
     if (keyModalBusy) return;
+    if (!playerKey || playerKey.length !== 4) {
+      setKeyModalError('Enter your 4-digit Player Key.');
+      return;
+    }
     setKeyModalBusy(true);
     setKeyModalError('');
 
     try {
-      const login = await recallCloudProfile(profileId, playerKey, { requiresKey });
+      const login = await recallCloudProfile(profileId, playerKey, { requiresKey: true });
       if (!login.ok) {
         const msg =
           login.skipped
@@ -616,7 +610,7 @@ export default function App() {
     setPendingDelete({
       profileId: cloudItem.profileID,
       playerName: cloudItem.playerName || 'Player',
-      requiresKey: cloudItem.requiresKey !== false,
+      requiresKey: true,
       isCloud: true,
     });
   }
@@ -953,10 +947,6 @@ export default function App() {
           const pd = pendingDelete;
           setPendingDelete(null);
           if (!pd) return;
-          if (pd.requiresKey === false) {
-            void finalizeProfileDelete(pd.profileId, '', { requiresKey: false });
-            return;
-          }
           setKeyModalError('');
           setKeyModal({
             mode: 'delete',

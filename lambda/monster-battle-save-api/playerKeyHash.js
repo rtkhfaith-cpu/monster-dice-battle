@@ -19,17 +19,37 @@ function hashPlayerKey(key) {
 }
 
 function hashLooksValid(saved) {
-  return !!(saved && String(saved).startsWith('pk_') && String(saved).length >= 12);
+  const s = String(saved || '');
+  return s.startsWith('pk_') && s.length >= 10;
 }
 
+/** Profile row has any key material stored (hash or legacy pin). */
 function hasStoredKey(item) {
   if (!item || typeof item !== 'object') return false;
   const saved = item.pinHash || item.playerKeyHash;
-  if (hashLooksValid(saved)) return true;
+  if (saved && String(saved).trim()) return true;
   const legacy = String(item.pin || '')
     .replace(/\D/g, '')
     .slice(0, 4);
   return legacy.length === 4;
+}
+
+function profileHasSaveData(item) {
+  if (!item || typeof item !== 'object') return false;
+  const monsters = Array.isArray(item.monsters)
+    ? item.monsters
+    : Array.isArray(item.ownedMonsters)
+      ? item.ownedMonsters
+      : [];
+  if (monsters.length > 0) return true;
+  if (typeof item.coins === 'number' && item.coins > 0) return true;
+  if (item.selectedMonsterId) return true;
+  return false;
+}
+
+/** Cloud row must not be loaded/deleted without the correct key. */
+function profileIsProtected(item) {
+  return hasStoredKey(item) || profileHasSaveData(item);
 }
 
 function verifyPlayerKey(inputKey, item) {
@@ -38,14 +58,14 @@ function verifyPlayerKey(inputKey, item) {
   if (hashLooksValid(saved)) {
     return hashPlayerKey(inputKey) === saved;
   }
-  const legacy = String(item.pin || saved || '')
+  const legacy = String(item.pin || '')
     .replace(/\D/g, '')
     .padStart(4, '0')
     .slice(0, 4);
   return normalizePlayerKey(inputKey) === legacy;
 }
 
-/** Attach hashed key when cloud row was saved without one (legacy / first sync). */
+/** First-time lock only — never call after a failed verify. */
 function applyKeyToItem(item, inputKey) {
   const hash = hashPlayerKey(inputKey);
   if (!hash) return item;
@@ -63,5 +83,7 @@ module.exports = {
   hashLooksValid,
   verifyPlayerKey,
   hasStoredKey,
+  profileHasSaveData,
+  profileIsProtected,
   applyKeyToItem,
 };

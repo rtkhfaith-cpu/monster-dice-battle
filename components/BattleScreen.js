@@ -360,7 +360,6 @@ export default function BattleScreen({
   function runAttack({
     attackerId,
     defenderId,
-    defending,
     bannerText,
     onComplete,
     skill: skillIn,
@@ -395,20 +394,11 @@ export default function BattleScreen({
 
     if (attackerId === PLAYER_ID) {
       setP1Pose('cast');
-      setP2Pose(defending ? 'defend' : 'idle');
+      setP2Pose('idle');
     } else {
       setP2Pose('cast');
-      setP1Pose(defending ? 'defend' : 'idle');
+      setP1Pose('idle');
     }
-    schedule(Math.round(ATTACK_WINDUP_MS * 0.55), () => {
-      if (attackerId === PLAYER_ID) setP1Pose('lunge');
-      else setP2Pose('lunge');
-      if (!defending) {
-        if (attackerId === PLAYER_ID) setP2Pose('hit');
-        else setP1Pose('hit');
-      }
-    });
-
     if (attackerId === PLAYER_ID) {
       setP1Emotion('happy');
       setP2Emotion('angry');
@@ -422,26 +412,39 @@ export default function BattleScreen({
         ? resolveMagicBattleDamage({
             attacker: atk,
             defender: def,
-            defending,
             skill,
             atkElement: skill?.element ?? atk.element,
             defElement: def.element,
           })
-        : resolvePhysicalBattleDamage({ attacker: atk, defender: def, defending, skill });
+        : resolvePhysicalBattleDamage({ attacker: atk, defender: def, skill });
 
-    const dmg = resolved.damage;
+    const dmg = resolved.dodged ? 0 : resolved.damage;
     const mpCost = strikeKind === 'magic' ? skill?.mpCost ?? 0 : 0;
 
-    if (resolved.critical) showBanner('Critical Hit!');
+    if (resolved.dodged) showBanner('Dodged!');
+    else if (resolved.critical) showBanner('Critical Hit!');
     else if (resolved.weak) showBanner('Weak Hit!');
+    else if (resolved.defended) showBanner('Blocked!');
     else if (strikeKind === 'magic') {
       const elMsg = elementBannerText(resolved.elementRelation);
       if (elMsg) showBanner(elMsg);
     }
 
+    schedule(Math.round(ATTACK_WINDUP_MS * 0.55), () => {
+      if (attackerId === PLAYER_ID) setP1Pose('lunge');
+      else setP2Pose('lunge');
+      if (resolved.dodged) {
+        if (defenderId === PLAYER_ID) setP1Pose('dodge');
+        else setP2Pose('dodge');
+      } else {
+        if (attackerId === PLAYER_ID) setP2Pose('hit');
+        else setP1Pose('hit');
+      }
+    });
+
     let nextAtk = { ...atk, mp: Math.max(0, atk.mp - mpCost) };
-    let nextDef = { ...def, hp: Math.max(0, def.hp - dmg) };
-    if (dmg > 0 && strikeKind === 'magic') {
+    let nextDef = resolved.dodged ? { ...def } : { ...def, hp: Math.max(0, def.hp - dmg) };
+    if (dmg > 0 && strikeKind === 'magic' && !resolved.dodged) {
       nextDef = maybeApplySkillStatus(nextDef, skill);
     }
 
@@ -480,8 +483,8 @@ export default function BattleScreen({
       sicklyFlash: animMeta.sicklyFlash,
       critical: resolved.critical,
       weak: resolved.weak,
-      dodged: false,
-      defended: defending,
+      dodged: !!resolved.dodged,
+      defended: !!resolved.defended,
       damage: dmg,
       superBomb: false,
       attackerId,
@@ -520,7 +523,8 @@ export default function BattleScreen({
 
     clearAttackEffects();
     schedule(ATTACK_WINDUP_MS, () => {
-      if (!defending) playSoundForSkill(skill, strikeKind);
+      if (resolved.dodged) playSound('dodge');
+      else playSoundForSkill(skill, strikeKind);
       setActiveAttackEffect(effectPayload);
     });
   }
@@ -532,7 +536,6 @@ export default function BattleScreen({
       runAttack({
         attackerId: CPU_ID,
         defenderId: PLAYER_ID,
-        defending: false,
         bannerText: strikeKind === 'magic' ? `CPU used ${skill.name}!` : 'CPU attacks!',
         skill,
         strikeKind,
@@ -560,7 +563,6 @@ export default function BattleScreen({
     runAttack({
       attackerId,
       defenderId,
-      defending: false,
       bannerText: banner,
       skill,
       strikeKind: 'physical',
@@ -594,35 +596,10 @@ export default function BattleScreen({
     runAttack({
       attackerId,
       defenderId,
-      defending: false,
       bannerText: `${skill.name}!`,
       skill,
       strikeKind: 'magic',
       onComplete: strikeAftermath(runCpuCounter),
-    });
-  }
-
-  function handleDefend() {
-    if (busy || battlePhase !== 'chooseAction') return;
-    unlockBattleAudio();
-    startBattleMusic();
-    const p2Turn = !opponentIsAi && activeBattler === CPU_ID;
-    if (p2Turn) setDefendGlowP2(true);
-    else setDefendGlowP1(true);
-    playSound('defend');
-
-    const { skill, strikeKind } = opponentIsAi
-      ? pickCpuStrike(p2Ref.current)
-      : pickCpuStrike(p2Turn ? p1Ref.current : p2Ref.current);
-
-    runAttack({
-      attackerId: p2Turn ? PLAYER_ID : CPU_ID,
-      defenderId: p2Turn ? CPU_ID : PLAYER_ID,
-      defending: true,
-      bannerText: p2Turn ? `${labelCpu} is defending!` : `${labelP1} is defending!`,
-      skill,
-      strikeKind,
-      onComplete: strikeAftermath(null),
     });
   }
 
@@ -791,27 +768,6 @@ export default function BattleScreen({
                 style={({ pressed }) => [
                   styles.arcadeBtn,
                   battleMobile && styles.arcadeBtnMobile,
-                  styles.defendBtn,
-                  pressed && actionsEnabled && styles.arcadeBtnPressed,
-                  !actionsEnabled && styles.disabledBtn,
-                ]}
-                disabled={!actionsEnabled}
-              onPress={() => {
-                tapUi();
-                handleDefend();
-              }}
-            >
-                <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.defendFace]} pointerEvents="none">
-                  <View style={styles.defendBtnShine} />
-                  <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.defendBtnTxt]}>
-                    Defend
-                  </Text>
-                </View>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.arcadeBtn,
-                  battleMobile && styles.arcadeBtnMobile,
                   styles.runBtnOuter,
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
@@ -938,7 +894,7 @@ const styles = StyleSheet.create({
   arcadeBtnMobile: {
     minWidth: 0,
     flex: 1,
-    maxWidth: '25%',
+    maxWidth: '33.33%',
   },
   arcadeBtnPressed: {
     paddingBottom: 1,

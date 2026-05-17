@@ -34,14 +34,13 @@ export function toCloudProfile(gameData, profileID) {
   }
 
   const keyHash =
-    p.playerKeyHash ||
-    (p.pin ? hashPlayerKey(p.pin) : '');
+    (p.playerKeyHash && String(p.playerKeyHash).startsWith('pk_')
+      ? p.playerKeyHash
+      : '') || (p.pin ? hashPlayerKey(p.pin) : '');
 
-  return {
+  const row = {
     profileID: String(profileID),
     playerName: String(p.name || 'Player').slice(0, 24),
-    playerKeyHash: keyHash,
-    pinHash: keyHash,
     coins: typeof p.coins === 'number' ? p.coins : 0,
     selectedMonsterId: p.selectedMonsterId ?? null,
     monsters,
@@ -54,6 +53,13 @@ export function toCloudProfile(gameData, profileID) {
     createdAt: p.createdAt ?? new Date().toISOString(),
     updatedAt: p.updatedAt ?? new Date().toISOString(),
   };
+
+  if (keyHash) {
+    row.playerKeyHash = keyHash;
+    row.pinHash = keyHash;
+  }
+
+  return row;
 }
 
 /**

@@ -5,7 +5,9 @@ import MonsterPreview from './MonsterPreview';
 function ExpRow({ label, pack }) {
   if (!pack || pack.level == null) return null;
   const pct = Math.min(100, Math.round(((pack.exp ?? 0) / Math.max(1, pack.expToNext ?? 1)) * 100));
-  const evolved = pack.evolved ? ` · EVOLVED → ${pack.nextStage}` : '';
+  const evolved = pack.evolved
+    ? ` · EVOLVED → ${pack.evolutionFormName || pack.nextStage}`
+    : '';
   return (
     <View style={styles.expBlock}>
       <Text style={styles.expLbl}>

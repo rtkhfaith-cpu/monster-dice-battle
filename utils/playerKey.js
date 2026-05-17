@@ -66,7 +66,8 @@ export function verifyPlayerKey(inputKey, savedHash) {
  * @param {{ playerKeyHash?: string, pin?: string }|null|undefined} profile
  */
 export function profileHasPlayerKey(profile) {
-  return !!(profile?.playerKeyHash && String(profile.playerKeyHash).startsWith('pk_'));
+  const h = profile?.playerKeyHash;
+  return !!(h && String(h).startsWith('pk_') && String(h).length >= 10);
 }
 
 /**

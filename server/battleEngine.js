@@ -184,8 +184,8 @@ function buildEffect(skill, resolved, attackerId, defenderId, strikeKind) {
     sicklyFlash: !!anim.sicklyFlash,
     critical: resolved.critical,
     weak: resolved.weak,
-    dodged: false,
-    defended: resolved.defended,
+    dodged: !!resolved.dodged,
+    defended: !!resolved.defended,
     damage: resolved.damage,
     attackerId,
     defenderId,
@@ -195,7 +195,7 @@ function buildEffect(skill, resolved, attackerId, defenderId, strikeKind) {
   };
 }
 
-function resolveStrike(battle, attackerId, defenderId, strikeKind, skill, defending) {
+function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
   const atk = { ...fighterAt(battle, attackerId) };
   const def = { ...fighterAt(battle, defenderId) };
 
@@ -209,16 +209,17 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill, defend
       ? resolveMagicBattleDamage({
           attacker: atk,
           defender: def,
-          defending,
           skill,
           atkElement: skill.element ?? atk.element,
           defElement: def.element,
         })
-      : resolvePhysicalBattleDamage({ attacker: atk, defender: def, defending, skill });
+      : resolvePhysicalBattleDamage({ attacker: atk, defender: def, skill });
 
   const mpCost = strikeKind === 'magic' ? skill.mpCost ?? 0 : 0;
   atk.mp = Math.max(0, atk.mp - mpCost);
-  def.hp = Math.max(0, def.hp - resolved.damage);
+  if (!resolved.dodged) {
+    def.hp = Math.max(0, def.hp - resolved.damage);
+  }
 
   setFighter(battle, attackerId, atk);
   setFighter(battle, defenderId, def);
@@ -226,13 +227,17 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill, defend
   battle.currentEffect = buildEffect(skill, resolved, attackerId, defenderId, strikeKind);
   battle.currentEffect.seq = battle.seq;
 
-  if (resolved.critical) battle.bannerMessage = 'Critical hit!';
+  if (resolved.dodged) battle.bannerMessage = 'Dodged!';
+  else if (resolved.critical) battle.bannerMessage = 'Critical hit!';
+  else if (resolved.defended) battle.bannerMessage = `Blocked — ${resolved.damage} damage!`;
   else if (resolved.damage > 0) battle.bannerMessage = `${resolved.damage} damage!`;
   else battle.bannerMessage = 'No damage!';
 
   pushLog(
     battle,
-    `${atk.displayName || 'Attacker'} used ${skill.name} (${resolved.damage} dmg)`,
+    resolved.dodged
+      ? `${def.displayName || 'Defender'} dodged ${skill.name}!`
+      : `${atk.displayName || 'Attacker'} used ${skill.name} (${resolved.damage} dmg)`,
   );
 
   checkWinner(battle);
@@ -264,12 +269,10 @@ function resolveActionName(action, payload = {}) {
   if (act === 'submit_action') {
     const move = payload.move || payload.kind || payload.type || 'fight';
     if (move === 'magic' || payload.skillId) return 'magic';
-    if (move === 'defend') return 'defend';
     if (move === 'run') return 'run';
     return 'fight';
   }
   if (act === 'pickStrike') return payload.kind === 'magic' ? 'magic' : 'fight';
-  if (act === 'pickDefense') return 'defend';
   if (act === 'rollDice') return 'fight';
   return act;
 }
@@ -309,7 +312,7 @@ function applyBattleAction(battle, playerSlot, action, payload = {}) {
   if (act === 'fight' || (act === 'pickStrike' && payload.kind !== 'magic')) {
     const defenderId = playerId === 1 ? 2 : 1;
     const skill = pickSkill(fighterAt(battle, playerId), 'physical', null);
-    const res = resolveStrike(battle, playerId, defenderId, 'physical', skill, false);
+    const res = resolveStrike(battle, playerId, defenderId, 'physical', skill);
     if (res.error) return res;
     return { ok: true, battle, scheduleEndTurn: !battle.winner };
   }
@@ -318,18 +321,13 @@ function applyBattleAction(battle, playerSlot, action, payload = {}) {
     const defenderId = playerId === 1 ? 2 : 1;
     const skill = pickSkill(fighterAt(battle, playerId), 'magic', payload.skillId);
     if (!skill) return { error: 'Unknown magic skill' };
-    const res = resolveStrike(battle, playerId, defenderId, 'magic', skill, false);
+    const res = resolveStrike(battle, playerId, defenderId, 'magic', skill);
     if (res.error) return res;
     return { ok: true, battle, scheduleEndTurn: !battle.winner };
   }
 
   if (act === 'defend') {
-    const attackerId = playerId === 1 ? 2 : 1;
-    const skill = pickSkill(fighterAt(battle, attackerId), 'physical', null);
-    battle.bannerMessage = `Player ${playerId} is defending!`;
-    const res = resolveStrike(battle, attackerId, playerId, 'physical', skill, true);
-    if (res.error) return res;
-    return { ok: true, battle, scheduleEndTurn: !battle.winner };
+    return { error: 'Defend is automatic — use Fight or Magic' };
   }
 
   return { error: 'Unknown action' };

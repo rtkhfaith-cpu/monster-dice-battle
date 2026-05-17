@@ -26,9 +26,12 @@ export default function MonsterLayerStack({
   pupil = '#1a1a2e',
   cosmetics = [],
   showShadow = true,
+  evolutionTier = 0,
+  visualFormTier = null,
 }) {
   if (!themeBody) return null;
 
+  const tier = Math.min(3, Math.max(0, visualFormTier ?? evolutionTier ?? 0));
   const rimColor = themePalette?.glow ?? themeAura ?? ART.crit;
 
   return (
@@ -49,6 +52,8 @@ export default function MonsterLayerStack({
             pupil={pupil}
             palette={themePalette}
             archetype={themeArchetype}
+            evolutionTier={tier}
+            visualFormTier={tier}
           />
           <MonsterGearLayers cosmetics={cosmetics} stroke={stroke} ST={ST} />
         </G>

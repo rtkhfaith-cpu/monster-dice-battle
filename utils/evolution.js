@@ -21,6 +21,15 @@ export function evolutionStageFromLevel(level) {
   return hit ?? EVOLUTION_STAGES[0];
 }
 
+/** Visual form tier 0–3 — evolves at levels 10, 25, 50 (drives body art). */
+export function visualFormTierFromLevel(level) {
+  const lv = Math.max(1, Math.floor(level || 1));
+  if (lv >= 50) return 3;
+  if (lv >= 25) return 2;
+  if (lv >= 10) return 1;
+  return 0;
+}
+
 /** Visual intensity 0–1 inside tier */
 export function tierVisualIntensity(level, stage = evolutionStageFromLevel(level)) {
   const span = Math.max(1, stage.maxLevel - stage.minLevel + 1);
