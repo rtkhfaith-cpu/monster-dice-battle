@@ -4,7 +4,7 @@ import { applyGearBonuses } from './gearStats';
 import { compactGearIds, resolveFighterElement } from './cosmetics';
 import { mergeMonsterParts } from './gameStorage';
 import { getMonsterSkillSet } from './monsterSkills';
-import { getMonsterTemplate, MONSTER_CATALOG } from './monsterTemplates';
+import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
 import { computeBattleStats } from './statsCalc';
 
 /**
@@ -72,14 +72,25 @@ function scaleStatsBundle(stats, ratio) {
   };
 }
 
-/** Pick a random monster from the same rarity tier (e.g. common vs common). */
-function pickRandomCpuTemplate(humanRarity, excludeTemplateId = null) {
-  const tier = humanRarity || 'common';
+/**
+ * CPU rarity pool for 1v CPU by player monster level.
+ * Lv 1–15: common · 16–25: common+rare · 26–35: +epic · 36+: all rarities
+ */
+export function getAllowedCpuRarities(playerLevel) {
+  const lv = Math.max(1, Math.floor(playerLevel || 1));
+  if (lv <= 15) return ['common'];
+  if (lv <= 25) return ['common', 'rare'];
+  if (lv <= 35) return ['common', 'rare', 'epic'];
+  return [...RARITY_ORDER];
+}
+
+function pickRandomCpuTemplate(playerLevel, excludeTemplateId = null) {
+  const allowed = new Set(getAllowedCpuRarities(playerLevel));
   let pool = MONSTER_CATALOG.filter(
-    (m) => m?.id && m.rarity === tier && m.id !== excludeTemplateId,
+    (m) => m?.id && allowed.has(m.rarity) && m.id !== excludeTemplateId,
   );
   if (pool.length === 0) {
-    pool = MONSTER_CATALOG.filter((m) => m?.id && m.rarity === tier);
+    pool = MONSTER_CATALOG.filter((m) => m?.id && allowed.has(m.rarity));
   }
   if (pool.length === 0) {
     pool = MONSTER_CATALOG.filter((m) => m?.id && m.id !== excludeTemplateId);
@@ -88,15 +99,13 @@ function pickRandomCpuTemplate(humanRarity, excludeTemplateId = null) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-/** CPU opponent — random same-rarity monster, ~10% weaker than the human (for 1P). */
+/** CPU opponent — random monster from level-appropriate rarities, ~10% weaker (1v CPU). */
 export function buildAiFighter(humanFighter, _gameData = null, _profileId = null) {
   const excludeId = humanFighter?.monsterTemplateId || null;
-  const humanTpl = getMonsterTemplate(humanFighter?.monsterTemplateId);
-  const humanRarity = humanFighter?.rarity ?? humanTpl?.rarity ?? 'common';
-  const picked = pickRandomCpuTemplate(humanRarity, excludeId);
+  const playerLevel = humanFighter?.level ?? 1;
+  const picked = pickRandomCpuTemplate(playerLevel, excludeId);
   const tplId = picked?.id || 'cockroachsaurus';
   const tpl = getMonsterTemplate(tplId);
-  const playerLevel = humanFighter?.level ?? 1;
   const levelJitter = Math.floor(Math.random() * 3) - 1;
   const level = Math.max(1, Math.min(99, playerLevel + levelJitter));
 

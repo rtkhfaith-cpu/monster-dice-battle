@@ -730,19 +730,28 @@ export function awardBattleRewards(gameData, payload) {
   let expP2 = 12;
 
   if (payload.mode === 'onePlayer') {
+    const p1Lvl = Math.max(1, Math.floor(p1Level || 1));
+    const cpuLvl = Math.max(1, Math.floor(oppLevelForP1 || p1Lvl));
+    const earlyTrainer = p1Lvl <= 15;
+
     if (payload.outcome === 1) {
-      const winCoins = 5 + Math.floor(Math.random() * 4);
+      const winCoins = earlyTrainer
+        ? 14 + Math.floor(Math.random() * 9)
+        : coinWinForEnemyLevel(cpuLvl);
       walletP1.coins += winCoins;
       coinsAwarded = winCoins;
-      expP1 = 12 + Math.floor(Math.random() * 9);
+      expP1 = earlyTrainer
+        ? 28 + Math.floor(Math.random() * 14)
+        : expWinForEnemyLevel(cpuLvl);
       expP2 = 0;
     } else if (payload.outcome === 2) {
-      expP1 = -(5 + Math.floor(Math.random() * 6));
+      expP1 = earlyTrainer ? -(3 + Math.floor(Math.random() * 4)) : -expLossPenalty(p1Lvl);
       expP2 = 0;
     } else {
-      walletP1.coins += 3;
-      coinsAwarded = 3;
-      expP1 = 8;
+      const drawCoins = earlyTrainer ? 6 + Math.floor(Math.random() * 3) : DRAW_COINS_EACH;
+      walletP1.coins += drawCoins;
+      coinsAwarded = drawCoins;
+      expP1 = earlyTrainer ? 16 + Math.floor(Math.random() * 10) : 12;
       expP2 = 0;
     }
   } else {

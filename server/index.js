@@ -10,6 +10,7 @@ const {
   applyBattleAction,
   snapshotForClient,
   activeTurnFromPhase,
+  endTurnAfterResolve,
 } = require('./battleEngine');
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -235,7 +236,7 @@ function tryAutoStartBattle(roomCode) {
   room.opponentLeftMessage = null;
   room.battle = createBattle(p1.profile.fighter, p2.profile.fighter);
   room.status = 'battle';
-  room.battle.bannerMessage = `${p1.profile.name || 'Player A'} — roll your dice!`;
+  room.battle.bannerMessage = `${p1.profile.name || 'Player 1'} — choose your move`;
   console.log('[battle] auto-started', roomCode, p1.profile.name, 'vs', p2.profile.name);
 
   const snap = snapshotForClient(room.battle);
@@ -246,7 +247,7 @@ function tryAutoStartBattle(roomCode) {
   return true;
 }
 
-function scheduleRoundAdvance(roomCode) {
+function scheduleEndTurn(roomCode) {
   const room = rooms[roomCode];
   if (!room?.battle) return;
   clearBattleTimer(room);
@@ -256,9 +257,9 @@ function scheduleRoundAdvance(roomCode) {
       emitRoomUpdate(roomCode);
       return;
     }
-    const res = applyBattleAction(room.battle, 'p1', 'advanceRound');
+    const res = endTurnAfterResolve(room.battle);
     if (res.ok) {
-      console.log('[battle] round advanced', roomCode, 'round', room.battle.round);
+      console.log('[battle] turn ended', roomCode, 'round', room.battle.round, 'active', room.battle.activePlayerId);
       io.to(roomCode).emit('battleUpdate', { battle: snapshotForClient(room.battle) });
     }
     emitRoomUpdate(roomCode);
@@ -343,10 +344,25 @@ io.on('connection', (socket) => {
     const room = createEmptyRoom(roomCode);
     ensurePlayerRecord(room, 'p1', socket);
     rooms[roomCode] = room;
-    joinSocketToRoom(socket, roomCode, () => {
+
+    const sendAck = (err) => {
+      if (typeof ack !== 'function') return;
+      if (err) {
+        ack({ error: err.message || String(err) || 'Failed to create room' });
+        return;
+      }
       console.log('[room] created', roomCode, 'host', socket.id);
       const state = emitRoomUpdate(roomCode);
-      if (typeof ack === 'function') ack({ roomCode, playerSlot: 'p1', room: state });
+      ack({ roomCode, playerSlot: 'p1', room: state });
+    };
+
+    joinSocketToRoom(socket, roomCode, (err) => {
+      if (err) {
+        delete rooms[roomCode];
+        sendAck(err);
+        return;
+      }
+      sendAck(null);
     });
   });
 
@@ -438,8 +454,8 @@ io.on('connection', (socket) => {
     io.to(code).emit('battleUpdate', { battle: snapshotForClient(room.battle) });
     emitRoomUpdate(code);
 
-    if (res.scheduleNextRound && !room.battle.winner) {
-      scheduleRoundAdvance(code);
+    if (res.scheduleEndTurn && !room.battle.winner) {
+      scheduleEndTurn(code);
     }
 
     if (room.battle.winner) {

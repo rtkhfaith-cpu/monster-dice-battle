@@ -30,6 +30,8 @@ let opponentLeftMsg = null;
 const listeners = new Set();
 /** @type {import('socket.io-client').Socket | null} */
 let listenersAttachedTo = null;
+/** @type {Promise<{ socket: import('socket.io-client').Socket | null, error: string | null, url: string }> | null} */
+let connectInFlight = null;
 
 /**
  * Merge server room payloads — never drop players/battle accidentally.
@@ -218,6 +220,26 @@ function attachSocket(sock) {
   sock.on('errorMessage', (msg) => devLog('server error', msg));
 }
 
+function waitForSocketConnected(sock, maxMs = 4000) {
+  if (sock?.connected) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    if (!sock) {
+      resolve(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      sock.off('connect', onConnect);
+      resolve(false);
+    }, maxMs);
+    const onConnect = () => {
+      clearTimeout(timer);
+      sock.off('connect', onConnect);
+      resolve(true);
+    };
+    sock.once('connect', onConnect);
+  });
+}
+
 function emitWithAck(sock, event, payload) {
   return new Promise((resolve) => {
     if (!sock?.connected) {
@@ -283,25 +305,83 @@ export function getConfiguredServerUrl() {
   return getSocketServerUrl();
 }
 
-export function ensureOnlineSocket() {
-  return loadSocketConfig().then((loadedUrl) => {
+function tryRejoinSession(sock, session) {
+  return emitWithAck(sock, 'rejoinRoom', {
+    roomCode: session.roomCode,
+    playerSlot: session.playerSlot,
+  }).then((res) => {
+    if (res?.error) {
+      devLog('rejoin failed', res.error);
+      clearOnlineSession();
+      return;
+    }
+    if (res?.room) {
+      mergeRoomPayload(res.room);
+      logRoomPayload('rejoinRoom ack', res.room);
+    }
+    saveOnlineSession({
+      roomCode: res.roomCode || session.roomCode,
+      playerSlot: res.playerSlot || session.playerSlot,
+      profileId: session.profileId,
+      playerName: session.playerName,
+    });
+    notify();
+  });
+}
+
+/**
+ * @param {{ skipRejoin?: boolean, forceReconnect?: boolean }} [options]
+ */
+export function ensureOnlineSocket(options = {}) {
+  const skipRejoin = options.skipRejoin === true;
+  const urlHint = getSocketServerUrl();
+
+  if (socket?.connected && listenersAttachedTo === socket && !options.forceReconnect) {
+    const session = loadOnlineSession();
+    if (!skipRejoin && session?.roomCode && session?.playerSlot) {
+      return tryRejoinSession(socket, session).then(() => ({
+        socket,
+        error: null,
+        url: urlHint,
+      }));
+    }
+    return Promise.resolve({ socket, error: null, url: urlHint });
+  }
+
+  if (connectInFlight) {
+    return connectInFlight.then(async (result) => {
+      if (result.error || !result.socket || skipRejoin) return result;
+      const session = loadOnlineSession();
+      if (session?.roomCode && session?.playerSlot) {
+        await tryRejoinSession(result.socket, session);
+      }
+      return result;
+    });
+  }
+
+  connectInFlight = loadSocketConfig().then((loadedUrl) => {
     const url = loadedUrl || getSocketServerUrl();
     const validationErr = validateSocketUrl(url);
     if (validationErr) {
       devLog('socket URL invalid', validationErr);
-      return Promise.resolve({ socket: null, error: validationErr, url: url || '' });
+      return { socket: null, error: validationErr, url: url || '' };
     }
 
     return pingSocketServer(url).then((ping) => {
       if (!ping.ok) {
         devLog('health check failed — trying socket connect anyway', ping.error, url, getSocketConfigDebug());
       }
-      return connectOnlineSocketFlow(url);
+      return connectOnlineSocketFlow(url, { skipRejoin });
     });
+  }).finally(() => {
+    connectInFlight = null;
   });
+
+  return connectInFlight;
 }
 
-function connectOnlineSocketFlow(url) {
+function connectOnlineSocketFlow(url, options = {}) {
+  const skipRejoin = options.skipRejoin === true;
   return new Promise((resolve) => {
     if (!url) {
       devLog('Online server not configured');
@@ -347,29 +427,9 @@ function connectOnlineSocketFlow(url) {
     const onReady = () => {
       devLog('socket ready', sock.id, '→', url);
 
-      if (session?.roomCode && session?.playerSlot) {
+      if (!skipRejoin && session?.roomCode && session?.playerSlot) {
         devLog('rejoining room', session.roomCode, session.playerSlot);
-        emitWithAck(sock, 'rejoinRoom', {
-          roomCode: session.roomCode,
-          playerSlot: session.playerSlot,
-        }).then((res) => {
-          if (res?.error) {
-            devLog('rejoin failed', res.error);
-            clearOnlineSession();
-            finish({ socket: sock, error: null, url });
-            return;
-          }
-          if (res?.room) {
-            mergeRoomPayload(res.room);
-            logRoomPayload('rejoinRoom ack', res.room);
-          }
-          saveOnlineSession({
-            roomCode: res.roomCode || session.roomCode,
-            playerSlot: res.playerSlot || session.playerSlot,
-            profileId: session.profileId,
-            playerName: session.playerName,
-          });
-          notify();
+        tryRejoinSession(sock, session).then(() => {
           finish({ socket: sock, error: null, url });
         });
         return;
@@ -397,9 +457,15 @@ function connectOnlineSocketFlow(url) {
 
 export function createOnlineRoom() {
   return new Promise((resolve) => {
-    ensureOnlineSocket().then(async ({ socket: sock, error, url }) => {
+    leaveOnlineRoom();
+    ensureOnlineSocket({ skipRejoin: true }).then(async ({ socket: sock, error, url }) => {
       if (error || !sock) {
         resolve({ error, url });
+        return;
+      }
+      const ready = await waitForSocketConnected(sock);
+      if (!ready) {
+        resolve({ error: 'Not connected', url });
         return;
       }
       const res = await emitWithAck(sock, 'createRoom', {});
@@ -407,14 +473,31 @@ export function createOnlineRoom() {
         resolve({ error: res.error, url });
         return;
       }
+      if (!res?.roomCode) {
+        resolve({ error: 'Server did not return a room code', url });
+        return;
+      }
       devLog('room created', res.roomCode, 'slot', res.playerSlot);
       saveOnlineSession({ roomCode: res.roomCode, playerSlot: res.playerSlot });
       if (res.room) {
         mergeRoomPayload(res.room);
         logRoomPayload('createRoom ack', res.room);
+      } else {
+        mergeRoomPayload({
+          roomCode: res.roomCode,
+          status: 'lobby',
+          playerCount: 1,
+          bothJoined: false,
+          players: res.players,
+        });
       }
       notify();
-      resolve({ roomCode: res.roomCode, playerSlot: res.playerSlot, url });
+      resolve({
+        roomCode: res.roomCode,
+        playerSlot: res.playerSlot,
+        room: res.room || getOnlineRoomState(),
+        url,
+      });
     });
   });
 }

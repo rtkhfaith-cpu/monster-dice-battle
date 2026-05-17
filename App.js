@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { isMobileLayout as isLobbyMobileWidth } from './utils/responsive';
 import BattleScreen from './components/BattleScreen';
-import OnlineDiceBattleScreen from './components/OnlineDiceBattleScreen';
+import OnlineBattleScreen from './components/OnlineBattleScreen';
 import MonsterGearScreen from './components/MonsterGearScreen';
 import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
@@ -1080,7 +1080,7 @@ export default function App() {
         )}
 
         {phase === 'battle' && gameMode === 'online' && onlineRoom?.battle ? (
-          <OnlineDiceBattleScreen
+          <OnlineBattleScreen
             key={battleKey}
             mySlot={onlineSlot ?? loadOnlineSession()?.playerSlot ?? 'p1'}
             snapshot={onlineRoom.battle}
@@ -1090,7 +1090,6 @@ export default function App() {
             player2Name={onlineRoom?.players?.p2?.profile?.name ?? 'Player 2'}
             onFinish={handleBattleFinish}
             onFlee={exitOnlineAndHome}
-            onExitBattle={exitOnlineAndHome}
           />
         ) : null}
 

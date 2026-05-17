@@ -328,8 +328,14 @@ export default function OnlineLobbyScreen({
       setErr(toUserOnlineError(res.error));
       return;
     }
+    if (!res.roomCode) {
+      setErr('Could not create a room. Try again.');
+      return;
+    }
     playUiSfx();
     setMySlot(res.playerSlot);
+    setRoomCodeInput(res.roomCode);
+    if (res.room) setRoomState(res.room);
     setView('waiting');
     refreshProfile();
   }
@@ -395,8 +401,13 @@ export default function OnlineLobbyScreen({
         {playerCountLabel ? (
           <Text style={styles.codePlayerCount}>{playerCountLabel}</Text>
         ) : null}
-        <Text style={[styles.codeValue, mobile && styles.codeValueMobile]}>{roomState?.roomCode}</Text>
-        <TouchableOpacity style={styles.copyBtn} onPress={() => copyRoomCode(roomState?.roomCode)}>
+        <Text style={[styles.codeValue, mobile && styles.codeValueMobile]}>
+          {roomState?.roomCode || roomCodeInput || '—'}
+        </Text>
+        <TouchableOpacity
+          style={styles.copyBtn}
+          onPress={() => copyRoomCode(roomState?.roomCode || roomCodeInput)}
+        >
           <Text style={styles.copyTxt}>📋 Copy code</Text>
         </TouchableOpacity>
       </View>
