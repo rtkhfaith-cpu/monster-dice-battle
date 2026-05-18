@@ -337,6 +337,10 @@ async function emitRoomAckWithRetry(sock, event, payload, retries = 1) {
   return last || { error: 'Server did not respond in time' };
 }
 
+function makeRequestId(prefix) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function requestRoomState(roomCode) {
   if (!socket?.connected || !roomCode) return Promise.resolve(null);
   return emitWithAck(socket, 'requestRoomState', { roomCode }).then((res) => {
@@ -498,8 +502,9 @@ function connectOnlineSocketFlow(url, options = {}) {
 
     const session = loadOnlineSession();
 
-    const onReady = () => {
+    const onReady = async () => {
       devLog('socket ready', sock.id, '→', url);
+      await waitForServerReady(sock);
 
       if (!skipRejoin && session?.roomCode && session?.playerSlot) {
         devLog('rejoining room', session.roomCode, session.playerSlot);
@@ -532,6 +537,7 @@ function connectOnlineSocketFlow(url, options = {}) {
 export function createOnlineRoom() {
   return new Promise((resolve) => {
     leaveOnlineRoom();
+    const requestId = makeRequestId('create');
     ensureOnlineSocket({ skipRejoin: true }).then(async ({ socket: sock, error, url }) => {
       if (error || !sock) {
         resolve({ error, url });
@@ -543,7 +549,7 @@ export function createOnlineRoom() {
         return;
       }
       await waitForServerReady(sock);
-      const res = await emitRoomAckWithRetry(sock, 'createRoom', {});
+      const res = await emitRoomAckWithRetry(sock, 'createRoom', { requestId });
       if (res?.error) {
         resolve({ error: res.error, url });
         return;
@@ -579,7 +585,8 @@ export function createOnlineRoom() {
 
 export function joinOnlineRoom(roomCode) {
   return new Promise((resolve) => {
-    ensureOnlineSocket().then(async ({ socket: sock, error, url }) => {
+    leaveOnlineRoom();
+    ensureOnlineSocket({ skipRejoin: true }).then(async ({ socket: sock, error, url }) => {
       if (error || !sock) {
         resolve({ error, url });
         return;

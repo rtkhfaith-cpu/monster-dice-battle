@@ -37,6 +37,7 @@ const io = new Server(server, {
 
 /** @type {Record<string, object>} */
 const rooms = {};
+const createRequests = {};
 
 function randomRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -361,6 +362,23 @@ io.on('connection', (socket) => {
   });
 
   socket.on('createRoom', (_payload, ack) => {
+    const requestId = String(_payload?.requestId || '').slice(0, 80);
+    if (requestId && createRequests[requestId] && rooms[createRequests[requestId].roomCode]) {
+      const existing = createRequests[requestId];
+      const room = rooms[existing.roomCode];
+      ensurePlayerRecord(room, existing.playerSlot, socket);
+      joinSocketToRoom(socket, existing.roomCode, (err) => {
+        if (typeof ack !== 'function') return;
+        if (err) {
+          ack({ error: err.message || String(err) || 'Failed to create room' });
+          return;
+        }
+        const state = emitRoomUpdate(existing.roomCode);
+        ack({ roomCode: existing.roomCode, playerSlot: existing.playerSlot, room: state });
+      });
+      return;
+    }
+
     leaveSocketFromAllRooms(socket);
     let roomCode = randomRoomCode();
     while (rooms[roomCode]) roomCode = randomRoomCode();
@@ -376,6 +394,7 @@ io.on('connection', (socket) => {
         return;
       }
       console.log('[room] created', roomCode, 'host', socket.id);
+      if (requestId) createRequests[requestId] = { roomCode, playerSlot: 'p1', t: Date.now() };
       const state = emitRoomUpdate(roomCode);
       ack({ roomCode, playerSlot: 'p1', room: state });
     };
