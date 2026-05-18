@@ -60,20 +60,6 @@ function BottomNavButton({ label, icon, badge, style, onPress }) {
   );
 }
 
-function StatusBar({ label, onPress }) {
-  return (
-    <Pressable
-      accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityLabel={label}
-      disabled={!onPress}
-      onPress={onPress}
-      style={({ pressed }) => [styles.statusBar, pressed && styles.realButtonPressed]}
-    >
-      <Text style={styles.statusBarText} numberOfLines={1}>{label}</Text>
-    </Pressable>
-  );
-}
-
 function GameLogo() {
   return (
     <View style={styles.logoSlot} pointerEvents="none">
@@ -121,6 +107,7 @@ export default function HomeSetupScreen({
   onUpdateProfileName,
   onResetSave,
   onOpenAudioSettings,
+  coins,
 }) {
   const [tray, setTray] = useState(null);
   const [nameDraft, setNameDraft] = useState('');
@@ -135,6 +122,7 @@ export default function HomeSetupScreen({
   const monsters = activeWallet?.ownedMonsters ?? [];
   const canStart = !!selectedP1Id && monsters.some((m) => m.id === selectedP1Id);
   const multiplayerHandler = onEnterMultiplayer || onOpenOnlineLobby;
+  const playerName = activeProfile?.name || slotProfileName || 'Trainer';
 
   const cloudActive = useMemo(
     () => cloudPlayers.find((cp) => cp.profileID === activeProfileId) ?? null,
@@ -205,6 +193,13 @@ export default function HomeSetupScreen({
           imageStyle={styles.backgroundImage}
         >
           <View style={styles.uiLayer} pointerEvents="box-none">
+            <View style={styles.topCoinDisplay} pointerEvents="none">
+              <Text style={styles.topCoinIcon}>◈</Text>
+              <Text style={styles.topCoinText}>{coins ?? 0}</Text>
+            </View>
+            <Text style={styles.topPlayerName} numberOfLines={1} pointerEvents="none">
+              {playerName}
+            </Text>
             <GameLogo />
 
             <View style={styles.menuLayer} pointerEvents="box-none">
@@ -233,10 +228,6 @@ export default function HomeSetupScreen({
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             <BottomNavButton label="Heroes" icon="♜" style={styles.bottomHeroes} onPress={pressWithSound(() => toggleTray('profile'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
-
-            <StatusBar
-              label={cloudActive ? `Cloud linked: ${cloudActive.playerName || 'Player'}` : 'Welcome, trainer'}
-            />
 
             {onlineBanner}
             {tray === 'profile' ? renderProfileTray() : null}
@@ -493,6 +484,43 @@ const styles = StyleSheet.create({
   uiLayer: {
     ...StyleSheet.absoluteFillObject,
   },
+  topCoinDisplay: {
+    position: 'absolute',
+    top: '4%',
+    left: '4%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  topCoinIcon: {
+    color: '#f8d56d',
+    fontSize: 18,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.68)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 2,
+  },
+  topCoinText: {
+    color: '#fff8df',
+    fontSize: 15,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.68)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 2,
+  },
+  topPlayerName: {
+    position: 'absolute',
+    top: '4%',
+    right: '5%',
+    maxWidth: '34%',
+    color: '#fff8df',
+    fontSize: 14,
+    fontWeight: '900',
+    textAlign: 'right',
+    textShadowColor: 'rgba(0,0,0,0.68)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 2,
+  },
   logoSlot: {
     position: 'absolute',
     top: '12.8%',
@@ -526,10 +554,10 @@ const styles = StyleSheet.create({
   },
   fantasyButton: {
     position: 'absolute',
-    left: '25%',
-    width: '50%',
-    height: '5.3%',
-    minHeight: 44,
+    left: '26.25%',
+    width: '47.5%',
+    height: '4.7%',
+    minHeight: 38,
     borderRadius: 15,
     borderWidth: 2,
     borderColor: '#b9843b',
@@ -606,16 +634,16 @@ const styles = StyleSheet.create({
   realButtonDisabled: {
     opacity: 0.48,
   },
-  menuButtonOne: { top: '40%' },
-  menuButtonTwo: { top: '47%' },
-  menuButtonThree: { top: '54%' },
-  menuButtonFour: { top: '61%' },
-  menuButtonFive: { top: '68%' },
+  menuButtonOne: { top: '39.4%' },
+  menuButtonTwo: { top: '45.7%' },
+  menuButtonThree: { top: '52%' },
+  menuButtonFour: { top: '58.3%' },
+  menuButtonFive: { top: '64.6%' },
   bottomNavButton: {
     position: 'absolute',
-    top: '86.9%',
-    width: '14%',
-    height: '6.7%',
+    top: '84%',
+    width: '16%',
+    height: '7%',
     minHeight: 52,
     borderRadius: 15,
     borderWidth: 2,
@@ -672,33 +700,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
   },
-  bottomQuest: { left: '14.3%' },
-  bottomInventory: { left: '33.2%' },
-  bottomHeroes: { left: '52%' },
-  bottomSettings: { left: '76.2%' },
-  statusBar: {
-    position: 'absolute',
-    left: '29%',
-    top: '95.2%',
-    width: '42%',
-    height: '2.9%',
-    minHeight: 28,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#b88338',
-    backgroundColor: 'rgba(9, 15, 27, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  statusBarText: {
-    color: '#f5d990',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
+  bottomQuest: { left: '11%' },
+  bottomInventory: { left: '32%' },
+  bottomHeroes: { left: '53%' },
+  bottomSettings: { left: '74%' },
   onlineBanner: {
     position: 'absolute',
     left: '5%',
