@@ -474,7 +474,7 @@ export default function App() {
     });
   }
 
-  async function handleFetchCloudPlayers() {
+  const handleFetchCloudPlayers = useCallback(async () => {
     const seq = cloudFetchSeqRef.current + 1;
     cloudFetchSeqRef.current = seq;
     setCloudFetchLoading(true);
@@ -492,7 +492,7 @@ export default function App() {
       return;
     }
     setCloudPlayers(res.players || []);
-  }
+  }, []);
 
   function closeKeyModal() {
     if (keyModalBusy) return;

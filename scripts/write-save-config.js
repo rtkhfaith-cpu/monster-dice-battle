@@ -5,9 +5,18 @@
 const fs = require('fs');
 const path = require('path');
 
-const url = String(process.env.VITE_SAVE_API_URL || '').trim().replace(/\/+$/, '');
 const outDir = path.join(__dirname, '..', 'public');
 const outFile = path.join(outDir, 'save-config.json');
+const envUrl = String(process.env.VITE_SAVE_API_URL || '').trim().replace(/\/+$/, '');
+let existingUrl = '';
+
+try {
+  existingUrl = JSON.parse(fs.readFileSync(outFile, 'utf8'))?.saveApiUrl || '';
+} catch {
+  existingUrl = '';
+}
+
+const url = envUrl || String(existingUrl).trim().replace(/\/+$/, '');
 
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(outFile, `${JSON.stringify({ saveApiUrl: url }, null, 2)}\n`, 'utf8');
