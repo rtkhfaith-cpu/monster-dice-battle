@@ -218,6 +218,9 @@ function startBgm(path, mode, fallbackPath = '') {
     // Switching within the same mode, such as main menu -> Monster Ladder,
     // should happen immediately while still inside the user gesture.
     stopBgmElement();
+  } else if (bgmAudio && bgmMode !== mode) {
+    // Battle entry happens from a press; do not delay the new track behind a fade.
+    stopBgmElement();
   }
 
   bgmTargetMode = mode;

@@ -756,15 +756,19 @@ export default function BattleScreen({
     });
   }
 
-  function tapUi() {
+  function startBattleAudioFromInput() {
     unlockBattleAudio();
+    startBattleMusic({ kind: ladderStageKind });
+  }
+
+  function tapUi() {
+    startBattleAudioFromInput();
     playUiSfx();
   }
 
   function handleFight() {
     if (isActionPlaying || busy || battlePhase !== 'chooseAction') return;
-    unlockBattleAudio();
-    startBattleMusic({ kind: ladderStageKind });
+    startBattleAudioFromInput();
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     const skill = attacker?.skills?.physical ?? getPhysicalSkill(attacker?.monsterTemplateId);
     const banner =
@@ -803,8 +807,7 @@ export default function BattleScreen({
       showBanner('Not enough MP!');
       return;
     }
-    unlockBattleAudio();
-    startBattleMusic({ kind: ladderStageKind });
+    startBattleAudioFromInput();
     runAttack({
       attackerId,
       defenderId,
@@ -817,6 +820,7 @@ export default function BattleScreen({
 
   function handleRun() {
     if (isActionPlaying || busy) return;
+    tapUi();
     setFleeConfirmOpen(true);
   }
 

@@ -120,7 +120,11 @@ export default function OnlineBattleScreen({
   const magicSkills =
     actingFighter?.skills?.magic ?? getMagicSkills(actingFighter?.monsterTemplateId ?? '');
 
-  useEffect(() => () => stopBattleMusic(), []);
+  useEffect(() => {
+    unlockBattleAudio();
+    startBattleMusic();
+    return () => stopBattleMusic();
+  }, []);
 
   useEffect(() => {
     if (!snapshot) return;

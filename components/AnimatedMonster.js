@@ -251,13 +251,21 @@ export default function AnimatedMonster({
     }
 
     if (pose === 'dodge') {
+      const feintX = -toward * 24;
       Animated.parallel([
-        Animated.timing(poseTx, { toValue: -toward * 18, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.sequence([
+          Animated.timing(poseTx, { toValue: feintX, duration: 110, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(poseTx, { toValue: feintX * -0.22, duration: 90, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.spring(poseTx, { toValue: 0, friction: 6, tension: 110, useNativeDriver: true }),
+        ]),
         Animated.sequence([
           Animated.timing(dodgeOp, { toValue: 0.5, duration: 70, useNativeDriver: true }),
           Animated.timing(dodgeOp, { toValue: 1, duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: true }),
         ]),
-        Animated.timing(poseTy, { toValue: -4, duration: 150, useNativeDriver: true }),
+        Animated.sequence([
+          Animated.timing(poseTy, { toValue: -6, duration: 110, useNativeDriver: true }),
+          Animated.spring(poseTy, { toValue: 0, friction: 6, tension: 120, useNativeDriver: true }),
+        ]),
       ]).start();
       return;
     }

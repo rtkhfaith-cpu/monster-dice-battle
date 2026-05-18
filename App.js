@@ -88,7 +88,7 @@ import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
 import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
-import { startLadderMusic, startMenuMusic, stopMenuMusic, unlockAudio } from './utils/audioManager';
+import { startBattleMusic, startLadderMusic, startMenuMusic, stopMenuMusic, unlockAudio } from './utils/audioManager';
 
 const LOBBY_PHASES = new Set(['menu', 'ladder', 'online', 'gameOver', 'audioSettings']);
 
@@ -225,6 +225,8 @@ export default function App() {
     setGameMode('online');
     setWinner(null);
     onlineFinishHandledRef.current = false;
+    unlockAudio();
+    startBattleMusic();
     setBattleKey((k) => k + 1);
     setPhase('battle');
   }
@@ -969,6 +971,8 @@ export default function App() {
       showNotice('Player setup', 'Could not start battle — missing fighter data.');
       return;
     }
+    unlockAudio();
+    startBattleMusic({ kind: p2Fighter?.ladderStageKind });
     setPlayer1(arm(p1Fighter));
     setPlayer2(arm(p2Fighter));
     setWinner(null);

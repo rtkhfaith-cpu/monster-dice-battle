@@ -279,7 +279,8 @@ export default function RpgBattleArena({
             parts={p1.monsterParts}
             size={L.p1Monster}
             pose={p1Pose}
-            side="left"
+            // The wrapper is mirrored to face right, so local movement direction is inverted.
+            side="right"
             mood={p1Mood}
             rage={p1Rage}
             superJump={superJumpSide === 'left'}
