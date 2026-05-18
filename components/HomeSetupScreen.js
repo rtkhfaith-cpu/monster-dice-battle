@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import {
+  ImageBackground,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import GameSetupPanel from './GameSetupPanel';
 import MonsterGridPanel from './MonsterGridPanel';
 import OnlineRoomBanner from './OnlineRoomBanner';
 import { LOBBY } from '../utils/gameTheme';
+import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import {
   getLayoutTier,
   isDesktopLayout,
@@ -72,6 +74,7 @@ export default function HomeSetupScreen({
   const isMobile = layoutTier === 'mobile';
   const isTablet = layoutTier === 'tablet';
   const usePageScroll = !isDesktopLayout(width);
+  const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
 
   const summary = useMemo(() => {
     const row = (ownedId, w) => {
@@ -91,6 +94,12 @@ export default function HomeSetupScreen({
   }, [summary]);
 
   const panelLayout = { layoutTier, isMobile, isTablet };
+  const activeWallet = walletP1 || wallet;
+  const selectedMonster =
+    activeWallet?.ownedMonsters?.find((m) => m.id === selectedP1Id) ??
+    activeWallet?.ownedMonsters?.find((m) => m.id === activeWallet?.selectedMonsterId) ??
+    activeWallet?.ownedMonsters?.[0] ??
+    null;
 
   const saveProps = {
     profiles,
@@ -145,49 +154,32 @@ export default function HomeSetupScreen({
     ...panelLayout,
   };
 
-  const shopButtons = (
-    <View style={[styles.shopRow, isMobile && styles.shopRowMobile]}>
-      <TouchableOpacity
-        style={[styles.shopBtn, isMobile && styles.shopBtnFull, styles.shopBtnAlt]}
-        onPress={onOpenGearMart}
-        activeOpacity={0.88}
-      >
-        <Text style={styles.shopBtnTxt}>🛒 Gear Mart</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.shopBtn, isMobile && styles.shopBtnFull]}
-        onPress={onOpenMonsterGearShop}
-        activeOpacity={0.88}
-      >
-        <Text style={styles.shopBtnTxt}>⚔ Equip Gear</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.shopBtn, isMobile && styles.shopBtnFull]}
-        onPress={onOpenMonsterMart}
-        activeOpacity={0.88}
-      >
-        <Text style={styles.shopBtnTxt}>🥚 Monsters</Text>
-      </TouchableOpacity>
-      {onOpenAudioSettings ? (
-        <TouchableOpacity
-          style={[styles.shopBtn, isMobile && styles.shopBtnFull]}
-          onPress={onOpenAudioSettings}
-          activeOpacity={0.88}
-        >
-          <Text style={styles.shopBtnTxt}>🔊 Audio</Text>
-        </TouchableOpacity>
-      ) : null}
-      {onResetSave ? (
-        <TouchableOpacity
-          style={[styles.shopBtn, isMobile && styles.shopBtnFull, styles.shopBtnWarn]}
-          onPress={onResetSave}
-          activeOpacity={0.88}
-        >
-          <Text style={styles.shopBtnTxt}>Reset Save</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
+  const menuButton = (key, label, icon, onPress, tone = 'secondary', disabled = false) => (
+    <TouchableOpacity
+      key={key}
+      style={[
+        styles.fantasyBtn,
+        tone === 'ladder' && styles.fantasyBtnLadder,
+        tone === 'start' && styles.fantasyBtnStart,
+        disabled && styles.startOff,
+      ]}
+      disabled={disabled}
+      onPress={onPress}
+      activeOpacity={0.86}
+    >
+      <Text style={styles.fantasyBtnIcon}>{icon}</Text>
+      <Text style={[styles.fantasyBtnTxt, tone !== 'secondary' && styles.fantasyBtnTxtStrong]}>{label}</Text>
+    </TouchableOpacity>
   );
+
+  const mainMenuButtons = [
+    menuButton('gearMart', 'Gear Mart', '🛒', onOpenGearMart),
+    menuButton('equipGear', 'Equip Gear', '⚔', onOpenMonsterGearShop),
+    menuButton('monsters', 'Monsters', '🥚', onOpenMonsterMart),
+    onOpenAudioSettings ? menuButton('audio', 'Audio', '🔊', onOpenAudioSettings) : null,
+    menuButton('ladder', 'Monster Ladder', '🪜', onOpenMonsterLadder, 'ladder', !canStart),
+    menuButton('start', 'Start Battle', '⚔', onStartGame, 'start', !canStart),
+  ].filter(Boolean);
 
   const topBarDesktop = (
     <View style={styles.topBar}>
@@ -274,64 +266,247 @@ export default function HomeSetupScreen({
     </View>
   );
 
-  const scrollBody = (
-    <>
-      {section('save', <SaveSlotPanel {...saveProps} />)}
-      {section('setup', <GameSetupPanel {...setupProps} />)}
-      {section('monsters', <MonsterGridPanel {...gridProps} />)}
-      {usePageScroll ? section('shop', shopButtons) : null}
-    </>
-  );
-
-  const wideBody = (
-    <View style={styles.body}>
-      <View style={styles.row3}>
-        <View style={styles.colLeft}>
-          <SaveSlotPanel {...saveProps} compact={false} embedInScroll={false} />
-        </View>
-        <View style={styles.colMid}>
-          <GameSetupPanel {...setupProps} embedInScroll={false} />
-        </View>
-        <View style={styles.colRight}>
-          <MonsterGridPanel {...gridProps} embedInScroll={false} />
-        </View>
-      </View>
-    </View>
-  );
-
-  if (usePageScroll) {
-    return (
+  return (
+    <ImageBackground
+      source={{ uri: GAME_ASSETS.homeMainMenu }}
+      style={[styles.fantasyRoot, Platform.OS === 'web' && styles.fantasyRootWeb]}
+      imageStyle={styles.fantasyBgImage}
+      resizeMode="cover"
+    >
+      <View style={styles.fantasyShade} pointerEvents="none" />
       <ScrollView
         style={[styles.pageScroll, Platform.OS === 'web' && styles.pageScrollWeb]}
-        contentContainerStyle={[
-          styles.pageScrollContent,
-          isMobile && styles.pageScrollContentMobile,
-        ]}
+        contentContainerStyle={[styles.fantasyContent, isMobile && styles.fantasyContentMobile]}
         keyboardShouldPersistTaps="always"
-        showsVerticalScrollIndicator
+        showsVerticalScrollIndicator={false}
         nestedScrollEnabled={false}
-        scrollEnabled
-        bounces
       >
-        {isMobile ? topBarMobile : topBarDesktop}
-        {onlineBanner ? <View style={styles.bannerWrap}>{onlineBanner}</View> : null}
-        <View style={[styles.stack, isMobile && styles.stackMobile]}>{scrollBody}</View>
-        {startSection}
-      </ScrollView>
-    );
-  }
+        <View style={styles.fantasyHud}>
+          <View style={styles.coinBadge}>
+            <Text style={styles.coinBadgeTxt}>🪙 {coins}</Text>
+          </View>
+          <View style={styles.profileBadge}>
+            <Text style={styles.profileBadgeName} numberOfLines={1}>
+              {activeProfile?.name || 'Welcome, Trainer!'}
+            </Text>
+            <Text style={styles.profileBadgeSub} numberOfLines={1}>
+              {selectedMonster ? `${selectedMonster.nickname || 'Active Monster'} · Lv ${selectedMonster.level}` : 'Pick your first monster'}
+            </Text>
+          </View>
+        </View>
 
-  return (
-    <View style={styles.root}>
-      {topBarDesktop}
-      {onlineBanner}
-      {wideBody}
-      {startSection}
-    </View>
+        <View style={styles.logoBlock} pointerEvents="none">
+          <Text style={[styles.logoTop, isMobile && styles.logoTopMobile]}>Monster</Text>
+          <Text style={[styles.logoBottom, isMobile && styles.logoBottomMobile]}>Dice Battle</Text>
+        </View>
+
+        {onlineBanner ? <View style={styles.bannerWrap}>{onlineBanner}</View> : null}
+
+        <View style={[styles.fantasyMenuCard, isMobile && styles.fantasyMenuCardMobile]}>
+          <Text style={styles.menuCardTitle}>Main Menu</Text>
+          <View style={styles.fantasyBtnStack}>{mainMenuButtons}</View>
+          {missingMsg && !canStart ? <Text style={styles.missing}>{missingMsg}</Text> : null}
+        </View>
+
+        <View style={[styles.homeUtilityGrid, isMobile && styles.homeUtilityGridMobile]}>
+          <View style={styles.homeUtilityPanel}>
+            <SaveSlotPanel {...saveProps} compact embedInScroll />
+          </View>
+          <View style={styles.homeUtilityPanel}>
+            <MonsterGridPanel {...gridProps} embedInScroll isMobile={isMobile} />
+          </View>
+        </View>
+      </ScrollView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  fantasyRoot: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+    backgroundColor: '#10243f',
+  },
+  fantasyRootWeb: {
+    minHeight: '100dvh',
+  },
+  fantasyBgImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fantasyShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(7, 18, 38, 0.24)',
+  },
+  fantasyContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: scrollBottomInset(28),
+    gap: 12,
+  },
+  fantasyContentMobile: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: scrollBottomInset(22),
+    gap: 10,
+  },
+  fantasyHud: {
+    width: '100%',
+    maxWidth: 760,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  coinBadge: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: '#8b5e2c',
+    backgroundColor: 'rgba(47, 31, 24, 0.86)',
+    shadowColor: 'rgba(0,0,0,0.45)',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
+  },
+  coinBadgeTxt: { fontWeight: '900', fontSize: 16, color: '#fff2c7' },
+  profileBadge: {
+    flex: 1,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 226, 150, 0.8)',
+    backgroundColor: 'rgba(255, 246, 222, 0.9)',
+  },
+  profileBadgeName: { fontWeight: '900', fontSize: 14, color: '#3b2a1d', textAlign: 'right' },
+  profileBadgeSub: { fontWeight: '800', fontSize: 11, color: '#7a5735', textAlign: 'right', marginTop: 1 },
+  logoBlock: {
+    alignItems: 'center',
+    marginTop: 2,
+    marginBottom: 0,
+    shadowColor: 'rgba(0,0,0,0.5)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+  },
+  logoTop: {
+    fontWeight: '900',
+    fontSize: 48,
+    lineHeight: 52,
+    color: '#ffd76a',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    textShadowColor: '#45220f',
+    textShadowOffset: { width: 3, height: 4 },
+    textShadowRadius: 0,
+  },
+  logoTopMobile: { fontSize: 34, lineHeight: 38 },
+  logoBottom: {
+    marginTop: -4,
+    fontWeight: '900',
+    fontSize: 42,
+    lineHeight: 46,
+    color: '#d9efff',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    textShadowColor: '#10243f',
+    textShadowOffset: { width: 3, height: 4 },
+    textShadowRadius: 0,
+  },
+  logoBottomMobile: { fontSize: 30, lineHeight: 34 },
+  fantasyMenuCard: {
+    width: '100%',
+    maxWidth: 420,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 4,
+    borderColor: '#8b5e2c',
+    backgroundColor: 'rgba(255, 239, 206, 0.94)',
+    shadowColor: 'rgba(0,0,0,0.5)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 8,
+  },
+  fantasyMenuCardMobile: {
+    maxWidth: 360,
+    padding: 12,
+    borderRadius: 18,
+  },
+  menuCardTitle: {
+    fontWeight: '900',
+    fontSize: 18,
+    letterSpacing: 1.6,
+    textAlign: 'center',
+    color: '#6b4423',
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  fantasyBtnStack: { gap: 8 },
+  fantasyBtn: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#c69653',
+    backgroundColor: '#fff4df',
+    paddingHorizontal: 16,
+    shadowColor: 'rgba(78, 45, 18, 0.35)',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
+  },
+  fantasyBtnLadder: {
+    borderColor: '#45208c',
+    backgroundColor: '#6c35d4',
+  },
+  fantasyBtnStart: {
+    borderColor: '#397b2f',
+    backgroundColor: '#3da642',
+  },
+  fantasyBtnIcon: {
+    width: 44,
+    fontSize: 24,
+    textAlign: 'center',
+  },
+  fantasyBtnTxt: {
+    flex: 1,
+    fontWeight: '900',
+    fontSize: 18,
+    color: '#3b2a1d',
+  },
+  fantasyBtnTxtStrong: {
+    color: '#fff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  homeUtilityGrid: {
+    width: '100%',
+    maxWidth: 900,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'stretch',
+    paddingBottom: 8,
+  },
+  homeUtilityGridMobile: {
+    maxWidth: 380,
+    flexDirection: 'column',
+    gap: 10,
+  },
+  homeUtilityPanel: {
+    flex: 1,
+    minWidth: 0,
+  },
   root: {
     flex: 1,
     minHeight: 0,

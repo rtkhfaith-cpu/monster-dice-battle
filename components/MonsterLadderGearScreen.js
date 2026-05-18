@@ -4,7 +4,7 @@ import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderGear, LADDER_GEAR_CATALOG } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 
-function GearChip({ gearId, onPress }) {
+function GearChip({ gearId, ownedCount = 1, onPress }) {
   const gear = getLadderGear(gearId);
   if (!gear) return null;
   const ui = RARITY_UI[gear.rarity] ?? RARITY_UI.common;
@@ -13,7 +13,7 @@ function GearChip({ gearId, onPress }) {
       <Text style={styles.equippedEmoji}>{gear.emoji}</Text>
       <View style={styles.equippedMeta}>
         <Text style={styles.equippedName}>{gear.name}</Text>
-        <Text style={styles.equippedSub}>{gear.slot} · tap to remove</Text>
+        <Text style={styles.equippedSub}>{gear.slot} · owned x{ownedCount} · tap to remove</Text>
       </View>
     </TouchableOpacity>
   );
@@ -27,7 +27,12 @@ export default function MonsterLadderGearScreen({
   onUnequip,
 }) {
   const active = monsterLadder?.ownedMonsters?.find((m) => m.id === monsterLadder.activeMonsterId);
-  const ownedSet = useMemo(() => new Set(monsterLadder?.ownedGear || []), [monsterLadder?.ownedGear]);
+  const ownedCounts = useMemo(() => {
+    const counts = {};
+    for (const id of monsterLadder?.ownedGear || []) counts[id] = (counts[id] ?? 0) + 1;
+    return counts;
+  }, [monsterLadder?.ownedGear]);
+  const ownedSet = useMemo(() => new Set(Object.keys(ownedCounts)), [ownedCounts]);
   const equipped = Array.isArray(active?.equippedLadderGear) ? active.equippedLadderGear : [];
   const available = LADDER_GEAR_CATALOG.filter((g) => ownedSet.has(g.id) && !equipped.includes(g.id));
   const template = active ? getLadderMonsterTemplate(active.templateId) : null;
@@ -45,7 +50,7 @@ export default function MonsterLadderGearScreen({
           <View style={styles.equippedBox}>
             {active && equipped.length > 0 ? (
               equipped.map((id) => (
-                <GearChip key={id} gearId={id} onPress={() => onUnequip(active.id, id)} />
+                <GearChip key={id} gearId={id} ownedCount={ownedCounts[id] ?? 1} onPress={() => onUnequip(active.id, id)} />
               ))
             ) : (
               <Text style={styles.empty}>No ladder gear equipped.</Text>
@@ -71,7 +76,7 @@ export default function MonsterLadderGearScreen({
                     <View style={styles.meta}>
                       <Text style={styles.name}>{gear.name}</Text>
                       <Text style={styles.detail}>
-                        {ui.label} · {gear.slot}
+                        {ui.label} · {gear.slot} · owned x{ownedCounts[gear.id] ?? 1}
                       </Text>
                     </View>
                     <Text style={styles.equipTxt}>Equip</Text>

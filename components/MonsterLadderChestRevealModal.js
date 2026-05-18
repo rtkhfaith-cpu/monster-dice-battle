@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderGear } from '../utils/monsterLadder/ladderGearCatalog';
@@ -16,6 +16,12 @@ function rewardName(drop) {
 }
 
 export default function MonsterLadderChestRevealModal({ visible, drop, onClose }) {
+  const [opened, setOpened] = useState(false);
+
+  useEffect(() => {
+    if (visible) setOpened(false);
+  }, [visible, drop?.id, drop?.kind]);
+
   if (!drop) return null;
   const ui = RARITY_UI[drop.rarity] ?? RARITY_UI.common;
   const duplicate = !!drop.duplicate;
@@ -25,30 +31,51 @@ export default function MonsterLadderChestRevealModal({ visible, drop, onClose }
       <View style={styles.backdrop}>
         <View style={[styles.card, { borderColor: ui.border }]}>
           <Text style={styles.kicker}>Monster Ladder Chest</Text>
-          <View style={[styles.orb, { backgroundColor: ui.chipBg, borderColor: ui.border }]}>
-            <Image source={{ uri: GAME_ASSETS.chestOpen }} style={styles.chestImg} resizeMode="contain" />
-          </View>
-          <Text style={[styles.rarity, { color: ui.border }]}>
-            {rarityLabel(drop.rarity)}
-          </Text>
-          <Text style={styles.name}>{rewardName(drop)}</Text>
-          <Text style={styles.type}>
-            {drop.kind === 'gear' ? 'Ladder gear' : 'Ladder monster'}
-          </Text>
-          {duplicate ? (
-            <Text style={styles.duplicate}>
-              Duplicate converted into {drop.shardsGained ?? 0} ladder shards.
-            </Text>
+          <TouchableOpacity
+            style={[styles.orb, { backgroundColor: ui.chipBg, borderColor: ui.border }]}
+            onPress={() => setOpened(true)}
+            activeOpacity={0.85}
+          >
+            <Image
+              source={{ uri: opened ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
+              style={styles.chestImg}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+          {!opened ? (
+            <Text style={styles.tapHint}>Tap the chest to reveal your reward.</Text>
           ) : (
-            <Text style={styles.newItem}>Added to your ladder collection.</Text>
+            <>
+              <Text style={[styles.rarity, { color: ui.border }]}>
+                {rarityLabel(drop.rarity)}
+              </Text>
+              <Text style={styles.name}>{rewardName(drop)}</Text>
+              <Text style={styles.type}>
+                {drop.kind === 'gear' ? 'Ladder gear' : 'Ladder monster'}
+              </Text>
+              {duplicate ? (
+                drop.kind === 'gear' ? (
+                  <Text style={styles.duplicate}>Extra copy stored for forging later. Owned x{drop.quantity ?? 2}.</Text>
+                ) : (
+                  <Text style={styles.duplicate}>
+                    Duplicate converted into {drop.shardsGained ?? 0} ladder shards.
+                  </Text>
+                )
+              ) : (
+                <Text style={styles.newItem}>Added to your ladder collection.</Text>
+              )}
+              {(drop.rarity === 'legendary' || drop.rarity === 'mythic') ? (
+                <Text style={styles.dramatic}>
+                  {drop.rarity === 'mythic' ? 'MYTHIC SIGNAL LOCKED.' : 'LEGENDARY SIGNAL FOUND.'}
+                </Text>
+              ) : null}
+            </>
           )}
-          {(drop.rarity === 'legendary' || drop.rarity === 'mythic') ? (
-            <Text style={styles.dramatic}>
-              {drop.rarity === 'mythic' ? 'MYTHIC SIGNAL LOCKED.' : 'LEGENDARY SIGNAL FOUND.'}
-            </Text>
-          ) : null}
-          <TouchableOpacity style={[styles.btn, { backgroundColor: ui.border }]} onPress={onClose}>
-            <Text style={styles.btnTxt}>Continue</Text>
+          <TouchableOpacity
+            style={[styles.btn, { backgroundColor: opened ? ui.border : '#636e72' }]}
+            onPress={opened ? onClose : () => setOpened(true)}
+          >
+            <Text style={styles.btnTxt}>{opened ? 'Continue' : 'Open Chest'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -88,6 +115,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   chestImg: { width: 76, height: 76 },
+  tapHint: {
+    fontWeight: '900',
+    fontSize: 15,
+    color: '#636e72',
+    textAlign: 'center',
+    marginTop: 4,
+  },
   rarity: { fontWeight: '900', fontSize: 18, textTransform: 'uppercase' },
   name: {
     marginTop: 6,

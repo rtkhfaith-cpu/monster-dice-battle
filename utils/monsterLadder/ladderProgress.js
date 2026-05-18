@@ -18,7 +18,7 @@ import { decodeStage, encodeStage, getStageKind } from './stages';
  * @property {number} ladderShards
  * @property {number} expDust
  * @property {import('./ladderProfile').LadderOwnedMonster[]} ownedMonsters
- * @property {string[]} ownedGear
+ * @property {string[]} ownedGear repeated ids are intentional for future forge/material systems
  * @property {string|null} activeMonsterId
  * @property {object} stats
  * @property {object} assist

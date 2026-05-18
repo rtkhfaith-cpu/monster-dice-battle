@@ -103,29 +103,29 @@ export function createPhaserBattleScene(Phaser) {
 
     makeHpPanel(x, y, key) {
       const fighter = this.fighters[key];
-      const box = this.add.graphics().setDepth(30);
-      box.fillStyle(0xffffff, 0.86);
-      box.lineStyle(3, key === 'player' ? 0x2563eb : 0xdc2626, 1);
-      box.fillRoundedRect(x, y, 220, 66, 14);
-      box.strokeRoundedRect(x, y, 220, 66, 14);
       const name = this.add.text(x + 14, y + 10, fighter.name, {
         fontFamily: 'Arial',
         fontSize: '15px',
         fontStyle: '700',
-        color: '#111827',
-      }).setDepth(31);
-      const barBg = this.add.rectangle(x + 110, y + 44, 176, 12, 0x111827, 0.16).setDepth(31);
+        color: '#ffffff',
+        stroke: '#111827',
+        strokeThickness: 4,
+      }).setDepth(31).setScrollFactor(0);
+      const barBg = this.add.rectangle(x + 110, y + 44, 176, 12, 0x111827, 0.32).setDepth(31).setScrollFactor(0);
       const bar = this.add.rectangle(x + 22, y + 44, 176 * (fighter.hp / fighter.maxHp), 12, 0x22c55e, 1)
         .setOrigin(0, 0.5)
-        .setDepth(32);
-      const mpBg = this.add.rectangle(x + 110, y + 58, 176, 7, 0x111827, 0.12).setDepth(31);
+        .setDepth(32)
+        .setScrollFactor(0);
+      const mpBg = this.add.rectangle(x + 110, y + 58, 176, 7, 0x111827, 0.24).setDepth(31).setScrollFactor(0);
       const mpRatio = (fighter.mp ?? fighter.maxMp ?? 1) / Math.max(1, fighter.maxMp ?? fighter.mp ?? 1);
       const mpBar = this.add.rectangle(x + 22, y + 58, 176 * mpRatio, 7, 0x6366f1, 1)
         .setOrigin(0, 0.5)
-        .setDepth(32);
+        .setDepth(32)
+        .setScrollFactor(0);
       const flash = this.add.rectangle(x + 110, y + 44, 176, 12, 0xff3b30, 0)
-        .setDepth(33);
-      return { box, name, barBg, bar, mpBg, mpBar, flash };
+        .setDepth(33)
+        .setScrollFactor(0);
+      return { name, barBg, bar, mpBg, mpBar, flash };
     }
 
     updateBattleState(next = {}) {

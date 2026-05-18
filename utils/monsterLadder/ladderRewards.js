@@ -41,6 +41,10 @@ function addLadderGearToMainInventory(profile, gearId) {
   profile.cosmeticsOwned = [...new Set([...profile.cosmeticsOwned, gearId])];
 }
 
+function countOwnedGear(ml, gearId) {
+  return (ml.ownedGear || []).filter((id) => id === gearId).length;
+}
+
 /**
  * @param {object} gameData
  * @param {string} profileId
@@ -153,14 +157,7 @@ function resolveChestOpen(profile, ml, type) {
     return { ...roll, duplicate: false, ownedId: row.id, mainOwnedId: mainRow?.id ?? row.id };
   }
 
-  if (ml.ownedGear.includes(roll.id) || profile.cosmeticsOwned?.includes(roll.id)) {
-    if (!ml.ownedGear.includes(roll.id)) ml.ownedGear.push(roll.id);
-    addLadderGearToMainInventory(profile, roll.id);
-    const shards = LADDER_SHARDS_BY_RARITY[roll.rarity] ?? 8;
-    ml.ladderShards += shards;
-    return { ...roll, duplicate: true, shardsGained: shards };
-  }
   ml.ownedGear.push(roll.id);
   addLadderGearToMainInventory(profile, roll.id);
-  return { ...roll, duplicate: false };
+  return { ...roll, duplicate: countOwnedGear(ml, roll.id) > 1, quantity: countOwnedGear(ml, roll.id) };
 }
