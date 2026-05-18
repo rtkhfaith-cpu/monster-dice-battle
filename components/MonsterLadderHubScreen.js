@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
-import { Image, ImageBackground, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Image, ImageBackground, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { RARITY_UI } from '../utils/monsterTemplates';
-import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
+import { getLadderMonsterTemplate, LADDER_MONSTER_CATALOG } from '../utils/monsterLadder/ladderMonsterCatalog';
+import { LADDER_GEAR_CATALOG } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderTheme } from '../utils/monsterLadder/ladderLevelThemes';
 import {
   formatStageLabel,
@@ -12,8 +13,120 @@ import {
   stageTypeBanner,
   stageTypeLabel,
 } from '../utils/monsterLadder';
+import { LADDER_PITY, LADDER_RARITY_ORDER, LADDER_RARITY_WEIGHTS, LADDER_SHARDS_BY_RARITY } from '../utils/monsterLadder/ladderConstants';
 import { getLadderRewardDayKey, isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
+
+const RARITY_TONE = {
+  common: '#cbd5e1',
+  rare: '#60a5fa',
+  epic: '#c084fc',
+  legendary: '#f59e0b',
+  mythic: '#f472b6',
+};
+
+function rarityLabel(rarity) {
+  return RARITY_UI[rarity]?.label ?? rarity;
+}
+
+function rarityPercent(rarity) {
+  const total = LADDER_RARITY_ORDER.reduce((sum, r) => sum + (LADDER_RARITY_WEIGHTS[r] ?? 0), 0);
+  if (!total) return '0%';
+  const pct = ((LADDER_RARITY_WEIGHTS[rarity] ?? 0) / total) * 100;
+  return `${Number.isInteger(pct) ? pct : pct.toFixed(1)}%`;
+}
+
+function CatalogChip({ item, type }) {
+  const color = RARITY_TONE[item.rarity] ?? '#fff';
+  const sub = type === 'gear' ? `${item.slot} gear` : `${item.element} ${item.role}`;
+  return (
+    <View style={[styles.catalogChip, { borderColor: color }]}>
+      <Text style={styles.catalogIcon}>{type === 'gear' ? item.emoji : '★'}</Text>
+      <View style={styles.catalogCopy}>
+        <Text style={styles.catalogName} numberOfLines={1}>{item.name}</Text>
+        <Text style={[styles.catalogMeta, { color }]} numberOfLines={1}>
+          {rarityLabel(item.rarity)} · {sub}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function ChestOddsCard({ title, sub, type }) {
+  return (
+    <View style={[styles.oddsCard, type === 'monster' && styles.oddsCardMonster]}>
+      <View style={styles.oddsHeaderRow}>
+        <Image source={{ uri: GAME_ASSETS.chestClosed }} style={styles.oddsChestImg} resizeMode="contain" />
+        <View style={styles.oddsTitleWrap}>
+          <Text style={styles.oddsTitle}>{title}</Text>
+          <Text style={styles.oddsSub}>{sub}</Text>
+        </View>
+      </View>
+      <View style={styles.oddsRows}>
+        {LADDER_RARITY_ORDER.map((rarity) => (
+          <View key={rarity} style={styles.oddsRow}>
+            <Text style={[styles.oddsRarity, { color: RARITY_TONE[rarity] ?? '#fff' }]}>
+              {rarityLabel(rarity)}
+            </Text>
+            <Text style={styles.oddsPercent}>{rarityPercent(rarity)}</Text>
+          </View>
+        ))}
+      </View>
+      <Text style={styles.oddsFoot}>
+        Pity: Epic+ every {LADDER_PITY.epicPlusEvery}, Legendary+ every {LADDER_PITY.legendaryPlusEvery}, Mythic every {LADDER_PITY.mythicEvery}.
+      </Text>
+    </View>
+  );
+}
+
+function RewardsCodexOverlay({ onClose }) {
+  return (
+    <View style={styles.codexBackdrop}>
+      <View style={styles.codexPanel}>
+        <View style={styles.codexGlow} pointerEvents="none" />
+        <View style={styles.codexHeader}>
+          <View>
+            <Text style={styles.codexKicker}>Monster Ladder</Text>
+            <Text style={styles.codexTitle}>Chest Rewards</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} style={styles.codexClose} activeOpacity={0.86}>
+            <Text style={styles.codexCloseTxt}>×</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.codexScroll}>
+          <Text style={styles.codexIntro}>
+            Beat Sub 5 Mini Bosses for Gear Chests. Beat Sub 10 Bosses for Monster Chests. Duplicates become ladder shards.
+          </Text>
+
+          <View style={styles.oddsGrid}>
+            <ChestOddsCard title="Gear Chest" sub="Drops ladder-exclusive gear" type="gear" />
+            <ChestOddsCard title="Monster Chest" sub="Drops ladder-exclusive monsters" type="monster" />
+          </View>
+
+          <View style={styles.shardStrip}>
+            {LADDER_RARITY_ORDER.map((rarity) => (
+              <View key={rarity} style={styles.shardPill}>
+                <Text style={[styles.shardRarity, { color: RARITY_TONE[rarity] ?? '#fff' }]}>{rarityLabel(rarity)}</Text>
+                <Text style={styles.shardValue}>{LADDER_SHARDS_BY_RARITY[rarity] ?? 0} shards</Text>
+              </View>
+            ))}
+          </View>
+
+          <Text style={styles.sectionTitle}>Gear Chest Drops</Text>
+          <View style={styles.catalogGrid}>
+            {LADDER_GEAR_CATALOG.map((item) => <CatalogChip key={item.id} item={item} type="gear" />)}
+          </View>
+
+          <Text style={styles.sectionTitle}>Monster Chest Drops</Text>
+          <View style={styles.catalogGrid}>
+            {LADDER_MONSTER_CATALOG.map((item) => <CatalogChip key={item.id} item={item} type="monster" />)}
+          </View>
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
 
 function StageNode({ sub, current, cleared, locked, kind }) {
   const isBoss = kind === 'miniBoss' || kind === 'bigBoss';
@@ -86,6 +199,7 @@ export default function MonsterLadderHubScreen({
   onOpenCollection,
   onOpenGear,
 }) {
+  const [rewardsOpen, setRewardsOpen] = useState(false);
   const ml = monsterLadder;
   const stage = useMemo(() => getCurrentStage(ml), [ml]);
   const theme = useMemo(() => getLadderTheme(stage.mainLevel), [stage.mainLevel]);
@@ -131,6 +245,10 @@ export default function MonsterLadderHubScreen({
           <View style={styles.uiLayer}>
             <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.86}>
               <Text style={styles.backTxt}>Home</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setRewardsOpen(true)} style={styles.rewardsBtn} activeOpacity={0.86}>
+              <Text style={styles.rewardsBtnIcon}>★</Text>
+              <Text style={styles.rewardsBtnTxt}>Rewards</Text>
             </TouchableOpacity>
 
             <View style={styles.noticeBar}>
@@ -208,6 +326,7 @@ export default function MonsterLadderHubScreen({
                 onPress={onStartBattle}
               />
             </View>
+            {rewardsOpen ? <RewardsCodexOverlay onClose={() => setRewardsOpen(false)} /> : null}
           </View>
         </ImageBackground>
       </View>
@@ -267,6 +386,35 @@ const styles = StyleSheet.create({
     color: '#ffe7a3',
     fontSize: 12,
     fontWeight: '900',
+  },
+  rewardsBtn: {
+    position: 'absolute',
+    top: '2.2%',
+    right: '3.2%',
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#facc15',
+    backgroundColor: 'rgba(91, 33, 182, 0.86)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    shadowColor: '#facc15',
+    shadowOpacity: 0.65,
+    shadowRadius: 10,
+  },
+  rewardsBtnIcon: {
+    color: '#fff7ad',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  rewardsBtnTxt: {
+    color: '#fff7ed',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   noticeBar: {
     position: 'absolute',
@@ -562,5 +710,226 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
     lineHeight: 13,
+  },
+  codexBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+    backgroundColor: 'rgba(4, 2, 14, 0.74)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4%',
+  },
+  codexPanel: {
+    width: '96%',
+    height: '88%',
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#facc15',
+    backgroundColor: 'rgba(15, 8, 34, 0.97)',
+    overflow: 'hidden',
+    shadowColor: '#facc15',
+    shadowOpacity: 0.7,
+    shadowRadius: 18,
+  },
+  codexGlow: {
+    position: 'absolute',
+    top: -60,
+    alignSelf: 'center',
+    width: '86%',
+    height: 150,
+    borderRadius: 999,
+    backgroundColor: 'rgba(250, 204, 21, 0.16)',
+  },
+  codexHeader: {
+    minHeight: 68,
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(250, 204, 21, 0.32)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  codexKicker: {
+    color: '#c4b5fd',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  codexTitle: {
+    color: '#fff7ad',
+    fontSize: 24,
+    fontWeight: '900',
+    textShadowColor: 'rgba(250, 204, 21, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  codexClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    backgroundColor: 'rgba(127, 29, 29, 0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  codexCloseTxt: {
+    color: '#fff',
+    fontSize: 22,
+    lineHeight: 24,
+    fontWeight: '900',
+  },
+  codexScroll: {
+    padding: 14,
+    paddingBottom: 24,
+  },
+  codexIntro: {
+    color: '#f5e8ff',
+    fontSize: 11,
+    fontWeight: '800',
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  oddsGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  oddsCard: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    backgroundColor: 'rgba(67, 56, 202, 0.38)',
+    padding: 10,
+  },
+  oddsCardMonster: {
+    borderColor: '#f0abfc',
+    backgroundColor: 'rgba(112, 26, 117, 0.34)',
+  },
+  oddsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  oddsChestImg: {
+    width: 34,
+    height: 34,
+  },
+  oddsTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  oddsTitle: {
+    color: '#fff7ad',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  oddsSub: {
+    color: '#ddd6fe',
+    fontSize: 8,
+    fontWeight: '800',
+  },
+  oddsRows: {
+    gap: 4,
+  },
+  oddsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  oddsRarity: {
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  oddsPercent: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  oddsFoot: {
+    color: '#a7f3d0',
+    fontSize: 7,
+    fontWeight: '800',
+    lineHeight: 10,
+    marginTop: 7,
+  },
+  shardStrip: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  shardPill: {
+    flexGrow: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  shardRarity: {
+    fontSize: 8,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  shardValue: {
+    color: '#e0f2fe',
+    fontSize: 8,
+    fontWeight: '800',
+  },
+  sectionTitle: {
+    color: '#fff7ad',
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 14,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  catalogGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+  },
+  catalogChip: {
+    width: '48%',
+    minHeight: 44,
+    borderRadius: 13,
+    borderWidth: 1,
+    backgroundColor: 'rgba(30, 20, 54, 0.9)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    gap: 7,
+  },
+  catalogIcon: {
+    width: 22,
+    color: '#fff7ad',
+    fontSize: 16,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  catalogCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  catalogName: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  catalogMeta: {
+    fontSize: 8,
+    fontWeight: '800',
+    marginTop: 1,
+    textTransform: 'capitalize',
   },
 });
