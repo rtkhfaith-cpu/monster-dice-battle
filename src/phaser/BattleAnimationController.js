@@ -2,10 +2,10 @@ const DEBUG_ANIMATIONS = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
 
 const TIMING = {
   anticipation: 190,
-  physicalTravel: 290,
-  magicTravel: 420,
-  impact: 120,
-  recovery: 260,
+  physicalTravel: 720,
+  magicTravel: 860,
+  impact: 260,
+  recovery: 360,
   dodgeTotal: 380,
   turn: 520,
 };
@@ -129,10 +129,10 @@ export default class BattleAnimationController {
       depth: defender.depth + 14,
       startScale: 0.76,
       endScale: 1.12,
-      duration: 520,
+      duration: 980,
     });
     this.scene.showTurnText(result.text || 'Guard Up');
-    await wait(this.scene, 560);
+    await wait(this.scene, 760);
   }
 
   async playRun(result) {
@@ -142,11 +142,11 @@ export default class BattleAnimationController {
       depth: runner.depth + 16,
       startScale: 0.86,
       endScale: 1.2,
-      duration: 580,
+      duration: 980,
       driftY: -42,
     });
     this.scene.showTurnText(result.text || 'Run!');
-    await wait(this.scene, 580);
+    await wait(this.scene, 760);
   }
 
   async playAttack(result, runId) {
@@ -186,7 +186,6 @@ export default class BattleAnimationController {
 
   async anticipation(attacker, isMagic, element) {
     attacker.anticipate(isMagic);
-    if (isMagic) this.spawnCharge(attacker, element);
     await wait(this.scene, TIMING.anticipation);
   }
 
@@ -208,7 +207,7 @@ export default class BattleAnimationController {
 
   async playMagicTravel(attacker, defender, result, element) {
     const tier = visualTier(attacker);
-    const duration = Math.max(260, (result.crit ? TIMING.magicTravel - 70 : TIMING.magicTravel) - tier * 35);
+    const duration = Math.max(700, (result.crit ? TIMING.magicTravel - 70 : TIMING.magicTravel) - tier * 35);
     this.scene.cameras.main.zoomTo(1.035 + tier * 0.025, 150, 'Sine.easeOut');
     await this.playActionPictureTravel(attacker, defender, result, ACTION_IMAGE_KEYS.magic, {
       duration,
@@ -240,7 +239,7 @@ export default class BattleAnimationController {
       y: defender.y + (options.targetYOffset ?? -24),
       scale: options.endScale ?? ((result.crit ? 1.22 : 1.02) + tier * 0.08),
       angle: -(options.angle ?? 12 * attacker.facing),
-      duration: options.duration ?? Math.max(240, TIMING.physicalTravel - tier * 24),
+      duration: options.duration ?? Math.max(620, TIMING.physicalTravel - tier * 24),
       ease: 'Cubic.inOut',
       onComplete: () => projectile.destroy(),
     });
@@ -264,7 +263,7 @@ export default class BattleAnimationController {
       y: y + (options.driftY ?? -28),
       scale: options.endScale ?? 1.08,
       alpha: 0,
-      duration: options.duration ?? 420,
+      duration: options.duration ?? 900,
       ease: 'Cubic.out',
       onComplete: () => sprite.destroy(),
     });

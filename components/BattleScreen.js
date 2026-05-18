@@ -3,6 +3,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -47,6 +48,7 @@ import {
   isCombatFeedbackMessage,
 } from '../utils/battleCombatFeedback';
 import { getActionTiming } from '../utils/battleActionTiming';
+import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
 const RESULT_SFX_DELAY_MS = 450;
 const PLAYER_ID = 1;
@@ -621,14 +623,10 @@ export default function BattleScreen({
       strikeKind,
       element: skill?.element ?? atk.element,
       effectType: skill?.effectType ?? 'normal',
-      emoji: skill?.emoji,
       skillId: skill?.id,
       animKind: visuals.animKind,
       sfxKey: visuals.sfxKey,
       sicklyFlash: visuals.sicklyFlash,
-      displayEmoji: visuals.displayEmoji,
-      cloudEmojis: visuals.cloudEmojis,
-      splatEmoji: visuals.splatEmoji,
       critical: resolved.critical,
       weak: resolved.weak,
       dodged: !!resolved.dodged,
@@ -1004,13 +1002,17 @@ export default function BattleScreen({
                       disabled={!actionsEnabled || !ok}
                       onPress={() => handleMagicSkill(sk)}
                     >
-                      <Text style={styles.skillEmoji}>{sk.emoji ?? el.emoji}</Text>
+                      <Image
+                        source={{ uri: GAME_ASSETS.battleActions.magic }}
+                        style={styles.skillActionIcon}
+                        resizeMode="contain"
+                      />
                       <View style={styles.skillTextCol}>
                         <Text style={styles.skillName} numberOfLines={1}>
                           {sk.name}
                         </Text>
                         <Text style={styles.skillMeta}>
-                          {el.emoji} {sk.mpCost} MP
+                          {el.label ?? sk.element ?? 'Magic'} · {sk.mpCost} MP
                         </Text>
                       </View>
                     </Pressable>
@@ -1036,8 +1038,13 @@ export default function BattleScreen({
             >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.fightFace]} pointerEvents="none">
                   <View style={styles.fightBtnShine} />
+                  <Image
+                    source={{ uri: GAME_ASSETS.battleActions.attack }}
+                    style={[styles.actionBtnImage, battleMobile && styles.actionBtnImageMobile]}
+                    resizeMode="contain"
+                  />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.fightBtnTxt]}>
-                    ⚔ Fight
+                    Fight
                   </Text>
                 </View>
               </Pressable>
@@ -1054,8 +1061,13 @@ export default function BattleScreen({
               >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.magicFace]} pointerEvents="none">
                   <View style={styles.magicBtnShine} />
+                  <Image
+                    source={{ uri: GAME_ASSETS.battleActions.magic }}
+                    style={[styles.actionBtnImage, battleMobile && styles.actionBtnImageMobile]}
+                    resizeMode="contain"
+                  />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.magicBtnTxt]}>
-                    ✨ Magic
+                    Magic
                   </Text>
                 </View>
               </Pressable>
@@ -1074,8 +1086,13 @@ export default function BattleScreen({
               }}
             >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.runFace]} pointerEvents="none">
+                  <Image
+                    source={{ uri: GAME_ASSETS.battleActions.run }}
+                    style={[styles.actionBtnImage, battleMobile && styles.actionBtnImageMobile]}
+                    resizeMode="contain"
+                  />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.runBtnTxt]}>
-                    🏃 Run
+                    Run
                   </Text>
                 </View>
               </Pressable>
@@ -1218,7 +1235,10 @@ const styles = StyleSheet.create({
   },
   skillBtnPressed: { opacity: 0.9, transform: [{ translateY: 2 }] },
   skillBtnDisabled: { opacity: 0.38, borderColor: '#636e72' },
-  skillEmoji: { fontSize: 22 },
+  skillActionIcon: {
+    width: 34,
+    height: 34,
+  },
   skillTextCol: { flex: 1, minWidth: 0 },
   skillName: { fontWeight: '900', fontSize: 15, color: '#fff' },
   skillMeta: { fontWeight: '700', fontSize: 12, color: '#dfe6e9', marginTop: 2 },
@@ -1263,6 +1283,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
     overflow: 'hidden',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.45,
@@ -1276,8 +1297,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   arcadeBtnTxtMobile: {
-    fontSize: 22,
+    fontSize: 16,
     letterSpacing: 0,
+  },
+  actionBtnImage: {
+    width: 30,
+    height: 30,
+  },
+  actionBtnImageMobile: {
+    width: 40,
+    height: 40,
   },
   fightBtn: {
     flex: 1,

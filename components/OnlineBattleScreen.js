@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -30,6 +31,7 @@ import {
 } from '../utils/onlineBattleState';
 import { visualFormTierFromLevel } from '../utils/evolution';
 import { evolutionFormForMonster } from '../utils/monsterEvolutionForms';
+import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
 function fighterFromServer(f) {
   if (!f?.stats) return null;
@@ -376,13 +378,17 @@ export default function OnlineBattleScreen({
                       disabled={!actionsEnabled || !ok}
                       onPress={() => handleMagicSkill(sk)}
                     >
-                      <Text style={styles.skillEmoji}>{sk.emoji ?? el.emoji}</Text>
+                      <Image
+                        source={{ uri: GAME_ASSETS.battleActions.magic }}
+                        style={styles.skillActionIcon}
+                        resizeMode="contain"
+                      />
                       <View style={styles.skillTextCol}>
                         <Text style={styles.skillName} numberOfLines={1}>
                           {sk.name}
                         </Text>
                         <Text style={styles.skillMeta}>
-                          {el.emoji} {sk.mpCost} MP
+                          {el.label ?? sk.element ?? 'Magic'} · {sk.mpCost} MP
                         </Text>
                       </View>
                     </Pressable>
@@ -405,6 +411,11 @@ export default function OnlineBattleScreen({
               >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.fightFace]} pointerEvents="none">
                   <View style={styles.fightBtnShine} />
+                  <Image
+                    source={{ uri: GAME_ASSETS.battleActions.attack }}
+                    style={[styles.actionBtnImage, battleMobile && styles.actionBtnImageMobile]}
+                    resizeMode="contain"
+                  />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.fightBtnTxt]}>
                     Fight
                   </Text>
@@ -423,6 +434,11 @@ export default function OnlineBattleScreen({
               >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.magicFace]} pointerEvents="none">
                   <View style={styles.magicBtnShine} />
+                  <Image
+                    source={{ uri: GAME_ASSETS.battleActions.magic }}
+                    style={[styles.actionBtnImage, battleMobile && styles.actionBtnImageMobile]}
+                    resizeMode="contain"
+                  />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.magicBtnTxt]}>
                     Magic
                   </Text>
@@ -440,6 +456,11 @@ export default function OnlineBattleScreen({
                 onPress={handleRun}
               >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.runFace]} pointerEvents="none">
+                  <Image
+                    source={{ uri: GAME_ASSETS.battleActions.run }}
+                    style={[styles.actionBtnImage, battleMobile && styles.actionBtnImageMobile]}
+                    resizeMode="contain"
+                  />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.runBtnTxt]}>
                     Run
                   </Text>
@@ -562,7 +583,7 @@ const styles = StyleSheet.create({
   },
   skillBtnPressed: { opacity: 0.9, transform: [{ translateY: 2 }] },
   skillBtnDisabled: { opacity: 0.38, borderColor: '#636e72' },
-  skillEmoji: { fontSize: 22 },
+  skillActionIcon: { width: 34, height: 34 },
   skillTextCol: { flex: 1, minWidth: 0 },
   skillName: { fontWeight: '900', fontSize: 15, color: '#fff' },
   skillMeta: { fontWeight: '700', fontSize: 12, color: '#dfe6e9', marginTop: 2 },
@@ -593,6 +614,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
     overflow: 'hidden',
     elevation: 8,
   },
@@ -604,6 +626,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   arcadeBtnTxtMobile: { fontSize: 13 },
+  actionBtnImage: { width: 28, height: 28 },
+  actionBtnImageMobile: { width: 30, height: 30 },
   fightBtn: { flex: 1, paddingBottom: 6 },
   fightFace: {
     backgroundColor: '#ff4757',

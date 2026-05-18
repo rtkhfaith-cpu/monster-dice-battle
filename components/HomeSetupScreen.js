@@ -6,17 +6,16 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
 import OnlineRoomBanner from './OnlineRoomBanner';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
+import { playUiSfx } from '../utils/sounds';
 
 const ALIGN_DEBUG = typeof __DEV__ !== 'undefined' && __DEV__ && false;
 const MAX_VISIBLE_PROFILES = 4;
-const MAX_VISIBLE_MONSTERS = 4;
 const MAX_VISIBLE_CLOUD = 4;
 
 export default function HomeSetupScreen({
@@ -122,17 +121,33 @@ export default function HomeSetupScreen({
     setCreateError('');
   }
 
+  function pressWithSound(onPress) {
+    if (!onPress) return undefined;
+    return (...args) => {
+      playUiSfx();
+      onPress(...args);
+    };
+  }
+
   function mapButton(label, style, onPress, disabled = false) {
     return (
-      <TouchableOpacity
+      <Pressable
         key={label}
         accessibilityRole="button"
         accessibilityLabel={label}
-        activeOpacity={0.78}
         disabled={disabled || !onPress}
-        onPress={onPress}
-        style={[styles.hitZone, style, ALIGN_DEBUG && styles.alignDebug, disabled && styles.zoneDisabled]}
-      />
+        onPress={pressWithSound(onPress)}
+        style={({ pressed }) => [
+          styles.hitZone,
+          style,
+          pressed && !disabled && styles.hitZonePressed,
+          ALIGN_DEBUG && styles.alignDebug,
+          disabled && styles.zoneDisabled,
+        ]}
+      >
+        <View style={styles.zoneShine} pointerEvents="none" />
+        <Text style={styles.zoneLabel} pointerEvents="none">{label}</Text>
+      </Pressable>
     );
   }
 
@@ -151,26 +166,30 @@ export default function HomeSetupScreen({
   return (
     <View style={[styles.root, Platform.OS === 'web' && styles.rootWeb]}>
       <View style={styles.overlay} pointerEvents="box-none">
-        <TouchableOpacity
+        <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Open cloud saves"
-          activeOpacity={0.8}
-          onPress={() => toggleTray('cloud')}
-          style={[styles.coinZone, ALIGN_DEBUG && styles.alignDebug]}
+          accessibilityLabel="Open Gear Mart"
+          onPress={pressWithSound(onOpenGearMart)}
+          style={({ pressed }) => [styles.coinZone, pressed && styles.hitZonePressed, ALIGN_DEBUG && styles.alignDebug]}
         >
           <Text style={styles.coinText}>{coins ?? 0}</Text>
-        </TouchableOpacity>
+          <Text style={styles.coinMartText}>MART</Text>
+        </Pressable>
 
-        <TouchableOpacity
+        <Pressable
           accessibilityRole="button"
           accessibilityLabel="Open trainer profile"
-          activeOpacity={0.82}
-          onPress={() => toggleTray('profile')}
-          style={[styles.profileZone, isNarrow && styles.profileZoneNarrow, ALIGN_DEBUG && styles.alignDebug]}
+          onPress={pressWithSound(() => toggleTray('profile'))}
+          style={({ pressed }) => [
+            styles.profileZone,
+            isNarrow && styles.profileZoneNarrow,
+            pressed && styles.hitZonePressed,
+            ALIGN_DEBUG && styles.alignDebug,
+          ]}
         >
           <Text style={styles.profileName} numberOfLines={1}>{profileLabel}</Text>
           <Text style={styles.profileSub} numberOfLines={1}>{monsterLabel}</Text>
-        </TouchableOpacity>
+        </Pressable>
 
         {mapButton('Gear Mart', styles.gearMartZone, onOpenGearMart)}
         {mapButton('Equip Gear', styles.equipGearZone, onOpenMonsterGearShop || onOpenMonsterGear)}
@@ -179,14 +198,14 @@ export default function HomeSetupScreen({
         {mapButton('Monster Ladder', styles.ladderZone, onOpenMonsterLadder, !canStart)}
         {mapButton('Start Battle', styles.startZone, onStartGame, !canStart)}
 
-        {mapButton('Cloud Saves', styles.questZone, () => toggleTray('cloud'))}
+        {mapButton('Cloud Saves', styles.cloudZone, () => toggleTray('cloud'))}
         {mapButton('Inventory', styles.inventoryZone, onOpenMonsterGearShop || onOpenMonsterGear)}
         {mapButton('Heroes and Monsters', styles.heroesZone, () => toggleTray('profile'))}
         {mapButton('Settings', styles.settingsZone, onResetSave || onOpenAudioSettings)}
         {onEnterMultiplayer ? mapButton('Multiplayer', styles.welcomeZone, onEnterMultiplayer) : null}
 
         {!canStart ? (
-          <Pressable style={styles.pickHint} onPress={() => toggleTray('profile')}>
+          <Pressable style={styles.pickHint} onPress={pressWithSound(() => toggleTray('profile'))}>
             <Text style={styles.pickHintText}>Pick a monster to start</Text>
           </Pressable>
         ) : null}
@@ -203,9 +222,9 @@ export default function HomeSetupScreen({
       <View style={styles.tray} pointerEvents="box-none">
         <View style={styles.trayHeader}>
           <Text style={styles.trayTitle}>Trainer</Text>
-          <TouchableOpacity onPress={() => setTray(null)} style={styles.trayClose}>
+          <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
             <Text style={styles.trayCloseText}>Close</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
         <ScrollView style={styles.trayScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -213,18 +232,18 @@ export default function HomeSetupScreen({
             const active = profile.id === activeProfileId;
             return (
               <View key={profile.id} style={[styles.compactRow, active && styles.compactRowActive]}>
-                <TouchableOpacity style={styles.rowMain} onPress={() => onSelectProfile?.(profile.id)}>
+                <Pressable style={styles.rowMain} onPress={pressWithSound(() => onSelectProfile?.(profile.id))}>
                   <Text style={styles.rowTitle} numberOfLines={1}>{profile.name || 'Player'}</Text>
                   <Text style={styles.rowSub}>{active ? 'Active save slot' : 'Tap to select'}</Text>
-                </TouchableOpacity>
+                </Pressable>
                 {onRequestDeleteProfile ? (
-                  <TouchableOpacity
+                  <Pressable
                     disabled={deleteBusyProfileId === profile.id}
-                    onPress={() => onRequestDeleteProfile(profile.id)}
+                    onPress={pressWithSound(() => onRequestDeleteProfile(profile.id))}
                     style={styles.rowMiniBtn}
                   >
                     <Text style={styles.rowMiniText}>Del</Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 ) : null}
               </View>
             );
@@ -240,29 +259,35 @@ export default function HomeSetupScreen({
                 style={styles.textInput}
                 maxLength={24}
               />
-              <TouchableOpacity onPress={handleSaveName} style={styles.smallGoldBtn}>
+              <Pressable onPress={pressWithSound(handleSaveName)} style={styles.smallGoldBtn}>
                 <Text style={styles.smallGoldText}>Save</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           ) : null}
 
-          <View style={styles.monsterPickStrip}>
-            {monsters.slice(0, MAX_VISIBLE_MONSTERS).map((monster) => {
+          <ScrollView
+            style={styles.monsterPickScroll}
+            contentContainerStyle={styles.monsterPickStrip}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+          >
+            {monsters.map((monster) => {
               const picked = monster.id === selectedP1Id;
               return (
-                <TouchableOpacity
+                <Pressable
                   key={monster.id}
-                  onPress={() => onSelectMonster?.(monster.id)}
+                  onPress={pressWithSound(() => onSelectMonster?.(monster.id))}
                   style={[styles.monsterChip, picked && styles.monsterChipActive]}
                 >
                   <Text style={styles.monsterChipText} numberOfLines={1}>
                     {monster.nickname || monster.templateId || 'Monster'}
                   </Text>
                   <Text style={styles.monsterChipSub}>Lv {monster.level ?? 1}</Text>
-                </TouchableOpacity>
+                </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
 
           {createOpen ? (
             <View style={styles.createBox}>
@@ -297,43 +322,43 @@ export default function HomeSetupScreen({
                 />
               </View>
               {createError ? <Text style={styles.errorText}>{createError}</Text> : null}
-              <TouchableOpacity onPress={handleCreateProfile} style={styles.smallGoldBtn}>
+              <Pressable onPress={pressWithSound(handleCreateProfile)} style={styles.smallGoldBtn}>
                 <Text style={styles.smallGoldText}>Create Player</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           ) : (
-            <TouchableOpacity
-              onPress={() => {
+            <Pressable
+              onPress={pressWithSound(() => {
                 setCreateOpen(true);
                 setCreateName(`Player ${profiles.length + 1}`);
-              }}
+              })}
               style={styles.smallGoldBtn}
             >
               <Text style={styles.smallGoldText}>New Player</Text>
-            </TouchableOpacity>
+            </Pressable>
           )}
 
           {gameMode && onGameModeChange ? (
             <View style={styles.modeRow}>
-              <TouchableOpacity
-                onPress={() => onGameModeChange('onePlayer')}
+              <Pressable
+                onPress={pressWithSound(() => onGameModeChange('onePlayer'))}
                 style={[styles.modeBtn, gameMode === 'onePlayer' && styles.modeBtnActive]}
               >
                 <Text style={styles.modeText}>1P</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => onGameModeChange('twoPlayer')}
+              </Pressable>
+              <Pressable
+                onPress={pressWithSound(() => onGameModeChange('twoPlayer'))}
                 style={[styles.modeBtn, gameMode !== 'onePlayer' && styles.modeBtnActive]}
               >
                 <Text style={styles.modeText}>2P</Text>
-              </TouchableOpacity>
+              </Pressable>
               {onActiveSlotChange ? (
-                <TouchableOpacity
-                  onPress={() => onActiveSlotChange(activeSlot === 2 ? 1 : 2)}
+                <Pressable
+                  onPress={pressWithSound(() => onActiveSlotChange(activeSlot === 2 ? 1 : 2))}
                   style={styles.modeBtn}
                 >
                   <Text style={styles.modeText}>Slot {activeSlot || 1}</Text>
-                </TouchableOpacity>
+                </Pressable>
               ) : null}
             </View>
           ) : null}
@@ -347,31 +372,31 @@ export default function HomeSetupScreen({
       <View style={styles.tray} pointerEvents="box-none">
         <View style={styles.trayHeader}>
           <Text style={styles.trayTitle}>Cloud Archive</Text>
-          <TouchableOpacity onPress={() => setTray(null)} style={styles.trayClose}>
+          <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
             <Text style={styles.trayCloseText}>Close</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
         <ScrollView style={styles.trayScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <TouchableOpacity onPress={onFetchCloudPlayers} style={styles.smallGoldBtn}>
+          <Pressable onPress={pressWithSound(onFetchCloudPlayers)} style={styles.smallGoldBtn}>
             <Text style={styles.smallGoldText}>{cloudFetchLoading ? 'Loading...' : 'Refresh Cloud'}</Text>
-          </TouchableOpacity>
+          </Pressable>
           {cloudFetchError ? <Text style={styles.errorText}>{cloudFetchError}</Text> : null}
           {cloudPlayers.slice(0, MAX_VISIBLE_CLOUD).map((cp) => {
             const selected = cp.profileID === activeProfileId;
             return (
               <View key={cp.profileID} style={[styles.compactRow, selected && styles.compactRowActive]}>
-                <TouchableOpacity style={styles.rowMain} onPress={() => onRequestSelectCloudProfile?.(cp)}>
+                <Pressable style={styles.rowMain} onPress={pressWithSound(() => onRequestSelectCloudProfile?.(cp))}>
                   <Text style={styles.rowTitle} numberOfLines={1}>{cp.playerName || 'Cloud Player'}</Text>
                   <Text style={styles.rowSub}>Coins {cp.coins ?? 0} · Lv {cp.level ?? 1}</Text>
-                </TouchableOpacity>
+                </Pressable>
                 {onRequestDeleteCloudProfile ? (
-                  <TouchableOpacity
+                  <Pressable
                     disabled={deleteBusyProfileId === cp.profileID}
-                    onPress={() => onRequestDeleteCloudProfile(cp)}
+                    onPress={pressWithSound(() => onRequestDeleteCloudProfile(cp))}
                     style={styles.rowMiniBtn}
                   >
                     <Text style={styles.rowMiniText}>Del</Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 ) : null}
               </View>
             );
@@ -419,7 +444,52 @@ const styles = StyleSheet.create({
     minHeight: 48,
     pointerEvents: 'auto',
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.01)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 224, 143, 0.72)',
+    borderBottomWidth: 5,
+    borderBottomColor: 'rgba(77, 47, 20, 0.72)',
+    backgroundColor: 'rgba(255, 239, 184, 0.16)',
+    shadowColor: 'rgba(0,0,0,0.55)',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 8,
+    ...(Platform.OS === 'web'
+      ? {
+          backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,224,143,0.1) 45%, rgba(79,47,20,0.16))',
+          boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.35), inset 0 -5px 0 rgba(70,42,18,0.32), 0 5px 0 rgba(0,0,0,0.32), 0 0 16px rgba(255,224,143,0.18)',
+          transitionProperty: 'transform, filter, box-shadow',
+          transitionDuration: '110ms',
+          cursor: 'pointer',
+        }
+      : {}),
+  },
+  hitZonePressed: {
+    transform: [{ translateY: 4 }],
+    borderBottomWidth: 2,
+    opacity: 0.88,
+  },
+  zoneShine: {
+    position: 'absolute',
+    top: 3,
+    left: 8,
+    right: 8,
+    height: '34%',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  zoneLabel: {
+    color: 'rgba(255, 248, 229, 0.72)',
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   alignDebug: {
     borderWidth: 2,
@@ -433,22 +503,46 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '4.1%',
     left: '4.4%',
-    width: '15%',
-    height: '4.8%',
+    width: '18%',
+    height: '5.2%',
     minHeight: 40,
     pointerEvents: 'auto',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 18,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 224, 143, 0.8)',
+    borderBottomWidth: 5,
+    borderBottomColor: 'rgba(69, 38, 15, 0.75)',
+    backgroundColor: 'rgba(72, 45, 30, 0.42)',
+    shadowColor: 'rgba(0,0,0,0.55)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 8,
+    ...(Platform.OS === 'web'
+      ? {
+          boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.24), inset 0 -4px 0 rgba(65,36,14,0.35), 0 4px 0 rgba(0,0,0,0.32), 0 0 14px rgba(255,224,143,0.18)',
+          cursor: 'pointer',
+        }
+      : {}),
   },
   coinText: {
-    marginLeft: 20,
+    marginLeft: 18,
     color: '#fff8e5',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '900',
     textShadowColor: 'rgba(0,0,0,0.7)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 2,
+  },
+  coinMartText: {
+    marginLeft: 18,
+    marginTop: -2,
+    color: 'rgba(255, 224, 143, 0.9)',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
   profileZone: {
     position: 'absolute',
@@ -481,16 +575,16 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 1,
   },
-  gearMartZone: { top: '39.2%', left: '26%', width: '48%', height: '6.2%' },
-  equipGearZone: { top: '46.5%', left: '26%', width: '48%', height: '6.2%' },
-  monstersZone: { top: '53.8%', left: '26%', width: '48%', height: '6.2%' },
-  audioZone: { top: '61.1%', left: '26%', width: '48%', height: '6.2%' },
-  ladderZone: { top: '70.2%', left: '26%', width: '48%', height: '6.1%' },
-  startZone: { top: '77.3%', left: '26%', width: '48%', height: '6.1%' },
-  questZone: { top: '88.2%', left: '24%', width: '12%', height: '7.2%' },
+  gearMartZone: { top: '38.2%', left: '26%', width: '48%', height: '6.2%' },
+  equipGearZone: { top: '45.3%', left: '26%', width: '48%', height: '6.2%' },
+  monstersZone: { top: '52.6%', left: '26%', width: '48%', height: '6.2%' },
+  audioZone: { top: '59.8%', left: '26%', width: '48%', height: '6.2%' },
+  ladderZone: { top: '68.8%', left: '26%', width: '48%', height: '6.1%' },
+  startZone: { top: '75.9%', left: '26%', width: '48%', height: '6.1%' },
+  cloudZone: { top: '88.2%', left: '62%', width: '12%', height: '7.2%' },
   inventoryZone: { top: '88.2%', left: '39%', width: '12%', height: '7.2%' },
-  heroesZone: { top: '88.2%', left: '54%', width: '12%', height: '7.2%' },
-  settingsZone: { top: '88.2%', left: '68%', width: '12%', height: '7.2%' },
+  heroesZone: { top: '88.2%', left: '51%', width: '12%', height: '7.2%' },
+  settingsZone: { top: '88.2%', left: '75%', width: '12%', height: '7.2%' },
   welcomeZone: { top: '96%', left: '33%', width: '34%', height: '3.6%', minHeight: 32 },
   pickHint: {
     position: 'absolute',
@@ -643,6 +737,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 7,
+    paddingBottom: 6,
+    marginBottom: 8,
+  },
+  monsterPickScroll: {
+    maxHeight: 118,
     marginBottom: 8,
   },
   monsterChip: {

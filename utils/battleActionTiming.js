@@ -3,11 +3,11 @@
  */
 
 export const ACTION_TOTAL_MS = {
-  normal: 900,
-  magic: 1100,
-  dodge: 800,
-  defendHit: 900,
-  critical: 1400,
+  normal: 1600,
+  magic: 1800,
+  dodge: 1300,
+  defendHit: 1500,
+  critical: 2200,
   super: 2000,
 };
 

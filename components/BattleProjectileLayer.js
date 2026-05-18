@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { fx } from '../utils/battleEffectScale';
-import { getProjectile } from '../utils/battleProjectiles';
 import { COMBAT_FEEDBACK_COLOR } from '../utils/battleCombatFeedback';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
-function MoveCallout({ moveName, emoji, laneY, calloutOp }) {
-  if (!moveName && !emoji) return null;
+function MoveCallout({ moveName, laneY, calloutOp }) {
+  if (!moveName) return null;
   return (
     <Animated.View
       style={[
@@ -15,7 +14,6 @@ function MoveCallout({ moveName, emoji, laneY, calloutOp }) {
       ]}
       pointerEvents="none"
     >
-      {emoji ? <Text style={styles.calloutEmoji}>{emoji}</Text> : null}
       {moveName ? <Text style={styles.calloutName} numberOfLines={1}>{moveName}</Text> : null}
     </Animated.View>
   );
@@ -46,11 +44,6 @@ export default function BattleProjectileLayer({
   const atkId = effect?.attackerId ?? 1;
   const defId = effect?.defenderId ?? (atkId === 1 ? 2 : 1);
   const animKind = effect?.animKind ?? 'projectile';
-  const projectile = getProjectile(effect?.projectileId || 'poop');
-  const skillEmoji = effect?.displayEmoji || effect?.emoji || projectile.emoji;
-  const cloudEmojis = effect?.cloudEmojis?.length >= 2
-    ? effect.cloudEmojis
-    : [skillEmoji, projectile.emoji !== skillEmoji ? projectile.emoji : '☁️', projectile.splat || '✨'];
   const fromLeft = atkId === 1;
   const laneY = arenaH * 0.48;
   const startY = laneY;
@@ -61,22 +54,22 @@ export default function BattleProjectileLayer({
 
   const timing = effect?.actionTiming;
   const flyMs = sequenceControlled && timing?.travelMs
-    ? timing.travelMs
+    ? Math.max(760, timing.travelMs + 260)
     : effect?.critical
-      ? 480
+      ? 880
       : animKind === 'cloud_spread'
-        ? 720
+        ? 920
         : animKind === 'water_wave'
-          ? 640
+          ? 860
           : isLunge
-            ? 460
-            : 380;
+            ? 780
+            : 760;
 
   const splatHoldMs = sequenceControlled
-    ? Math.max(80, (timing?.total ?? 900) - (timing?.impactAt ?? 600) - 80)
+    ? Math.max(360, (timing?.total ?? 1200) - (timing?.impactAt ?? 700))
     : effect?.defended
-      ? 320
-      : 280;
+      ? 620
+      : 560;
 
   const finish = () => {
     if (sequenceControlled) return;
@@ -116,9 +109,11 @@ export default function BattleProjectileLayer({
         }, splatHoldMs);
         return;
       }
-      Animated.timing(splat, { toValue: 0, duration: 280, useNativeDriver: true }).start(() => {
-        if (runId.current === id) finish();
-      });
+      setTimeout(() => {
+        Animated.timing(splat, { toValue: 0, duration: 620, useNativeDriver: true }).start(() => {
+          if (runId.current === id) finish();
+        });
+      }, splatHoldMs);
     });
   };
 
@@ -160,7 +155,7 @@ export default function BattleProjectileLayer({
     }
 
     let spinLoop = null;
-    if (projectile.spin || animKind === 'sparkle') {
+    if (animKind === 'sparkle') {
       spin.setValue(0);
       spinLoop = Animated.loop(
         Animated.timing(spin, { toValue: 1, duration: 260, easing: Easing.linear, useNativeDriver: true }),
@@ -219,30 +214,13 @@ export default function BattleProjectileLayer({
     outputRange: fromLeft ? [-horizSpan, horizSpan] : [horizSpan, -horizSpan],
   });
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const projSize = fx(
-    effect.critical ? 52
-    : animKind === 'water_wave' ? 56
-    : animKind === 'rush' ? 44
-    : effect.defended ? 40
-    : 48,
-  );
-
   const dmgY = dmgUp.interpolate({ inputRange: [0, 1], outputRange: [0, -fx(36)] });
   const dmgOp = dmgUp.interpolate({ inputRange: [0, 0.15, 0.65, 1], outputRange: [0, 1, 1, 0] });
 
   const splatScale = splat.interpolate({ inputRange: [0, 1], outputRange: [0.15, 1.15] });
-  const splatOp = splat.interpolate({ inputRange: [0, 0.25, 0.75, 1], outputRange: [0, 1, 0.9, 0] });
+  const splatOp = splat.interpolate({ inputRange: [0, 0.15, 0.82, 1], outputRange: [0, 1, 1, 0.18] });
   const burstScale = burst.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.4] });
   const burstOp = burst.interpolate({ inputRange: [0, 0.2, 0.7, 1], outputRange: [0, 1, 0.85, 0] });
-
-  const cloudScale = cloudGrow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1.35] });
-  const cloudOp = cloudGrow.interpolate({ inputRange: [0, 0.3, 0.85, 1], outputRange: [0, 0.85, 0.7, 0.35] });
-
-  const waveScaleX = progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 1.2, 1.5] });
-  const waveOp = progress.interpolate({ inputRange: [0, 0.2, 0.8, 1], outputRange: [0, 0.9, 0.85, 0.2] });
-
-  const sparkleOp = progress.interpolate({ inputRange: [0, 0.15, 0.85, 1], outputRange: [0, 1, 1, 0.3] });
-  const sparkleScale = progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 1.2, 0.9] });
 
   const showDmg =
     effect.revealDamage
@@ -274,63 +252,12 @@ export default function BattleProjectileLayer({
         if (h > 80) setArenaH(h);
       }}
     >
-      <MoveCallout moveName={moveName} emoji={skillEmoji} laneY={laneY} calloutOp={calloutOp} />
+      <MoveCallout moveName={moveName} laneY={laneY} calloutOp={calloutOp} />
 
       {effect.critical ? (
         <View style={[styles.critRibbon, { top: laneY - fx(28) }]}>
           <Text style={styles.critRibbonTxt}>CRITICAL!</Text>
         </View>
-      ) : null}
-
-      {false && animKind === 'cloud_spread' ? (
-        <Animated.View
-          style={[
-            styles.cloudWrap,
-            fromLeft ? styles.projFromLeft : styles.projFromRight,
-            {
-              top: laneY - fx(40),
-              opacity: cloudOp,
-              transform: [{ translateX: tx }, { scale: cloudScale }],
-            },
-          ]}
-        >
-          <Text style={[styles.cloudEmoji, { fontSize: fx(38) }]}>{cloudEmojis[0]}</Text>
-          <Text style={[styles.cloudEmoji, styles.cloudEmoji2, { fontSize: fx(30) }]}>{cloudEmojis[1]}</Text>
-          <Text style={[styles.cloudEmoji, styles.cloudEmoji3, { fontSize: fx(26) }]}>{cloudEmojis[2]}</Text>
-        </Animated.View>
-      ) : null}
-
-      {false && animKind === 'water_wave' ? (
-        <Animated.View
-          style={[
-            styles.waveBand,
-            {
-              top: laneY - fx(12),
-              opacity: waveOp,
-              transform: [{ translateX: tx }, { scaleX: waveScaleX }],
-            },
-          ]}
-        >
-          <Text style={[styles.waveEmoji, { fontSize: projSize }]}>{skillEmoji}</Text>
-          <View style={styles.waveShine} />
-        </Animated.View>
-      ) : null}
-
-      {false && animKind === 'sparkle' && showTravel ? (
-        <Animated.View
-          style={[
-            styles.projWrap,
-            fromLeft ? styles.projFromLeft : styles.projFromRight,
-            {
-              opacity: sparkleOp,
-              transform: [{ translateX: tx }, { translateY: ty }, { scale: sparkleScale }, { rotate }],
-            },
-          ]}
-        >
-          <Text style={[styles.projEmoji, { fontSize: projSize }]}>{skillEmoji}</Text>
-          <Text style={[styles.sparkleTrail, { fontSize: fx(22) }]}>✨</Text>
-          <Text style={[styles.sparkleTrail2, { fontSize: fx(18) }]}>✨</Text>
-        </Animated.View>
       ) : null}
 
       {showTravel ? (
@@ -531,11 +458,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(120, 220, 100, 0.25)',
     borderRadius: fx(20),
   },
-  splatEmoji: {
-    fontSize: fx(44),
-    textAlign: 'center',
-  },
-  splatCrit: { fontSize: fx(56) },
   burstRing: {
     position: 'absolute',
     width: fx(80),
