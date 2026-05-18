@@ -231,6 +231,26 @@ export default function App() {
     setPhase('battle');
   }
 
+  function finalizeOnlineBattleResult(snap, serverWinner) {
+    if (!snap || onlineFinishHandledRef.current) return;
+    onlineFinishHandledRef.current = true;
+    dismissedOnlineBattleRef.current = true;
+
+    const myId = onlineSlot === 'p2' ? 2 : 1;
+    const localPlayer = myId === 2 ? snap.p2 : snap.p1;
+    const opponent = myId === 2 ? snap.p1 : snap.p2;
+    const localWinner =
+      serverWinner === 'draw' ? 'draw' : serverWinner === myId ? 1 : 2;
+    const iWon = localWinner === 1;
+
+    setPlayer1(localPlayer ?? null);
+    setPlayer2(opponent ?? null);
+    setWinner(localWinner);
+    setRewardSummary({ coinsAwarded: 0, expP1: null, expP2: null, online: true, iWon });
+    setRewardTitle(iWon ? 'Online Victory!' : localWinner === 'draw' ? 'Online Draw' : 'Online Defeat');
+    setPhase('gameOver');
+  }
+
   const exitOnlineAndHome = useCallback(() => {
     dismissedOnlineBattleRef.current = true;
     onlineFinishHandledRef.current = true;
@@ -265,20 +285,7 @@ export default function App() {
     const snap = onlineRoom?.battle;
     const winner = snap?.winner;
     if (!winner || onlineFinishHandledRef.current) return;
-
-    onlineFinishHandledRef.current = true;
-    const myId = onlineSlot === 'p2' ? 2 : 1;
-    const outcome =
-      winner === 'draw' ? 'draw' : winner === myId ? myId : myId === 1 ? 2 : 1;
-
-    setPlayer1(snap.p1 ?? null);
-    setPlayer2(snap.p2 ?? null);
-    setWinner(outcome);
-    dismissedOnlineBattleRef.current = true;
-    const iWon = outcome === myId;
-    setRewardSummary({ coinsAwarded: 0, expP1: null, expP2: null, online: true, iWon });
-    setRewardTitle(iWon ? 'Online Victory!' : outcome === 'draw' ? 'Online Draw' : 'Online Defeat');
-    setPhase('gameOver');
+    finalizeOnlineBattleResult(snap, winner);
   }, [gameMode, phase, onlineRoom?.battle?.winner, onlineRoom?.battle?.seq, onlineSlot]);
 
   useEffect(() => {
@@ -842,12 +849,19 @@ export default function App() {
   }
 
   function playAgainFromReward() {
+    const wasOnline = !!rewardSummary?.online;
     setWinner(null);
     setPlayer1(null);
     setPlayer2(null);
     const wasLadder = !!rewardSummary?.monsterLadder;
     setRewardSummary(null);
-    if (wasLadder) {
+    if (wasOnline) {
+      dismissedOnlineBattleRef.current = false;
+      onlineFinishHandledRef.current = false;
+      setGameMode('online');
+      setBattleKey((k) => k + 1);
+      setPhase('online');
+    } else if (wasLadder) {
       startMonsterLadderBattle();
     } else {
       startGameFromSetup();
@@ -993,23 +1007,19 @@ export default function App() {
     player2Snapshot,
     battleExtras,
   }) {
+    if (battleExtras?.online) {
+      finalizeOnlineBattleResult(
+        { p1: player1Snapshot, p2: player2Snapshot },
+        battleExtras.serverWinner ?? outcome,
+      );
+      return;
+    }
+
     setPlayer1(player1Snapshot);
     setPlayer2(player2Snapshot);
     setWinner(outcome);
 
     if (!gameData) {
-      setPhase('gameOver');
-      return;
-    }
-
-    if (battleExtras?.online) {
-      if (onlineFinishHandledRef.current) return;
-      onlineFinishHandledRef.current = true;
-      dismissedOnlineBattleRef.current = true;
-      const myId = onlineSlot === 'p2' ? 2 : 1;
-      const iWon = outcome === myId;
-      setRewardSummary({ coinsAwarded: 0, expP1: null, expP2: null, online: true, iWon });
-      setRewardTitle(iWon ? 'Online Victory!' : outcome === 'draw' ? 'Online Draw' : 'Online Defeat');
       setPhase('gameOver');
       return;
     }
@@ -1119,6 +1129,12 @@ export default function App() {
 
   const encourage = useMemo(() => {
     if (!gameData || !rewardSummary) return [];
+    if (rewardSummary.online) {
+      if (winner === 'draw') return ['Great match. Run it back from the room lobby.'];
+      return rewardSummary.iWon
+        ? ['Your monster owned the arena. Invite the rematch.']
+        : ['Your rival took this round. Rematch from the room lobby.'];
+    }
     return buildEncourageLines(gameData, winner, rewardSummary);
   }, [gameData, rewardSummary, winner]);
 
@@ -1431,8 +1447,8 @@ export default function App() {
               player2={player2}
               totalCoins={rewardSummary?.monsterLadder ? rewardSummary?.ladderGoldTotal : coins}
               encourageLines={encourage}
-              playAgainLabel={rewardSummary?.monsterLadder ? 'Next Ladder Battle' : 'Play Again'}
-              hideShopButtons={!!rewardSummary?.monsterLadder}
+              playAgainLabel={rewardSummary?.online ? 'Back to Room' : rewardSummary?.monsterLadder ? 'Next Ladder Battle' : 'Play Again'}
+              hideShopButtons={!!rewardSummary?.monsterLadder || !!rewardSummary?.online}
               onPlayAgain={playAgainFromReward}
               onOpenMonsterGear={
                 rewardSummary?.monsterLadder

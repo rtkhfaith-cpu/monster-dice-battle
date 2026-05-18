@@ -21,6 +21,7 @@ const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 const CONNECT_TIMEOUT_MS = 12000;
 const ACK_TIMEOUT_MS = 10000;
 const REJOIN_ACK_MS = 6000;
+const SERVER_READY_TIMEOUT_MS = 2500;
 
 function devLog(...args) {
   if (DEV) console.log('[online]', ...args);
@@ -37,6 +38,7 @@ const listeners = new Set();
 let listenersAttachedTo = null;
 /** @type {Promise<{ socket: import('socket.io-client').Socket | null, error: string | null, url: string }> | null} */
 let connectInFlight = null;
+const serverReadySockets = new WeakSet();
 
 /**
  * Merge server room payloads — never drop players/battle accidentally.
@@ -138,6 +140,7 @@ function detachSocketListeners(sock) {
   sock.off('turn_changed');
   sock.off('battleEnded');
   sock.off('errorMessage');
+  sock.off('serverStatus');
   if (listenersAttachedTo === sock) listenersAttachedTo = null;
 }
 
@@ -165,6 +168,10 @@ function attachSocket(sock) {
     notify();
   });
   sock.on('connect_error', (err) => devLog('connect_error', err?.message || err));
+  sock.on('serverStatus', (payload) => {
+    devLog('serverStatus', payload?.ok ? 'ready' : 'unknown');
+    serverReadySockets.add(sock);
+  });
 
   sock.on('roomUpdate', (payload) => {
     mergeRoomPayload(payload);
@@ -276,6 +283,25 @@ function waitForSocketConnected(sock, maxMs = 4000) {
   });
 }
 
+function waitForServerReady(sock, maxMs = SERVER_READY_TIMEOUT_MS) {
+  if (!sock?.connected) return Promise.resolve(false);
+  if (serverReadySockets.has(sock)) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      sock.off('serverStatus', onReady);
+      // Older servers may not emit serverStatus; do not block room actions forever.
+      resolve(sock.connected);
+    }, maxMs);
+    const onReady = (payload) => {
+      clearTimeout(timer);
+      sock.off('serverStatus', onReady);
+      if (payload?.ok !== false) serverReadySockets.add(sock);
+      resolve(true);
+    };
+    sock.once('serverStatus', onReady);
+  });
+}
+
 function emitWithAck(sock, event, payload) {
   return new Promise((resolve) => {
     if (!sock?.connected) {
@@ -297,6 +323,18 @@ function emitWithAck(sock, event, payload) {
       resolve(res || {});
     });
   });
+}
+
+async function emitRoomAckWithRetry(sock, event, payload, retries = 1) {
+  let last = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    if (attempt > 0) {
+      devLog('retrying room ack', event, 'attempt', attempt + 1);
+    }
+    last = await emitWithAck(sock, event, payload);
+    if (last?.error !== 'Server did not respond in time') return last;
+  }
+  return last || { error: 'Server did not respond in time' };
 }
 
 function requestRoomState(roomCode) {
@@ -504,7 +542,8 @@ export function createOnlineRoom() {
         resolve({ error: 'Not connected', url });
         return;
       }
-      const res = await emitWithAck(sock, 'createRoom', {});
+      await waitForServerReady(sock);
+      const res = await emitRoomAckWithRetry(sock, 'createRoom', {});
       if (res?.error) {
         resolve({ error: res.error, url });
         return;
@@ -550,8 +589,9 @@ export function joinOnlineRoom(roomCode) {
         resolve({ error: 'Not connected', url });
         return;
       }
+      await waitForServerReady(sock);
       const code = String(roomCode || '').trim().toUpperCase();
-      const res = await emitWithAck(sock, 'joinRoom', { roomCode: code });
+      const res = await emitRoomAckWithRetry(sock, 'joinRoom', { roomCode: code });
       if (res?.error) {
         resolve({ error: res.error, url });
         return;

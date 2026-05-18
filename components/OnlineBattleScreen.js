@@ -176,12 +176,12 @@ export default function OnlineBattleScreen({
         playSound('lose');
       }
       const outcome =
-        norm.winner === 'draw' ? 'draw' : norm.winner === myPlayerId ? myPlayerId : myPlayerId === 1 ? 2 : 1;
+        norm.winner === 'draw' ? 'draw' : norm.winner;
       onFinish?.({
         winner: outcome,
         player1Snapshot: nextP1,
         player2Snapshot: nextP2,
-        battleExtras: { mode: 'online', online: true },
+        battleExtras: { mode: 'online', online: true, serverWinner: norm.winner },
       });
     }
   }, [snapshot, myPlayerId, onFinish]);
