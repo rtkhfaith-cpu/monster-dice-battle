@@ -248,6 +248,11 @@ export default function App() {
     setWinner(localWinner);
     setRewardSummary({ coinsAwarded: 0, expP1: null, expP2: null, online: true, iWon });
     setRewardTitle(iWon ? 'Online Victory!' : localWinner === 'draw' ? 'Online Draw' : 'Online Defeat');
+    leaveOnlineRoom();
+    disconnectOnline();
+    setOnlineRoom(null);
+    setOnlineSlot(null);
+    setGameMode('onePlayer');
     setPhase('gameOver');
   }
 
@@ -856,11 +861,7 @@ export default function App() {
     const wasLadder = !!rewardSummary?.monsterLadder;
     setRewardSummary(null);
     if (wasOnline) {
-      dismissedOnlineBattleRef.current = false;
-      onlineFinishHandledRef.current = false;
-      setGameMode('online');
-      setBattleKey((k) => k + 1);
-      setPhase('online');
+      setPhase('menu');
     } else if (wasLadder) {
       startMonsterLadderBattle();
     } else {
@@ -1440,6 +1441,8 @@ export default function App() {
               chestBlocked={!!rewardSummary?.chestBlocked}
               ladderGoldTotal={rewardSummary?.ladderGoldTotal}
               ladderShardsTotal={rewardSummary?.ladderShardsTotal}
+              onlineResult={!!rewardSummary?.online}
+              onlineWon={!!rewardSummary?.iWon}
               expP1={rewardSummary?.expP1}
               expP2={rewardSummary?.expP2}
               funnyTitle={rewardTitle}
@@ -1447,7 +1450,7 @@ export default function App() {
               player2={player2}
               totalCoins={rewardSummary?.monsterLadder ? rewardSummary?.ladderGoldTotal : coins}
               encourageLines={encourage}
-              playAgainLabel={rewardSummary?.online ? 'Back to Room' : rewardSummary?.monsterLadder ? 'Next Ladder Battle' : 'Play Again'}
+              playAgainLabel={rewardSummary?.online ? 'Back to Home' : rewardSummary?.monsterLadder ? 'Next Ladder Battle' : 'Play Again'}
               hideShopButtons={!!rewardSummary?.monsterLadder || !!rewardSummary?.online}
               onPlayAgain={playAgainFromReward}
               onOpenMonsterGear={
@@ -1462,7 +1465,7 @@ export default function App() {
                     }
               }
               onOpenMonsterMart={rewardSummary?.monsterLadder ? undefined : () => setMonsterMartOpen(true)}
-              onBackToHome={rewardSummary?.monsterLadder ? returnToLadder : resetToMenu}
+              onBackToHome={rewardSummary?.online ? undefined : rewardSummary?.monsterLadder ? returnToLadder : resetToMenu}
               backToHomeLabel={rewardSummary?.monsterLadder ? 'Monster Ladder map' : 'Back to Home'}
             />
           </ScrollView>

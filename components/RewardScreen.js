@@ -52,9 +52,17 @@ export default function RewardScreen({
   chestBlocked = false,
   ladderGoldTotal,
   ladderShardsTotal,
+  onlineResult = false,
+  onlineWon = false,
 }) {
   const line =
-    monsterLadder
+    onlineResult
+      ? winner === 'draw'
+        ? 'Both monsters are still standing.'
+        : onlineWon
+          ? 'Your monster ruled the arena!'
+          : 'Your monster fought hard. Train up and try again.'
+    : monsterLadder
       ? winner === 1
         ? 'The Ladder shifts upward.'
         : winner === 'draw'
@@ -118,7 +126,9 @@ export default function RewardScreen({
       <ExpRow label="Player 2 progress" pack={expP2} />
 
       <View style={styles.row}>
-        {winner === 'draw' ? (
+        {onlineResult ? (
+          <MonsterPreview parts={player1?.monsterParts} size={200} mood={onlineWon ? 'happy' : 'dizzy'} />
+        ) : winner === 'draw' ? (
           <>
             <MonsterPreview parts={player1?.monsterParts} size={120} mood="dizzy" />
             <MonsterPreview parts={player2?.monsterParts} size={120} mood="dizzy" />

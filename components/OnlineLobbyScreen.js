@@ -466,6 +466,7 @@ export default function OnlineLobbyScreen({
         sub="Enter a friend's code"
         variant="secondary"
         onPress={() => {
+          setRoomCodeInput('');
           setJoinOpen(true);
           setErr('');
         }}
