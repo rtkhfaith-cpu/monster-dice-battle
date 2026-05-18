@@ -73,8 +73,9 @@ export default function RewardScreen({
 
   return (
     <View style={styles.wrap}>
+      <View style={styles.glowOrb} pointerEvents="none" />
       {evolveFlash}
-      <Text style={styles.boom}>Match Over!</Text>
+      <Text style={styles.boom}>{monsterLadder ? 'Ladder Result' : 'Battle Result'}</Text>
       <Text style={styles.title}>{funnyTitle}</Text>
       <Text style={styles.sub}>{line}</Text>
 
@@ -101,15 +102,17 @@ export default function RewardScreen({
         <Text style={styles.ladderMeta}>Daily chest already claimed. Reset is 6PM Singapore.</Text>
       ) : null}
 
-      <Text style={styles.coins}>
-        {monsterLadder ? 'Ladder gold earned' : 'Coins banked this match'}:{' '}
+      <View style={styles.rewardPanel}>
+        <Text style={styles.coins}>
+          {monsterLadder ? 'Ladder gold earned' : 'Coins banked this match'}
+        </Text>
         <Text style={styles.coinsStrong}>+{coinsAwarded}</Text>
-      </Text>
-      <Text style={styles.bank}>
-        {monsterLadder
-          ? `Ladder bank: ${ladderGoldTotal ?? totalCoins ?? 0} · Shards: ${ladderShardsTotal ?? 0}`
-          : `Piggy bank: ${totalCoins ?? 0}`}
-      </Text>
+        <Text style={styles.bank}>
+          {monsterLadder
+            ? `Ladder bank: ${ladderGoldTotal ?? totalCoins ?? 0} · Shards: ${ladderShardsTotal ?? 0}`
+            : `Piggy bank: ${totalCoins ?? 0}`}
+        </Text>
+      </View>
 
       <ExpRow label={monsterLadder ? 'Ladder monster progress' : 'Player 1 progress'} pack={expP1} />
       <ExpRow label="Player 2 progress" pack={expP2} />
@@ -161,124 +164,184 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 10,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(255,224,138,0.42)',
+    borderBottomWidth: 5,
+    borderBottomColor: '#5f3a1b',
+    backgroundColor: 'rgba(12, 24, 45, 0.92)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+  },
+  glowOrb: {
+    position: 'absolute',
+    top: -80,
+    width: 230,
+    height: 230,
+    borderRadius: 115,
+    backgroundColor: 'rgba(96, 165, 250, 0.16)',
   },
   evolve: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '900',
-    color: '#e056fd',
+    color: '#f0abfc',
     marginBottom: 6,
     textAlign: 'center',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   underdog: {
     fontWeight: '900',
-    fontSize: 15,
-    color: '#2980b9',
+    fontSize: 13,
+    color: '#93c5fd',
     marginBottom: 10,
     textAlign: 'center',
+    textTransform: 'uppercase',
   },
   ladderMeta: {
-    fontWeight: '800',
-    fontSize: 14,
-    color: '#6c5ce7',
+    fontWeight: '900',
+    fontSize: 12,
+    color: '#c4b5fd',
     marginBottom: 6,
     textAlign: 'center',
+    textTransform: 'uppercase',
   },
   ladderBonus: {
     fontWeight: '900',
-    fontSize: 15,
-    color: '#d35400',
+    fontSize: 13,
+    color: '#fbbf24',
     marginBottom: 8,
     textAlign: 'center',
   },
   boom: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '900',
-    color: '#e67e22',
+    color: '#fcd34d',
     marginBottom: 4,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
   },
   title: {
-    fontSize: 26,
+    fontSize: 25,
     fontWeight: '900',
-    color: '#8e44ad',
+    color: '#fff4cf',
     textAlign: 'center',
     marginBottom: 6,
     lineHeight: 30,
     paddingHorizontal: 4,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 5,
   },
   sub: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#566573',
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#bfdbfe',
     textAlign: 'center',
+    marginBottom: 10,
+    lineHeight: 19,
+  },
+  rewardPanel: {
+    width: '100%',
+    alignItems: 'center',
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: 'rgba(255,224,138,0.5)',
+    backgroundColor: 'rgba(7, 17, 32, 0.7)',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     marginBottom: 12,
-    lineHeight: 22,
   },
   coins: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#2d3436',
-    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#d9f7ff',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   coinsStrong: {
-    color: '#f39c12',
+    color: '#fcd34d',
     fontWeight: '900',
-    fontSize: 22,
+    fontSize: 28,
+    textShadowColor: 'rgba(0,0,0,0.65)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
   bank: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#636e72',
-    marginBottom: 12,
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#86efac',
+    marginTop: 2,
   },
-  expBlock: { width: '100%', marginBottom: 10 },
-  expLbl: { fontWeight: '900', fontSize: 17, color: '#1a1a2e', marginBottom: 6, lineHeight: 24 },
+  expBlock: {
+    width: '100%',
+    marginBottom: 10,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    padding: 9,
+  },
+  expLbl: { fontWeight: '900', fontSize: 13, color: '#fff4cf', marginBottom: 6, lineHeight: 18 },
   barOuter: {
-    height: 10,
-    borderRadius: 6,
-    backgroundColor: '#dfe6e9',
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#b2bec3',
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.3)',
   },
-  barInner: { height: '100%', backgroundColor: '#8ac926' },
-  expTiny: { fontWeight: '800', fontSize: 15, color: '#4a5568', marginTop: 4 },
+  barInner: { height: '100%', backgroundColor: '#34d399' },
+  expTiny: { fontWeight: '800', fontSize: 11, color: '#bfdbfe', marginTop: 4 },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
     paddingHorizontal: 4,
   },
   encourage: {
-    fontWeight: '800',
-    fontSize: 14,
-    color: '#273043',
+    fontWeight: '900',
+    fontSize: 12,
+    color: '#dbeafe',
     textAlign: 'center',
     marginBottom: 6,
-    lineHeight: 20,
+    lineHeight: 17,
     paddingHorizontal: 8,
   },
   primary: {
     width: '100%',
-    backgroundColor: '#8ac926',
-    borderRadius: 16,
-    borderWidth: 4,
-    borderColor: '#2d2d44',
+    backgroundColor: 'rgba(48, 129, 66, 0.96)',
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#efd17a',
+    borderBottomWidth: 5,
+    borderBottomColor: '#31551f',
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 10,
   },
   primaryTxt: {
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: '900',
-    color: '#1b1b2f',
+    color: '#fff8dd',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
   },
   secondary: {
     width: '100%',
-    backgroundColor: '#ffd166',
+    backgroundColor: 'rgba(237, 210, 155, 0.94)',
     borderRadius: 14,
-    borderWidth: 3,
-    borderColor: '#2d2d44',
+    borderWidth: 2,
+    borderColor: '#b9843b',
+    borderBottomWidth: 4,
+    borderBottomColor: '#68401f',
     paddingVertical: 12,
     alignItems: 'center',
     marginBottom: 8,
@@ -286,23 +349,30 @@ const styles = StyleSheet.create({
   secondaryTxt: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#1b1b2f',
+    color: '#5c3618',
+    textTransform: 'uppercase',
   },
   tertiary: {
     width: '100%',
-    backgroundColor: '#ffeaa7',
+    backgroundColor: 'rgba(42, 58, 86, 0.9)',
     borderRadius: 12,
-    borderWidth: 3,
-    borderColor: '#2d2d44',
+    borderWidth: 2,
+    borderColor: '#8b6b3f',
+    borderBottomWidth: 4,
+    borderBottomColor: '#49311c',
     paddingVertical: 11,
     alignItems: 'center',
     marginBottom: 8,
   },
-  tertiaryTxt: { fontWeight: '900', fontSize: 16, color: '#1b1b2f' },
+  tertiaryTxt: { fontWeight: '900', fontSize: 15, color: '#f4e3bd', textTransform: 'uppercase' },
   ghost: {
-    paddingVertical: 10,
+    paddingVertical: 11,
     paddingHorizontal: 18,
     marginTop: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  ghostTxt: { fontWeight: '900', fontSize: 15, color: '#576574', textDecorationLine: 'underline' },
+  ghostTxt: { fontWeight: '900', fontSize: 13, color: '#ffe08a', textTransform: 'uppercase' },
 });

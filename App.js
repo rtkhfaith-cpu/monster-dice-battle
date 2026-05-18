@@ -1219,6 +1219,8 @@ export default function App() {
             ? styles.cardShellBattle
             : phase === 'online'
               ? styles.cardShellOnline
+            : phase === 'gameOver'
+              ? styles.cardShellReward
             : phase === 'menu' || phase === 'ladder'
               ? [styles.cardShellMenu, lobbyMobile && styles.cardShellMenuMobile]
               : styles.cardShell
@@ -1633,6 +1635,23 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     overflow: 'hidden',
   },
+  cardShellReward: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: '#081324',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#b9843b',
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 6,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 10,
+  },
   menuPad: { paddingBottom: 24 },
   menuHead: {
     fontSize: 22,
@@ -1718,7 +1737,7 @@ const styles = StyleSheet.create({
   },
   endCard: {
     alignItems: 'stretch',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingBottom: 24,
   },
 });
