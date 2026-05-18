@@ -179,6 +179,10 @@ export default function RpgBattleArena({
   const roundLabel = narrow ? `R${round}` : `Round ${round}`;
   const turnShort = turnBadge || '';
   const combatCallout = !!turnBadgeCombatHighlight;
+  const battleGroundUri = useMemo(() => {
+    const pool = GAME_ASSETS.battleGrounds;
+    return pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
+  }, []);
 
   return (
     <Animated.View
@@ -194,7 +198,7 @@ export default function RpgBattleArena({
       ]}
     >
       <ImageBackground
-        source={{ uri: GAME_ASSETS.battleGround }}
+        source={{ uri: battleGroundUri }}
         style={styles.battleBgImage}
         imageStyle={styles.battleBgImageInner}
         resizeMode="cover"
