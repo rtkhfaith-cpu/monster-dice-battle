@@ -428,7 +428,7 @@ export function createPlayerProfile(gameData, name, playerKey = '') {
   const profile = {
     id,
     name: String(name || 'New Player').trim().slice(0, 24) || 'New Player',
-    playerKeyHash: String(playerKeyHash || ''),
+    pin: String(playerKey || '').replace(/\D/g, '').slice(0, 4),
     coins: 0,
     ownedMonsters: [],
     cosmeticsOwned: [],

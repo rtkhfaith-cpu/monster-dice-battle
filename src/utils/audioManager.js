@@ -37,6 +37,7 @@ export const AUDIO_SETTINGS_DEFAULTS = {
 let settings = { ...AUDIO_SETTINGS_DEFAULTS };
 let unlocked = false;
 let interactionBound = false;
+let activityBound = false;
 let menuWanted = false;
 let battleWanted = false;
 /** @type {'none'|'menu'|'battle'} */
@@ -48,6 +49,7 @@ let menuPick = '';
 let menuMusicKind = 'menu';
 let battlePick = '';
 let battleMusicKind = 'normal';
+let bgmPausedForInactivity = false;
 
 function clamp01(n) {
   return Math.max(0, Math.min(1, n));
@@ -65,6 +67,13 @@ function pickRandom(list) {
 
 function isWeb() {
   return Platform.OS === 'web' && typeof window !== 'undefined' && typeof Audio !== 'undefined';
+}
+
+function isAppAudioActive() {
+  if (!isWeb()) return false;
+  if (typeof document !== 'undefined' && document.hidden) return false;
+  if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return false;
+  return true;
 }
 
 function loadSettingsFromStorage() {
@@ -186,7 +195,7 @@ function fadeOutBgm(onDone) {
  * @param {'menu'|'battle'} mode
  */
 function startBgm(path, mode, fallbackPath = '') {
-  if (!path || !isWeb() || settings.muted) return false;
+  if (!path || !isWeb() || settings.muted || !isAppAudioActive()) return false;
 
   const url = encodePublicPath(path);
   if (bgmAudio && bgmMode === mode) {
@@ -229,6 +238,43 @@ function refreshBgmVolume() {
   }
 }
 
+function resumeWantedBgm() {
+  if (!unlocked || settings.muted || !isAppAudioActive()) return;
+  bgmPausedForInactivity = false;
+  if (battleWanted) startBattleMusic({ kind: battleMusicKind });
+  else if (menuWanted) startMenuMusic({ kind: menuMusicKind });
+}
+
+function pauseBgmForInactivity() {
+  if (!bgmAudio) return;
+  bgmPausedForInactivity = true;
+  try {
+    bgmAudio.pause();
+  } catch {
+    /* ignore */
+  }
+}
+
+function syncAudioActivity() {
+  if (isAppAudioActive()) {
+    if (bgmPausedForInactivity) resumeWantedBgm();
+    return;
+  }
+  pauseBgmForInactivity();
+}
+
+function bindActivityListeners() {
+  if (activityBound || !isWeb()) return;
+  activityBound = true;
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', syncAudioActivity);
+  }
+  window.addEventListener('blur', pauseBgmForInactivity);
+  window.addEventListener('focus', resumeWantedBgm);
+  window.addEventListener('pagehide', pauseBgmForInactivity);
+  window.addEventListener('pageshow', resumeWantedBgm);
+}
+
 function bindFirstInteraction() {
   if (interactionBound || typeof document === 'undefined') return;
   interactionBound = true;
@@ -252,6 +298,7 @@ function bindFirstInteraction() {
 export function initAudio() {
   loadAudioSettings();
   bindFirstInteraction();
+  bindActivityListeners();
   menuWanted = true;
   battleWanted = false;
   if (!settings.muted) startMenuMusic();
@@ -259,7 +306,8 @@ export function initAudio() {
 
 export function unlockAudio() {
   unlocked = true;
-  if (!settings.muted) {
+  bindActivityListeners();
+  if (!settings.muted && isAppAudioActive()) {
     if (battleWanted) startBattleMusic({ kind: battleMusicKind });
     else if (menuWanted) startMenuMusic({ kind: menuMusicKind });
   }

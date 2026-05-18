@@ -1017,13 +1017,8 @@ export default function BattleScreen({
             >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.fightFace]} pointerEvents="none">
                   <View style={styles.fightBtnShine} />
-                  <Image
-                    source={{ uri: GAME_ASSETS.battleActions.attack }}
-                    style={[styles.actionBtnImageLarge, battleMobile && styles.actionBtnImageLargeMobile]}
-                    resizeMode="contain"
-                  />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.fightBtnTxt]}>
-                    Fight
+                    Basic Attack
                   </Text>
                 </View>
               </Pressable>
@@ -1040,13 +1035,8 @@ export default function BattleScreen({
               >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.magicFace]} pointerEvents="none">
                   <View style={styles.magicBtnShine} />
-                  <Image
-                    source={{ uri: GAME_ASSETS.battleActions.magic }}
-                    style={[styles.actionBtnImageLarge, battleMobile && styles.actionBtnImageLargeMobile]}
-                    resizeMode="contain"
-                  />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.magicBtnTxt]}>
-                    Magic
+                    Magic Attack
                   </Text>
                 </View>
               </Pressable>
@@ -1065,13 +1055,8 @@ export default function BattleScreen({
               }}
             >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.runFace]} pointerEvents="none">
-                  <Image
-                    source={{ uri: GAME_ASSETS.battleActions.run }}
-                    style={[styles.actionBtnImage, battleMobile && styles.actionBtnImageMobile]}
-                    resizeMode="contain"
-                  />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.runBtnTxt]}>
-                    Run
+                    Flee
                   </Text>
                 </View>
               </Pressable>
@@ -1268,12 +1253,12 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 4 }],
   },
   btnFace: {
-    minHeight: 82,
+    minHeight: 58,
     borderRadius: 12,
     borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    paddingHorizontal: 8,
     overflow: 'hidden',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.45,
@@ -1281,30 +1266,14 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   btnFaceMobile: {
-    minHeight: 106,
+    minHeight: 72,
     borderRadius: 15,
     borderWidth: 3,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
   },
   arcadeBtnTxtMobile: {
-    fontSize: 16,
-    letterSpacing: 0,
-  },
-  actionBtnImage: {
-    width: 30,
-    height: 30,
-  },
-  actionBtnImageMobile: {
-    width: 40,
-    height: 40,
-  },
-  actionBtnImageLarge: {
-    width: 60,
-    height: 60,
-  },
-  actionBtnImageLargeMobile: {
-    width: 80,
-    height: 80,
+    fontSize: 15,
+    letterSpacing: 0.2,
   },
   fightBtn: {
     flex: 1,
@@ -1360,18 +1329,19 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   arcadeBtnTxt: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '900',
     textAlign: 'center',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0,0,0,0.25)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    letterSpacing: 0.65,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(0,0,0,0.42)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
-  fightBtnTxt: { color: '#fff9f0', fontSize: 18 },
+  fightBtnTxt: { color: '#fff9f0', fontSize: 15 },
   fightBtnTxtMobile: { fontSize: 23 },
   defendBtnTxt: { color: '#f0fbff' },
-  runBtnTxt: { color: '#3d4a5c', fontSize: 18, fontWeight: '900' },
+  runBtnTxt: { color: '#263244', fontSize: 15, fontWeight: '900' },
   disabledBtn: { opacity: 0.42 },
   fleeOverlay: {
     ...StyleSheet.absoluteFillObject,

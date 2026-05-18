@@ -88,7 +88,7 @@ import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
 import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
-import { startMenuMusic, stopMenuMusic } from './utils/audioManager';
+import { startLadderMusic, startMenuMusic, stopMenuMusic } from './utils/audioManager';
 
 const LOBBY_PHASES = new Set(['menu', 'ladder', 'online', 'gameOver', 'audioSettings']);
 
@@ -341,7 +341,7 @@ export default function App() {
       return;
     }
     if (phase === 'ladder') {
-      startMenuMusic({ kind: 'ladder' });
+      startLadderMusic();
     } else if (LOBBY_PHASES.has(phase)) {
       startMenuMusic();
     } else if (phase === 'battle') {

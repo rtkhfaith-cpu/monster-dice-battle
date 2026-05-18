@@ -43,7 +43,7 @@ export default function BattleProjectileLayer({
   const fromLeft = atkId === 1;
   const laneY = arenaH * 0.48;
   const startY = laneY;
-  const endY = laneY;
+  const endY = arenaH * 0.35;
   const horizSpan = fx(animKind === 'water_wave' ? 165 : 150);
   const isLunge = animKind === 'fly_lunge' || animKind === 'bite_lunge';
   const arcLift = fx(animKind === 'egg_bomb' ? 28 : isLunge ? 10 : 14);
@@ -207,7 +207,7 @@ export default function BattleProjectileLayer({
   });
   const tx = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: fromLeft ? [-horizSpan, horizSpan] : [horizSpan, -horizSpan],
+    outputRange: fromLeft ? [-horizSpan, 0] : [horizSpan, 0],
   });
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const dmgY = dmgUp.interpolate({ inputRange: [0, 1], outputRange: [0, -fx(36)] });
@@ -365,12 +365,12 @@ const styles = StyleSheet.create({
     width: fx(56),
   },
   projFromLeft: {
-    left: '18%',
+    left: '50%',
     marginLeft: -fx(80),
   },
   projFromRight: {
-    right: '18%',
-    marginRight: -fx(80),
+    left: '50%',
+    marginLeft: -fx(80),
   },
   actionImage: {
     position: 'absolute',
