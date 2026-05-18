@@ -26,6 +26,7 @@ export default function BattleProjectileLayer({
   sequenceControlled = false,
 }) {
   const [arenaH, setArenaH] = useState(360);
+  const [arenaW, setArenaW] = useState(360);
   const progress = useRef(new Animated.Value(0)).current;
   const splat = useRef(new Animated.Value(0)).current;
   const dmgUp = useRef(new Animated.Value(0)).current;
@@ -41,10 +42,18 @@ export default function BattleProjectileLayer({
   const defId = effect?.defenderId ?? (atkId === 1 ? 2 : 1);
   const animKind = effect?.animKind ?? 'projectile';
   const fromLeft = atkId === 1;
-  const laneY = arenaH * 0.48;
-  const startY = laneY;
-  const endY = arenaH * 0.35;
-  const horizSpan = fx(animKind === 'water_wave' ? 165 : 150);
+  const actionSize = 160;
+  const actionHalf = actionSize / 2;
+  const leftMonsterX = arenaW * 0.24;
+  const rightMonsterX = arenaW * 0.76;
+  const defenderX = fromLeft ? rightMonsterX : leftMonsterX;
+  const monsterY = arenaH * 0.64;
+  const startX = (fromLeft ? leftMonsterX : rightMonsterX) - actionHalf;
+  const endX = (fromLeft ? rightMonsterX : leftMonsterX) - actionHalf;
+  const startY = monsterY - actionHalf;
+  const endY = monsterY - actionHalf;
+  const impactX = defenderX - fx(40);
+  const feedbackX = defenderX - fx(40);
   const isLunge = animKind === 'fly_lunge' || animKind === 'bite_lunge';
   const arcLift = fx(animKind === 'egg_bomb' ? 28 : isLunge ? 10 : 14);
 
@@ -207,7 +216,7 @@ export default function BattleProjectileLayer({
   });
   const tx = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: fromLeft ? [-horizSpan, 0] : [horizSpan, 0],
+    outputRange: [startX, endX],
   });
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const dmgY = dmgUp.interpolate({ inputRange: [0, 1], outputRange: [0, -fx(36)] });
@@ -224,11 +233,7 @@ export default function BattleProjectileLayer({
     && typeof effect.damage === 'number'
     && effect.damage > 0;
   const sickly = effect.sicklyFlash && !effect.dodged;
-  const showTravel =
-    !effect.dodged
-    && (animKind === 'projectile' || animKind === 'fire_blast' || animKind === 'egg_bomb'
-      || animKind === 'metal_slash' || animKind === 'rush' || isLunge
-      || animKind === 'sparkle');
+  const showTravel = !effect.dodged;
   const randomSeed = effect?.seq ?? effect?.damage ?? 0;
   const actionImageUri = effect?.actionType === 'magic' || effect?.strikeKind === 'magic'
     ? pickFrom(GAME_ASSETS.battleActions.magicVariants, randomSeed)
@@ -243,8 +248,10 @@ export default function BattleProjectileLayer({
       style={styles.layer}
       pointerEvents="none"
       onLayout={(e) => {
-        const h = e.nativeEvent.layout.height;
+        const { width, height } = e.nativeEvent.layout;
+        const h = height;
         if (h > 80) setArenaH(h);
+        if (width > 80) setArenaW(width);
       }}
     >
       {showTravel ? (
@@ -252,7 +259,6 @@ export default function BattleProjectileLayer({
           source={{ uri: actionImageUri }}
           style={[
             styles.actionImage,
-            fromLeft ? styles.projFromLeft : styles.projFromRight,
             {
               opacity: missFade,
               transform: [{ translateX: tx }, { translateY: ty }, { rotate }, { scale: effect.critical ? 1.12 : 1 }],
@@ -267,8 +273,8 @@ export default function BattleProjectileLayer({
           <Animated.View
             style={[
               styles.burstRing,
-              styles.splatCenter,
               {
+                left: impactX,
                 top: endY - 20,
                 opacity: burstOp,
                 transform: [{ scale: burstScale }],
@@ -280,9 +286,9 @@ export default function BattleProjectileLayer({
             source={{ uri: impactImageUri }}
             style={[
               styles.impactImage,
-              styles.splatCenter,
               sickly && styles.splatSickly,
               {
+                left: impactX,
                 top: endY - 6,
                 opacity: splatOp,
                 transform: [{ scale: splatScale }],
@@ -295,6 +301,7 @@ export default function BattleProjectileLayer({
             style={[
               styles.feedbackImage,
               {
+                left: feedbackX,
                 top: endY - fx(60),
                 opacity: splatOp,
                 transform: [{ scale: splatScale }],
@@ -309,6 +316,7 @@ export default function BattleProjectileLayer({
           style={[
             styles.feedbackImage,
             {
+              left: feedbackX,
               top: endY - fx(34),
               opacity: missFade,
             },
@@ -340,6 +348,7 @@ export default function BattleProjectileLayer({
           style={[
             styles.feedbackImage,
             {
+              left: feedbackX,
               top: endY - fx(70),
               opacity: missFade,
               transform: [{ scale: 1.08 }],
@@ -363,14 +372,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: fx(56),
-  },
-  projFromLeft: {
-    left: '50%',
-    marginLeft: -fx(80),
-  },
-  projFromRight: {
-    left: '50%',
-    marginLeft: -fx(80),
   },
   actionImage: {
     position: 'absolute',

@@ -88,7 +88,7 @@ import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
 import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
-import { startLadderMusic, startMenuMusic, stopMenuMusic } from './utils/audioManager';
+import { startLadderMusic, startMenuMusic, stopMenuMusic, unlockAudio } from './utils/audioManager';
 
 const LOBBY_PHASES = new Set(['menu', 'ladder', 'online', 'gameOver', 'audioSettings']);
 
@@ -817,6 +817,8 @@ export default function App() {
       showNotice('Monster Ladder', 'Select or create a player profile first.');
       return;
     }
+    unlockAudio();
+    startLadderMusic();
     setPhase('ladder');
   }
 
@@ -826,6 +828,7 @@ export default function App() {
     setPlayer2(null);
     setRewardSummary(null);
     setBattleKey((k) => k + 1);
+    startLadderMusic();
     setPhase('ladder');
   }
 
@@ -1178,7 +1181,7 @@ export default function App() {
       />
       {phase !== 'menu' && phase !== 'ladder' && phase !== 'battle' && phase !== 'online' ? (
         <>
-          <Text style={styles.gameTitle}>Monster Dice Battle</Text>
+          <Text style={styles.gameTitle}>Monster Battle</Text>
           <View style={styles.coinsRow}>
             <Text style={styles.coinsStripText}>
               Coins 🪙 <Text style={styles.coinsAmt}>{coins}</Text>

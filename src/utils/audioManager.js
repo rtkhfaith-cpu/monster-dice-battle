@@ -205,6 +205,9 @@ function startBgm(path, mode, fallbackPath = '') {
       refreshBgmVolume();
       return true;
     }
+    // Switching within the same mode, such as main menu -> Monster Ladder,
+    // should happen immediately while still inside the user gesture.
+    stopBgmElement();
   }
 
   fadeOutBgm(() => {
