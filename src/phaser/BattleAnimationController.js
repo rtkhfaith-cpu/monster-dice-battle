@@ -25,13 +25,28 @@ const ELEMENT_COLORS = {
   normal: 0xffffff,
 };
 
+const ACTION_IMAGE_KEYS = {
+  attack: 'action_attack',
+  magic: 'action_magic',
+  defend: 'action_defend',
+  run: 'action_run',
+  comment: 'action_comment',
+};
+
 function wait(scene, ms) {
   return new Promise((resolve) => scene.time.delayedCall(ms, resolve));
 }
 
 function tween(scene, config) {
   return new Promise((resolve) => {
-    scene.tweens.add({ ...config, onComplete: resolve });
+    const onComplete = config.onComplete;
+    scene.tweens.add({
+      ...config,
+      onComplete: (...args) => {
+        onComplete?.(...args);
+        resolve();
+      },
+    });
   });
 }
 
@@ -81,6 +96,10 @@ export default class BattleAnimationController {
         await this.playDefend(result);
         return;
       }
+      if (result.actionType === 'run') {
+        await this.playRun(result);
+        return;
+      }
       await this.playAttack(result, runId);
     } finally {
       if (this.currentRun === runId) {
@@ -106,8 +125,28 @@ export default class BattleAnimationController {
     if (!defender) return;
     this.log('defend animation type', result);
     defender.defend();
+    this.spawnActionPicture(defender.x, defender.y - 48, ACTION_IMAGE_KEYS.defend, {
+      depth: defender.depth + 14,
+      startScale: 0.76,
+      endScale: 1.12,
+      duration: 520,
+    });
     this.scene.showTurnText(result.text || 'Guard Up');
     await wait(this.scene, 560);
+  }
+
+  async playRun(result) {
+    const runner = this.scene.actors[actorKey(result.attackerId ?? result.activeId ?? result.target ?? 'player')];
+    if (!runner) return;
+    this.spawnActionPicture(runner.x, runner.y - 48, ACTION_IMAGE_KEYS.run, {
+      depth: runner.depth + 16,
+      startScale: 0.86,
+      endScale: 1.2,
+      duration: 580,
+      driftY: -42,
+    });
+    this.scene.showTurnText(result.text || 'Run!');
+    await wait(this.scene, 580);
   }
 
   async playAttack(result, runId) {
@@ -134,7 +173,10 @@ export default class BattleAnimationController {
     if (isMagic) {
       await this.playMagicTravel(attacker, defender, result, element);
     } else {
-      await attacker.attack();
+      await Promise.all([
+        attacker.attack(),
+        this.playActionPictureTravel(attacker, defender, result, ACTION_IMAGE_KEYS.attack),
+      ]);
     }
 
     if (this.currentRun !== runId) return;
@@ -165,51 +207,68 @@ export default class BattleAnimationController {
   }
 
   async playMagicTravel(attacker, defender, result, element) {
-    const color = ELEMENT_COLORS[element] ?? ELEMENT_COLORS.normal;
-    const projectile = this.createElementProjectile(attacker, element, color);
     const tier = visualTier(attacker);
     const duration = Math.max(260, (result.crit ? TIMING.magicTravel - 70 : TIMING.magicTravel) - tier * 35);
     this.scene.cameras.main.zoomTo(1.035 + tier * 0.025, 150, 'Sine.easeOut');
-    await tween(this.scene, {
-      targets: projectile,
-      x: defender.x - 46 * attacker.facing,
-      y: defender.y - 18,
-      scale: (result.crit ? 1.6 : 1.25) + tier * 0.22,
-      angle: element === 'metal' ? 100 : 0,
+    await this.playActionPictureTravel(attacker, defender, result, ACTION_IMAGE_KEYS.magic, {
       duration,
-      ease: 'Cubic.inOut',
+      yOffset: -28,
+      targetYOffset: -22,
+      startScale: 0.82,
+      endScale: (result.crit ? 1.28 : 1.08) + tier * 0.1,
+      angle: element === 'metal' ? 100 : 24 * attacker.facing,
     });
-    projectile.destroy();
     this.scene.cameras.main.zoomTo(1, 180, 'Sine.easeInOut');
   }
 
-  createElementProjectile(attacker, element, color) {
+  playActionPictureTravel(attacker, defender, result, textureKey, options = {}) {
     const x = attacker.x + 44 * attacker.facing;
-    const y = attacker.y - 36;
+    const y = attacker.y + (options.yOffset ?? -36);
     const tier = visualTier(attacker);
-    const sizeBoost = tier * 10;
-    if (element === 'electric') {
-      return this.scene.add.rectangle(x, y, 54 + sizeBoost, 8 + tier * 2, color, 0.95).setDepth(36);
-    }
-    if (element === 'water') {
-      return this.scene.add.ellipse(x, y, 54 + sizeBoost, 28 + tier * 5, color, 0.92).setDepth(36);
-    }
-    if (element === 'poison' || element === 'bacteria') {
-      return this.scene.add.ellipse(x, y, 62 + sizeBoost, 44 + tier * 8, color, 0.55).setDepth(36);
-    }
-    if (element === 'tech' || element === 'glitch') {
-      return this.scene.add.rectangle(x, y, 46 + sizeBoost, 34 + tier * 7, color, 0.82).setDepth(36);
-    }
-    if (element === 'earth') {
-      return this.scene.add.polygon(x, y, [0, -24, 24, 4, 10, 28, -20, 20, -26, -8], color, 0.96).setDepth(36);
-    }
-    if (element === 'metal') {
-      return this.scene.add.rectangle(x, y, 62, 10, color, 0.96).setDepth(36);
-    }
-    if (element === 'food') {
-      return this.scene.add.ellipse(x, y, 54, 34, color, 0.94).setDepth(36);
-    }
-    return this.scene.add.circle(x, y, 18 + tier * 5, color, 0.96).setDepth(36);
+    const projectile = this.createActionPicture(x, y, textureKey, {
+      depth: options.depth ?? 38,
+      startScale: options.startScale ?? 0.86,
+    });
+    if (!projectile) return wait(this.scene, options.duration ?? TIMING.physicalTravel);
+
+    projectile.setFlipX(attacker.facing < 0);
+    projectile.setAngle(options.angle ?? 12 * attacker.facing);
+
+    return tween(this.scene, {
+      targets: projectile,
+      x: defender.x - 46 * attacker.facing,
+      y: defender.y + (options.targetYOffset ?? -24),
+      scale: options.endScale ?? ((result.crit ? 1.22 : 1.02) + tier * 0.08),
+      angle: -(options.angle ?? 12 * attacker.facing),
+      duration: options.duration ?? Math.max(240, TIMING.physicalTravel - tier * 24),
+      ease: 'Cubic.inOut',
+      onComplete: () => projectile.destroy(),
+    });
+  }
+
+  createActionPicture(x, y, textureKey, { depth = 38, startScale = 1 } = {}) {
+    if (!this.scene.textures.exists(textureKey)) return null;
+    return this.scene.add.image(x, y, textureKey)
+      .setOrigin(0.5)
+      .setDisplaySize(80, 80)
+      .setScale(startScale)
+      .setDepth(depth);
+  }
+
+  spawnActionPicture(x, y, textureKey, options = {}) {
+    const sprite = this.createActionPicture(x, y, textureKey, options);
+    if (!sprite) return null;
+    sprite.setAlpha(options.alpha ?? 0.96);
+    this.scene.tweens.add({
+      targets: sprite,
+      y: y + (options.driftY ?? -28),
+      scale: options.endScale ?? 1.08,
+      alpha: 0,
+      duration: options.duration ?? 420,
+      ease: 'Cubic.out',
+      onComplete: () => sprite.destroy(),
+    });
+    return sprite;
   }
 
   spawnCharge(actor, element) {
@@ -245,7 +304,12 @@ export default class BattleAnimationController {
     if (result.crit || tier >= 2) await wait(this.scene, tier >= 3 ? 100 : 70);
     this.scene.cameras.main.shake(shakeDuration, shakeAmount);
     defender.hurt({ critical: result.crit, guarded });
-    this.scene.playElementImpact(defender, element, { critical: result.crit, guarded });
+    this.spawnActionPicture(defender.x, defender.y - 64, guarded ? ACTION_IMAGE_KEYS.defend : ACTION_IMAGE_KEYS.comment, {
+      depth: defender.depth + 18,
+      startScale: result.crit ? 1.08 : 0.92,
+      endScale: result.crit ? 1.42 : 1.16,
+      duration: result.crit ? 520 : 380,
+    });
     this.scene.showDamageNumber(defender, result);
     if (typeof result.hpAfter === 'number') {
       this.scene.animateHudTo(defender.key, { hp: result.hpAfter, heavy });

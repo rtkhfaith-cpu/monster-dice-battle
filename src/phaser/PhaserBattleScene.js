@@ -1,6 +1,15 @@
 import BattleAnimationController from './BattleAnimationController';
 import MonsterActor from './MonsterActor';
+import { GAME_ASSETS } from '../../utils/gameAssetPaths';
 import { MONSTER_ASSETS, getNormalMonsterAsset } from './monsterAssetManifest';
+
+export const ACTION_IMAGE_ASSETS = {
+  attack: { key: 'action_attack', path: GAME_ASSETS.battleActions.attack },
+  magic: { key: 'action_magic', path: GAME_ASSETS.battleActions.magic },
+  defend: { key: 'action_defend', path: GAME_ASSETS.battleActions.defend },
+  run: { key: 'action_run', path: GAME_ASSETS.battleActions.run },
+  comment: { key: 'action_comment', path: GAME_ASSETS.battleActions.comment },
+};
 
 export function createPhaserBattleScene(Phaser) {
   return class PhaserBattleScene extends Phaser.Scene {
@@ -19,8 +28,11 @@ export function createPhaserBattleScene(Phaser) {
       Object.values(MONSTER_ASSETS).forEach((asset) => {
         this.load.image(asset.key, asset.path);
       });
+      Object.values(ACTION_IMAGE_ASSETS).forEach((asset) => {
+        this.load.image(asset.key, asset.path);
+      });
       this.load.on('loaderror', (file) => {
-        console.warn('[phaser-assets] Monster asset missing or failed to load:', file?.src || file?.key);
+        console.warn('[phaser-assets] Asset missing or failed to load:', file?.src || file?.key);
       });
     }
 
@@ -191,8 +203,14 @@ export function createPhaserBattleScene(Phaser) {
       const target = this.actors[targetKey];
       if (!attacker || !target) return null;
 
-      const projectile = this.add.circle(attacker.x + 40 * attacker.facing, attacker.y - 24, event.critical ? 16 : 11, event.critical ? 0xfff200 : 0x38bdf8, 1)
-        .setDepth(18);
+      const projectile = this.textures.exists(ACTION_IMAGE_ASSETS.attack.key)
+        ? this.add.image(attacker.x + 40 * attacker.facing, attacker.y - 24, ACTION_IMAGE_ASSETS.attack.key)
+          .setDisplaySize(80, 80)
+          .setScale(event.critical ? 1 : 0.86)
+          .setFlipX(attacker.facing < 0)
+          .setDepth(18)
+        : this.add.circle(attacker.x + 40 * attacker.facing, attacker.y - 24, event.critical ? 16 : 11, event.critical ? 0xfff200 : 0x38bdf8, 1)
+          .setDepth(18);
       attacker.attack(target, event);
       this.tweens.add({
         targets: projectile,

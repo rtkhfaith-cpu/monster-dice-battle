@@ -3,6 +3,7 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { fx } from '../utils/battleEffectScale';
 import { getProjectile } from '../utils/battleProjectiles';
 import { COMBAT_FEEDBACK_COLOR } from '../utils/battleCombatFeedback';
+import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
 function MoveCallout({ moveName, emoji, laneY, calloutOp }) {
   if (!moveName && !emoji) return null;
@@ -47,7 +48,6 @@ export default function BattleProjectileLayer({
   const animKind = effect?.animKind ?? 'projectile';
   const projectile = getProjectile(effect?.projectileId || 'poop');
   const skillEmoji = effect?.displayEmoji || effect?.emoji || projectile.emoji;
-  const splatEmoji = effect?.splatEmoji || projectile.splat || skillEmoji || '💥';
   const cloudEmojis = effect?.cloudEmojis?.length >= 2
     ? effect.cloudEmojis
     : [skillEmoji, projectile.emoji !== skillEmoji ? projectile.emoji : '☁️', projectile.splat || '✨'];
@@ -258,6 +258,12 @@ export default function BattleProjectileLayer({
     && (animKind === 'projectile' || animKind === 'fire_blast' || animKind === 'egg_bomb'
       || animKind === 'metal_slash' || animKind === 'rush' || isLunge
       || animKind === 'sparkle');
+  const actionImageUri = effect?.actionType === 'magic'
+    ? GAME_ASSETS.battleActions.magic
+    : GAME_ASSETS.battleActions.attack;
+  const impactImageUri = effect?.defended
+    ? GAME_ASSETS.battleActions.defend
+    : GAME_ASSETS.battleActions.comment;
 
   return (
     <View
@@ -276,7 +282,7 @@ export default function BattleProjectileLayer({
         </View>
       ) : null}
 
-      {animKind === 'cloud_spread' ? (
+      {false && animKind === 'cloud_spread' ? (
         <Animated.View
           style={[
             styles.cloudWrap,
@@ -294,7 +300,7 @@ export default function BattleProjectileLayer({
         </Animated.View>
       ) : null}
 
-      {animKind === 'water_wave' ? (
+      {false && animKind === 'water_wave' ? (
         <Animated.View
           style={[
             styles.waveBand,
@@ -310,7 +316,7 @@ export default function BattleProjectileLayer({
         </Animated.View>
       ) : null}
 
-      {animKind === 'sparkle' && showTravel ? (
+      {false && animKind === 'sparkle' && showTravel ? (
         <Animated.View
           style={[
             styles.projWrap,
@@ -327,22 +333,19 @@ export default function BattleProjectileLayer({
         </Animated.View>
       ) : null}
 
-      {showTravel && animKind !== 'cloud_spread' && animKind !== 'water_wave' && animKind !== 'sparkle' ? (
-        <Animated.View
+      {showTravel ? (
+        <Animated.Image
+          source={{ uri: actionImageUri }}
           style={[
-            styles.projWrap,
+            styles.actionImage,
             fromLeft ? styles.projFromLeft : styles.projFromRight,
             {
               opacity: missFade,
-              transform: [{ translateX: tx }, { translateY: ty }, { rotate }],
+              transform: [{ translateX: tx }, { translateY: ty }, { rotate }, { scale: effect.critical ? 1.12 : 1 }],
             },
           ]}
-        >
-          {animKind === 'fire_blast' || projectile.trail ? (
-            <View style={styles.fireTrail} />
-          ) : null}
-          <Text style={[styles.projEmoji, { fontSize: projSize }]}>{skillEmoji}</Text>
-        </Animated.View>
+          resizeMode="contain"
+        />
       ) : null}
 
       {!effect.dodged ? (
@@ -359,9 +362,10 @@ export default function BattleProjectileLayer({
             ]}
             pointerEvents="none"
           />
-          <Animated.View
+          <Animated.Image
+            source={{ uri: impactImageUri }}
             style={[
-              styles.splatWrap,
+              styles.impactImage,
               styles.splatCenter,
               sickly && styles.splatSickly,
               {
@@ -370,14 +374,8 @@ export default function BattleProjectileLayer({
                 transform: [{ scale: splatScale }],
               },
             ]}
-          >
-            <Text style={[styles.splatEmoji, effect.critical && styles.splatCrit]}>
-              {animKind === 'egg_bomb' && projectile.crack ? '💥' : splatEmoji}
-            </Text>
-            {animKind === 'egg_bomb' ? (
-              <Text style={styles.eggShell}>🥚</Text>
-            ) : null}
-          </Animated.View>
+            resizeMode="contain"
+          />
         </>
       ) : (
         <Animated.Text style={[styles.missLbl, { top: endY, opacity: missFade }]}>Miss!</Animated.Text>
@@ -453,6 +451,11 @@ const styles = StyleSheet.create({
     right: '18%',
     marginRight: -fx(28),
   },
+  actionImage: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+  },
   projEmoji: {
     textAlign: 'center',
     includeFontPadding: false,
@@ -514,6 +517,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     width: fx(72),
+  },
+  impactImage: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
   },
   splatCenter: {
     left: '50%',
