@@ -213,22 +213,15 @@ export default function RpgBattleArena({
             {
               top: L.stageBadgeTop,
               width: L.stageBadgeW,
-              minHeight: L.stageBadgeMinH,
               marginLeft: -(L.stageBadgeW / 2),
             },
             L.compactHud && styles.stageBadgeCompact,
           ]}
           pointerEvents="none"
         >
-          <Text style={styles.stageBadgeFloor}>Floor {ladderFloor}</Text>
-          <Text style={styles.stageBadgeRegion} numberOfLines={1}>
-            {ladderRegionName || 'Monster Ladder'}
+          <Text style={styles.stageBadgeFloor} numberOfLines={1}>
+            Level {ladderFloor}{ladderBossName ? ` · ${ladderBossName}` : ''}
           </Text>
-          {ladderBossName ? (
-            <Text style={styles.stageBadgeBoss} numberOfLines={1}>
-              vs {ladderBossName}
-            </Text>
-          ) : null}
         </View>
       ) : null}
       {turnShort ? (
@@ -739,8 +732,8 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.24)',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     zIndex: 12,
     shadowColor: '#2d2d44',
     shadowOffset: { width: 0, height: 3 },
@@ -749,13 +742,11 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   stageBadgeCompact: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 12,
   },
-  stageBadgeFloor: { fontWeight: '900', fontSize: 18, color: '#fff', lineHeight: 22 },
-  stageBadgeRegion: { fontWeight: '900', fontSize: 13, color: '#f8f1ff', marginTop: 2 },
-  stageBadgeBoss: { fontWeight: '800', fontSize: 11, color: '#ffeaa7', marginTop: 3 },
+  stageBadgeFloor: { fontWeight: '900', fontSize: 14, color: '#fff', lineHeight: 18, textAlign: 'center' },
   turnBadge: {
     position: 'absolute',
     left: '5%',
