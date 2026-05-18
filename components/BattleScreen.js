@@ -706,7 +706,6 @@ export default function BattleScreen({
           actionSfxRef.current.dodge = true;
           playSound('dodge');
         }
-        showBanner('Dodged!');
         if (!usePhaserBattleRenderer || phaserFailed) {
           if (defenderId === PLAYER_ID) setP1Pose('dodge');
           else setP2Pose('dodge');
@@ -718,7 +717,6 @@ export default function BattleScreen({
           if (defenderId === PLAYER_ID) setDefendGlowP1(true);
           else setDefendGlowP2(true);
         }
-        showBanner('Blocked!');
         schedule(520, () => {
           setDefendGlowP1(false);
           setDefendGlowP2(false);
@@ -734,10 +732,7 @@ export default function BattleScreen({
       if (!resolved.dodged) {
         applyPendingHp();
         applyImpactVisuals(defenderId, { ...effectPayload, damage: dmg });
-        if (resolved.critical) showBanner('Critical Hit!');
-        else if (resolved.weak) showBanner('Weak Hit!');
-        else if (resolved.defended) showBanner('Blocked!');
-        else if (strikeKind === 'magic') {
+        if (!resolved.critical && !resolved.weak && !resolved.defended && strikeKind === 'magic') {
           const elMsg = elementBannerText(resolved.elementRelation);
           if (elMsg) showBanner(elMsg);
         }

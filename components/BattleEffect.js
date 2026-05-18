@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
 import MoveEffect from './MoveEffect';
 import { ATTACK_EFFECT_SCALE, fx } from '../utils/battleEffectScale';
-import { COMBAT_FEEDBACK_COLOR } from '../utils/battleCombatFeedback';
+import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
 /**
  * @param {{
@@ -143,7 +143,9 @@ export default function BattleEffect({ currentEffect, instruction }) {
         </View>
       ) : null}
 
-      {ce?.dodged ? <Text style={styles.combatLbl}>Dodged!</Text> : null}
+      {ce?.dodged ? (
+        <Image source={{ uri: GAME_ASSETS.battleActions.feedback.dodge }} style={styles.feedbackImage} resizeMode="contain" />
+      ) : null}
 
       {!ce?.useProjectileAnim && !ce?.superBomb && !ce?.dodged && typeof ce?.damage === 'number' ? (
         <Animated.Text
@@ -178,17 +180,16 @@ export default function BattleEffect({ currentEffect, instruction }) {
         />
       ) : null}
 
-      {!ce?.superBomb && ce?.dodgeFailed ? <Text style={styles.failLbl}>💥 Dodge failed!</Text> : null}
+      {!ce?.superBomb && ce?.dodgeFailed ? (
+        <Image source={{ uri: GAME_ASSETS.battleActions.feedback.miss }} style={styles.feedbackImage} resizeMode="contain" />
+      ) : null}
 
       {!ce?.useProjectileAnim && !ce?.superBomb && ce?.critical ? (
-        <View style={styles.critBurst}>
-          <Text style={styles.critHuge}>CRITICAL HIT!</Text>
-          <Text style={styles.critEmoji}>💥</Text>
-        </View>
+        <Image source={{ uri: GAME_ASSETS.battleActions.feedback.critical }} style={styles.feedbackImageLarge} resizeMode="contain" />
       ) : null}
 
       {!ce?.superBomb && ce?.weak ? (
-        <Text style={styles.weakLbl}>Weak hit!</Text>
+        <Image source={{ uri: GAME_ASSETS.battleActions.feedback.hit }} style={styles.feedbackImage} resizeMode="contain" />
       ) : null}
     </View>
   );
@@ -247,15 +248,15 @@ const styles = StyleSheet.create({
   fxScale: {
     transform: [{ scale: S }],
   },
-  combatLbl: {
-    fontSize: fx(38),
-    fontWeight: '900',
-    color: COMBAT_FEEDBACK_COLOR,
-    letterSpacing: 1,
-    marginVertical: 4,
-    textShadowColor: 'rgba(120, 80, 0, 0.9)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+  feedbackImage: {
+    width: 80,
+    height: 80,
+    marginVertical: 2,
+  },
+  feedbackImageLarge: {
+    width: 96,
+    height: 96,
+    marginVertical: 2,
   },
   dmgLbl: {
     fontSize: fx(28),
@@ -275,12 +276,6 @@ const styles = StyleSheet.create({
     fontSize: fx(24),
     color: '#2a9d8f',
   },
-  weakLbl: {
-    fontSize: fx(20),
-    fontWeight: '900',
-    color: '#95a5a6',
-    marginTop: 2,
-  },
   burst: {
     position: 'absolute',
     width: fx(80),
@@ -288,26 +283,6 @@ const styles = StyleSheet.create({
     borderRadius: fx(40),
     backgroundColor: '#f39c12',
     top: '38%',
-  },
-  failLbl: {
-    fontWeight: '800',
-    fontSize: 12,
-    color: '#a04000',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  critBurst: {
-    marginTop: 2,
-    alignItems: 'center',
-  },
-  critHuge: {
-    fontSize: fx(34),
-    fontWeight: '900',
-    color: '#d35400',
-  },
-  critEmoji: {
-    fontSize: fx(28),
-    marginTop: 0,
   },
   bomb: {
     fontSize: fx(48),

@@ -5,10 +5,20 @@ import { MONSTER_ASSETS, getNormalMonsterAsset } from './monsterAssetManifest';
 
 export const ACTION_IMAGE_ASSETS = {
   attack: { key: 'action_attack', path: GAME_ASSETS.battleActions.attack },
+  attack1: { key: 'action_attack1', path: GAME_ASSETS.battleActions.attack1 },
+  attack2: { key: 'action_attack2', path: GAME_ASSETS.battleActions.attack2 },
   magic: { key: 'action_magic', path: GAME_ASSETS.battleActions.magic },
+  magic1: { key: 'action1_magic', path: GAME_ASSETS.battleActions.magic1 },
+  magic2: { key: 'action_magic2', path: GAME_ASSETS.battleActions.magic2 },
   defend: { key: 'action_defend', path: GAME_ASSETS.battleActions.defend },
   run: { key: 'action_run', path: GAME_ASSETS.battleActions.run },
   comment: { key: 'action_comment', path: GAME_ASSETS.battleActions.comment },
+  feedbackCritical: { key: 'feedback_critical', path: GAME_ASSETS.battleActions.feedback.critical },
+  feedbackDodge: { key: 'feedback_dodge', path: GAME_ASSETS.battleActions.feedback.dodge },
+  feedbackMiss: { key: 'feedback_miss', path: GAME_ASSETS.battleActions.feedback.miss },
+  feedbackGuard: { key: 'feedback_guard', path: GAME_ASSETS.battleActions.feedback.guard },
+  feedbackKo: { key: 'feedback_ko', path: GAME_ASSETS.battleActions.feedback.ko },
+  feedbackHit: { key: 'feedback_hit', path: GAME_ASSETS.battleActions.feedback.hit },
 };
 
 export function createPhaserBattleScene(Phaser) {
@@ -203,8 +213,10 @@ export function createPhaserBattleScene(Phaser) {
       const target = this.actors[targetKey];
       if (!attacker || !target) return null;
 
-      const projectile = this.textures.exists(ACTION_IMAGE_ASSETS.attack.key)
-        ? this.add.image(attacker.x + 40 * attacker.facing, attacker.y - 24, ACTION_IMAGE_ASSETS.attack.key)
+      const attackKeys = [ACTION_IMAGE_ASSETS.attack.key, ACTION_IMAGE_ASSETS.attack1.key, ACTION_IMAGE_ASSETS.attack2.key];
+      const attackKey = attackKeys[Math.abs(Number(event.seq ?? event.damage ?? 0)) % attackKeys.length];
+      const projectile = this.textures.exists(attackKey)
+        ? this.add.image(attacker.x + 40 * attacker.facing, attacker.y - 24, attackKey)
           .setDisplaySize(80, 80)
           .setScale(event.critical ? 1 : 0.86)
           .setFlipX(attacker.facing < 0)
@@ -307,6 +319,9 @@ export function createPhaserBattleScene(Phaser) {
     }
 
     showFloatingText(x, y, text, options = {}) {
+      const feedbackKey = this.feedbackKeyForText(text);
+      if (feedbackKey) return this.showFeedbackImage(x, y, feedbackKey, options);
+
       const t = this.add.text(x, y, text, {
         fontFamily: 'Arial',
         fontSize: `${options.size ?? 26}px`,
@@ -328,10 +343,42 @@ export function createPhaserBattleScene(Phaser) {
       return t;
     }
 
+    feedbackKeyForText(text = '') {
+      const normalized = String(text).toLowerCase();
+      if (normalized.includes('dodg')) return ACTION_IMAGE_ASSETS.feedbackDodge.key;
+      if (normalized.includes('miss')) return ACTION_IMAGE_ASSETS.feedbackMiss.key;
+      if (normalized.includes('guard')) return ACTION_IMAGE_ASSETS.feedbackGuard.key;
+      if (normalized.includes('crit')) return ACTION_IMAGE_ASSETS.feedbackCritical.key;
+      if (normalized.includes('ko')) return ACTION_IMAGE_ASSETS.feedbackKo.key;
+      if (normalized.includes('hit')) return ACTION_IMAGE_ASSETS.feedbackHit.key;
+      return null;
+    }
+
+    showFeedbackImage(x, y, textureKey, options = {}) {
+      if (!this.textures.exists(textureKey)) return null;
+      const img = this.add.image(x, y, textureKey)
+        .setOrigin(0.5)
+        .setDisplaySize(80, 80)
+        .setDepth(options.depth ?? 44)
+        .setScale(options.startScale ?? 0.9);
+      this.tweens.add({
+        targets: img,
+        y: y - 42,
+        alpha: 0,
+        scale: options.endScale ?? 1.18,
+        duration: options.duration ?? 920,
+        ease: 'Cubic.out',
+        onComplete: () => img.destroy(),
+      });
+      return img;
+    }
+
     showDamageNumber(actor, result = {}) {
       if (!actor || result.dodged) return;
       const damage = Math.max(0, Math.round(result.damage ?? 0));
-      const label = result.crit ? `CRIT! ${damage}` : result.defended ? `Guarded ${damage}` : `${damage}`;
+      if (result.crit) this.showFeedbackImage(actor.x, actor.y - 154, ACTION_IMAGE_ASSETS.feedbackCritical.key);
+      else if (result.defended) this.showFeedbackImage(actor.x, actor.y - 154, ACTION_IMAGE_ASSETS.feedbackGuard.key);
+      const label = `${damage}`;
       this.showFloatingText(actor.x, actor.y - 122, label, {
         color: result.crit ? '#facc15' : result.defended ? '#bfdbfe' : '#ffffff',
         size: result.crit ? 34 : result.defended ? 22 : 27,
@@ -417,22 +464,7 @@ export function createPhaserBattleScene(Phaser) {
       const actor = this.actors[targetKey];
       if (!actor) return null;
       actor.dodge();
-      const txt = this.add.text(actor.x, actor.y - 118, 'Dodged!', {
-        fontFamily: 'Arial',
-        fontSize: '28px',
-        fontStyle: '900',
-        color: '#67e8f9',
-        stroke: '#0f172a',
-        strokeThickness: 5,
-      }).setOrigin(0.5).setDepth(42);
-      this.tweens.add({
-        targets: txt,
-        y: txt.y - 44,
-        alpha: 0,
-        duration: 680,
-        ease: 'Cubic.out',
-        onComplete: () => txt.destroy(),
-      });
+      this.showFeedbackImage(actor.x, actor.y - 118, ACTION_IMAGE_ASSETS.feedbackDodge.key);
       return null;
     }
 

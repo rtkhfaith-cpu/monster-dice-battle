@@ -26,11 +26,16 @@ const ELEMENT_COLORS = {
 };
 
 const ACTION_IMAGE_KEYS = {
-  attack: 'action_attack',
-  magic: 'action_magic',
+  attack: ['action_attack', 'action_attack1', 'action_attack2'],
+  magic: ['action_magic', 'action1_magic', 'action_magic2'],
   defend: 'action_defend',
   run: 'action_run',
   comment: 'action_comment',
+  critical: 'feedback_critical',
+  dodge: 'feedback_dodge',
+  guard: 'feedback_guard',
+  ko: 'feedback_ko',
+  hit: 'feedback_hit',
 };
 
 function wait(scene, ms) {
@@ -62,6 +67,11 @@ function actionElement(result) {
 
 function visualTier(actor) {
   return actor?.visualTier ?? 0;
+}
+
+function pickActionKey(keys, seed = 0) {
+  if (!Array.isArray(keys)) return keys;
+  return keys[Math.abs(Number(seed) || 0) % keys.length];
 }
 
 export default class BattleAnimationController {
@@ -175,7 +185,7 @@ export default class BattleAnimationController {
     } else {
       await Promise.all([
         attacker.attack(),
-        this.playActionPictureTravel(attacker, defender, result, ACTION_IMAGE_KEYS.attack),
+        this.playActionPictureTravel(attacker, defender, result, pickActionKey(ACTION_IMAGE_KEYS.attack, result.seq ?? result.damage)),
       ]);
     }
 
@@ -196,10 +206,11 @@ export default class BattleAnimationController {
     await wait(this.scene, 90);
     defender.dodge();
     await miss;
-    this.scene.showFloatingText(defender.x, defender.y - 118, 'Dodged!', {
-      color: '#67e8f9',
-      size: 29,
-      stroke: '#0f172a',
+    this.spawnActionPicture(defender.x, defender.y - 118, ACTION_IMAGE_KEYS.dodge, {
+      depth: defender.depth + 18,
+      startScale: 0.9,
+      endScale: 1.18,
+      duration: 980,
     });
     this.scene.playDodgeEffect(defender);
     await wait(this.scene, TIMING.dodgeTotal);
@@ -209,7 +220,7 @@ export default class BattleAnimationController {
     const tier = visualTier(attacker);
     const duration = Math.max(700, (result.crit ? TIMING.magicTravel - 70 : TIMING.magicTravel) - tier * 35);
     this.scene.cameras.main.zoomTo(1.035 + tier * 0.025, 150, 'Sine.easeOut');
-    await this.playActionPictureTravel(attacker, defender, result, ACTION_IMAGE_KEYS.magic, {
+    await this.playActionPictureTravel(attacker, defender, result, pickActionKey(ACTION_IMAGE_KEYS.magic, result.seq ?? result.damage), {
       duration,
       yOffset: -28,
       targetYOffset: -22,
@@ -309,6 +320,12 @@ export default class BattleAnimationController {
       endScale: result.crit ? 1.42 : 1.16,
       duration: result.crit ? 520 : 380,
     });
+    this.spawnActionPicture(defender.x, defender.y - 126, result.crit ? ACTION_IMAGE_KEYS.critical : guarded ? ACTION_IMAGE_KEYS.guard : ACTION_IMAGE_KEYS.hit, {
+      depth: defender.depth + 20,
+      startScale: 0.88,
+      endScale: result.crit ? 1.28 : 1.08,
+      duration: result.crit ? 980 : 760,
+    });
     this.scene.showDamageNumber(defender, result);
     if (typeof result.hpAfter === 'number') {
       this.scene.animateHudTo(defender.key, { hp: result.hpAfter, heavy });
@@ -323,10 +340,11 @@ export default class BattleAnimationController {
     if (result.hpAfter <= 0) {
       await wait(this.scene, 120);
       defender.ko({ boss: !!result.boss });
-      this.scene.showFloatingText(defender.x, defender.y - 122, result.boss ? 'BOSS KO!' : 'KO!', {
-        color: '#f8fafc',
-        size: result.boss ? 34 : 30,
-        stroke: '#111827',
+      this.spawnActionPicture(defender.x, defender.y - 122, ACTION_IMAGE_KEYS.ko, {
+        depth: defender.depth + 22,
+        startScale: result.boss ? 1.08 : 0.94,
+        endScale: result.boss ? 1.42 : 1.18,
+        duration: 1100,
       });
     }
     await wait(this.scene, TIMING.recovery);

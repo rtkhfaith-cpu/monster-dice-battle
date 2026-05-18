@@ -1,22 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { fx } from '../utils/battleEffectScale';
-import { COMBAT_FEEDBACK_COLOR } from '../utils/battleCombatFeedback';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
-function MoveCallout({ moveName, laneY, calloutOp }) {
-  if (!moveName) return null;
-  return (
-    <Animated.View
-      style={[
-        styles.calloutWrap,
-        { top: laneY - fx(72), opacity: calloutOp },
-      ]}
-      pointerEvents="none"
-    >
-      {moveName ? <Text style={styles.calloutName} numberOfLines={1}>{moveName}</Text> : null}
-    </Animated.View>
-  );
+function pickFrom(list, seed = 0) {
+  if (!Array.isArray(list) || list.length === 0) return null;
+  return list[Math.abs(Number(seed) || 0) % list.length];
+}
+
+function feedbackFor(effect) {
+  if (effect?.dodged) return GAME_ASSETS.battleActions.feedback.dodge;
+  if (effect?.critical) return GAME_ASSETS.battleActions.feedback.critical;
+  if (effect?.defended) return GAME_ASSETS.battleActions.feedback.guard;
+  return GAME_ASSETS.battleActions.feedback.hit;
 }
 
 /**
@@ -227,21 +223,20 @@ export default function BattleProjectileLayer({
     && !effect.dodged
     && typeof effect.damage === 'number'
     && effect.damage > 0;
-  const dmgColor = effect.critical ? '#f39c12' : effect.defended ? '#48cae4' : '#e74c3c';
-  const dmgLabel = effect.critical ? `${effect.damage}!` : `${effect.damage}`;
   const sickly = effect.sicklyFlash && !effect.dodged;
-  const moveName = effect.moveName ?? '';
   const showTravel =
     !effect.dodged
     && (animKind === 'projectile' || animKind === 'fire_blast' || animKind === 'egg_bomb'
       || animKind === 'metal_slash' || animKind === 'rush' || isLunge
       || animKind === 'sparkle');
-  const actionImageUri = effect?.actionType === 'magic'
-    ? GAME_ASSETS.battleActions.magic
-    : GAME_ASSETS.battleActions.attack;
+  const randomSeed = effect?.seq ?? effect?.damage ?? 0;
+  const actionImageUri = effect?.actionType === 'magic' || effect?.strikeKind === 'magic'
+    ? pickFrom(GAME_ASSETS.battleActions.magicVariants, randomSeed)
+    : pickFrom(GAME_ASSETS.battleActions.attackVariants, randomSeed);
   const impactImageUri = effect?.defended
     ? GAME_ASSETS.battleActions.defend
     : GAME_ASSETS.battleActions.comment;
+  const feedbackImageUri = feedbackFor(effect);
 
   return (
     <View
@@ -252,14 +247,6 @@ export default function BattleProjectileLayer({
         if (h > 80) setArenaH(h);
       }}
     >
-      <MoveCallout moveName={moveName} laneY={laneY} calloutOp={calloutOp} />
-
-      {effect.critical ? (
-        <View style={[styles.critRibbon, { top: laneY - fx(28) }]}>
-          <Text style={styles.critRibbonTxt}>CRITICAL!</Text>
-        </View>
-      ) : null}
-
       {showTravel ? (
         <Animated.Image
           source={{ uri: actionImageUri }}
@@ -303,9 +290,31 @@ export default function BattleProjectileLayer({
             ]}
             resizeMode="contain"
           />
+          <Animated.Image
+            source={{ uri: feedbackImageUri }}
+            style={[
+              styles.feedbackImage,
+              {
+                top: endY - fx(60),
+                opacity: splatOp,
+                transform: [{ scale: splatScale }],
+              },
+            ]}
+            resizeMode="contain"
+          />
         </>
       ) : (
-        <Animated.Text style={[styles.missLbl, { top: endY, opacity: missFade }]}>Miss!</Animated.Text>
+        <Animated.Image
+          source={{ uri: GAME_ASSETS.battleActions.feedback.miss }}
+          style={[
+            styles.feedbackImage,
+            {
+              top: endY - fx(34),
+              opacity: missFade,
+            },
+          ]}
+          resizeMode="contain"
+        />
       )}
 
       {showDmg ? (
@@ -316,18 +325,28 @@ export default function BattleProjectileLayer({
             effect.defended && styles.dmgDefended,
             {
               top: endY - 10,
-              color: dmgColor,
               opacity: dmgOp,
               transform: [{ translateY: dmgY }],
             },
           ]}
         >
-          {dmgLabel}
+          {Math.max(0, Math.round(effect.damage ?? 0))}
         </Animated.Text>
       ) : null}
 
       {effect.dodged ? (
-        <Animated.Text style={[styles.combatPop, { top: endY - 24, opacity: missFade }]}>Dodged!</Animated.Text>
+        <Animated.Image
+          source={{ uri: GAME_ASSETS.battleActions.feedback.dodge }}
+          style={[
+            styles.feedbackImage,
+            {
+              top: endY - fx(70),
+              opacity: missFade,
+              transform: [{ scale: 1.08 }],
+            },
+          ]}
+          resizeMode="contain"
+        />
       ) : null}
     </View>
   );
@@ -338,31 +357,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 18,
     overflow: 'hidden',
-  },
-  calloutWrap: {
-    position: 'absolute',
-    left: '8%',
-    right: '8%',
-    alignItems: 'center',
-    zIndex: 22,
-  },
-  calloutEmoji: {
-    fontSize: fx(36),
-    textAlign: 'center',
-    marginBottom: fx(2),
-  },
-  calloutName: {
-    fontWeight: '900',
-    fontSize: fx(15),
-    color: '#2c3e50',
-    backgroundColor: 'rgba(255, 252, 235, 0.94)',
-    paddingHorizontal: fx(14),
-    paddingVertical: fx(4),
-    borderRadius: fx(10),
-    borderWidth: 2,
-    borderColor: '#e67e22',
-    overflow: 'hidden',
-    maxWidth: '100%',
   },
   projWrap: {
     position: 'absolute',
@@ -450,6 +444,14 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
   },
+  feedbackImage: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -fx(40),
+    width: 80,
+    height: 80,
+    zIndex: 24,
+  },
   splatCenter: {
     left: '50%',
     marginLeft: -fx(36),
@@ -486,47 +488,5 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   dmgCrit: { fontSize: fx(40) },
-  dmgDefended: { fontSize: fx(28), color: '#2a9d8f' },
-  critRibbon: {
-    position: 'absolute',
-    left: '10%',
-    right: '10%',
-    alignItems: 'center',
-    zIndex: 20,
-  },
-  critRibbonTxt: {
-    fontWeight: '900',
-    fontSize: fx(22),
-    color: '#e67e22',
-    backgroundColor: 'rgba(255,248,220,0.92)',
-    paddingHorizontal: fx(12),
-    paddingVertical: fx(3),
-    borderRadius: fx(8),
-    borderWidth: 2,
-    borderColor: '#e74c3c',
-    overflow: 'hidden',
-  },
-  missLbl: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontWeight: '900',
-    fontSize: fx(18),
-    color: '#7f8c8d',
-  },
-  combatPop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontWeight: '900',
-    fontSize: fx(38),
-    color: COMBAT_FEEDBACK_COLOR,
-    letterSpacing: 1,
-    textShadowColor: 'rgba(120, 80, 0, 0.9)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
-    zIndex: 24,
-  },
+  dmgDefended: { fontSize: fx(28), color: '#48cae4' },
 });

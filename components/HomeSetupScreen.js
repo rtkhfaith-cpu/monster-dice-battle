@@ -14,7 +14,7 @@ import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
 
-const ALIGN_DEBUG = typeof __DEV__ !== 'undefined' && __DEV__ && false;
+const ALIGN_DEBUG = false;
 const MAX_VISIBLE_PROFILES = 4;
 const MAX_VISIBLE_CLOUD = 4;
 
@@ -58,8 +58,7 @@ export default function HomeSetupScreen({
   onOpenAudioSettings,
   coins,
 }) {
-  const { width } = useWindowDimensions();
-  const isNarrow = width < 430;
+  useWindowDimensions();
   const [tray, setTray] = useState(null);
   const [nameDraft, setNameDraft] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -71,16 +70,7 @@ export default function HomeSetupScreen({
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const activeWallet = walletP1 || wallet;
   const monsters = activeWallet?.ownedMonsters ?? [];
-  const selectedMonster =
-    monsters.find((m) => m.id === selectedP1Id) ??
-    monsters.find((m) => m.id === activeWallet?.selectedMonsterId) ??
-    monsters[0] ??
-    null;
   const canStart = !!selectedP1Id && monsters.some((m) => m.id === selectedP1Id);
-  const profileLabel = activeProfile?.name || slotProfileName || 'Trainer';
-  const monsterLabel = selectedMonster
-    ? `${selectedMonster.nickname || selectedMonster.templateId || 'Monster'} · Lv ${selectedMonster.level ?? 1}`
-    : 'Pick monster';
 
   const cloudActive = useMemo(
     () => cloudPlayers.find((cp) => cp.profileID === activeProfileId) ?? null,
@@ -144,10 +134,7 @@ export default function HomeSetupScreen({
           ALIGN_DEBUG && styles.alignDebug,
           disabled && styles.zoneDisabled,
         ]}
-      >
-        <View style={styles.zoneShine} pointerEvents="none" />
-        <Text style={styles.zoneLabel} pointerEvents="none">{label}</Text>
-      </Pressable>
+      />
     );
   }
 
@@ -171,25 +158,14 @@ export default function HomeSetupScreen({
           accessibilityLabel="Open Gear Mart"
           onPress={pressWithSound(onOpenGearMart)}
           style={({ pressed }) => [styles.coinZone, pressed && styles.hitZonePressed, ALIGN_DEBUG && styles.alignDebug]}
-        >
-          <Text style={styles.coinText}>{coins ?? 0}</Text>
-          <Text style={styles.coinMartText}>MART</Text>
-        </Pressable>
+        />
 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Open trainer profile"
           onPress={pressWithSound(() => toggleTray('profile'))}
-          style={({ pressed }) => [
-            styles.profileZone,
-            isNarrow && styles.profileZoneNarrow,
-            pressed && styles.hitZonePressed,
-            ALIGN_DEBUG && styles.alignDebug,
-          ]}
-        >
-          <Text style={styles.profileName} numberOfLines={1}>{profileLabel}</Text>
-          <Text style={styles.profileSub} numberOfLines={1}>{monsterLabel}</Text>
-        </Pressable>
+          style={({ pressed }) => [styles.profileZone, pressed && styles.hitZonePressed, ALIGN_DEBUG && styles.alignDebug]}
+        />
 
         {mapButton('Gear Mart', styles.gearMartZone, onOpenGearMart)}
         {mapButton('Equip Gear', styles.equipGearZone, onOpenMonsterGearShop || onOpenMonsterGear)}
@@ -198,17 +174,12 @@ export default function HomeSetupScreen({
         {mapButton('Monster Ladder', styles.ladderZone, onOpenMonsterLadder, !canStart)}
         {mapButton('Start Battle', styles.startZone, onStartGame, !canStart)}
 
-        {mapButton('Cloud Saves', styles.cloudZone, () => toggleTray('cloud'))}
+        {mapButton('Quests', styles.questZone, onOpenMonsterLadder)}
         {mapButton('Inventory', styles.inventoryZone, onOpenMonsterGearShop || onOpenMonsterGear)}
         {mapButton('Heroes and Monsters', styles.heroesZone, () => toggleTray('profile'))}
+        {mapButton('Cloud Saves', styles.cloudZone, () => toggleTray('cloud'))}
         {mapButton('Settings', styles.settingsZone, onResetSave || onOpenAudioSettings)}
         {onEnterMultiplayer ? mapButton('Multiplayer', styles.welcomeZone, onEnterMultiplayer) : null}
-
-        {!canStart ? (
-          <Pressable style={styles.pickHint} onPress={pressWithSound(() => toggleTray('profile'))}>
-            <Text style={styles.pickHintText}>Pick a monster to start</Text>
-          </Pressable>
-        ) : null}
 
         {onlineBanner}
         {tray === 'profile' ? renderProfileTray() : null}
@@ -441,55 +412,13 @@ const styles = StyleSheet.create({
   },
   hitZone: {
     position: 'absolute',
-    minHeight: 48,
     pointerEvents: 'auto',
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 224, 143, 0.72)',
-    borderBottomWidth: 5,
-    borderBottomColor: 'rgba(77, 47, 20, 0.72)',
-    backgroundColor: 'rgba(255, 239, 184, 0.16)',
-    shadowColor: 'rgba(0,0,0,0.55)',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 8,
-    ...(Platform.OS === 'web'
-      ? {
-          backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,224,143,0.1) 45%, rgba(79,47,20,0.16))',
-          boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.35), inset 0 -5px 0 rgba(70,42,18,0.32), 0 5px 0 rgba(0,0,0,0.32), 0 0 16px rgba(255,224,143,0.18)',
-          transitionProperty: 'transform, filter, box-shadow',
-          transitionDuration: '110ms',
-          cursor: 'pointer',
-        }
-      : {}),
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   hitZonePressed: {
-    transform: [{ translateY: 4 }],
-    borderBottomWidth: 2,
-    opacity: 0.88,
-  },
-  zoneShine: {
-    position: 'absolute',
-    top: 3,
-    left: 8,
-    right: 8,
-    height: '34%',
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  zoneLabel: {
-    color: 'rgba(255, 248, 229, 0.72)',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    textShadowColor: 'rgba(0,0,0,0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    opacity: 0.65,
   },
   alignDebug: {
     borderWidth: 2,
@@ -503,108 +432,36 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '4.1%',
     left: '4.4%',
-    width: '18%',
-    height: '5.2%',
-    minHeight: 40,
+    width: '15%',
+    height: '4.8%',
     pointerEvents: 'auto',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 224, 143, 0.8)',
-    borderBottomWidth: 5,
-    borderBottomColor: 'rgba(69, 38, 15, 0.75)',
-    backgroundColor: 'rgba(72, 45, 30, 0.42)',
-    shadowColor: 'rgba(0,0,0,0.55)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 8,
-    ...(Platform.OS === 'web'
-      ? {
-          boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.24), inset 0 -4px 0 rgba(65,36,14,0.35), 0 4px 0 rgba(0,0,0,0.32), 0 0 14px rgba(255,224,143,0.18)',
-          cursor: 'pointer',
-        }
-      : {}),
-  },
-  coinText: {
-    marginLeft: 18,
-    color: '#fff8e5',
-    fontSize: 18,
-    fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.7)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 2,
-  },
-  coinMartText: {
-    marginLeft: 18,
-    marginTop: -2,
-    color: 'rgba(255, 224, 143, 0.9)',
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   profileZone: {
     position: 'absolute',
     top: '3.8%',
     right: '4.5%',
     width: '34%',
-    minHeight: 48,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    height: '5.4%',
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,224,143,0.72)',
-    backgroundColor: 'rgba(31,25,36,0.45)',
+    backgroundColor: 'transparent',
     pointerEvents: 'auto',
-    ...webShadow,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  profileZoneNarrow: {
-    width: '38%',
-  },
-  profileName: {
-    color: '#fff8e5',
-    fontWeight: '900',
-    fontSize: 13,
-    textAlign: 'right',
-  },
-  profileSub: {
-    color: '#d9f7ff',
-    fontWeight: '800',
-    fontSize: 10,
-    textAlign: 'right',
-    marginTop: 1,
-  },
-  gearMartZone: { top: '38.2%', left: '26%', width: '48%', height: '6.2%' },
-  equipGearZone: { top: '45.3%', left: '26%', width: '48%', height: '6.2%' },
-  monstersZone: { top: '52.6%', left: '26%', width: '48%', height: '6.2%' },
-  audioZone: { top: '59.8%', left: '26%', width: '48%', height: '6.2%' },
-  ladderZone: { top: '68.8%', left: '26%', width: '48%', height: '6.1%' },
-  startZone: { top: '75.9%', left: '26%', width: '48%', height: '6.1%' },
-  cloudZone: { top: '88.2%', left: '62%', width: '12%', height: '7.2%' },
-  inventoryZone: { top: '88.2%', left: '39%', width: '12%', height: '7.2%' },
-  heroesZone: { top: '88.2%', left: '51%', width: '12%', height: '7.2%' },
-  settingsZone: { top: '88.2%', left: '75%', width: '12%', height: '7.2%' },
-  welcomeZone: { top: '96%', left: '33%', width: '34%', height: '3.6%', minHeight: 32 },
-  pickHint: {
-    position: 'absolute',
-    left: '25%',
-    right: '25%',
-    top: '84.2%',
-    minHeight: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-    backgroundColor: 'rgba(45,20,12,0.56)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,224,143,0.7)',
-    pointerEvents: 'auto',
-  },
-  pickHintText: {
-    color: '#fff3c4',
-    fontWeight: '900',
-    fontSize: 12,
-  },
+  gearMartZone: { top: '38%', left: '21%', width: '58%', height: '5.2%' },
+  equipGearZone: { top: '45.2%', left: '21%', width: '58%', height: '5.2%' },
+  monstersZone: { top: '52.4%', left: '21%', width: '58%', height: '5.2%' },
+  audioZone: { top: '59.6%', left: '21%', width: '58%', height: '5.2%' },
+  ladderZone: { top: '67%', left: '23%', width: '54%', height: '5.2%' },
+  startZone: { top: '74%', left: '23%', width: '54%', height: '5.2%' },
+  questZone: { top: '87.5%', left: '16%', width: '15%', height: '6%' },
+  inventoryZone: { top: '87.5%', left: '35%', width: '15%', height: '6%' },
+  heroesZone: { top: '87.5%', left: '50%', width: '15%', height: '6%' },
+  cloudZone: { top: '87.5%', left: '63%', width: '15%', height: '6%' },
+  settingsZone: { top: '87.5%', left: '77%', width: '15%', height: '6%' },
+  welcomeZone: { top: '95%', left: '33%', width: '34%', height: '4.5%' },
   onlineBanner: {
     position: 'absolute',
     left: '5%',
