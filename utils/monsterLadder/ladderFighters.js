@@ -2,7 +2,7 @@ import { evolutionStageFromLevel, visualFormTierFromLevel } from '../evolution';
 import { evolutionFormForMonster } from '../monsterEvolutionForms';
 import { expToAdvanceFrom } from '../expLevel';
 import { getLadderMonsterSkillSet } from './ladderMonsterSkills';
-import { getLadderMonsterTemplate } from './ladderMonsterCatalog';
+import { getLadderMonsterTemplate, getLadderMonstersByRarity } from './ladderMonsterCatalog';
 import { getLadderTheme } from './ladderLevelThemes';
 import { computeLadderBattleStats } from './ladderStatsCalc';
 import { mergeLadderMonsterParts } from './ladderProfile';
@@ -14,6 +14,36 @@ function rarityForStage(mainLevel, subLevel, kind) {
   if (kind === 'bigBoss') return mainLevel % 5 === 0 ? 'mythic' : 'legendary';
   if (subLevel >= 6) return subLevel >= 8 ? 'epic' : 'rare';
   return subLevel >= 3 ? 'rare' : 'common';
+}
+
+function uniqueIds(ids) {
+  return [...new Set((ids || []).filter((id) => typeof id === 'string' && getLadderMonsterTemplate(id)))];
+}
+
+function pickRandom(ids, avoidId = null) {
+  const pool = uniqueIds(ids);
+  if (pool.length === 0) return null;
+  const filtered = avoidId && pool.length > 1 ? pool.filter((id) => id !== avoidId) : pool;
+  return filtered[Math.floor(Math.random() * filtered.length)] ?? pool[0];
+}
+
+function rarityPool(rarity) {
+  return getLadderMonstersByRarity(rarity).map((m) => m.id);
+}
+
+function encounterPoolForStage(theme, kind, encounterRarity) {
+  if (kind === 'miniBoss' || kind === 'bigBoss') {
+    // Boss titles stay themed, but the monster body can vary so repeated attempts feel fresh.
+    return uniqueIds([theme.featuredMonsterId, ...rarityPool(encounterRarity), ...(theme.gruntPool || [])]);
+  }
+
+  const easyPool = ['common', 'rare'].flatMap(rarityPool);
+  const hardPool = ['rare', 'epic'].flatMap(rarityPool);
+  return uniqueIds([
+    ...(theme.gruntPool || []),
+    theme.featuredMonsterId,
+    ...(kind === 'hard' ? hardPool : easyPool),
+  ]);
 }
 
 function sumLadderGearBonuses(gearIds) {
@@ -136,22 +166,22 @@ export function buildLadderEnemyFighter(stageIndex, playerRef) {
   const theme = getLadderTheme(mainLevel);
   const kind = getStageKind(subLevel);
   const ratio = cpuPowerForStage(stageIndex);
+  const encounterRarity = rarityForStage(mainLevel, subLevel, kind);
 
-  let templateId = theme.gruntPool[0];
+  let templateId = pickRandom(
+    encounterPoolForStage(theme, kind, encounterRarity),
+    playerRef?.monsterTemplateId,
+  ) || theme.featuredMonsterId || theme.gruntPool[0];
   let displayName = 'Noise Grunt';
   let bossLevel = Math.max(1, (playerRef?.level ?? 1) + Math.floor(mainLevel / 2));
 
   if (kind === 'miniBoss') {
     displayName = theme.miniBoss;
-    templateId = theme.featuredMonsterId;
     bossLevel += 2;
   } else if (kind === 'bigBoss') {
     displayName = theme.bigBoss;
-    templateId = theme.featuredMonsterId;
     bossLevel += 4;
   } else {
-    const pool = theme.gruntPool.length > 0 ? theme.gruntPool : [theme.featuredMonsterId];
-    templateId = pool[Math.floor(Math.random() * pool.length)];
     displayName = getLadderMonsterTemplate(templateId)?.name ?? displayName;
     if (kind === 'hard') bossLevel += 1;
   }
@@ -159,7 +189,6 @@ export function buildLadderEnemyFighter(stageIndex, playerRef) {
   const built = computeLadderBattleStats(templateId, bossLevel);
   if (!built) return null;
   const tpl = getLadderMonsterTemplate(templateId);
-  const encounterRarity = rarityForStage(mainLevel, subLevel, kind);
 
   return {
     monsterParts: mergeLadderMonsterParts(templateId),
