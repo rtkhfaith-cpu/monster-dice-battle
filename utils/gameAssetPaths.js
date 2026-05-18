@@ -1,7 +1,7 @@
 export const GAME_ASSETS = {
   homeMainMenu: '/assets/Homepage/main-menu.jpeg',
   battleGrounds: [
-    '/assets/BattleGround/Battleground.png',
+    '/assets/BattleGround/BattleGround.png',
     '/assets/BattleGround/Battleground_2.png',
     '/assets/BattleGround/Battleground_3.png',
   ],
