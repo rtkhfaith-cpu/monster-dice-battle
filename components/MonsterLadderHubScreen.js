@@ -477,10 +477,12 @@ const styles = StyleSheet.create({
     color: '#fff5c2',
   },
   nodeLabel: {
+    width: '100%',
     color: '#fff',
     fontSize: 5,
     fontWeight: '900',
     lineHeight: 7,
+    textAlign: 'center',
     textTransform: 'uppercase',
   },
   chestPanel: {
