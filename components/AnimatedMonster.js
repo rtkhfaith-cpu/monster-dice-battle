@@ -3,6 +3,7 @@ import { Animated, Easing, StyleSheet, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { ART } from '../utils/artDirection';
 import { getMonsterIdleProfile } from '../utils/monsterIdleMotion';
+import { getMonsterImageAsset } from '../utils/monsterImageAssets';
 
 /**
  * Personality idle (per themeBody) + battle poses + fly strike + rage.
@@ -34,6 +35,7 @@ export default function AnimatedMonster({
   const toward = side === 'left' ? 1 : -1;
   const profile = getMonsterIdleProfile(parts?.themeBody);
   const themed = !!parts?.themeBody;
+  const usesImageSprite = !!getMonsterImageAsset(parts?.templateId);
 
   useEffect(() => {
     const bobLoop = Animated.loop(
@@ -284,7 +286,7 @@ export default function AnimatedMonster({
         style={[
           styles.core,
           {
-            opacity: blink,
+            opacity: usesImageSprite ? 1 : blink,
             transform: [
               { translateX: Animated.add(flyTx, Animated.add(jitterPx, Animated.add(swayX, Animated.add(poseTx, jolt)))) },
               { translateY: Animated.add(bobY, poseTy) },

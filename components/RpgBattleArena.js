@@ -342,7 +342,7 @@ export default function RpgBattleArena({
             { opacity: p1Flash },
           ]}
         />
-        <View style={[styles.monsterWrap, { width: L.p1Monster }]}>
+        <View style={[styles.faceRight, styles.monsterWrap, { width: L.p1Monster }]}>
           {defendGlowP1 ? (
             <Animated.View
               pointerEvents="none"
@@ -379,7 +379,7 @@ export default function RpgBattleArena({
             { opacity: p2Flash },
           ]}
         />
-        <View style={[styles.faceLeft, styles.monsterWrap, { width: L.p2Monster }]}>
+        <View style={[styles.monsterWrap, { width: L.p2Monster }]}>
           {defendGlowP2 ? (
             <Animated.View
               pointerEvents="none"
@@ -873,7 +873,7 @@ const styles = StyleSheet.create({
   },
 
   monsterWrap: { alignItems: 'center', justifyContent: 'flex-end', overflow: 'visible' },
-  faceLeft: { transform: [{ scaleX: -1 }], overflow: 'visible' },
+  faceRight: { transform: [{ scaleX: -1 }], overflow: 'visible' },
   hitFlash: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#fff',
