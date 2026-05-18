@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import {
-  ImageBackground,
   Platform,
   ScrollView,
   StyleSheet,
@@ -267,12 +266,7 @@ export default function HomeSetupScreen({
   );
 
   return (
-    <ImageBackground
-      source={{ uri: GAME_ASSETS.homeMainMenu }}
-      style={[styles.fantasyRoot, Platform.OS === 'web' && styles.fantasyRootWeb]}
-      imageStyle={styles.fantasyBgImage}
-      resizeMode="cover"
-    >
+    <View style={[styles.fantasyRoot, Platform.OS === 'web' && styles.fantasyRootWeb]}>
       <View style={styles.fantasyShade} pointerEvents="none" />
       <ScrollView
         style={[styles.pageScroll, Platform.OS === 'web' && styles.pageScrollWeb]}
@@ -317,7 +311,7 @@ export default function HomeSetupScreen({
           </View>
         </View>
       </ScrollView>
-    </ImageBackground>
+    </View>
   );
 }
 
@@ -330,10 +324,10 @@ const styles = StyleSheet.create({
   },
   fantasyRootWeb: {
     minHeight: '100dvh',
-  },
-  fantasyBgImage: {
-    width: '100%',
-    height: '100%',
+    backgroundImage: `url('${GAME_ASSETS.homeMainMenu}')`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center top',
+    backgroundRepeat: 'no-repeat',
   },
   fantasyShade: {
     ...StyleSheet.absoluteFillObject,
