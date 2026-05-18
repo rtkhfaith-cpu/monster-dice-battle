@@ -60,6 +60,26 @@ function CatalogChip({ item, type }) {
   );
 }
 
+function CatalogByRarity({ items, type }) {
+  return LADDER_RARITY_ORDER.map((rarity) => {
+    const group = items.filter((item) => item.rarity === rarity);
+    if (!group.length) return null;
+    return (
+      <View key={`${type}-${rarity}`} style={styles.rarityGroup}>
+        <View style={styles.rarityGroupHeader}>
+          <Text style={[styles.rarityGroupTitle, { color: RARITY_TONE[rarity] ?? '#fff' }]}>
+            {rarityLabel(rarity)}
+          </Text>
+          <Text style={styles.rarityGroupChance}>{rarityPercent(rarity)} drop tier</Text>
+        </View>
+        <View style={styles.catalogGrid}>
+          {group.map((item) => <CatalogChip key={item.id} item={item} type={type} />)}
+        </View>
+      </View>
+    );
+  });
+}
+
 function ChestOddsCard({ title, sub, type }) {
   return (
     <View style={[styles.oddsCard, type === 'monster' && styles.oddsCardMonster]}>
@@ -122,14 +142,10 @@ function RewardsCodexOverlay({ onClose }) {
           </View>
 
           <Text style={styles.sectionTitle}>Gear Chest Drops</Text>
-          <View style={styles.catalogGrid}>
-            {LADDER_GEAR_CATALOG.map((item) => <CatalogChip key={item.id} item={item} type="gear" />)}
-          </View>
+          <CatalogByRarity items={LADDER_GEAR_CATALOG} type="gear" />
 
           <Text style={styles.sectionTitle}>Monster Chest Drops</Text>
-          <View style={styles.catalogGrid}>
-            {LADDER_MONSTER_CATALOG.map((item) => <CatalogChip key={item.id} item={item} type="monster" />)}
-          </View>
+          <CatalogByRarity items={LADDER_MONSTER_CATALOG} type="monster" />
         </ScrollView>
       </View>
     </View>
@@ -900,6 +916,30 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginTop: 14,
     marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  rarityGroup: {
+    marginBottom: 10,
+  },
+  rarityGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 7,
+  },
+  rarityGroupTitle: {
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  rarityGroupChance: {
+    color: '#e0f2fe',
+    fontSize: 8,
+    fontWeight: '800',
     textTransform: 'uppercase',
   },
   catalogGrid: {
