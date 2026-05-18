@@ -5,6 +5,7 @@ import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate, LADDER_MONSTER_CATALOG } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { LADDER_GEAR_CATALOG } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderTheme } from '../utils/monsterLadder/ladderLevelThemes';
+import { mergeLadderMonsterParts } from '../utils/monsterLadder/ladderProfile';
 import {
   formatStageLabel,
   getCurrentStage,
@@ -39,9 +40,16 @@ function rarityPercent(rarity) {
 function CatalogChip({ item, type }) {
   const color = RARITY_TONE[item.rarity] ?? '#fff';
   const sub = type === 'gear' ? `${item.slot} gear` : `${item.element} ${item.role}`;
+  const monsterParts = type === 'monster' ? mergeLadderMonsterParts(item.id) : null;
   return (
-    <View style={[styles.catalogChip, { borderColor: color }]}>
-      <Text style={styles.catalogIcon}>{type === 'gear' ? item.emoji : '★'}</Text>
+    <View style={[styles.catalogChip, type === 'monster' && styles.catalogChipMonster, { borderColor: color }]}>
+      {type === 'monster' ? (
+        <View style={styles.catalogMonsterPortrait}>
+          <MonsterPreview parts={monsterParts} size={38} mood="happy" />
+        </View>
+      ) : (
+        <Text style={styles.catalogIcon}>{item.emoji}</Text>
+      )}
       <View style={styles.catalogCopy}>
         <Text style={styles.catalogName} numberOfLines={1}>{item.name}</Text>
         <Text style={[styles.catalogMeta, { color }]} numberOfLines={1}>
@@ -910,12 +918,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     gap: 7,
   },
+  catalogChipMonster: {
+    minHeight: 58,
+    backgroundColor: 'rgba(37, 18, 70, 0.92)',
+  },
   catalogIcon: {
     width: 22,
     color: '#fff7ad',
     fontSize: 16,
     fontWeight: '900',
     textAlign: 'center',
+  },
+  catalogMonsterPortrait: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   catalogCopy: {
     flex: 1,
