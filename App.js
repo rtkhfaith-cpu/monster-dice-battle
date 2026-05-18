@@ -484,7 +484,9 @@ export default function App() {
     if (cloudFetchSeqRef.current !== seq) return;
     setCloudFetchLoading(false);
     if (!res.ok) {
-      const msg = res.skipped ? 'Cloud save is not configured.' : res.error || 'Could not fetch cloud players.';
+      const msg = res.skipped
+        ? 'Cloud save is not configured.'
+        : 'Could not fetch cloud players. Please try again.';
       setCloudFetchError(msg);
       if (!res.skipped) emitSaveStatus('cloud_list_failed');
       return;
