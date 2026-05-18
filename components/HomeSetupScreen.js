@@ -14,7 +14,7 @@ import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
 
-const ALIGN_DEBUG = false;
+const ALIGN_DEBUG = true;
 const MAX_VISIBLE_PROFILES = 4;
 const MAX_VISIBLE_CLOUD = 4;
 
