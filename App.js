@@ -371,10 +371,6 @@ export default function App() {
     setCloudSyncProfileID(activeProfileId);
   }, [activeProfileId]);
 
-  useEffect(() => {
-    void loadSaveApiConfig().then(() => handleFetchCloudPlayers());
-  }, []);
-
   function persistSave(nextGd, reason, profileIDs) {
     setGameData(nextGd);
     void commitSave({
@@ -493,6 +489,10 @@ export default function App() {
     }
     setCloudPlayers(res.players || []);
   }, []);
+
+  useEffect(() => {
+    void loadSaveApiConfig().then(() => handleFetchCloudPlayers());
+  }, [handleFetchCloudPlayers]);
 
   function closeKeyModal() {
     if (keyModalBusy) return;

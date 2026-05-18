@@ -15,7 +15,6 @@ import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
 
 const MAX_VISIBLE_PROFILES = 4;
-const MAX_VISIBLE_CLOUD = 4;
 
 function FantasyButton({ label, icon, variant = 'default', style, disabled, onPress }) {
   return (
@@ -394,12 +393,18 @@ export default function HomeSetupScreen({
             <Text style={styles.trayCloseText}>Close</Text>
           </Pressable>
         </View>
-        <ScrollView style={styles.trayScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.trayScroll}
+          contentContainerStyle={styles.trayScrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
+          nestedScrollEnabled
+        >
           <Pressable onPress={pressWithSound(onFetchCloudPlayers)} style={styles.smallGoldBtn}>
             <Text style={styles.smallGoldText}>{cloudFetchLoading ? 'Loading...' : 'Refresh Cloud'}</Text>
           </Pressable>
           {cloudFetchError ? <Text style={styles.errorText}>{cloudFetchError}</Text> : null}
-          {cloudPlayers.slice(0, MAX_VISIBLE_CLOUD).map((cp) => {
+          {cloudPlayers.map((cp) => {
             const selected = cp.profileID === activeProfileId;
             return (
               <View key={cp.profileID} style={[styles.compactRow, selected && styles.compactRowActive]}>
@@ -717,6 +722,9 @@ const styles = StyleSheet.create({
   },
   trayScroll: {
     maxHeight: 260,
+  },
+  trayScrollContent: {
+    paddingBottom: 10,
   },
   compactRow: {
     minHeight: 48,
