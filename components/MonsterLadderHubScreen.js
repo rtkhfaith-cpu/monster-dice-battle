@@ -1,8 +1,6 @@
 import React, { useMemo } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ImageBackground, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
-import { ART, gamePanelStyle } from '../utils/artDirection';
-import { LOBBY } from '../utils/gameTheme';
 import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { getLadderTheme } from '../utils/monsterLadder/ladderLevelThemes';
@@ -17,7 +15,7 @@ import {
 import { getLadderRewardDayKey, isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
-function StageNode({ sub, current, cleared, kind }) {
+function StageNode({ sub, current, cleared, locked, kind }) {
   const isBoss = kind === 'miniBoss' || kind === 'bigBoss';
   const label = stageTypeLabel(kind);
   return (
@@ -26,13 +24,56 @@ function StageNode({ sub, current, cleared, kind }) {
         styles.node,
         current && styles.nodeCurrent,
         cleared && styles.nodeCleared,
+        locked && styles.nodeLocked,
         isBoss && styles.nodeBoss,
+        kind === 'bigBoss' && styles.nodeBigBoss,
       ]}
     >
       <Text style={[styles.nodeTxt, isBoss && styles.nodeTxtBoss]}>{sub}</Text>
-      {kind === 'miniBoss' ? <Text style={styles.nodeIcon}>♛</Text> : null}
-      {kind === 'bigBoss' ? <Text style={styles.nodeIcon}>👑</Text> : null}
       {isBoss ? <Text style={styles.nodeLabel}>{label}</Text> : null}
+    </View>
+  );
+}
+
+function FantasyActionButton({ label, onPress, disabled, variant = 'default' }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.86}
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        styles.actionButton,
+        variant === 'primary' && styles.actionButtonPrimary,
+        disabled && styles.actionButtonOff,
+      ]}
+    >
+      <Text style={[styles.actionButtonText, variant === 'primary' && styles.actionButtonTextPrimary]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function ChestCard({ title, state, type }) {
+  const available = state === 'available';
+  const claimed = state === 'claimed';
+  const premium = state === 'premium';
+  const uri = claimed ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed;
+  return (
+    <View
+      style={[
+        styles.chestCard,
+        available && styles.chestAvailable,
+        claimed && styles.chestClaimed,
+        premium && styles.chestPremium,
+      ]}
+    >
+      <Image source={{ uri }} style={styles.chestImg} resizeMode="contain" />
+      <View style={styles.chestCopy}>
+        <Text style={styles.chestTitle}>{title}</Text>
+        <Text style={styles.chestState}>{state}</Text>
+        <Text style={styles.chestSub}>{type}</Text>
+      </View>
     </View>
   );
 }
@@ -69,313 +110,463 @@ export default function MonsterLadderHubScreen({
   const featuredTpl = getLadderMonsterTemplate(theme.featuredMonsterId);
 
   const canFight = !!activeFighter && !levelLocked;
+  const rarity = activeFighter?.rarity ?? 'common';
+  const rarityUi = RARITY_UI[rarity] ?? RARITY_UI.common;
+  const gearChestState = ml.gearChestClaimedToday ? 'claimed' : stage.subLevel >= 5 ? 'available' : 'locked';
+  const monsterChestState = ml.monsterChestClaimedToday ? 'claimed' : stage.subLevel >= 10 ? 'available' : 'locked';
+  const bottomStatus = levelLocked
+    ? "Today's level complete. Next level unlocks after 6PM Singapore time."
+    : canFight
+      ? `Ready for Level ${formatStageLabel(stage.mainLevel, stage.subLevel)}`
+      : 'Select one of your own monsters first.';
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <Text style={styles.backTxt}>← Home</Text>
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.title}>Monster Ladder</Text>
-          <Text style={styles.subtitle}>Use your own monster · ladder rewards stay separate</Text>
-        </View>
-      </View>
+      <View style={styles.gameFrame}>
+        <ImageBackground
+          source={{ uri: GAME_ASSETS.monsterLadderBackground }}
+          style={styles.backgroundLayer}
+          imageStyle={styles.backgroundImage}
+          resizeMode="cover"
+        >
+          <View style={styles.uiLayer}>
+            <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.86}>
+              <Text style={styles.backTxt}>Home</Text>
+            </TouchableOpacity>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollInner}>
-        <View style={styles.heroPanel}>
-          <Text style={styles.handler}>
-            Handler <Text style={styles.strong}>{profileName || '—'}</Text>
-          </Text>
-          <Text style={styles.stageBig}>
-            Level {formatStageLabel(stage.mainLevel, stage.subLevel)}
-            <Text style={styles.stageIdx}> · {stage.stageIndex}/250</Text>
-          </Text>
-          {bossBanner ? <Text style={styles.bossBanner}>{bossBanner}</Text> : null}
-          <Text style={styles.themeName}>{theme.name}</Text>
-          <Text style={styles.themeTag}>{featuredTpl?.name ?? '—'} region</Text>
-
-          <View style={styles.currencyRow}>
-            <Text style={styles.currency}>🪙 Ladder gold: {ml.ladderGold}</Text>
-            <Text style={styles.currency}>💎 Shards: {ml.ladderShards}</Text>
-          </View>
-        </View>
-
-        <View style={styles.mapPanel}>
-          <Text style={styles.panelTitle}>Current level — 10 sub-stages</Text>
-          <View style={styles.nodeRow}>
-            {Array.from({ length: 10 }, (_, i) => {
-              const sub = i + 1;
-              const kind = getStageKind(sub);
-              return (
-                <StageNode
-                  key={sub}
-                  sub={sub}
-                  kind={kind}
-                  current={sub === stage.subLevel}
-                  cleared={sub < stage.subLevel}
-                />
-              );
-            })}
-          </View>
-          <Text style={styles.mapHint}>{mapHint}</Text>
-        </View>
-
-        <View style={styles.dailyPanel}>
-          <Text style={styles.panelTitle}>Daily chests (resets 6PM Singapore)</Text>
-          <Text style={styles.dailyKey}>Today: {getLadderRewardDayKey()}</Text>
-          <View style={styles.dailyRow}>
-            <View style={styles.chestStatus}>
-              <Image
-                source={{ uri: ml.gearChestClaimedToday ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
-                style={styles.chestImg}
-                resizeMode="contain"
-              />
-              <Text style={styles.dailyItem}>
-                Gear chest: {ml.gearChestClaimedToday ? 'claimed' : 'available at sub 5'}
-              </Text>
+            <View style={styles.noticeBar}>
+              <Text style={styles.noticeText} numberOfLines={1}>{mapHint}</Text>
             </View>
-            <View style={styles.chestStatus}>
-              <Image
-                source={{ uri: ml.monsterChestClaimedToday ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
-                style={styles.chestImg}
-                resizeMode="contain"
-              />
-              <Text style={styles.dailyItem}>
-                Monster chest: {ml.monsterChestClaimedToday ? 'claimed' : 'available at sub 10'}
-              </Text>
-            </View>
-          </View>
-          {levelLocked ? (
-            <Text style={styles.unlockHint}>Next ladder level unlocks after 6PM Singapore time.</Text>
-          ) : null}
-        </View>
 
-        <View style={styles.activePanel}>
-          <Text style={styles.panelTitle}>Your ladder fighter</Text>
-          {activeFighter ? (
-            <View style={styles.activeRow}>
-              <MonsterPreview parts={activeFighter.monsterParts} size={72} mood="happy" />
-              <View style={styles.activeMeta}>
-                <Text style={styles.activeName}>{activeFighter.displayName}</Text>
-                <Text style={styles.activeSub}>
-                  Lv {activeFighter.level} · {RARITY_UI[activeFighter.rarity]?.label ?? activeFighter.rarity}
+            <View style={styles.fighterPanel}>
+              <View style={[styles.monsterPortrait, styles[`rarity_${rarity}`] || styles.rarity_common]}>
+                {activeFighter ? (
+                  <MonsterPreview parts={activeFighter.monsterParts} size={92} mood="happy" />
+                ) : (
+                  <Text style={styles.emptyMonster}>?</Text>
+                )}
+              </View>
+              <View style={styles.fighterInfo}>
+                <Text style={styles.fighterName} numberOfLines={1}>
+                  {activeFighter?.displayName ?? 'No monster selected'}
+                </Text>
+                <Text style={styles.fighterMeta}>
+                  Lv {activeFighter?.level ?? '—'} · {rarityUi?.label ?? rarity}
+                </Text>
+                <Text style={styles.fighterRegion} numberOfLines={1}>
+                  {featuredTpl?.name ?? 'Ladder'} region
                 </Text>
               </View>
+              <View style={styles.fighterActions}>
+                <FantasyActionButton label="Chest Collection" onPress={onOpenCollection} disabled={!onOpenCollection} />
+                <FantasyActionButton label="Monster Gear" onPress={onOpenGear} disabled={!onOpenGear} />
+              </View>
             </View>
-          ) : (
-            <Text style={styles.missing}>No monster selected. Pick one from the home setup first.</Text>
-          )}
-          {onOpenCollection ? (
-            <View style={styles.inlineActions}>
-              <TouchableOpacity style={styles.secondaryBtn} onPress={onOpenCollection}>
-                <Text style={styles.secondaryTxt}>Chest collection</Text>
-              </TouchableOpacity>
-              {onOpenGear ? (
-                <TouchableOpacity style={styles.secondaryBtn} onPress={onOpenGear}>
-                  <Text style={styles.secondaryTxt}>Monster gear</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
 
-        <View style={styles.silhouettePanel}>
-          <Text style={styles.panelTitle}>Featured exclusives</Text>
-          <View style={styles.silhouetteRow}>
-            {[theme.featuredMonsterId, ...(theme.gruntPool || [])].slice(0, 4).map((id) => {
-              const t = getLadderMonsterTemplate(id);
-              const owned = ml.ownedMonsters.some((m) => m.templateId === id);
-              return (
-                <View key={id} style={[styles.silhouette, !owned && styles.silhouetteLocked]}>
-                  <Text style={styles.silhouetteEmoji}>{owned ? '✨' : '❔'}</Text>
-                  <Text style={styles.silhouetteName} numberOfLines={1}>
-                    {t?.name ?? id}
-                  </Text>
-                </View>
-              );
-            })}
+            <View style={styles.infoPanel}>
+              <Text style={styles.infoTitle}>Handler {profileName || '—'}</Text>
+              <Text style={styles.infoLevel}>Level {formatStageLabel(stage.mainLevel, stage.subLevel)}</Text>
+              <Text style={styles.infoLine}>Region: {theme.name}</Text>
+              <Text style={styles.infoLine}>Stage: {bossBanner || stageTypeLabel(currentKind)}</Text>
+              <Text style={styles.infoLine}>Rewards: {hints.subsToMini > 0 ? `Gear chest in ${hints.subsToMini}` : hints.subsToBig > 0 ? `Monster chest in ${hints.subsToBig}` : 'Boss rewards ready'}</Text>
+              <View style={styles.resourceRow}>
+                <Text style={styles.resourceText}>Gold {ml.ladderGold}</Text>
+                <Text style={styles.resourceText}>Shards {ml.ladderShards}</Text>
+                <Text style={styles.resourceText}>Day {getLadderRewardDayKey()}</Text>
+              </View>
+            </View>
+
+            <View style={styles.stagePanel}>
+              <View style={styles.nodeRow}>
+                {Array.from({ length: 10 }, (_, i) => {
+                  const sub = i + 1;
+                  const kind = getStageKind(sub);
+                  return (
+                    <StageNode
+                      key={sub}
+                      sub={sub}
+                      kind={kind}
+                      current={sub === stage.subLevel && !levelLocked}
+                      cleared={sub < stage.subLevel || levelLocked}
+                      locked={sub > stage.subLevel}
+                    />
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.chestPanel}>
+              <ChestCard title="Gear Chest" state={gearChestState} type="Sub 5" />
+              <ChestCard title="Monster Chest" state={monsterChestState} type="Sub 10" />
+              <ChestCard title="Premium Chest" state="premium" type="Future" />
+            </View>
+
+            <View style={styles.bottomPanel}>
+              <Text style={styles.bottomStatus} numberOfLines={2}>{bottomStatus}</Text>
+              <FantasyActionButton
+                label={levelLocked ? 'Locked until 6PM SGT' : bossBanner ? `Start ${stageTypeLabel(currentKind)}` : 'Start Ladder Battle'}
+                variant="primary"
+                disabled={!canFight}
+                onPress={onStartBattle}
+              />
+            </View>
           </View>
-        </View>
-
-        <View style={styles.assistPanel}>
-          <Text style={styles.assistTitle}>Assist (coming soon)</Text>
-          <Text style={styles.assistSub}>Borrow a friend monster · mercenary assist · helper fame</Text>
-        </View>
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.startBtn, !canFight && styles.startOff]}
-          disabled={!canFight}
-          onPress={onStartBattle}
-        >
-          <Text style={styles.startTxt}>
-            {levelLocked ? 'Locked until 6PM SGT' : bossBanner ? `Start ${stageTypeLabel(currentKind)} Battle` : 'Start Ladder Battle'}
-          </Text>
-        </TouchableOpacity>
-        {!canFight ? (
-          <Text style={styles.footerHint}>
-            {levelLocked ? "Today's 10 sub-levels are complete." : 'Select one of your own monsters first.'}
-          </Text>
-        ) : null}
+        </ImageBackground>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, minHeight: 0 },
-  header: {
-    flexDirection: 'row',
+  root: {
+    flex: 1,
+    minHeight: 0,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#09051a',
+  },
+  gameFrame: {
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#12071d',
+    ...(Platform.OS === 'web'
+      ? {
+          width: 'min(100vw, calc(100dvh * 0.667))',
+          height: 'min(100dvh, calc(100vw * 1.5))',
+          boxShadow: '0 18px 50px rgba(0,0,0,0.45)',
+        }
+      : {
+          width: '100%',
+          aspectRatio: 683 / 1024,
+        }),
+  },
+  backgroundLayer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+  },
+  uiLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backBtn: {
+    position: 'absolute',
+    top: '2.2%',
+    left: '3.2%',
+    minHeight: 30,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: LOBBY.panelBorder,
-    backgroundColor: '#1a1a2e',
-  },
-  backBtn: { paddingVertical: 6, paddingRight: 12 },
-  backTxt: { fontWeight: '800', fontSize: 15, color: '#74b9ff' },
-  headerCenter: { flex: 1 },
-  title: { fontWeight: '900', fontSize: 20, color: '#fff' },
-  subtitle: { fontWeight: '700', fontSize: 11, color: '#a29bfe', marginTop: 2 },
-  scroll: { flex: 1, minHeight: 0 },
-  scrollInner: { padding: 12, gap: 12, paddingBottom: 20 },
-  heroPanel: {
-    padding: 14,
-    ...gamePanelStyle('#6c5ce7'),
-    gap: 6,
-  },
-  handler: { fontWeight: '700', fontSize: 14, color: ART.textInk },
-  strong: { fontWeight: '900', color: '#6c5ce7' },
-  stageBig: { fontWeight: '900', fontSize: 22, color: ART.textInk, marginTop: 4 },
-  stageIdx: { fontWeight: '800', fontSize: 14, color: ART.textMuted },
-  bossBanner: {
-    alignSelf: 'flex-start',
-    marginTop: 2,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: '#2d1b69',
-    color: '#ffeaa7',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 0.5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 219, 142, 0.55)',
+    backgroundColor: 'rgba(22, 8, 38, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  themeName: { fontWeight: '900', fontSize: 16, color: '#4834d4' },
-  themeTag: { fontWeight: '700', fontSize: 12, color: ART.textMuted },
-  currencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
-  currency: { fontWeight: '800', fontSize: 13, color: '#2d3436' },
-  mapPanel: {
-    padding: 12,
-    borderRadius: ART.radiusMd,
+  backTxt: {
+    color: '#ffe7a3',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  noticeBar: {
+    position: 'absolute',
+    top: '24.2%',
+    left: '25%',
+    width: '50%',
+    height: '3.2%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  noticeText: {
+    color: '#f5e8ff',
+    fontSize: 10,
+    fontWeight: '900',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  fighterPanel: {
+    position: 'absolute',
+    top: '31%',
+    left: '19.5%',
+    width: '61%',
+    height: '15.8%',
+  },
+  monsterPortrait: {
+    position: 'absolute',
+    top: '12%',
+    left: '1.5%',
+    width: '27%',
+    height: '76%',
+    borderRadius: 14,
     borderWidth: 2,
-    borderColor: LOBBY.panelBorder,
-    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(19, 9, 37, 0.5)',
+    shadowColor: '#8b5cf6',
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+  },
+  rarity_common: { borderColor: '#94a3b8' },
+  rarity_rare: { borderColor: '#60a5fa' },
+  rarity_epic: { borderColor: '#c084fc' },
+  rarity_legendary: { borderColor: '#f59e0b' },
+  rarity_mythic: { borderColor: '#f472b6' },
+  emptyMonster: {
+    color: '#dcc8ff',
+    fontSize: 32,
+    fontWeight: '900',
+  },
+  fighterInfo: {
+    position: 'absolute',
+    top: '10%',
+    left: '32%',
+    right: '3%',
+  },
+  fighterName: {
+    color: '#fff4d8',
+    fontSize: 15,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 2,
+  },
+  fighterMeta: {
+    color: '#c8b6ff',
+    fontSize: 11,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  fighterRegion: {
+    color: '#a7f3d0',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  fighterActions: {
+    position: 'absolute',
+    left: '32%',
+    right: '4%',
+    bottom: '10%',
+    flexDirection: 'row',
     gap: 8,
   },
-  panelTitle: { fontWeight: '900', fontSize: 13, color: ART.textInk, textTransform: 'uppercase' },
-  nodeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
+  actionButton: {
+    flex: 1,
+    minHeight: 30,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#b88a4b',
+    borderBottomWidth: 3,
+    borderBottomColor: '#58361c',
+    backgroundColor: 'rgba(38, 20, 63, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  actionButtonPrimary: {
+    borderColor: '#f7d774',
+    borderBottomColor: '#31551f',
+    backgroundColor: 'rgba(51, 128, 69, 0.96)',
+  },
+  actionButtonOff: {
+    opacity: 0.45,
+  },
+  actionButtonText: {
+    color: '#ffe7b8',
+    fontSize: 9,
+    fontWeight: '900',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  actionButtonTextPrimary: {
+    color: '#fff8dd',
+    fontSize: 11,
+  },
+  infoPanel: {
+    position: 'absolute',
+    top: '49.6%',
+    left: '15%',
+    width: '70%',
+    height: '16.5%',
+    paddingHorizontal: '4%',
+    paddingVertical: '2.2%',
+    justifyContent: 'center',
+  },
+  infoTitle: {
+    color: '#f9e9b8',
+    fontSize: 13,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  infoLevel: {
+    color: '#ffffff',
+    fontSize: 21,
+    fontWeight: '900',
+    marginTop: 1,
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
+  },
+  infoLine: {
+    color: '#d9ccff',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  resourceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  resourceText: {
+    color: '#9ff7d0',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  stagePanel: {
+    position: 'absolute',
+    top: '70.3%',
+    left: '12.5%',
+    width: '75%',
+    height: '8.8%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nodeRow: {
+    width: '94%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   node: {
-    width: 30,
-    height: 36,
+    width: '8.4%',
+    aspectRatio: 0.72,
     borderRadius: 8,
-    backgroundColor: '#dfe6e9',
+    backgroundColor: 'rgba(38, 30, 54, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#b2bec3',
+    borderColor: '#7c6f8f',
   },
-  nodeCurrent: { backgroundColor: '#ffeaa7', borderColor: '#e17055', borderWidth: 2 },
-  nodeCleared: { backgroundColor: '#d5f5e3', borderColor: '#27ae60' },
-  nodeBoss: { width: 48, height: 48, backgroundColor: '#2d1b69', borderColor: '#fdcb6e', borderWidth: 2 },
-  nodeTxt: { fontWeight: '900', fontSize: 11, color: '#2d3436' },
-  nodeTxtBoss: { color: '#ffeaa7' },
-  nodeIcon: { fontSize: 11, color: '#ffeaa7', lineHeight: 12 },
-  nodeLabel: { fontSize: 7, color: '#fff', fontWeight: '900', lineHeight: 9 },
-  mapHint: { fontWeight: '700', fontSize: 12, color: '#636e72', textAlign: 'center' },
-  dailyPanel: {
-    padding: 12,
-    borderRadius: ART.radiusMd,
-    backgroundColor: 'rgba(108, 92, 231, 0.12)',
-    borderWidth: 1,
-    borderColor: '#a29bfe',
-    gap: 6,
+  nodeCurrent: {
+    backgroundColor: 'rgba(255, 222, 107, 0.98)',
+    borderColor: '#fff2a8',
+    shadowColor: '#facc15',
+    shadowOpacity: 0.9,
+    shadowRadius: 10,
   },
-  dailyKey: { fontWeight: '700', fontSize: 11, color: '#636e72' },
-  dailyRow: { gap: 4 },
-  chestStatus: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  chestImg: { width: 34, height: 34 },
-  dailyItem: { fontWeight: '800', fontSize: 13, color: '#2d3436' },
-  unlockHint: { fontWeight: '900', fontSize: 12, color: '#6c5ce7', marginTop: 4 },
-  activePanel: {
-    padding: 12,
-    borderRadius: ART.radiusMd,
-    borderWidth: 2,
-    borderColor: LOBBY.panelBorder,
-    backgroundColor: '#fff',
+  nodeCleared: {
+    backgroundColor: 'rgba(41, 137, 88, 0.95)',
+    borderColor: '#b7f7b7',
+  },
+  nodeLocked: {
+    opacity: 0.58,
+  },
+  nodeBoss: {
+    borderColor: '#d8b4fe',
+    backgroundColor: 'rgba(88, 28, 135, 0.94)',
+  },
+  nodeBigBoss: {
+    borderColor: '#fda4af',
+    backgroundColor: 'rgba(127, 29, 29, 0.94)',
+  },
+  nodeTxt: {
+    color: '#f8edff',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  nodeTxtBoss: {
+    color: '#fff5c2',
+  },
+  nodeLabel: {
+    color: '#fff',
+    fontSize: 5,
+    fontWeight: '900',
+    lineHeight: 7,
+    textTransform: 'uppercase',
+  },
+  chestPanel: {
+    position: 'absolute',
+    top: '80.8%',
+    left: '9%',
+    width: '82%',
+    height: '9.2%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
     gap: 8,
   },
-  activeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  activeMeta: { flex: 1 },
-  activeName: { fontWeight: '900', fontSize: 16, color: ART.textInk },
-  activeSub: { fontWeight: '700', fontSize: 12, color: ART.textMuted, marginTop: 2 },
-  missing: { fontWeight: '800', fontSize: 13, color: ART.danger },
-  secondaryBtn: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: LOBBY.chip,
-    borderWidth: 1,
-    borderColor: LOBBY.cardBorder,
-  },
-  inlineActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  secondaryTxt: { fontWeight: '900', fontSize: 13, color: LOBBY.textStrong },
-  silhouettePanel: {
-    padding: 12,
-    borderRadius: ART.radiusMd,
-    backgroundColor: '#1a1a2e',
-    gap: 8,
-  },
-  silhouetteRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  silhouette: {
+  chestCard: {
     flex: 1,
-    minWidth: '40%',
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(162, 155, 254, 0.25)',
-    alignItems: 'center',
-  },
-  silhouetteLocked: { opacity: 0.55 },
-  silhouetteEmoji: { fontSize: 22 },
-  silhouetteName: { fontWeight: '800', fontSize: 10, color: '#dfe6e9', marginTop: 4 },
-  assistPanel: {
-    padding: 10,
-    borderRadius: 8,
-    borderStyle: 'dashed',
+    minWidth: 0,
+    height: '76%',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#95a5a6',
-  },
-  assistTitle: { fontWeight: '900', fontSize: 12, color: '#636e72' },
-  assistSub: { fontWeight: '700', fontSize: 11, color: '#95a5a6', marginTop: 2 },
-  footer: {
-    padding: 12,
-    borderTopWidth: 2,
-    borderTopColor: LOBBY.panelBorder,
-    backgroundColor: '#1a1a2e',
+    borderColor: '#85634c',
+    backgroundColor: 'rgba(25, 13, 42, 0.62)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
     gap: 6,
   },
-  startBtn: {
-    backgroundColor: '#6c5ce7',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#4834d4',
+  chestAvailable: {
+    borderColor: '#fde68a',
+    shadowColor: '#facc15',
+    shadowOpacity: 0.7,
+    shadowRadius: 8,
   },
-  startOff: { opacity: 0.45 },
-  startTxt: { color: '#fff', fontWeight: '900', fontSize: 17 },
-  footerHint: { textAlign: 'center', fontWeight: '700', fontSize: 11, color: '#bdc3c7' },
+  chestClaimed: {
+    borderColor: '#86efac',
+  },
+  chestPremium: {
+    borderColor: '#e9d5ff',
+  },
+  chestImg: {
+    width: 30,
+    height: 30,
+  },
+  chestCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  chestTitle: {
+    color: '#fff3ca',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  chestState: {
+    color: '#d8b4fe',
+    fontSize: 8,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  chestSub: {
+    color: '#a7f3d0',
+    fontSize: 7,
+    fontWeight: '800',
+  },
+  bottomPanel: {
+    position: 'absolute',
+    top: '91.8%',
+    left: '8%',
+    width: '84%',
+    height: '6.2%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: '3%',
+  },
+  bottomStatus: {
+    flex: 1.2,
+    color: '#e9d5ff',
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 13,
+  },
 });

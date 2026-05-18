@@ -1,5 +1,6 @@
 export const GAME_ASSETS = {
   homeMainMenu: '/assets/backgrounds/main-menu.png',
+  monsterLadderBackground: '/assets/Quest/Monster_Ladder.jpeg',
   battleGrounds: [
     '/assets/BattleGround/BattleGround.png',
     '/assets/BattleGround/Battleground_2.png',

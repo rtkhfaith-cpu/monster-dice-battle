@@ -5,6 +5,7 @@
 import { Platform } from 'react-native';
 
 const MENU_BGM = ['/audio/bgm/Main1.mp3', '/audio/bgm/Main 2.mp3'];
+const LADDER_BGM = ['/audio/bgm/Monster_ladder1.mp3', '/audio/bgm/Monster_ladder.mp3'];
 const BATTLE_BGM = ['/audio/bgm/Main_Battle_1.mp3', '/audio/bgm/Main_Battle_2.mp3'];
 const MINI_BOSS_BGM = ['/audio/bgm/Mini_boss.mp3'];
 const BOSS_BGM = ['/audio/bgm/Boss.mp3'];
@@ -44,6 +45,7 @@ let bgmAudio = null;
 let fadeTimer = null;
 let duckUntil = 0;
 let menuPick = '';
+let menuMusicKind = 'menu';
 let battlePick = '';
 let battleMusicKind = 'normal';
 
@@ -238,7 +240,7 @@ function bindFirstInteraction() {
     document.removeEventListener('click', onInteract, true);
     if (settings.muted) return;
     if (battleWanted) startBattleMusic({ kind: battleMusicKind });
-    else if (menuWanted) startMenuMusic();
+    else if (menuWanted) startMenuMusic({ kind: menuMusicKind });
   };
 
   document.addEventListener('pointerdown', onInteract, { capture: true, once: true });
@@ -259,7 +261,7 @@ export function unlockAudio() {
   unlocked = true;
   if (!settings.muted) {
     if (battleWanted) startBattleMusic({ kind: battleMusicKind });
-    else if (menuWanted) startMenuMusic();
+    else if (menuWanted) startMenuMusic({ kind: menuMusicKind });
   }
 }
 
@@ -296,16 +298,28 @@ export function playLose() {
   return playOneShot(SFX.lose, 0.9);
 }
 
-export function startMenuMusic() {
-  menuWanted = true;
-  battleWanted = false;
-  if (!unlocked || settings.muted) return;
-  if (bgmMode === 'battle') fadeOutBgm(() => playMenuTrack());
-  else playMenuTrack();
+function normalizeMenuMusicKind(input) {
+  const raw = typeof input === 'string' ? input : input?.kind ?? input?.phase;
+  return raw === 'ladder' ? 'ladder' : 'menu';
 }
 
-function playMenuTrack() {
-  const path = menuPick && MENU_BGM.includes(menuPick) ? menuPick : pickRandom(MENU_BGM);
+export function startMenuMusic(options) {
+  const kind = normalizeMenuMusicKind(options);
+  menuWanted = true;
+  menuMusicKind = kind;
+  battleWanted = false;
+  if (!unlocked || settings.muted) return;
+  if (bgmMode === 'battle') fadeOutBgm(() => playMenuTrack(kind));
+  else playMenuTrack(kind);
+}
+
+export function startLadderMusic() {
+  startMenuMusic({ kind: 'ladder' });
+}
+
+function playMenuTrack(kind = menuMusicKind) {
+  const tracks = kind === 'ladder' ? LADDER_BGM : MENU_BGM;
+  const path = menuPick && tracks.includes(menuPick) ? menuPick : pickRandom(tracks);
   menuPick = path;
   startBgm(path, 'menu');
 }
@@ -348,10 +362,10 @@ export function stopBattleMusic() {
   battleWanted = false;
   if (bgmMode === 'battle') {
     fadeOutBgm(() => {
-      if (menuWanted && unlocked && !settings.muted) startMenuMusic();
+      if (menuWanted && unlocked && !settings.muted) startMenuMusic({ kind: menuMusicKind });
     });
   } else if (menuWanted && unlocked && !settings.muted) {
-    startMenuMusic();
+    startMenuMusic({ kind: menuMusicKind });
   }
 }
 
@@ -365,7 +379,7 @@ export function setMuted(muted) {
   saveAudioSettings({ muted: !!muted });
   if (settings.muted) stopMusic();
   else if (battleWanted) startBattleMusic({ kind: battleMusicKind });
-  else if (menuWanted) startMenuMusic();
+  else if (menuWanted) startMenuMusic({ kind: menuMusicKind });
 }
 
 export function setVolumes({ bgmVolume, sfxVolume } = {}) {
@@ -384,7 +398,7 @@ export function syncAudioManagerFromSettings(next) {
   }
   refreshBgmVolume();
   if (battleWanted) startBattleMusic({ kind: battleMusicKind });
-  else if (menuWanted) startMenuMusic();
+  else if (menuWanted) startMenuMusic({ kind: menuMusicKind });
 }
 
 export function setAudioMuted(muted) {

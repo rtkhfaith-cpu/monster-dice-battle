@@ -340,7 +340,9 @@ export default function App() {
       stopMenuMusic();
       return;
     }
-    if (LOBBY_PHASES.has(phase)) {
+    if (phase === 'ladder') {
+      startMenuMusic({ kind: 'ladder' });
+    } else if (LOBBY_PHASES.has(phase)) {
       startMenuMusic();
     } else if (phase === 'battle') {
       stopMenuMusic();
