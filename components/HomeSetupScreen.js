@@ -34,8 +34,8 @@ function FantasyButton({ label, icon, variant = 'default', style, disabled, onPr
       ]}
     >
       <View style={styles.realButtonShine} pointerEvents="none" />
-      <Text style={styles.realButtonIcon}>{icon}</Text>
-      <Text style={[styles.realButtonText, variant === 'primary' && styles.realButtonTextPrimary]}>{label}</Text>
+      <Text style={[styles.realButtonIcon, variant !== 'default' && styles.realButtonIconLight]}>{icon}</Text>
+      <Text style={[styles.realButtonText, variant !== 'default' && styles.realButtonTextLight]}>{label}</Text>
     </Pressable>
   );
 }
@@ -60,37 +60,6 @@ function BottomNavButton({ label, icon, badge, style, onPress }) {
   );
 }
 
-function CurrencyPill({ value, onPress }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Open Gear Mart"
-      onPress={onPress}
-      style={({ pressed }) => [styles.currencyPill, pressed && styles.realButtonPressed]}
-    >
-      <Text style={styles.currencyIcon}>◈</Text>
-      <Text style={styles.currencyValue}>{value ?? 0}</Text>
-    </Pressable>
-  );
-}
-
-function ProfilePill({ name, monster, onPress }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Open trainer profile"
-      onPress={onPress}
-      style={({ pressed }) => [styles.profilePill, pressed && styles.realButtonPressed]}
-    >
-      <Text style={styles.profileAvatar}>●</Text>
-      <View style={styles.profileTextCol}>
-        <Text style={styles.profileName} numberOfLines={1}>{name}</Text>
-        <Text style={styles.profileMonster} numberOfLines={1}>{monster}</Text>
-      </View>
-    </Pressable>
-  );
-}
-
 function StatusBar({ label, onPress }) {
   return (
     <Pressable
@@ -102,6 +71,15 @@ function StatusBar({ label, onPress }) {
     >
       <Text style={styles.statusBarText} numberOfLines={1}>{label}</Text>
     </Pressable>
+  );
+}
+
+function GameLogo() {
+  return (
+    <View style={styles.logoSlot} pointerEvents="none">
+      <Text style={styles.logoTextTop}>MONSTER</Text>
+      <Text style={styles.logoTextBottom}>BATTLE</Text>
+    </View>
   );
 }
 
@@ -143,7 +121,6 @@ export default function HomeSetupScreen({
   onUpdateProfileName,
   onResetSave,
   onOpenAudioSettings,
-  coins,
 }) {
   const [tray, setTray] = useState(null);
   const [nameDraft, setNameDraft] = useState('');
@@ -156,16 +133,8 @@ export default function HomeSetupScreen({
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const activeWallet = walletP1 || wallet;
   const monsters = activeWallet?.ownedMonsters ?? [];
-  const selectedMonster =
-    monsters.find((m) => m.id === selectedP1Id) ??
-    monsters.find((m) => m.id === activeWallet?.selectedMonsterId) ??
-    monsters[0] ??
-    null;
   const canStart = !!selectedP1Id && monsters.some((m) => m.id === selectedP1Id);
-  const profileLabel = activeProfile?.name || slotProfileName || 'Trainer';
-  const monsterLabel = selectedMonster
-    ? `${selectedMonster.nickname || selectedMonster.templateId || 'Monster'} · Lv ${selectedMonster.level ?? 1}`
-    : 'Pick monster';
+  const multiplayerHandler = onEnterMultiplayer || onOpenOnlineLobby;
 
   const cloudActive = useMemo(
     () => cloudPlayers.find((cp) => cp.profileID === activeProfileId) ?? null,
@@ -236,31 +205,25 @@ export default function HomeSetupScreen({
           imageStyle={styles.backgroundImage}
         >
           <View style={styles.uiLayer} pointerEvents="box-none">
-            <CurrencyPill value={coins} onPress={pressWithSound(onOpenGearMart)} />
-            <ProfilePill
-              name={profileLabel}
-              monster={monsterLabel}
-              onPress={pressWithSound(() => toggleTray('profile'))}
-            />
+            <GameLogo />
 
             <View style={styles.menuLayer} pointerEvents="box-none">
               <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonOne} onPress={pressWithSound(onOpenGearMart)} />
               <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonTwo} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
               <FantasyButton label="Monsters" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
-              <FantasyButton label="Audio" icon="♪" style={styles.menuButtonFour} onPress={pressWithSound(onOpenAudioSettings)} />
               <FantasyButton
-                label="Monster Ladder"
-                icon="★"
+                label="Multiplayer"
+                icon="⚔"
                 variant="legendary"
-                style={styles.menuButtonFive}
-                disabled={!canStart}
-                onPress={pressWithSound(onOpenMonsterLadder)}
+                style={styles.menuButtonFour}
+                disabled={!multiplayerHandler}
+                onPress={pressWithSound(multiplayerHandler)}
               />
               <FantasyButton
                 label="Start Battle"
                 icon="▶"
                 variant="primary"
-                style={styles.menuButtonSix}
+                style={styles.menuButtonFive}
                 disabled={!canStart}
                 onPress={pressWithSound(onStartGame)}
               />
@@ -272,8 +235,7 @@ export default function HomeSetupScreen({
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
 
             <StatusBar
-              label={onEnterMultiplayer ? 'Multiplayer Lobby' : cloudActive ? `Cloud linked: ${cloudActive.playerName || 'Player'}` : 'Welcome, trainer'}
-              onPress={onEnterMultiplayer ? pressWithSound(onEnterMultiplayer) : undefined}
+              label={cloudActive ? `Cloud linked: ${cloudActive.playerName || 'Player'}` : 'Welcome, trainer'}
             />
 
             {onlineBanner}
@@ -531,87 +493,41 @@ const styles = StyleSheet.create({
   uiLayer: {
     ...StyleSheet.absoluteFillObject,
   },
-  currencyPill: {
+  logoSlot: {
     position: 'absolute',
-    top: '6.2%',
-    left: '7.2%',
-    width: '12.8%',
-    height: '4.1%',
-    minHeight: 34,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#b88338',
-    backgroundColor: 'rgba(16, 28, 48, 0.86)',
-    flexDirection: 'row',
+    top: '12.8%',
+    left: '28%',
+    width: '44%',
+    height: '12.5%',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.36,
-    shadowRadius: 6,
-    elevation: 8,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  currencyIcon: {
-    color: '#f7d37a',
-    fontSize: 13,
+  logoTextTop: {
+    color: '#f8e9b7',
+    fontSize: 21,
     fontWeight: '900',
+    letterSpacing: 1.4,
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 3,
   },
-  currencyValue: {
-    color: '#fff6d6',
-    fontSize: 12,
+  logoTextBottom: {
+    color: '#dcecff',
+    fontSize: 25,
     fontWeight: '900',
-  },
-  profilePill: {
-    position: 'absolute',
-    top: '6.2%',
-    right: '6.8%',
-    width: '25%',
-    height: '4.2%',
-    minHeight: 34,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#b88338',
-    backgroundColor: 'rgba(16, 28, 48, 0.86)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 7,
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.36,
-    shadowRadius: 6,
-    elevation: 8,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  profileAvatar: {
-    color: '#f3c468',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  profileTextCol: {
-    flex: 1,
-    minWidth: 0,
-  },
-  profileName: {
-    color: '#fff6d6',
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  profileMonster: {
-    color: '#b9e7ff',
-    fontSize: 8,
-    fontWeight: '800',
-    marginTop: -1,
+    letterSpacing: 1.8,
+    marginTop: -3,
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 3,
   },
   menuLayer: {
     ...StyleSheet.absoluteFillObject,
   },
   fantasyButton: {
     position: 'absolute',
-    left: '25.8%',
-    width: '48.4%',
+    left: '25%',
+    width: '50%',
     height: '5.3%',
     minHeight: 44,
     borderRadius: 15,
@@ -675,7 +591,11 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
   },
-  realButtonTextPrimary: {
+  realButtonIconLight: {
+    color: '#fff6d6',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+  },
+  realButtonTextLight: {
     color: '#fff6d6',
     textShadowColor: 'rgba(0,0,0,0.45)',
   },
@@ -686,12 +606,11 @@ const styles = StyleSheet.create({
   realButtonDisabled: {
     opacity: 0.48,
   },
-  menuButtonOne: { top: '39.4%' },
-  menuButtonTwo: { top: '46.1%' },
-  menuButtonThree: { top: '52.8%' },
-  menuButtonFour: { top: '59.5%' },
-  menuButtonFive: { top: '66.5%', left: '27.4%', width: '45.2%' },
-  menuButtonSix: { top: '73.2%', left: '27.4%', width: '45.2%' },
+  menuButtonOne: { top: '40%' },
+  menuButtonTwo: { top: '47%' },
+  menuButtonThree: { top: '54%' },
+  menuButtonFour: { top: '61%' },
+  menuButtonFive: { top: '68%' },
   bottomNavButton: {
     position: 'absolute',
     top: '86.9%',
