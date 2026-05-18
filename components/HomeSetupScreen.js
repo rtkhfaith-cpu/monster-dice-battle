@@ -60,15 +60,6 @@ function BottomNavButton({ label, icon, badge, style, onPress }) {
   );
 }
 
-function GameLogo() {
-  return (
-    <View style={styles.logoSlot} pointerEvents="none">
-      <Text style={styles.logoTextTop}>MONSTER</Text>
-      <Text style={styles.logoTextBottom}>BATTLE</Text>
-    </View>
-  );
-}
-
 export default function HomeSetupScreen({
   profiles,
   activeProfileId,
@@ -200,7 +191,6 @@ export default function HomeSetupScreen({
             <Text style={styles.topPlayerName} numberOfLines={1} pointerEvents="none">
               {playerName}
             </Text>
-            <GameLogo />
 
             <View style={styles.menuLayer} pointerEvents="box-none">
               <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonOne} onPress={pressWithSound(onOpenGearMart)} />
@@ -520,34 +510,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.68)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 2,
-  },
-  logoSlot: {
-    position: 'absolute',
-    top: '12.8%',
-    left: '28%',
-    width: '44%',
-    height: '12.5%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoTextTop: {
-    color: '#f8e9b7',
-    fontSize: 21,
-    fontWeight: '900',
-    letterSpacing: 1.4,
-    textShadowColor: 'rgba(0,0,0,0.85)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 3,
-  },
-  logoTextBottom: {
-    color: '#dcecff',
-    fontSize: 25,
-    fontWeight: '900',
-    letterSpacing: 1.8,
-    marginTop: -3,
-    textShadowColor: 'rgba(0,0,0,0.85)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 3,
   },
   menuLayer: {
     ...StyleSheet.absoluteFillObject,
