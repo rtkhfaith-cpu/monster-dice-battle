@@ -603,7 +603,7 @@ const styles = StyleSheet.create({
   menuButtonFive: { top: '67.6%' },
   bottomNavButton: {
     position: 'absolute',
-    top: '82%',
+    top: '90%',
     width: '17%',
     height: '6.4%',
     minHeight: 48,
