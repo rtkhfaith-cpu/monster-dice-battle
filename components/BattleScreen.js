@@ -825,25 +825,26 @@ export default function BattleScreen({
 
   function handleRun() {
     if (isActionPlaying || busy) return;
-    Alert.alert(
-      'Flee battle?',
-      'Running away will count as a loss. Are you sure?',
-      [
-        { text: 'Stay', style: 'cancel' },
-        {
-          text: 'Flee',
-          style: 'destructive',
-          onPress: () => {
-            onFinish({
-              winner: CPU_ID,
-              player1Snapshot: snapshotFight({ ...p1, hp: 0 }),
-              player2Snapshot: snapshotFight(p2),
-              battleExtras: { ...battleExtras, fled: true },
-            });
-          },
-        },
-      ],
-    );
+    const flee = () => {
+      const latestP1 = p1Ref.current ?? p1;
+      const latestP2 = p2Ref.current ?? p2;
+      onFinish({
+        winner: CPU_ID,
+        player1Snapshot: snapshotFight({ ...latestP1, hp: 0 }),
+        player2Snapshot: snapshotFight(latestP2),
+        battleExtras: { ...battleExtras, fled: true },
+      });
+    };
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      if (window.confirm('Flee battle? Running away will count as a loss.')) flee();
+      return;
+    }
+
+    Alert.alert('Flee battle?', 'Running away will count as a loss. Are you sure?', [
+      { text: 'Stay', style: 'cancel' },
+      { text: 'Flee', style: 'destructive', onPress: flee },
+    ]);
   }
 
   function handleMutePress() {
@@ -855,6 +856,7 @@ export default function BattleScreen({
   const p1Mood = moodFor(p1, p1Emotion);
   const p2Mood = moodFor(p2, p2Emotion);
   const actionsEnabled = !battleIntro && !isActionPlaying && !busy && battlePhase === 'chooseAction';
+  const runEnabled = !battleIntro && !isActionPlaying && !busy;
   const actingFighter = activeBattler === CPU_ID ? p2 : p1;
   const magicSkills =
     actingFighter?.skills?.magic ?? getMagicSkills(actingFighter?.monsterTemplateId ?? '');
@@ -1062,10 +1064,10 @@ export default function BattleScreen({
                   styles.arcadeBtn,
                   battleMobile && styles.arcadeBtnMobile,
                   styles.runBtnOuter,
-                  pressed && actionsEnabled && styles.arcadeBtnPressed,
-                  !actionsEnabled && styles.disabledBtn,
+                  pressed && runEnabled && styles.arcadeBtnPressed,
+                  !runEnabled && styles.disabledBtn,
                 ]}
-                disabled={!actionsEnabled}
+                disabled={!runEnabled}
               onPress={() => {
                 tapUi();
                 handleRun();
