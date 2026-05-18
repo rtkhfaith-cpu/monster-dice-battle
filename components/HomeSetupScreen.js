@@ -1,36 +1,27 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
-import SaveSlotPanel from './SaveSlotPanel';
-import GameSetupPanel from './GameSetupPanel';
-import MonsterGridPanel from './MonsterGridPanel';
 import OnlineRoomBanner from './OnlineRoomBanner';
-import { LOBBY } from '../utils/gameTheme';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
-import {
-  getLayoutTier,
-  isDesktopLayout,
-  MOBILE_GAP,
-  MOBILE_PAD,
-  MOBILE_SECTION_GAP,
-  scrollBottomInset,
-} from '../utils/responsive';
+import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 
-/**
- * Lobby — desktop: 3 columns · tablet/mobile: vertical scroll stack (no overlap).
- */
+const ALIGN_DEBUG = typeof __DEV__ !== 'undefined' && __DEV__ && false;
+const MAX_VISIBLE_PROFILES = 4;
+const MAX_VISIBLE_MONSTERS = 4;
+const MAX_VISIBLE_CLOUD = 4;
+
 export default function HomeSetupScreen({
   profiles,
   activeProfileId,
-  setupP1ProfileId,
-  setupP2ProfileId,
   wallet,
   walletP1,
   walletP2,
@@ -58,7 +49,7 @@ export default function HomeSetupScreen({
   onRequestDeleteProfile,
   onRequestDeleteCloudProfile,
   deleteBusyProfileId,
-  cloudPlayers,
+  cloudPlayers = [],
   cloudFetchLoading,
   cloudFetchError,
   onFetchCloudPlayers,
@@ -69,714 +60,663 @@ export default function HomeSetupScreen({
   coins,
 }) {
   const { width } = useWindowDimensions();
-  const layoutTier = getLayoutTier(width);
-  const isMobile = layoutTier === 'mobile';
-  const isTablet = layoutTier === 'tablet';
-  const usePageScroll = !isDesktopLayout(width);
+  const isNarrow = width < 430;
+  const [tray, setTray] = useState(null);
+  const [nameDraft, setNameDraft] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createKey, setCreateKey] = useState('');
+  const [createConfirm, setCreateConfirm] = useState('');
+  const [createError, setCreateError] = useState('');
+
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
-
-  const summary = useMemo(() => {
-    const row = (ownedId, w) => {
-      if (!ownedId || !w) return false;
-      const om = w.ownedMonsters.find((x) => x.id === ownedId);
-      return !!om;
-    };
-    return {
-      p1: row(selectedP1Id, walletP1 || wallet),
-    };
-  }, [wallet, walletP1, selectedP1Id]);
-
-  const canStart = summary.p1;
-  const missingMsg = useMemo(() => {
-    if (!summary.p1) return 'Pick your monster below!';
-    return '';
-  }, [summary]);
-
-  const panelLayout = { layoutTier, isMobile, isTablet };
   const activeWallet = walletP1 || wallet;
+  const monsters = activeWallet?.ownedMonsters ?? [];
   const selectedMonster =
-    activeWallet?.ownedMonsters?.find((m) => m.id === selectedP1Id) ??
-    activeWallet?.ownedMonsters?.find((m) => m.id === activeWallet?.selectedMonsterId) ??
-    activeWallet?.ownedMonsters?.[0] ??
+    monsters.find((m) => m.id === selectedP1Id) ??
+    monsters.find((m) => m.id === activeWallet?.selectedMonsterId) ??
+    monsters[0] ??
     null;
+  const canStart = !!selectedP1Id && monsters.some((m) => m.id === selectedP1Id);
+  const profileLabel = activeProfile?.name || slotProfileName || 'Trainer';
+  const monsterLabel = selectedMonster
+    ? `${selectedMonster.nickname || selectedMonster.templateId || 'Monster'} · Lv ${selectedMonster.level ?? 1}`
+    : 'Pick monster';
 
-  const saveProps = {
-    profiles,
-    activeProfileId,
-    setupP1ProfileId,
-    setupP2ProfileId,
-    setupActiveSlot: activeSlot,
-    gameMode,
-    onSelectProfile,
-    onCreateProfile,
-    onRequestDeleteProfile,
-    onRequestDeleteCloudProfile,
-    deleteBusyProfileId,
-    cloudPlayers,
-    cloudFetchLoading,
-    cloudFetchError,
-    onFetchCloudPlayers,
-    onRequestSelectCloudProfile,
-    onUpdateName: onUpdateProfileName,
-    compact: usePageScroll,
-    embedInScroll: usePageScroll,
-    ...panelLayout,
-  };
-
-  const setupProps = {
-    gameMode,
-    onGameModeChange,
-    activeSlot,
-    onActiveSlotChange,
-    walletP1,
-    walletP2,
-    setupP1ProfileId,
-    setupP2ProfileId,
-    profiles,
-    selectedP1Id,
-    selectedP2Id,
-    onOpenMonsterGear,
-    onEnterMultiplayer,
-    onOpenMonsterLadder,
-    embedInScroll: usePageScroll,
-    ...panelLayout,
-  };
-
-  const gridProps = {
-    wallet: gameMode === 'onePlayer' ? walletP1 || wallet : wallet,
-    slotLabel: slotProfileName,
-    gameMode,
-    selectedP1Id,
-    selectedP2Id: gameMode === 'onePlayer' ? null : selectedP2Id,
-    onSelectMonster,
-    embedInScroll: usePageScroll,
-    ...panelLayout,
-  };
-
-  const menuButton = (key, label, icon, onPress, tone = 'secondary', disabled = false) => (
-    <TouchableOpacity
-      key={key}
-      style={[
-        styles.fantasyBtn,
-        tone === 'ladder' && styles.fantasyBtnLadder,
-        tone === 'start' && styles.fantasyBtnStart,
-        disabled && styles.startOff,
-      ]}
-      disabled={disabled}
-      onPress={onPress}
-      activeOpacity={0.86}
-    >
-      <Text style={styles.fantasyBtnIcon}>{icon}</Text>
-      <Text style={[styles.fantasyBtnTxt, tone !== 'secondary' && styles.fantasyBtnTxtStrong]}>{label}</Text>
-    </TouchableOpacity>
+  const cloudActive = useMemo(
+    () => cloudPlayers.find((cp) => cp.profileID === activeProfileId) ?? null,
+    [activeProfileId, cloudPlayers],
   );
 
-  const mainMenuButtons = [
-    menuButton('gearMart', 'Gear Mart', '🛒', onOpenGearMart),
-    menuButton('equipGear', 'Equip Gear', '⚔', onOpenMonsterGearShop),
-    menuButton('monsters', 'Monsters', '🥚', onOpenMonsterMart),
-    onOpenAudioSettings ? menuButton('audio', 'Audio', '🔊', onOpenAudioSettings) : null,
-    menuButton('ladder', 'Monster Ladder', '🪜', onOpenMonsterLadder, 'ladder', !canStart),
-    menuButton('start', 'Start Battle', '⚔', onStartGame, 'start', !canStart),
-  ].filter(Boolean);
+  function toggleTray(next) {
+    setTray((current) => (current === next ? null : next));
+    setCreateError('');
+    setCreateOpen(false);
+    if (next === 'profile') setNameDraft(activeProfile?.name ?? '');
+    if (next === 'cloud') onFetchCloudPlayers?.();
+  }
 
-  const topBarDesktop = (
-    <View style={styles.topBar}>
-      <Text style={styles.title} numberOfLines={1}>
-        Monster Dice Battle
-      </Text>
-      <View style={styles.topActions}>
-        <Text style={styles.coins}>
-          🪙 <Text style={styles.coinsAmt}>{coins}</Text>
-        </Text>
-        <TouchableOpacity style={styles.menuChipAlt} onPress={onOpenGearMart}>
-          <Text style={styles.menuChipTxt}>Gear Mart</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuChip} onPress={onOpenMonsterGearShop}>
-          <Text style={styles.menuChipTxt}>Equip</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuChip} onPress={onOpenMonsterMart}>
-          <Text style={styles.menuChipTxt}>Monsters</Text>
-        </TouchableOpacity>
-        {onOpenAudioSettings ? (
-          <TouchableOpacity style={styles.menuChipAlt} onPress={onOpenAudioSettings}>
-            <Text style={styles.menuChipTxt}>Audio</Text>
-          </TouchableOpacity>
-        ) : null}
-        {onResetSave ? (
-          <TouchableOpacity style={styles.menuChipWarn} onPress={onResetSave}>
-            <Text style={styles.menuChipTxt}>Reset</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-    </View>
-  );
+  function handleSaveName() {
+    const trimmed = nameDraft.trim().slice(0, 24);
+    if (activeProfile && trimmed && trimmed !== activeProfile.name) {
+      onUpdateProfileName?.(activeProfile.id, trimmed);
+    }
+  }
 
-  const topBarMobile = (
-    <View style={styles.topBarMobile}>
-      <Text style={styles.titleMobile} numberOfLines={2}>
-        Monster Dice Battle
-      </Text>
-      <View style={styles.coinsPill}>
-        <Text style={styles.coinsMobile}>
-          🪙 <Text style={styles.coinsAmt}>{coins}</Text>
-        </Text>
-      </View>
-    </View>
-  );
+  function handleCreateProfile() {
+    const trimmed = createName.trim().slice(0, 24);
+    if (!trimmed) {
+      setCreateError('Player name cannot be empty.');
+      return;
+    }
+    const keyError = validatePlayerKeyPair(createKey, createConfirm);
+    if (keyError) {
+      setCreateError(keyError);
+      return;
+    }
+    onCreateProfile?.(trimmed, normalizePlayerKey(createKey), normalizePlayerKey(createConfirm));
+    setCreateOpen(false);
+    setCreateName('');
+    setCreateKey('');
+    setCreateConfirm('');
+    setCreateError('');
+  }
+
+  function mapButton(label, style, onPress, disabled = false) {
+    return (
+      <TouchableOpacity
+        key={label}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        activeOpacity={0.78}
+        disabled={disabled || !onPress}
+        onPress={onPress}
+        style={[styles.hitZone, style, ALIGN_DEBUG && styles.alignDebug, disabled && styles.zoneDisabled]}
+      />
+    );
+  }
 
   const onlineBanner =
     onlineRoom?.roomCode ? (
-      <OnlineRoomBanner
-        roomState={onlineRoom}
-        mySlot={onlineSlot}
-        onOpenLobby={onOpenOnlineLobby || onEnterMultiplayer}
-        onLeaveRoom={onLeaveOnlineRoom}
-      />
+      <View style={styles.onlineBanner}>
+        <OnlineRoomBanner
+          roomState={onlineRoom}
+          mySlot={onlineSlot}
+          onOpenLobby={onOpenOnlineLobby || onEnterMultiplayer}
+          onLeaveRoom={onLeaveOnlineRoom}
+        />
+      </View>
     ) : null;
 
-  const startSection = (
-    <View style={[styles.bottom, isMobile && styles.bottomMobile]}>
-      {missingMsg && !canStart ? <Text style={styles.missing}>{missingMsg}</Text> : null}
-      {onOpenMonsterLadder ? (
-        <TouchableOpacity
-          style={[styles.ladderBtn, isMobile && styles.ladderBtnMobile, !canStart && styles.startOff]}
-          disabled={!canStart}
-          onPress={onOpenMonsterLadder}
-          activeOpacity={0.9}
-        >
-          <Text style={[styles.ladderTxt, isMobile && styles.startTxtMobile]}>🪜 MONSTER LADDER</Text>
-        </TouchableOpacity>
-      ) : null}
-      <TouchableOpacity
-        style={[styles.startBtn, isMobile && styles.startBtnMobile, !canStart && styles.startOff]}
-        disabled={!canStart}
-        onPress={onStartGame}
-        activeOpacity={0.9}
-      >
-        <Text style={[styles.startTxt, isMobile && styles.startTxtMobile]}>⚔ START BATTLE</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const section = (key, child) => (
-    <View key={key} style={[styles.section, isMobile && styles.sectionMobile]}>
-      {child}
-    </View>
-  );
-
   return (
-    <View style={[styles.fantasyRoot, Platform.OS === 'web' && styles.fantasyRootWeb]}>
-      <View style={styles.fantasyShade} pointerEvents="none" />
-      <ScrollView
-        style={[styles.pageScroll, Platform.OS === 'web' && styles.pageScrollWeb]}
-        contentContainerStyle={[styles.fantasyContent, isMobile && styles.fantasyContentMobile]}
-        keyboardShouldPersistTaps="always"
-        showsVerticalScrollIndicator={false}
-        nestedScrollEnabled={false}
-      >
-        <View style={styles.fantasyHud}>
-          <View style={styles.coinBadge}>
-            <Text style={styles.coinBadgeTxt}>🪙 {coins}</Text>
-          </View>
-          <View style={styles.profileBadge}>
-            <Text style={styles.profileBadgeName} numberOfLines={1}>
-              {activeProfile?.name || 'Welcome, Trainer!'}
-            </Text>
-            <Text style={styles.profileBadgeSub} numberOfLines={1}>
-              {selectedMonster ? `${selectedMonster.nickname || 'Active Monster'} · Lv ${selectedMonster.level}` : 'Pick your first monster'}
-            </Text>
-          </View>
-        </View>
+    <View style={[styles.root, Platform.OS === 'web' && styles.rootWeb]}>
+      <View style={styles.overlay} pointerEvents="box-none">
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Open cloud saves"
+          activeOpacity={0.8}
+          onPress={() => toggleTray('cloud')}
+          style={[styles.coinZone, ALIGN_DEBUG && styles.alignDebug]}
+        >
+          <Text style={styles.coinText}>{coins ?? 0}</Text>
+        </TouchableOpacity>
 
-        <View style={styles.logoBlock} pointerEvents="none">
-          <Text style={[styles.logoTop, isMobile && styles.logoTopMobile]}>Monster</Text>
-          <Text style={[styles.logoBottom, isMobile && styles.logoBottomMobile]}>Dice Battle</Text>
-        </View>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Open trainer profile"
+          activeOpacity={0.82}
+          onPress={() => toggleTray('profile')}
+          style={[styles.profileZone, isNarrow && styles.profileZoneNarrow, ALIGN_DEBUG && styles.alignDebug]}
+        >
+          <Text style={styles.profileName} numberOfLines={1}>{profileLabel}</Text>
+          <Text style={styles.profileSub} numberOfLines={1}>{monsterLabel}</Text>
+        </TouchableOpacity>
 
-        {onlineBanner ? <View style={styles.bannerWrap}>{onlineBanner}</View> : null}
+        {mapButton('Gear Mart', styles.gearMartZone, onOpenGearMart)}
+        {mapButton('Equip Gear', styles.equipGearZone, onOpenMonsterGearShop || onOpenMonsterGear)}
+        {mapButton('Monsters', styles.monstersZone, onOpenMonsterMart)}
+        {mapButton('Audio', styles.audioZone, onOpenAudioSettings)}
+        {mapButton('Monster Ladder', styles.ladderZone, onOpenMonsterLadder, !canStart)}
+        {mapButton('Start Battle', styles.startZone, onStartGame, !canStart)}
 
-        <View style={[styles.fantasyMenuCard, isMobile && styles.fantasyMenuCardMobile]}>
-          <Text style={styles.menuCardTitle}>Main Menu</Text>
-          <View style={styles.fantasyBtnStack}>{mainMenuButtons}</View>
-          {missingMsg && !canStart ? <Text style={styles.missing}>{missingMsg}</Text> : null}
-        </View>
+        {mapButton('Cloud Saves', styles.questZone, () => toggleTray('cloud'))}
+        {mapButton('Inventory', styles.inventoryZone, onOpenMonsterGearShop || onOpenMonsterGear)}
+        {mapButton('Heroes and Monsters', styles.heroesZone, () => toggleTray('profile'))}
+        {mapButton('Settings', styles.settingsZone, onResetSave || onOpenAudioSettings)}
+        {onEnterMultiplayer ? mapButton('Multiplayer', styles.welcomeZone, onEnterMultiplayer) : null}
 
-        <View style={[styles.homeUtilityGrid, isMobile && styles.homeUtilityGridMobile]}>
-          <View style={styles.homeUtilityPanel}>
-            <SaveSlotPanel {...saveProps} compact embedInScroll />
-          </View>
-          <View style={styles.homeUtilityPanel}>
-            <MonsterGridPanel {...gridProps} embedInScroll isMobile={isMobile} />
-          </View>
-        </View>
-      </ScrollView>
+        {!canStart ? (
+          <Pressable style={styles.pickHint} onPress={() => toggleTray('profile')}>
+            <Text style={styles.pickHintText}>Pick a monster to start</Text>
+          </Pressable>
+        ) : null}
+
+        {onlineBanner}
+        {tray === 'profile' ? renderProfileTray() : null}
+        {tray === 'cloud' ? renderCloudTray() : null}
+      </View>
     </View>
   );
+
+  function renderProfileTray() {
+    return (
+      <View style={styles.tray} pointerEvents="box-none">
+        <View style={styles.trayHeader}>
+          <Text style={styles.trayTitle}>Trainer</Text>
+          <TouchableOpacity onPress={() => setTray(null)} style={styles.trayClose}>
+            <Text style={styles.trayCloseText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.trayScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {profiles.slice(0, MAX_VISIBLE_PROFILES).map((profile) => {
+            const active = profile.id === activeProfileId;
+            return (
+              <View key={profile.id} style={[styles.compactRow, active && styles.compactRowActive]}>
+                <TouchableOpacity style={styles.rowMain} onPress={() => onSelectProfile?.(profile.id)}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>{profile.name || 'Player'}</Text>
+                  <Text style={styles.rowSub}>{active ? 'Active save slot' : 'Tap to select'}</Text>
+                </TouchableOpacity>
+                {onRequestDeleteProfile ? (
+                  <TouchableOpacity
+                    disabled={deleteBusyProfileId === profile.id}
+                    onPress={() => onRequestDeleteProfile(profile.id)}
+                    style={styles.rowMiniBtn}
+                  >
+                    <Text style={styles.rowMiniText}>Del</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            );
+          })}
+
+          {activeProfile ? (
+            <View style={styles.inputRow}>
+              <TextInput
+                value={nameDraft}
+                onChangeText={setNameDraft}
+                placeholder="Trainer name"
+                placeholderTextColor="rgba(255,255,255,0.58)"
+                style={styles.textInput}
+                maxLength={24}
+              />
+              <TouchableOpacity onPress={handleSaveName} style={styles.smallGoldBtn}>
+                <Text style={styles.smallGoldText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          <View style={styles.monsterPickStrip}>
+            {monsters.slice(0, MAX_VISIBLE_MONSTERS).map((monster) => {
+              const picked = monster.id === selectedP1Id;
+              return (
+                <TouchableOpacity
+                  key={monster.id}
+                  onPress={() => onSelectMonster?.(monster.id)}
+                  style={[styles.monsterChip, picked && styles.monsterChipActive]}
+                >
+                  <Text style={styles.monsterChipText} numberOfLines={1}>
+                    {monster.nickname || monster.templateId || 'Monster'}
+                  </Text>
+                  <Text style={styles.monsterChipSub}>Lv {monster.level ?? 1}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {createOpen ? (
+            <View style={styles.createBox}>
+              <TextInput
+                value={createName}
+                onChangeText={setCreateName}
+                placeholder="New player name"
+                placeholderTextColor="rgba(255,255,255,0.58)"
+                style={styles.textInput}
+                maxLength={24}
+              />
+              <View style={styles.keyRow}>
+                <TextInput
+                  value={createKey}
+                  onChangeText={setCreateKey}
+                  placeholder="4-digit key"
+                  placeholderTextColor="rgba(255,255,255,0.58)"
+                  style={[styles.textInput, styles.keyInput]}
+                  maxLength={4}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                />
+                <TextInput
+                  value={createConfirm}
+                  onChangeText={setCreateConfirm}
+                  placeholder="Confirm"
+                  placeholderTextColor="rgba(255,255,255,0.58)"
+                  style={[styles.textInput, styles.keyInput]}
+                  maxLength={4}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                />
+              </View>
+              {createError ? <Text style={styles.errorText}>{createError}</Text> : null}
+              <TouchableOpacity onPress={handleCreateProfile} style={styles.smallGoldBtn}>
+                <Text style={styles.smallGoldText}>Create Player</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => {
+                setCreateOpen(true);
+                setCreateName(`Player ${profiles.length + 1}`);
+              }}
+              style={styles.smallGoldBtn}
+            >
+              <Text style={styles.smallGoldText}>New Player</Text>
+            </TouchableOpacity>
+          )}
+
+          {gameMode && onGameModeChange ? (
+            <View style={styles.modeRow}>
+              <TouchableOpacity
+                onPress={() => onGameModeChange('onePlayer')}
+                style={[styles.modeBtn, gameMode === 'onePlayer' && styles.modeBtnActive]}
+              >
+                <Text style={styles.modeText}>1P</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => onGameModeChange('twoPlayer')}
+                style={[styles.modeBtn, gameMode !== 'onePlayer' && styles.modeBtnActive]}
+              >
+                <Text style={styles.modeText}>2P</Text>
+              </TouchableOpacity>
+              {onActiveSlotChange ? (
+                <TouchableOpacity
+                  onPress={() => onActiveSlotChange(activeSlot === 2 ? 1 : 2)}
+                  style={styles.modeBtn}
+                >
+                  <Text style={styles.modeText}>Slot {activeSlot || 1}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  function renderCloudTray() {
+    return (
+      <View style={styles.tray} pointerEvents="box-none">
+        <View style={styles.trayHeader}>
+          <Text style={styles.trayTitle}>Cloud Archive</Text>
+          <TouchableOpacity onPress={() => setTray(null)} style={styles.trayClose}>
+            <Text style={styles.trayCloseText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={styles.trayScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <TouchableOpacity onPress={onFetchCloudPlayers} style={styles.smallGoldBtn}>
+            <Text style={styles.smallGoldText}>{cloudFetchLoading ? 'Loading...' : 'Refresh Cloud'}</Text>
+          </TouchableOpacity>
+          {cloudFetchError ? <Text style={styles.errorText}>{cloudFetchError}</Text> : null}
+          {cloudPlayers.slice(0, MAX_VISIBLE_CLOUD).map((cp) => {
+            const selected = cp.profileID === activeProfileId;
+            return (
+              <View key={cp.profileID} style={[styles.compactRow, selected && styles.compactRowActive]}>
+                <TouchableOpacity style={styles.rowMain} onPress={() => onRequestSelectCloudProfile?.(cp)}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>{cp.playerName || 'Cloud Player'}</Text>
+                  <Text style={styles.rowSub}>Coins {cp.coins ?? 0} · Lv {cp.level ?? 1}</Text>
+                </TouchableOpacity>
+                {onRequestDeleteCloudProfile ? (
+                  <TouchableOpacity
+                    disabled={deleteBusyProfileId === cp.profileID}
+                    onPress={() => onRequestDeleteCloudProfile(cp)}
+                    style={styles.rowMiniBtn}
+                  >
+                    <Text style={styles.rowMiniText}>Del</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            );
+          })}
+          {cloudActive ? (
+            <Text style={styles.archiveHint}>Linked: {cloudActive.playerName || 'Cloud player'}</Text>
+          ) : null}
+        </ScrollView>
+      </View>
+    );
+  }
 }
 
+const webShadow = Platform.OS === 'web'
+  ? {
+      boxShadow: '0 6px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.2)',
+      cursor: 'pointer',
+    }
+  : {};
+
 const styles = StyleSheet.create({
-  fantasyRoot: {
+  root: {
     flex: 1,
     width: '100%',
     minHeight: 0,
+    position: 'relative',
+    overflow: 'hidden',
     backgroundColor: '#10243f',
   },
-  fantasyRootWeb: {
+  rootWeb: {
     minHeight: '100dvh',
     backgroundImage: `url('${GAME_ASSETS.homeMainMenu}')`,
     backgroundSize: 'cover',
     backgroundPosition: 'center top',
     backgroundRepeat: 'no-repeat',
+    paddingTop: 'env(safe-area-inset-top)',
+    paddingBottom: 'env(safe-area-inset-bottom)',
   },
-  fantasyShade: {
+  overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(5, 12, 28, 0.2)',
+    pointerEvents: 'none',
   },
-  fantasyContent: {
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingTop: 'max(12px, env(safe-area-inset-top))',
-    paddingBottom: scrollBottomInset(28),
-    gap: 10,
-  },
-  fantasyContentMobile: {
-    paddingHorizontal: 12,
-    paddingTop: 'max(10px, env(safe-area-inset-top))',
-    paddingBottom: 'max(18px, env(safe-area-inset-bottom))',
-    gap: 10,
-  },
-  fantasyHud: {
-    width: '100%',
-    maxWidth: 760,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  coinBadge: {
-    minHeight: 40,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  hitZone: {
+    position: 'absolute',
+    minHeight: 48,
+    pointerEvents: 'auto',
     borderRadius: 18,
-    borderWidth: 2,
-    borderColor: '#f6c45f',
-    backgroundColor: 'rgba(11, 22, 47, 0.88)',
-    shadowColor: 'rgba(72, 190, 255, 0.28)',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 4,
+    backgroundColor: 'rgba(255,255,255,0.01)',
   },
-  coinBadgeTxt: { fontWeight: '900', fontSize: 16, color: '#ffe9a6' },
-  profileBadge: {
-    flex: 1,
-    minHeight: 44,
-    paddingHorizontal: 14,
+  alignDebug: {
+    borderWidth: 2,
+    borderColor: 'rgba(255,0,0,0.8)',
+    backgroundColor: 'rgba(255,0,0,0.08)',
+  },
+  zoneDisabled: {
+    opacity: 0.55,
+  },
+  coinZone: {
+    position: 'absolute',
+    top: '4.1%',
+    left: '4.4%',
+    width: '15%',
+    height: '4.8%',
+    minHeight: 40,
+    pointerEvents: 'auto',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+  },
+  coinText: {
+    marginLeft: 20,
+    color: '#fff8e5',
+    fontSize: 20,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 2,
+  },
+  profileZone: {
+    position: 'absolute',
+    top: '3.8%',
+    right: '4.5%',
+    width: '34%',
+    minHeight: 48,
+    paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 18,
-    borderWidth: 2,
-    borderColor: 'rgba(246, 196, 95, 0.88)',
-    backgroundColor: 'rgba(9, 22, 49, 0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,143,0.72)',
+    backgroundColor: 'rgba(31,25,36,0.45)',
+    pointerEvents: 'auto',
+    ...webShadow,
   },
-  profileBadgeName: { fontWeight: '900', fontSize: 14, color: '#f8e7b5', textAlign: 'right' },
-  profileBadgeSub: { fontWeight: '800', fontSize: 11, color: '#8ee7ff', textAlign: 'right', marginTop: 1 },
-  logoBlock: {
+  profileZoneNarrow: {
+    width: '38%',
+  },
+  profileName: {
+    color: '#fff8e5',
+    fontWeight: '900',
+    fontSize: 13,
+    textAlign: 'right',
+  },
+  profileSub: {
+    color: '#d9f7ff',
+    fontWeight: '800',
+    fontSize: 10,
+    textAlign: 'right',
+    marginTop: 1,
+  },
+  gearMartZone: { top: '39.2%', left: '26%', width: '48%', height: '6.2%' },
+  equipGearZone: { top: '46.5%', left: '26%', width: '48%', height: '6.2%' },
+  monstersZone: { top: '53.8%', left: '26%', width: '48%', height: '6.2%' },
+  audioZone: { top: '61.1%', left: '26%', width: '48%', height: '6.2%' },
+  ladderZone: { top: '70.2%', left: '26%', width: '48%', height: '6.1%' },
+  startZone: { top: '77.3%', left: '26%', width: '48%', height: '6.1%' },
+  questZone: { top: '88.2%', left: '24%', width: '12%', height: '7.2%' },
+  inventoryZone: { top: '88.2%', left: '39%', width: '12%', height: '7.2%' },
+  heroesZone: { top: '88.2%', left: '54%', width: '12%', height: '7.2%' },
+  settingsZone: { top: '88.2%', left: '68%', width: '12%', height: '7.2%' },
+  welcomeZone: { top: '96%', left: '33%', width: '34%', height: '3.6%', minHeight: 32 },
+  pickHint: {
+    position: 'absolute',
+    left: '25%',
+    right: '25%',
+    top: '84.2%',
+    minHeight: 32,
     alignItems: 'center',
-    marginTop: 0,
-    marginBottom: -2,
-    shadowColor: 'rgba(0,0,0,0.5)',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-  },
-  logoTop: {
-    fontWeight: '900',
-    fontSize: 44,
-    lineHeight: 48,
-    color: '#ffcf55',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    textShadowColor: '#45220f',
-    textShadowOffset: { width: 3, height: 4 },
-    textShadowRadius: 0,
-  },
-  logoTopMobile: { fontSize: 32, lineHeight: 35 },
-  logoBottom: {
-    marginTop: -4,
-    fontWeight: '900',
-    fontSize: 38,
-    lineHeight: 42,
-    color: '#dff4ff',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    textShadowColor: '#10243f',
-    textShadowOffset: { width: 3, height: 4 },
-    textShadowRadius: 0,
-  },
-  logoBottomMobile: { fontSize: 28, lineHeight: 31 },
-  fantasyMenuCard: {
-    width: '100%',
-    maxWidth: 430,
-    padding: 14,
-    borderRadius: 24,
-    borderWidth: 3,
-    borderColor: '#d6a94c',
-    backgroundColor: 'rgba(8, 18, 42, 0.9)',
-    shadowColor: 'rgba(0,0,0,0.7)',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 10,
-    ...(Platform.OS === 'web'
-      ? {
-          boxShadow: '0 0 0 2px rgba(255,224,143,0.18), 0 18px 40px rgba(0,0,0,0.48), inset 0 1px 0 rgba(255,255,255,0.18)',
-          backdropFilter: 'blur(2px)',
-        }
-      : {}),
-  },
-  fantasyMenuCardMobile: {
-    maxWidth: 360,
-    padding: 12,
-    borderRadius: 18,
-  },
-  menuCardTitle: {
-    fontWeight: '900',
-    fontSize: 16,
-    letterSpacing: 1.6,
-    textAlign: 'center',
-    color: '#f8e7b5',
-    textTransform: 'uppercase',
-    marginBottom: 10,
-  },
-  fantasyBtnStack: { gap: 8 },
-  fantasyBtn: {
-    minHeight: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#d6a94c',
-    backgroundColor: '#142a58',
-    paddingHorizontal: 16,
-    shadowColor: 'rgba(0,0,0,0.48)',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 4,
-    ...(Platform.OS === 'web'
-      ? {
-          backgroundImage: 'linear-gradient(180deg, rgba(36,76,139,0.96), rgba(11,30,70,0.96))',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.22), 0 4px 0 rgba(0,0,0,0.32), 0 0 14px rgba(63,188,255,0.12)',
-          transitionProperty: 'transform, filter',
-          transitionDuration: '120ms',
-          cursor: 'pointer',
-        }
-      : {}),
+    backgroundColor: 'rgba(45,20,12,0.56)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,143,0.7)',
+    pointerEvents: 'auto',
   },
-  fantasyBtnLadder: {
-    borderColor: '#d8b4fe',
-    backgroundColor: '#6d28d9',
-    ...(Platform.OS === 'web'
-      ? {
-          backgroundImage: 'linear-gradient(180deg, #8b5cf6, #4c1d95)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.28), 0 4px 0 rgba(34,13,84,0.85), 0 0 20px rgba(168,85,247,0.55)',
-        }
-      : {}),
-  },
-  fantasyBtnStart: {
-    borderColor: '#f8d36d',
-    backgroundColor: '#16a34a',
-    ...(Platform.OS === 'web'
-      ? {
-          backgroundImage: 'linear-gradient(180deg, #5ee37b, #15803d)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 0 rgba(20,83,45,0.9), 0 0 22px rgba(74,222,128,0.5)',
-        }
-      : {}),
-  },
-  fantasyBtnIcon: {
-    width: 44,
-    fontSize: 24,
-    textAlign: 'center',
-  },
-  fantasyBtnTxt: {
-    flex: 1,
+  pickHintText: {
+    color: '#fff3c4',
     fontWeight: '900',
-    fontSize: 18,
-    color: '#f7e9bd',
-    textShadowColor: 'rgba(0,0,0,0.55)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 0,
+    fontSize: 12,
   },
-  fantasyBtnTxtStrong: {
-    color: '#fff',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
+  onlineBanner: {
+    position: 'absolute',
+    left: '5%',
+    right: '5%',
+    top: '11%',
+    pointerEvents: 'auto',
   },
-  homeUtilityGrid: {
-    width: '100%',
-    maxWidth: 930,
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'stretch',
-    paddingBottom: 8,
+  tray: {
+    position: 'absolute',
+    left: '7%',
+    right: '7%',
+    bottom: Platform.OS === 'web' ? 'calc(env(safe-area-inset-bottom) + 74px)' : 74,
+    maxHeight: '36%',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,143,0.86)',
+    backgroundColor: 'rgba(15, 22, 42, 0.82)',
+    padding: 10,
+    pointerEvents: 'auto',
+    ...webShadow,
   },
-  homeUtilityGridMobile: {
-    maxWidth: 380,
-    flexDirection: 'column',
-    gap: 10,
-  },
-  homeUtilityPanel: {
-    flex: 1,
-    minWidth: 0,
-    ...(Platform.OS === 'web' ? { backdropFilter: 'blur(2px)' } : {}),
-  },
-  root: {
-    flex: 1,
-    minHeight: 0,
-  },
-  pageScroll: {
-    flex: 1,
-    minHeight: 0,
-    width: '100%',
-  },
-  pageScrollWeb: {
-    overflowY: 'auto',
-    overflowX: 'hidden',
-    WebkitOverflowScrolling: 'touch',
-    touchAction: 'pan-y',
-    overscrollBehavior: 'contain',
-  },
-  pageScrollContent: {
-    paddingBottom: scrollBottomInset(32),
-    paddingTop: 4,
-    flexGrow: 1,
-  },
-  pageScrollContentMobile: {
-    paddingHorizontal: MOBILE_PAD,
-    paddingTop: 8,
-    paddingBottom: scrollBottomInset(40),
-  },
-  topBar: {
-    flexShrink: 0,
+  trayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: LOBBY.panelBorder,
     marginBottom: 8,
   },
-  topBarMobile: {
-    flexShrink: 0,
-    gap: 10,
-    marginBottom: MOBILE_SECTION_GAP,
-  },
-  title: {
+  trayTitle: {
+    color: '#ffe6a3',
+    fontSize: 14,
     fontWeight: '900',
-    fontSize: 22,
-    color: LOBBY.textStrong,
-    flexShrink: 1,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
-  titleMobile: {
-    fontWeight: '900',
-    fontSize: 20,
-    lineHeight: 24,
-    color: LOBBY.textStrong,
-  },
-  topActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 6,
-    justifyContent: 'flex-end',
-    flex: 1,
-  },
-  coins: { fontWeight: '800', fontSize: 15, color: LOBBY.textStrong },
-  coinsPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: LOBBY.chip,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  trayClose: {
+    minHeight: 32,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: LOBBY.cardBorder,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  coinsMobile: { fontWeight: '800', fontSize: 15, color: LOBBY.textStrong },
-  coinsAmt: { fontWeight: '900', color: LOBBY.coin },
-  menuChip: {
-    backgroundColor: LOBBY.chip,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: LOBBY.cardBorder,
-    minHeight: 40,
-    justifyContent: 'center',
+  trayCloseText: {
+    color: '#e0f2fe',
+    fontSize: 12,
+    fontWeight: '900',
   },
-  menuChipAlt: {
-    backgroundColor: LOBBY.chipAlt,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: LOBBY.cardBorder,
-    minHeight: 40,
-    justifyContent: 'center',
+  trayScroll: {
+    maxHeight: 260,
   },
-  menuChipWarn: {
-    backgroundColor: LOBBY.warn,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+  compactRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: LOBBY.cardBorder,
-    minHeight: 40,
-    justifyContent: 'center',
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 7,
   },
-  menuChipTxt: { fontWeight: '900', fontSize: 12, color: LOBBY.textStrong },
-  body: {
+  compactRowActive: {
+    borderColor: '#ffe08a',
+    backgroundColor: 'rgba(39, 120, 84, 0.48)',
+  },
+  rowMain: {
     flex: 1,
-    minHeight: 0,
+    minHeight: 40,
+    justifyContent: 'center',
   },
-  row3: {
-    flex: 1,
+  rowTitle: {
+    color: '#fff8e5',
+    fontWeight: '900',
+    fontSize: 13,
+  },
+  rowSub: {
+    color: '#bfdbfe',
+    fontWeight: '800',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  rowMiniBtn: {
+    minHeight: 36,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(185,28,28,0.72)',
+  },
+  rowMiniText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 11,
+  },
+  inputRow: {
     flexDirection: 'row',
     gap: 8,
-    minHeight: 0,
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  colLeft: { flex: 0.26, minWidth: 0, minHeight: 0 },
-  colMid: { flex: 0.3, minWidth: 0, minHeight: 0 },
-  colRight: { flex: 0.44, minWidth: 0, minHeight: 0 },
-  stack: {
-    gap: 10,
-    flexGrow: 0,
+  textInput: {
+    flex: 1,
+    minHeight: 44,
+    color: '#fff8e5',
+    fontWeight: '800',
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,143,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.26)',
+    paddingHorizontal: 12,
   },
-  stackMobile: {
-    gap: MOBILE_SECTION_GAP,
+  smallGoldBtn: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#ffe08a',
+    backgroundColor: 'rgba(117, 76, 24, 0.72)',
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
-  section: {
-    width: '100%',
-    flexShrink: 0,
+  smallGoldText: {
+    color: '#fff4c7',
+    fontWeight: '900',
+    fontSize: 12,
   },
-  sectionMobile: {
-    marginBottom: 0,
-  },
-  bannerWrap: {
-    marginBottom: MOBILE_GAP,
-  },
-  shopRow: {
+  monsterPickStrip: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 7,
+    marginBottom: 8,
   },
-  shopRowMobile: {
-    flexDirection: 'column',
-    gap: 10,
-  },
-  shopBtn: {
+  monsterChip: {
     flexGrow: 1,
-    flexBasis: '30%',
-    minWidth: 100,
+    flexBasis: '47%',
     minHeight: 48,
-    backgroundColor: LOBBY.chip,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: LOBBY.cardBorder,
-    alignItems: 'center',
+    borderColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 10,
   },
-  shopBtnAlt: {
-    backgroundColor: LOBBY.chipAlt,
+  monsterChipActive: {
+    borderColor: '#86efac',
+    backgroundColor: 'rgba(22, 163, 74, 0.45)',
   },
-  shopBtnWarn: {
-    backgroundColor: LOBBY.warn,
+  monsterChipText: {
+    color: '#fff8e5',
+    fontWeight: '900',
+    fontSize: 12,
   },
-  shopBtnFull: {
-    width: '100%',
-    flexBasis: 'auto',
+  monsterChipSub: {
+    color: '#d9f7ff',
+    fontWeight: '800',
+    fontSize: 10,
+  },
+  createBox: {
+    gap: 7,
+    marginBottom: 8,
+  },
+  keyRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  keyInput: {
     minWidth: 0,
   },
-  shopBtnTxt: {
-    fontWeight: '900',
-    fontSize: 14,
-    color: LOBBY.textStrong,
-    textAlign: 'center',
-  },
-  bottom: {
-    flexShrink: 0,
-    paddingTop: 14,
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: LOBBY.panelBorder,
-  },
-  bottomMobile: {
-    paddingTop: 16,
-    marginTop: MOBILE_SECTION_GAP,
-  },
-  missing: {
+  errorText: {
+    color: '#fecaca',
     fontWeight: '800',
-    fontSize: 13,
-    color: '#b85450',
+    fontSize: 11,
+    marginBottom: 7,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 7,
+    marginBottom: 8,
+  },
+  modeBtn: {
+    minHeight: 40,
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  modeBtnActive: {
+    borderColor: '#ffe08a',
+    backgroundColor: 'rgba(117, 76, 24, 0.65)',
+  },
+  modeText: {
+    color: '#fff8e5',
+    fontWeight: '900',
+    fontSize: 12,
+  },
+  archiveHint: {
+    color: '#bfdbfe',
+    fontSize: 11,
+    fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 10,
-  },
-  ladderBtn: {
-    backgroundColor: '#6c5ce7',
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#4834d4',
-    alignItems: 'center',
-    minHeight: 48,
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  ladderBtnMobile: {
-    width: '100%',
-    minHeight: 52,
-    paddingVertical: 14,
-  },
-  ladderTxt: {
-    fontWeight: '900',
-    fontSize: 17,
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
-  startBtn: {
-    backgroundColor: LOBBY.start,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: LOBBY.startBorder,
-    alignItems: 'center',
-    minHeight: 52,
-    justifyContent: 'center',
-    shadowColor: LOBBY.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 4,
-  },
-  startBtnMobile: {
-    width: '100%',
-    minHeight: 56,
-    paddingVertical: 16,
-  },
-  startOff: { opacity: 0.45 },
-  startTxt: {
-    fontWeight: '900',
-    fontSize: 20,
-    color: '#fff',
-    letterSpacing: 1,
-  },
-  startTxtMobile: {
-    fontSize: 18,
-    letterSpacing: 0.5,
+    marginTop: 2,
+    marginBottom: 4,
   },
 });
