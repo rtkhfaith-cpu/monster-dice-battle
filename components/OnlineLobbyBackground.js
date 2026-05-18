@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 /**
- * Lightweight pastel arena backdrop for online lobby — clouds + glow + silhouettes.
+ * Lightweight fantasy arena backdrop for online lobby — glow + silhouettes.
  */
 export default function OnlineLobbyBackground() {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   root: {
     ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
-    backgroundColor: '#9ad4f8',
+    backgroundColor: '#081324',
   },
   skyTop: {
     position: 'absolute',
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     height: '55%',
-    backgroundColor: '#b8e6fc',
+    backgroundColor: '#0b1830',
   },
   skyBottom: {
     position: 'absolute',
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: '45%',
-    backgroundColor: '#8ed4a8',
+    backgroundColor: '#10233f',
   },
   arenaGlow: {
     position: 'absolute',
@@ -114,11 +114,11 @@ const styles = StyleSheet.create({
     bottom: '18%',
     height: '28%',
     borderRadius: 120,
-    backgroundColor: 'rgba(255, 236, 160, 0.45)',
+    backgroundColor: 'rgba(96, 165, 250, 0.22)',
   },
   cloud: {
     position: 'absolute',
-    backgroundColor: 'rgba(255,255,255,0.82)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 24,
   },
   cloudA: { top: '8%', left: '8%', width: 72, height: 28 },
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     right: '-10%',
     bottom: '22%',
     height: '18%',
-    backgroundColor: '#7ecf9a',
+    backgroundColor: '#14294a',
     borderTopLeftRadius: 120,
     borderTopRightRadius: 120,
     opacity: 0.85,
@@ -141,16 +141,16 @@ const styles = StyleSheet.create({
     right: '12%',
     bottom: '20%',
     height: '8%',
-    backgroundColor: 'rgba(90, 168, 110, 0.35)',
+    backgroundColor: 'rgba(185, 132, 59, 0.2)',
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: 'rgba(255,224,138,0.32)',
   },
   silhouette: {
     position: 'absolute',
     bottom: '24%',
     fontSize: 42,
-    opacity: 0.22,
+    opacity: 0.16,
   },
   silLeft: { left: '8%' },
   silRight: { right: '8%' },
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(252, 211, 77, 0.58)',
     top: '32%',
     left: '22%',
   },

@@ -782,6 +782,8 @@ export function awardBattleRewards(gameData, payload) {
   const oppLevelForP2 = p1Level;
 
   let coinsAwarded = 0;
+  let coinsP1 = 0;
+  let coinsP2 = 0;
   let bonusUnderdog = false;
   let expP1 = 12;
   let expP2 = 12;
@@ -793,6 +795,7 @@ export function awardBattleRewards(gameData, payload) {
     if (payload.outcome === 1) {
       const winCoins = coinWinForEnemyLevel(cpuLvl);
       walletP1.coins += winCoins;
+      coinsP1 = winCoins;
       coinsAwarded = winCoins;
       expP1 = expWinForEnemyLevel(cpuLvl);
       expP2 = 0;
@@ -802,6 +805,7 @@ export function awardBattleRewards(gameData, payload) {
     } else {
       const drawCoins = Math.max(1, Math.floor(coinWinForEnemyLevel(cpuLvl) * 0.4));
       walletP1.coins += drawCoins;
+      coinsP1 = drawCoins;
       coinsAwarded = drawCoins;
       expP1 = Math.max(1, Math.floor(expWinForEnemyLevel(cpuLvl) * 0.5));
       expP2 = 0;
@@ -820,17 +824,23 @@ export function awardBattleRewards(gameData, payload) {
     if (payload.outcome === 'draw') {
       walletP1.coins += DRAW_COINS_EACH;
       if (walletP2) walletP2.coins += DRAW_COINS_EACH;
-      coinsAwarded = DRAW_COINS_EACH * (walletP2 ? 2 : 1);
+      coinsP1 = DRAW_COINS_EACH;
+      coinsP2 = walletP2 ? DRAW_COINS_EACH : 0;
+      coinsAwarded = coinsP1;
     } else if (payload.outcome === 1) {
       const winCoins = coinWinForEnemyLevel(oppLevelForP1) + (bonusUnderdog ? 3 : 0);
       walletP1.coins += winCoins;
       if (walletP2) walletP2.coins += LOSER_COINS;
-      coinsAwarded = winCoins + (walletP2 ? LOSER_COINS : 0);
+      coinsP1 = winCoins;
+      coinsP2 = walletP2 ? LOSER_COINS : 0;
+      coinsAwarded = coinsP1;
     } else if (payload.outcome === 2) {
       walletP1.coins += LOSER_COINS;
       const winCoins = coinWinForEnemyLevel(oppLevelForP2) + (bonusUnderdog ? 3 : 0);
       if (walletP2) walletP2.coins += winCoins;
-      coinsAwarded = LOSER_COINS + winCoins;
+      coinsP1 = LOSER_COINS;
+      coinsP2 = walletP2 ? winCoins : 0;
+      coinsAwarded = coinsP1;
     }
 
     if (payload.outcome === 'draw') {
@@ -889,6 +899,8 @@ export function awardBattleRewards(gameData, payload) {
     gameData: gd,
     summary: {
       coinsAwarded,
+      coinsP1,
+      coinsP2,
       bonusUnderdog,
       expP1: r1,
       expP2: r2,

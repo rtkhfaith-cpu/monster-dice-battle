@@ -218,7 +218,14 @@ export async function listCloudPlayers() {
   }
 
   try {
-    const res = await apiRequest(base, '/players', { method: 'GET' });
+    const res = await apiRequest(base, `/players?_=${Date.now()}`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    });
     if (!res.ok) {
       const errText = await readApiError(res);
       if (DEV) console.warn('[cloud-save] GET /players failed', res.status, errText);

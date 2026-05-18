@@ -140,6 +140,7 @@ export default function App() {
   const [monsterMartOpen, setMonsterMartOpen] = useState(false);
   const [rewardTitle, setRewardTitle] = useState('');
   const [rewardSummary, setRewardSummary] = useState(null);
+  const [currentBattleMode, setCurrentBattleMode] = useState(null);
   const [setupActiveSlot, setSetupActiveSlot] = useState(1);
   const [setupP1Id, setSetupP1Id] = useState(null);
   const [setupP2Id, setSetupP2Id] = useState(null);
@@ -155,6 +156,7 @@ export default function App() {
   const [cloudPlayers, setCloudPlayers] = useState([]);
   const [cloudFetchLoading, setCloudFetchLoading] = useState(false);
   const [cloudFetchError, setCloudFetchError] = useState(null);
+  const cloudFetchSeqRef = useRef(0);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [noticeDialog, setNoticeDialog] = useState(null);
 
@@ -473,10 +475,13 @@ export default function App() {
   }
 
   async function handleFetchCloudPlayers() {
+    const seq = cloudFetchSeqRef.current + 1;
+    cloudFetchSeqRef.current = seq;
     setCloudFetchLoading(true);
     setCloudFetchError(null);
     await loadSaveApiConfig();
     const res = await listCloudPlayers();
+    if (cloudFetchSeqRef.current !== seq) return;
     setCloudFetchLoading(false);
     if (!res.ok) {
       const msg = res.skipped ? 'Cloud save is not configured.' : res.error || 'Could not fetch cloud players.';
@@ -809,7 +814,7 @@ export default function App() {
       return;
     }
     setGameMode('onePlayer');
-    beginBattle(f1, ai);
+    beginBattle(f1, ai, 'onePlayer');
   }
 
   function openMonsterLadder() {
@@ -929,10 +934,10 @@ export default function App() {
       return;
     }
     setGameMode('monsterLadder');
-    beginBattle(f1, enemy);
+    beginBattle(f1, enemy, 'monsterLadder');
   }
 
-  function beginBattle(p1Fighter, p2Fighter) {
+  function beginBattle(p1Fighter, p2Fighter, modeOverride = gameMode) {
     const arm = (p) => {
       if (!p?.stats) return null;
       const monsterParts = p.isLadderMonster || p.isLadderEnemy
@@ -965,11 +970,14 @@ export default function App() {
     setPlayer1(arm(p1Fighter));
     setPlayer2(arm(p2Fighter));
     setWinner(null);
+    setCurrentBattleMode(modeOverride);
     setBattleKey((k) => k + 1);
     setPhase('battle');
     if (gameData) {
-      const ids = [setupP1ProfileId, gameMode === 'twoPlayer' ? setupP2ProfileId : null].filter(Boolean);
-      void commitSave({ reason: 'battle_start', gameData, profileIDs: ids });
+      const ids = [setupP1ProfileId, modeOverride === 'twoPlayer' ? setupP2ProfileId : null].filter(Boolean);
+      // Battle start is only a local checkpoint; cloud sync here can race with
+      // the post-battle reward save and overwrite newly earned coins.
+      void commitSave({ reason: 'battle_start', gameData, profileIDs: ids, skipCloud: true });
     }
   }
 
@@ -1000,7 +1008,8 @@ export default function App() {
       return;
     }
 
-    const ladderMode = battleExtras?.mode === 'monsterLadder' || gameMode === 'monsterLadder';
+    const resolvedBattleMode = battleExtras?.mode ?? currentBattleMode ?? gameMode;
+    const ladderMode = resolvedBattleMode === 'monsterLadder' || gameMode === 'monsterLadder';
     if (ladderMode) {
       const { gameData: rewardedGd, summary } = applyMonsterLadderBattleRewards(gameData, setupP1ProfileId, {
         outcome,
@@ -1044,11 +1053,11 @@ export default function App() {
       return;
     }
 
-    const lastAiWeak = battleExtras?.mode === 'onePlayer' && (player2Snapshot?.aiPowerRatio ?? 2) < 0.82;
+    const lastAiWeak = resolvedBattleMode === 'onePlayer' && (player2Snapshot?.aiPowerRatio ?? 2) < 0.82;
 
     const { gameData: nextGd, summary } = awardBattleRewards(gameData, {
       outcome: outcome,
-      mode: battleExtras?.mode ?? 'twoPlayer',
+      mode: resolvedBattleMode === 'onePlayer' ? 'onePlayer' : 'twoPlayer',
       p1ProfileId: setupP1ProfileId,
       p2ProfileId: setupP2ProfileId,
       p1OwnedId: player1Snapshot?.ownedMonsterId ?? null,
@@ -1096,6 +1105,7 @@ export default function App() {
     setPlayer1(null);
     setPlayer2(null);
     setRewardSummary(null);
+    setCurrentBattleMode(null);
     if (gameMode === 'monsterLadder') setGameMode('onePlayer');
     setBattleKey((k) => k + 1);
     setPhase('menu');
@@ -1376,7 +1386,7 @@ export default function App() {
             opponentLabel={gameMode === 'monsterLadder' ? 'Boss' : gameMode === 'onePlayer' ? 'CPU' : 'Player 2'}
             opponentIsAi={gameMode === 'onePlayer' || gameMode === 'monsterLadder'}
             battleExtras={{
-              mode: gameMode,
+              mode: currentBattleMode ?? gameMode,
               ladderFloor: player2?.ladderStageIndex,
               ladderStageKind: player2?.ladderStageKind,
               ladderStageLabel:

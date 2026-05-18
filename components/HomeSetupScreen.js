@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ImageBackground,
   Platform,
@@ -120,12 +120,15 @@ export default function HomeSetupScreen({
     [activeProfileId, cloudPlayers],
   );
 
+  useEffect(() => {
+    if (tray === 'cloud') onFetchCloudPlayers?.();
+  }, [tray, onFetchCloudPlayers]);
+
   function toggleTray(next) {
     setTray((current) => (current === next ? null : next));
     setCreateError('');
     setCreateOpen(false);
     if (next === 'profile') setNameDraft(activeProfile?.name ?? '');
-    if (next === 'cloud') onFetchCloudPlayers?.();
   }
 
   function handleSaveName() {
