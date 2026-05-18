@@ -158,33 +158,6 @@ export default function RpgBattleArena({
   const p2Scale = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
   const p2Opacity = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] });
 
-  const cloudDrift = useRef(new Animated.Value(0)).current;
-  const grassSway = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    cloudDrift.setValue(0);
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(cloudDrift, { toValue: 1, duration: 18000, useNativeDriver: true }),
-        Animated.timing(cloudDrift, { toValue: 0, duration: 18000, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [cloudDrift]);
-
-  useEffect(() => {
-    grassSway.setValue(0);
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(grassSway, { toValue: 1, duration: 2400, useNativeDriver: true }),
-        Animated.timing(grassSway, { toValue: 0, duration: 2400, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [grassSway]);
-
   useEffect(() => {
     if (!defendGlowP1 && !defendGlowP2) {
       shieldPulse.setValue(0);
@@ -200,8 +173,6 @@ export default function RpgBattleArena({
     return () => loop.stop();
   }, [defendGlowP1, defendGlowP2, shieldPulse]);
 
-  const cloudTx = cloudDrift.interpolate({ inputRange: [0, 1], outputRange: [0, 24] });
-  const grassSkew = grassSway.interpolate({ inputRange: [0, 1], outputRange: ['-2deg', '2deg'] });
   const shieldScale = shieldPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
   const shieldOp = shieldPulse.interpolate({ inputRange: [0, 1], outputRange: [0.75, 1] });
 
@@ -228,41 +199,6 @@ export default function RpgBattleArena({
         imageStyle={styles.battleBgImageInner}
         resizeMode="cover"
       />
-      <View style={styles.vignetteTop} pointerEvents="none" />
-      <View style={styles.vignetteBottom} pointerEvents="none" />
-      {/* z-index 0–1: background */}
-      <View style={styles.skyGrad} />
-      <View style={styles.skyFade} />
-      <View style={styles.sunGlow} />
-      <Animated.View style={[styles.cloudA, { transform: [{ translateX: cloudTx }] }]} />
-      <Animated.View style={[styles.cloudB, { transform: [{ translateX: Animated.multiply(cloudTx, -0.5) }] }]} />
-      <Animated.View style={[styles.cloudC, { transform: [{ translateX: Animated.multiply(cloudTx, 0.35) }] }]} />
-      <Animated.View style={[styles.hillFar, { transform: [{ translateX: Animated.multiply(cloudTx, 0.08) }] }]} />
-      <Animated.View style={[styles.hillMid, { transform: [{ translateX: Animated.multiply(cloudTx, 0.14) }] }]} />
-      <Animated.View style={[styles.hillNear, { transform: [{ translateX: Animated.multiply(cloudTx, 0.2) }] }]} />
-      <View style={styles.grassPatchA} />
-      <View style={styles.grassPatchB} />
-      <View style={styles.grassPatchC} />
-      <View style={styles.bushL} />
-      <View style={styles.bushR} />
-      <View style={styles.bushMid} />
-      <View style={styles.rockA} />
-      <View style={styles.rockB} />
-      <View style={styles.rockC} />
-      <View style={styles.rockD} />
-      <Animated.View style={[styles.grassTuftA, { transform: [{ rotate: grassSkew }] }]} />
-      <Animated.View style={[styles.grassTuftB, { transform: [{ rotate: grassSkew }] }]} />
-      <Animated.View style={[styles.grassTuftC, { transform: [{ rotate: grassSkew }] }]} />
-      <View style={styles.flowerA} />
-      <View style={styles.flowerB} />
-      <View style={styles.flowerC} />
-      <View style={styles.treeL} />
-      <View style={styles.treeR} />
-      <View style={styles.groundTexture} />
-      <View style={styles.groundStrip} />
-      <View style={styles.foreGrass} />
-      <View style={styles.battlePlatform} />
-      <View style={styles.platformEdge} pointerEvents="none" />
 
       {/* z-index 10: top HUD */}
       <View style={styles.muteSlot}>{topHudExtra}</View>
