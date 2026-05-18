@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Easing,
   Modal,
@@ -142,20 +141,21 @@ function PlayerBattleCard({ label, player, isYou, emptyLabel, waiting }) {
   );
 }
 
-async function copyRoomCode(code) {
+async function copyRoomCode(code, onNotice) {
   const text = String(code || '').trim();
   if (!text) return;
   unlockBattleAudio();
   playUiSfx();
+  const showCopied = (title, message) => onNotice?.(title, message);
   try {
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
-      Alert.alert('Copied!', `Room code ${text} is on your clipboard.`);
+      showCopied('Copied!', `Room code ${text} is on your clipboard.`);
       return;
     }
-    Alert.alert('Room code', text);
+    showCopied('Room code', text);
   } catch {
-    Alert.alert('Room code', text);
+    showCopied('Room code', text);
   }
 }
 
@@ -168,6 +168,7 @@ export default function OnlineLobbyScreen({
   buildProfilePayload,
   mySlot: mySlotProp,
   initialView = 'menu',
+  onNotice,
 }) {
   const { width } = useWindowDimensions();
   const mobile = isMobileLayout(width);
@@ -406,7 +407,7 @@ export default function OnlineLobbyScreen({
         </Text>
         <TouchableOpacity
           style={styles.copyBtn}
-          onPress={() => copyRoomCode(roomState?.roomCode || roomCodeInput)}
+          onPress={() => copyRoomCode(roomState?.roomCode || roomCodeInput, onNotice)}
         >
           <Text style={styles.copyTxt}>📋 Copy code</Text>
         </TouchableOpacity>

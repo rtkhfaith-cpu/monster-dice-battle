@@ -1,14 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import BattleDiceButton from './BattleDiceButton';
 import ConfirmDialog from './ConfirmDialog';
 import RpgBattleArena from './RpgBattleArena';
 import { isMobileLayout } from '../utils/battleLayout';
 import {
-  isBattleMuted,
   startBattleMusic,
   stopBattleMusic,
-  toggleBattleMuted,
   unlockBattleAudio,
 } from '../utils/battleAudio';
 import { playUiSfx } from '../utils/sounds';
@@ -72,7 +70,6 @@ export default function OnlineDiceBattleScreen({
   const [diceP2, setDiceP2] = useState(null);
   const [attackerId, setAttackerId] = useState(null);
   const [bannerMessage, setBannerMessage] = useState('Roll your dice!');
-  const [audioMuted, setAudioMuted] = useState(() => isBattleMuted());
   const [diceRolling, setDiceRolling] = useState(false);
   const [pendingRollValue, setPendingRollValue] = useState(1);
   const [actionError, setActionError] = useState('');
@@ -192,11 +189,6 @@ export default function OnlineDiceBattleScreen({
     onFlee?.();
   }
 
-  function handleMutePress() {
-    tapUi();
-    setAudioMuted(toggleBattleMuted());
-  }
-
   if (!p1 || !p2) {
     return (
       <View style={styles.root}>
@@ -221,11 +213,6 @@ export default function OnlineDiceBattleScreen({
       <View style={styles.battleFrame}>
         <View style={styles.arenaField}>
           <RpgBattleArena
-            topHudExtra={
-              <TouchableOpacity style={styles.muteBtn} onPress={handleMutePress}>
-                <Text style={styles.muteBtnTxt}>{audioMuted ? '🔇' : '🔊'}</Text>
-              </TouchableOpacity>
-            }
             p1={p1}
             p2={p2}
             p1Mood="neutral"
@@ -337,15 +324,6 @@ const styles = StyleSheet.create({
     backgroundColor: BATTLE.dockBorder,
   },
   arenaField: { flex: 1, minHeight: 0 },
-  muteBtn: {
-    backgroundColor: 'rgba(26, 26, 46, 0.82)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 209, 102, 0.65)',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  muteBtnTxt: { fontSize: 16 },
   actionDock: {
     flexShrink: 0,
     backgroundColor: 'rgba(18, 22, 36, 0.98)',

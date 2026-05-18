@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import {
+  ImageBackground,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import OnlineRoomBanner from './OnlineRoomBanner';
@@ -14,9 +14,96 @@ import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
 
-const ALIGN_DEBUG = true;
 const MAX_VISIBLE_PROFILES = 4;
 const MAX_VISIBLE_CLOUD = 4;
+
+function FantasyButton({ label, icon, variant = 'default', style, disabled, onPress }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={disabled || !onPress}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.fantasyButton,
+        variant === 'primary' && styles.fantasyButtonPrimary,
+        variant === 'legendary' && styles.fantasyButtonLegendary,
+        style,
+        pressed && !disabled && styles.realButtonPressed,
+        disabled && styles.realButtonDisabled,
+      ]}
+    >
+      <View style={styles.realButtonShine} pointerEvents="none" />
+      <Text style={styles.realButtonIcon}>{icon}</Text>
+      <Text style={[styles.realButtonText, variant === 'primary' && styles.realButtonTextPrimary]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function BottomNavButton({ label, icon, badge, style, onPress }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.bottomNavButton, style, pressed && styles.realButtonPressed]}
+    >
+      <View style={styles.bottomNavShine} pointerEvents="none" />
+      <Text style={styles.bottomNavIcon}>{icon}</Text>
+      <Text style={styles.bottomNavText}>{label}</Text>
+      {badge ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badge}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+function CurrencyPill({ value, onPress }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open Gear Mart"
+      onPress={onPress}
+      style={({ pressed }) => [styles.currencyPill, pressed && styles.realButtonPressed]}
+    >
+      <Text style={styles.currencyIcon}>◈</Text>
+      <Text style={styles.currencyValue}>{value ?? 0}</Text>
+    </Pressable>
+  );
+}
+
+function ProfilePill({ name, monster, onPress }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open trainer profile"
+      onPress={onPress}
+      style={({ pressed }) => [styles.profilePill, pressed && styles.realButtonPressed]}
+    >
+      <Text style={styles.profileAvatar}>●</Text>
+      <View style={styles.profileTextCol}>
+        <Text style={styles.profileName} numberOfLines={1}>{name}</Text>
+        <Text style={styles.profileMonster} numberOfLines={1}>{monster}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function StatusBar({ label, onPress }) {
+  return (
+    <Pressable
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={label}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => [styles.statusBar, pressed && styles.realButtonPressed]}
+    >
+      <Text style={styles.statusBarText} numberOfLines={1}>{label}</Text>
+    </Pressable>
+  );
+}
 
 export default function HomeSetupScreen({
   profiles,
@@ -58,7 +145,6 @@ export default function HomeSetupScreen({
   onOpenAudioSettings,
   coins,
 }) {
-  useWindowDimensions();
   const [tray, setTray] = useState(null);
   const [nameDraft, setNameDraft] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -70,7 +156,16 @@ export default function HomeSetupScreen({
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const activeWallet = walletP1 || wallet;
   const monsters = activeWallet?.ownedMonsters ?? [];
+  const selectedMonster =
+    monsters.find((m) => m.id === selectedP1Id) ??
+    monsters.find((m) => m.id === activeWallet?.selectedMonsterId) ??
+    monsters[0] ??
+    null;
   const canStart = !!selectedP1Id && monsters.some((m) => m.id === selectedP1Id);
+  const profileLabel = activeProfile?.name || slotProfileName || 'Trainer';
+  const monsterLabel = selectedMonster
+    ? `${selectedMonster.nickname || selectedMonster.templateId || 'Monster'} · Lv ${selectedMonster.level ?? 1}`
+    : 'Pick monster';
 
   const cloudActive = useMemo(
     () => cloudPlayers.find((cp) => cp.profileID === activeProfileId) ?? null,
@@ -119,25 +214,6 @@ export default function HomeSetupScreen({
     };
   }
 
-  function mapButton(label, style, onPress, disabled = false) {
-    return (
-      <Pressable
-        key={label}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        disabled={disabled || !onPress}
-        onPress={pressWithSound(onPress)}
-        style={({ pressed }) => [
-          styles.hitZone,
-          style,
-          pressed && !disabled && styles.hitZonePressed,
-          ALIGN_DEBUG && styles.alignDebug,
-          disabled && styles.zoneDisabled,
-        ]}
-      />
-    );
-  }
-
   const onlineBanner =
     onlineRoom?.roomCode ? (
       <View style={styles.onlineBanner}>
@@ -151,39 +227,60 @@ export default function HomeSetupScreen({
     ) : null;
 
   return (
-    <View style={[styles.root, Platform.OS === 'web' && styles.rootWeb]}>
-      <View style={styles.overlay} pointerEvents="box-none">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open Gear Mart"
-          onPress={pressWithSound(onOpenGearMart)}
-          style={({ pressed }) => [styles.coinZone, pressed && styles.hitZonePressed, ALIGN_DEBUG && styles.alignDebug]}
-        />
+    <View style={styles.root}>
+      <View style={styles.gameFrame}>
+        <ImageBackground
+          source={{ uri: GAME_ASSETS.homeMainMenu }}
+          resizeMode="cover"
+          style={styles.backgroundLayer}
+          imageStyle={styles.backgroundImage}
+        >
+          <View style={styles.uiLayer} pointerEvents="box-none">
+            <CurrencyPill value={coins} onPress={pressWithSound(onOpenGearMart)} />
+            <ProfilePill
+              name={profileLabel}
+              monster={monsterLabel}
+              onPress={pressWithSound(() => toggleTray('profile'))}
+            />
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open trainer profile"
-          onPress={pressWithSound(() => toggleTray('profile'))}
-          style={({ pressed }) => [styles.profileZone, pressed && styles.hitZonePressed, ALIGN_DEBUG && styles.alignDebug]}
-        />
+            <View style={styles.menuLayer} pointerEvents="box-none">
+              <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonOne} onPress={pressWithSound(onOpenGearMart)} />
+              <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonTwo} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
+              <FantasyButton label="Monsters" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
+              <FantasyButton label="Audio" icon="♪" style={styles.menuButtonFour} onPress={pressWithSound(onOpenAudioSettings)} />
+              <FantasyButton
+                label="Monster Ladder"
+                icon="★"
+                variant="legendary"
+                style={styles.menuButtonFive}
+                disabled={!canStart}
+                onPress={pressWithSound(onOpenMonsterLadder)}
+              />
+              <FantasyButton
+                label="Start Battle"
+                icon="▶"
+                variant="primary"
+                style={styles.menuButtonSix}
+                disabled={!canStart}
+                onPress={pressWithSound(onStartGame)}
+              />
+            </View>
 
-        {mapButton('Gear Mart', styles.gearMartZone, onOpenGearMart)}
-        {mapButton('Equip Gear', styles.equipGearZone, onOpenMonsterGearShop || onOpenMonsterGear)}
-        {mapButton('Monsters', styles.monstersZone, onOpenMonsterMart)}
-        {mapButton('Audio', styles.audioZone, onOpenAudioSettings)}
-        {mapButton('Monster Ladder', styles.ladderZone, onOpenMonsterLadder, !canStart)}
-        {mapButton('Start Battle', styles.startZone, onStartGame, !canStart)}
+            <BottomNavButton label="Quests" icon="!" badge="!" style={styles.bottomQuest} onPress={pressWithSound(onOpenMonsterLadder)} />
+            <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
+            <BottomNavButton label="Heroes" icon="♜" style={styles.bottomHeroes} onPress={pressWithSound(() => toggleTray('profile'))} />
+            <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
 
-        {mapButton('Quests', styles.questZone, onOpenMonsterLadder)}
-        {mapButton('Inventory', styles.inventoryZone, onOpenMonsterGearShop || onOpenMonsterGear)}
-        {mapButton('Heroes and Monsters', styles.heroesZone, () => toggleTray('profile'))}
-        {mapButton('Cloud Saves', styles.cloudZone, () => toggleTray('cloud'))}
-        {mapButton('Settings', styles.settingsZone, onResetSave || onOpenAudioSettings)}
-        {onEnterMultiplayer ? mapButton('Multiplayer', styles.welcomeZone, onEnterMultiplayer) : null}
+            <StatusBar
+              label={onEnterMultiplayer ? 'Multiplayer Lobby' : cloudActive ? `Cloud linked: ${cloudActive.playerName || 'Player'}` : 'Welcome, trainer'}
+              onPress={onEnterMultiplayer ? pressWithSound(onEnterMultiplayer) : undefined}
+            />
 
-        {onlineBanner}
-        {tray === 'profile' ? renderProfileTray() : null}
-        {tray === 'cloud' ? renderCloudTray() : null}
+            {onlineBanner}
+            {tray === 'profile' ? renderProfileTray() : null}
+            {tray === 'cloud' ? renderCloudTray() : null}
+          </View>
+        </ImageBackground>
       </View>
     </View>
   );
@@ -309,6 +406,10 @@ export default function HomeSetupScreen({
             </Pressable>
           )}
 
+          <Pressable onPress={pressWithSound(() => toggleTray('cloud'))} style={styles.smallGoldBtn}>
+            <Text style={styles.smallGoldText}>Cloud Archive</Text>
+          </Pressable>
+
           {gameMode && onGameModeChange ? (
             <View style={styles.modeRow}>
               <Pressable
@@ -392,76 +493,293 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     width: '100%',
-    minHeight: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0a1424',
+    ...(Platform.OS === 'web'
+      ? {
+          minHeight: '100dvh',
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }
+      : {}),
+  },
+  gameFrame: {
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: '#10243f',
+    backgroundColor: '#12233d',
+    ...(Platform.OS === 'web'
+      ? {
+          width: 'min(100vw, calc(100dvh * 0.5996))',
+          height: 'min(100dvh, calc(100vw * 1.667))',
+          boxShadow: '0 18px 50px rgba(0,0,0,0.36)',
+        }
+      : {
+          width: '100%',
+          aspectRatio: 614 / 1024,
+        }),
   },
-  rootWeb: {
-    minHeight: '100dvh',
-    backgroundImage: `url('${GAME_ASSETS.homeMainMenu}')`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center top',
-    backgroundRepeat: 'no-repeat',
-    paddingTop: 'env(safe-area-inset-top)',
-    paddingBottom: 'env(safe-area-inset-bottom)',
+  backgroundLayer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
-  overlay: {
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+  },
+  uiLayer: {
     ...StyleSheet.absoluteFillObject,
-    pointerEvents: 'none',
   },
-  hitZone: {
+  currencyPill: {
     position: 'absolute',
-    pointerEvents: 'auto',
-    borderRadius: 10,
-    backgroundColor: 'transparent',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  hitZonePressed: {
-    opacity: 0.65,
-  },
-  alignDebug: {
+    top: '6.2%',
+    left: '7.2%',
+    width: '12.8%',
+    height: '4.1%',
+    minHeight: 34,
+    borderRadius: 999,
     borderWidth: 2,
-    borderColor: 'rgba(255,0,0,0.8)',
-    backgroundColor: 'rgba(255,0,0,0.08)',
+    borderColor: '#b88338',
+    backgroundColor: 'rgba(16, 28, 48, 0.86)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.36,
+    shadowRadius: 6,
+    elevation: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  zoneDisabled: {
-    opacity: 0.55,
+  currencyIcon: {
+    color: '#f7d37a',
+    fontSize: 13,
+    fontWeight: '900',
   },
-  coinZone: {
+  currencyValue: {
+    color: '#fff6d6',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  profilePill: {
     position: 'absolute',
-    top: '4.1%',
-    left: '4.4%',
-    width: '15%',
-    height: '4.8%',
-    pointerEvents: 'auto',
+    top: '6.2%',
+    right: '6.8%',
+    width: '25%',
+    height: '4.2%',
+    minHeight: 34,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#b88338',
+    backgroundColor: 'rgba(16, 28, 48, 0.86)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.36,
+    shadowRadius: 6,
+    elevation: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  profileAvatar: {
+    color: '#f3c468',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  profileTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  profileName: {
+    color: '#fff6d6',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  profileMonster: {
+    color: '#b9e7ff',
+    fontSize: 8,
+    fontWeight: '800',
+    marginTop: -1,
+  },
+  menuLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  fantasyButton: {
+    position: 'absolute',
+    left: '25.8%',
+    width: '48.4%',
+    height: '5.3%',
+    minHeight: 44,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#b9843b',
+    borderBottomWidth: 5,
+    borderBottomColor: '#68401f',
+    backgroundColor: 'rgba(237, 210, 155, 0.94)',
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.34,
+    shadowRadius: 7,
+    elevation: 10,
+    ...(Platform.OS === 'web'
+      ? {
+          cursor: 'pointer',
+          transitionProperty: 'transform, filter, box-shadow',
+          transitionDuration: '120ms',
+        }
+      : {}),
+  },
+  fantasyButtonPrimary: {
+    borderColor: '#efd17a',
+    borderBottomColor: '#31551f',
+    backgroundColor: 'rgba(48, 129, 66, 0.96)',
+  },
+  fantasyButtonLegendary: {
+    borderColor: '#d9b8ff',
+    borderBottomColor: '#4c2878',
+    backgroundColor: 'rgba(92, 57, 143, 0.96)',
+  },
+  realButtonShine: {
+    position: 'absolute',
+    top: 1,
+    left: 8,
+    right: 8,
+    height: '34%',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.24)',
+  },
+  realButtonIcon: {
+    color: '#6a421d',
+    fontSize: 14,
+    fontWeight: '900',
+    textShadowColor: 'rgba(255,255,255,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  realButtonText: {
+    color: '#5c3618',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(255,255,255,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  realButtonTextPrimary: {
+    color: '#fff6d6',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+  },
+  realButtonPressed: {
+    transform: [{ scale: 0.97 }, { translateY: 2 }],
+    shadowOpacity: 0.18,
+  },
+  realButtonDisabled: {
+    opacity: 0.48,
+  },
+  menuButtonOne: { top: '39.4%' },
+  menuButtonTwo: { top: '46.1%' },
+  menuButtonThree: { top: '52.8%' },
+  menuButtonFour: { top: '59.5%' },
+  menuButtonFive: { top: '66.5%', left: '27.4%', width: '45.2%' },
+  menuButtonSix: { top: '73.2%', left: '27.4%', width: '45.2%' },
+  bottomNavButton: {
+    position: 'absolute',
+    top: '86.9%',
+    width: '14%',
+    height: '6.7%',
+    minHeight: 52,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#9a6b32',
+    borderBottomWidth: 5,
+    borderBottomColor: '#4b321c',
+    backgroundColor: 'rgba(45, 57, 72, 0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.34,
+    shadowRadius: 6,
+    elevation: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  bottomNavShine: {
+    position: 'absolute',
+    top: 2,
+    left: 5,
+    right: 5,
+    height: '32%',
     borderRadius: 12,
-    backgroundColor: 'transparent',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
-  profileZone: {
+  bottomNavIcon: {
+    color: '#e9d4a4',
+    fontSize: 19,
+    fontWeight: '900',
+  },
+  bottomNavText: {
+    color: '#f4e3bd',
+    fontSize: 8,
+    fontWeight: '900',
+    marginTop: 1,
+    textTransform: 'uppercase',
+  },
+  badge: {
     position: 'absolute',
-    top: '3.8%',
-    right: '4.5%',
-    width: '34%',
-    height: '5.4%',
-    borderRadius: 18,
-    backgroundColor: 'transparent',
-    pointerEvents: 'auto',
+    top: -4,
+    right: -3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#c7352d',
+    borderWidth: 1,
+    borderColor: '#ffe6a3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  bottomQuest: { left: '14.3%' },
+  bottomInventory: { left: '33.2%' },
+  bottomHeroes: { left: '52%' },
+  bottomSettings: { left: '76.2%' },
+  statusBar: {
+    position: 'absolute',
+    left: '29%',
+    top: '95.2%',
+    width: '42%',
+    height: '2.9%',
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#b88338',
+    backgroundColor: 'rgba(9, 15, 27, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  gearMartZone: { top: '38%', left: '21%', width: '58%', height: '5.2%' },
-  equipGearZone: { top: '45.2%', left: '21%', width: '58%', height: '5.2%' },
-  monstersZone: { top: '52.4%', left: '21%', width: '58%', height: '5.2%' },
-  audioZone: { top: '59.6%', left: '21%', width: '58%', height: '5.2%' },
-  ladderZone: { top: '67%', left: '23%', width: '54%', height: '5.2%' },
-  startZone: { top: '74%', left: '23%', width: '54%', height: '5.2%' },
-  questZone: { top: '87.5%', left: '16%', width: '15%', height: '6%' },
-  inventoryZone: { top: '87.5%', left: '35%', width: '15%', height: '6%' },
-  heroesZone: { top: '87.5%', left: '50%', width: '15%', height: '6%' },
-  cloudZone: { top: '87.5%', left: '63%', width: '15%', height: '6%' },
-  settingsZone: { top: '87.5%', left: '77%', width: '15%', height: '6%' },
-  welcomeZone: { top: '95%', left: '33%', width: '34%', height: '4.5%' },
+  statusBarText: {
+    color: '#f5d990',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
   onlineBanner: {
     position: 'absolute',
     left: '5%',

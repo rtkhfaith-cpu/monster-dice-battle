@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Easing,
   Image,
@@ -8,7 +7,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -35,12 +33,9 @@ import {
   setBattleMusicIntensity,
   startBattleMusic,
   stopBattleMusic,
-  isBattleMuted,
-  toggleBattleMuted,
   unlockBattleAudio,
 } from '../utils/battleAudio';
 import { playUiSfx } from '../utils/sounds';
-import BattleAudioControls from './BattleAudioControls';
 import { ART } from '../utils/artDirection';
 import { BATTLE } from '../utils/gameTheme';
 import {
@@ -200,10 +195,10 @@ export default function BattleScreen({
   const [p2Emotion, setP2Emotion] = useState('neutral');
   const [battleDim] = useState(false);
   const [stageZoom] = useState(() => new Animated.Value(1));
-  const [audioMuted, setAudioMuted] = useState(() => isBattleMuted());
   const [phaserVisualEvent, setPhaserVisualEvent] = useState(null);
   const [battleIntro, setBattleIntro] = useState(() => !!bossStageBanner);
   const [phaserFailed, setPhaserFailed] = useState(false);
+  const [fleeConfirmOpen, setFleeConfirmOpen] = useState(false);
 
   const effectSeqRef = useRef(0);
   const timerRef = useRef(null);
@@ -818,32 +813,25 @@ export default function BattleScreen({
 
   function handleRun() {
     if (isActionPlaying || busy) return;
-    const flee = () => {
-      const latestP1 = p1Ref.current ?? p1;
-      const latestP2 = p2Ref.current ?? p2;
-      onFinish({
-        winner: CPU_ID,
-        player1Snapshot: snapshotFight({ ...latestP1, hp: 0 }),
-        player2Snapshot: snapshotFight(latestP2),
-        battleExtras: { ...battleExtras, fled: true },
-      });
-    };
-
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
-      if (window.confirm('Flee battle? Running away will count as a loss.')) flee();
-      return;
-    }
-
-    Alert.alert('Flee battle?', 'Running away will count as a loss. Are you sure?', [
-      { text: 'Stay', style: 'cancel' },
-      { text: 'Flee', style: 'destructive', onPress: flee },
-    ]);
+    setFleeConfirmOpen(true);
   }
 
-  function handleMutePress() {
-    unlockBattleAudio();
-    const muted = toggleBattleMuted();
-    setAudioMuted(muted);
+  function handleStayBattle() {
+    tapUi();
+    setFleeConfirmOpen(false);
+  }
+
+  function handleConfirmFlee() {
+    tapUi();
+    setFleeConfirmOpen(false);
+    const latestP1 = p1Ref.current ?? p1;
+    const latestP2 = p2Ref.current ?? p2;
+    onFinish({
+      winner: CPU_ID,
+      player1Snapshot: snapshotFight({ ...latestP1, hp: 0 }),
+      player2Snapshot: snapshotFight(latestP2),
+      battleExtras: { ...battleExtras, fled: true },
+    });
   }
 
   const p1Mood = moodFor(p1, p1Emotion);
@@ -894,18 +882,10 @@ export default function BattleScreen({
                 }}
                 height={phaserArenaHeight}
               />
-              <View style={styles.phaserAudioSlot} pointerEvents="box-none">
-                <BattleAudioControls muted={audioMuted} onToggleMute={handleMutePress} />
-              </View>
             </>
           ) : (
             <>
               <RpgBattleArena
-                topHudExtra={
-                  <View style={styles.topHudWrap}>
-                    <BattleAudioControls muted={audioMuted} onToggleMute={handleMutePress} />
-                  </View>
-                }
                 ladderFloor={ladderFloor}
                 ladderRegionName={ladderRegionName}
                 ladderBossName={ladderBossName}
@@ -1095,12 +1075,38 @@ export default function BattleScreen({
           )}
         </View>
       </View>
+      {fleeConfirmOpen ? (
+        <View style={styles.fleeOverlay}>
+          <View style={styles.fleePanel}>
+            <Text style={styles.fleeTitle}>Flee battle?</Text>
+            <Text style={styles.fleeMessage}>Running away will count as a loss.</Text>
+            <View style={styles.fleeButtonRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Stay in battle"
+                onPress={handleStayBattle}
+                style={({ pressed }) => [styles.fleeBtn, styles.stayBtn, pressed && styles.fleeBtnPressed]}
+              >
+                <Text style={[styles.fleeBtnText, styles.stayBtnText]}>Stay</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Flee battle"
+                onPress={handleConfirmFlee}
+                style={({ pressed }) => [styles.fleeBtn, styles.fleeBtnDanger, pressed && styles.fleeBtnPressed]}
+              >
+                <Text style={[styles.fleeBtnText, styles.fleeBtnDangerText]}>Flee</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, width: '100%', minHeight: 0, overflow: 'hidden' },
+  root: { flex: 1, width: '100%', minHeight: 0, overflow: 'hidden', position: 'relative' },
   battleFrame: {
     flex: 1,
     minHeight: 0,
@@ -1114,12 +1120,6 @@ const styles = StyleSheet.create({
   },
   arenaField: { flex: 1, minHeight: 0, width: '100%', position: 'relative', overflow: 'hidden' },
   arenaInner: { flex: 1, width: '100%', minHeight: 0 },
-  phaserAudioSlot: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    zIndex: 20,
-  },
   ladderStagePill: {
     position: 'absolute',
     top: 10,
@@ -1176,15 +1176,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     letterSpacing: 1,
   },
-  muteBtn: {
-    backgroundColor: 'rgba(26, 26, 46, 0.82)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 209, 102, 0.65)',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  muteBtnTxt: { fontSize: 16 },
   actionDock: {
     flexShrink: 0,
     backgroundColor: 'rgba(18, 22, 36, 0.98)',
@@ -1370,5 +1361,100 @@ const styles = StyleSheet.create({
   defendBtnTxt: { color: '#f0fbff' },
   runBtnTxt: { color: '#3d4a5c', fontSize: 18, fontWeight: '900' },
   disabledBtn: { opacity: 0.42 },
-  topHudWrap: { alignItems: 'flex-start', gap: 4 },
+  fleeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(5, 8, 18, 0.72)',
+    paddingHorizontal: 20,
+  },
+  fleePanel: {
+    width: '76%',
+    maxWidth: 420,
+    minWidth: 260,
+    borderRadius: 24,
+    borderWidth: 3,
+    borderColor: '#c28a3a',
+    borderBottomWidth: 6,
+    borderBottomColor: '#6f421b',
+    backgroundColor: 'rgba(20, 25, 45, 0.96)',
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    elevation: 18,
+  },
+  fleeTitle: {
+    color: '#ffe7a3',
+    fontSize: 24,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
+  },
+  fleeMessage: {
+    color: '#f8ead0',
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  fleeButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 18,
+    width: '100%',
+  },
+  fleeBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  fleeBtnPressed: {
+    transform: [{ translateY: 3 }],
+    borderBottomWidth: 2,
+    opacity: 0.92,
+  },
+  stayBtn: {
+    backgroundColor: '#2f6f57',
+    borderColor: '#73d7a5',
+    borderBottomColor: '#184332',
+  },
+  fleeBtnDanger: {
+    backgroundColor: '#8f3f32',
+    borderColor: '#f0a45f',
+    borderBottomColor: '#522116',
+  },
+  fleeBtnText: {
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  stayBtnText: {
+    color: '#effff5',
+  },
+  fleeBtnDangerText: {
+    color: '#fff4dc',
+  },
 });

@@ -5,7 +5,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -16,10 +15,8 @@ import { isMobileLayout } from '../utils/battleLayout';
 import { ELEMENT_UI } from '../utils/elements';
 import { canAffordSkill, getMagicSkills } from '../utils/monsterSkills';
 import {
-  isBattleMuted,
   startBattleMusic,
   stopBattleMusic,
-  toggleBattleMuted,
   unlockBattleAudio,
 } from '../utils/battleAudio';
 import { playUiSfx, playSound } from '../utils/sounds';
@@ -88,7 +85,6 @@ export default function OnlineBattleScreen({
   const [bannerMessage, setBannerMessage] = useState('Choose your move');
   const [menuMode, setMenuMode] = useState('main');
   const [activeAttackEffect, setActiveAttackEffect] = useState(null);
-  const [audioMuted, setAudioMuted] = useState(() => isBattleMuted());
   const [actionError, setActionError] = useState('');
   const [runConfirmOpen, setRunConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -274,11 +270,6 @@ export default function OnlineBattleScreen({
     void submit('run');
   }
 
-  function handleMutePress() {
-    tapUi();
-    setAudioMuted(toggleBattleMuted());
-  }
-
   if (!p1 || !p2) {
     return (
       <View style={styles.root}>
@@ -303,11 +294,6 @@ export default function OnlineBattleScreen({
       <View style={styles.battleFrame}>
         <View style={styles.arenaField} pointerEvents="box-none">
           <RpgBattleArena
-            topHudExtra={
-              <TouchableOpacity style={styles.muteBtn} onPress={handleMutePress}>
-                <Text style={styles.muteBtnTxt}>{audioMuted ? '🔇' : '🔊'}</Text>
-              </TouchableOpacity>
-            }
             p1={p1}
             p2={p2}
             p1Mood="neutral"
@@ -534,15 +520,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 8,
   },
-  muteBtn: {
-    backgroundColor: 'rgba(26, 26, 46, 0.82)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 209, 102, 0.65)',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  muteBtnTxt: { fontSize: 16 },
   actionDock: {
     flexShrink: 0,
     backgroundColor: 'rgba(18, 22, 36, 0.98)',

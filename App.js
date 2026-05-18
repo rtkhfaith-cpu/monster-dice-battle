@@ -1,7 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -157,6 +156,11 @@ export default function App() {
   const [cloudFetchLoading, setCloudFetchLoading] = useState(false);
   const [cloudFetchError, setCloudFetchError] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [noticeDialog, setNoticeDialog] = useState(null);
+
+  function showNotice(title, message) {
+    setNoticeDialog({ title, message });
+  }
 
   function syncSetupMonstersFromProfiles(gd, p1ProfileId, p2ProfileId, mode = gameMode) {
     const w1 = walletForProfile(gd, p1ProfileId);
@@ -661,12 +665,12 @@ export default function App() {
     if (!gameData) return;
     const trimmed = String(name || '').trim().slice(0, 24);
     if (!trimmed) {
-      Alert.alert('Create Player', 'Player name cannot be empty.');
+      showNotice('Create Player', 'Player name cannot be empty.');
       return;
     }
     const keyErr = validatePlayerKeyPair(playerKey, confirmKey);
     if (keyErr) {
-      Alert.alert('Create Player', keyErr);
+      showNotice('Create Player', keyErr);
       return;
     }
 
@@ -692,7 +696,7 @@ export default function App() {
     if (!gameData) return;
     const res = purchaseMonsterRow(gameData, slotProfileId || null, templateId);
     if (res.error) {
-      Alert.alert('Monster Mart', res.error);
+      showNotice('Monster Mart', res.error);
       return;
     }
     let nextGd = res.gameData;
@@ -706,7 +710,7 @@ export default function App() {
     }
     persistSave(nextGd, 'coins_changed', slotProfileId);
     playSound('shop');
-    Alert.alert('Monster Mart', `${getMonsterTemplate(templateId)?.name ?? 'Monster'} joined your team!`);
+    showNotice('Monster Mart', `${getMonsterTemplate(templateId)?.name ?? 'Monster'} joined your team!`);
   }
 
   function fighterFromSetupId(ownedId, profileId) {
@@ -719,7 +723,7 @@ export default function App() {
   function openMonsterGear(slot) {
     const id = slot === 1 ? setupP1Id : setupP2Id;
     if (!id) {
-      Alert.alert('Monster Gear', `Pick a monster for Player ${slot} first.`);
+      showNotice('Monster Gear', `Pick a monster for Player ${slot} first.`);
       return;
     }
     setGearMonsterId(id);
@@ -734,7 +738,7 @@ export default function App() {
     if (!gameData || !gearMonsterId) return;
     const res = buyGearForMonster(gameData, gearProfileId || null, gearMonsterId, gearId);
     if (res.error) {
-      Alert.alert('Monster Gear', res.error);
+      showNotice('Monster Gear', res.error);
       return;
     }
     persistSave(res.gameData, 'gear_bought', gearProfileId || null);
@@ -746,7 +750,7 @@ export default function App() {
     const profileId = activeProfileId || setupP1ProfileId || null;
     const res = buyGearItem(gameData, profileId, gearId);
     if (res.error) {
-      Alert.alert('Gear Mart', res.error);
+      showNotice('Gear Mart', res.error);
       return;
     }
     persistSave(res.gameData, 'gear_bought', profileId);
@@ -757,7 +761,7 @@ export default function App() {
     if (!gameData || !gearMonsterId) return;
     const res = equipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId, slotIndex);
     if (res.error) {
-      Alert.alert('Monster Gear', res.error);
+      showNotice('Monster Gear', res.error);
       return;
     }
     persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
@@ -767,7 +771,7 @@ export default function App() {
     if (!gameData || !gearMonsterId) return;
     const res = unequipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId, slotIndex);
     if (res.error) {
-      Alert.alert('Monster Gear', res.error);
+      showNotice('Monster Gear', res.error);
       return;
     }
     persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
@@ -777,29 +781,29 @@ export default function App() {
     if (!gameData || !gearMonsterId) return;
     const res = unlockGearSlotForMonster(gameData, gearProfileId || null, gearMonsterId);
     if (res.error) {
-      Alert.alert('Unlock slot', res.error);
+      showNotice('Unlock slot', res.error);
       return;
     }
     persistSave(res.gameData, 'gear_slot_unlocked', gearProfileId || null);
     if (res.newSlotCount) {
-      Alert.alert('Slot unlocked!', `This monster now has ${res.newSlotCount} gear slots.`);
+      showNotice('Slot unlocked!', `This monster now has ${res.newSlotCount} gear slots.`);
     }
   }
 
   function startGameFromSetup() {
     if (!setupP1ProfileId) {
-      Alert.alert('Player setup', 'Select or create a player profile first.');
+      showNotice('Player setup', 'Select or create a player profile first.');
       return;
     }
     const f1 = fighterFromSetupId(setupP1Id, setupP1ProfileId);
     if (!f1) {
-      Alert.alert('Player setup', 'Player 1 needs a monster.');
+      showNotice('Player setup', 'Player 1 needs a monster.');
       return;
     }
     const gdClone = JSON.parse(JSON.stringify(gameData));
     const ai = buildAiFighter(f1, gdClone, setupP1ProfileId);
     if (!ai) {
-      Alert.alert('Player setup', 'Could not build CPU opponent. Try again.');
+      showNotice('Player setup', 'Could not build CPU opponent. Try again.');
       return;
     }
     setGameMode('onePlayer');
@@ -808,7 +812,7 @@ export default function App() {
 
   function openMonsterLadder() {
     if (!setupP1ProfileId) {
-      Alert.alert('Monster Ladder', 'Select or create a player profile first.');
+      showNotice('Monster Ladder', 'Select or create a player profile first.');
       return;
     }
     setPhase('ladder');
@@ -858,14 +862,14 @@ export default function App() {
     const monster = ml.ownedMonsters.find((m) => m.id === monsterId);
     if (!monster) return;
     if (!ml.ownedGear.includes(gearId)) {
-      Alert.alert('Ladder Gear', 'This ladder gear is not owned.');
+      showNotice('Ladder Gear', 'This ladder gear is not owned.');
       return;
     }
     if (!Array.isArray(monster.equippedLadderGear)) monster.equippedLadderGear = [];
     if (monster.equippedLadderGear.includes(gearId)) return;
     const maxSlots = Math.max(1, Math.min(6, monster.gearSlotCount ?? 4));
     if (monster.equippedLadderGear.length >= maxSlots) {
-      Alert.alert('Ladder Gear', 'All ladder gear slots are full.');
+      showNotice('Ladder Gear', 'All ladder gear slots are full.');
       return;
     }
     monster.equippedLadderGear.push(gearId);
@@ -891,13 +895,13 @@ export default function App() {
 
   function startMonsterLadderBattle() {
     if (!setupP1ProfileId || !gameData) {
-      Alert.alert('Monster Ladder', 'Select a player profile first.');
+      showNotice('Monster Ladder', 'Select a player profile first.');
       return;
     }
     const profile = getPlayerProfile(gameData, setupP1ProfileId);
     const ml = getMonsterLadderState(profile);
     if (isLadderLevelLockedUntilReset(ml)) {
-      Alert.alert('Monster Ladder', "You cleared today's ladder level. The next level unlocks at 6PM Singapore time.");
+      showNotice('Monster Ladder', "You cleared today's ladder level. The next level unlocks at 6PM Singapore time.");
       setPhase('ladder');
       return;
     }
@@ -905,18 +909,18 @@ export default function App() {
       ?? profile?.ownedMonsters?.find((m) => m.id === profile?.selectedMonsterId)
       ?? profile?.ownedMonsters?.[0];
     if (!owned) {
-      Alert.alert('Monster Ladder', 'Pick one of your monsters before entering the ladder.');
+      showNotice('Monster Ladder', 'Pick one of your monsters before entering the ladder.');
       return;
     }
     const f1 = fighterFromOwned(owned);
     if (!f1) {
-      Alert.alert('Monster Ladder', 'Could not build your ladder fighter.');
+      showNotice('Monster Ladder', 'Could not build your ladder fighter.');
       return;
     }
     const stage = getCurrentStage(ml);
     const enemy = buildLadderEnemyFighter(stage.stageIndex, f1);
     if (!enemy) {
-      Alert.alert('Monster Ladder', 'Could not build stage enemy.');
+      showNotice('Monster Ladder', 'Could not build stage enemy.');
       return;
     }
     setGameMode('monsterLadder');
@@ -950,7 +954,7 @@ export default function App() {
       };
     };
     if (!arm(p1Fighter) || !arm(p2Fighter)) {
-      Alert.alert('Player setup', 'Could not start battle — missing fighter data.');
+      showNotice('Player setup', 'Could not start battle — missing fighter data.');
       return;
     }
     setPlayer1(arm(p1Fighter));
@@ -1160,6 +1164,15 @@ export default function App() {
             requiresKey: true,
           });
         }}
+      />
+      <ConfirmDialog
+        visible={!!noticeDialog}
+        title={noticeDialog?.title ?? ''}
+        message={noticeDialog?.message ?? ''}
+        confirmLabel="Close"
+        cancelLabel={null}
+        onCancel={() => setNoticeDialog(null)}
+        onConfirm={() => setNoticeDialog(null)}
       />
       {phase !== 'menu' && phase !== 'ladder' && phase !== 'battle' && phase !== 'online' ? (
         <>
@@ -1422,6 +1435,7 @@ export default function App() {
             onBattleStart={handleOnlineBattleStart}
             buildProfilePayload={buildOnlineProfilePayload}
             mySlot={onlineSlot}
+            onNotice={showNotice}
           />
         )}
       </View>
