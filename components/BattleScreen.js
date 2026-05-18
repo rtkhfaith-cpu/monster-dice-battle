@@ -963,9 +963,13 @@ export default function BattleScreen({
                 </Text>
               </View>
               <View style={styles.skillList}>
-                {magicSkills.map((sk) => {
+                {magicSkills.map((sk, index) => {
                   const ok = canAffordSkill(actingFighter, sk);
                   const el = ELEMENT_UI[sk.element] ?? actingElementUi;
+                  const magicIcons = GAME_ASSETS.battleActions.magicVariants?.length
+                    ? GAME_ASSETS.battleActions.magicVariants
+                    : [GAME_ASSETS.battleActions.magic];
+                  const magicIcon = magicIcons[index % magicIcons.length];
                   return (
                     <Pressable
                       key={sk.id}
@@ -978,7 +982,7 @@ export default function BattleScreen({
                       onPress={() => handleMagicSkill(sk)}
                     >
                       <Image
-                        source={{ uri: GAME_ASSETS.battleActions.magic }}
+                        source={{ uri: magicIcon }}
                         style={styles.skillActionIcon}
                         resizeMode="contain"
                       />
@@ -1015,7 +1019,7 @@ export default function BattleScreen({
                   <View style={styles.fightBtnShine} />
                   <Image
                     source={{ uri: GAME_ASSETS.battleActions.attack }}
-                    style={[styles.actionBtnImage, battleMobile && styles.actionBtnImageMobile]}
+                    style={[styles.actionBtnImageLarge, battleMobile && styles.actionBtnImageLargeMobile]}
                     resizeMode="contain"
                   />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.fightBtnTxt]}>
@@ -1038,7 +1042,7 @@ export default function BattleScreen({
                   <View style={styles.magicBtnShine} />
                   <Image
                     source={{ uri: GAME_ASSETS.battleActions.magic }}
-                    style={[styles.actionBtnImage, battleMobile && styles.actionBtnImageMobile]}
+                    style={[styles.actionBtnImageLarge, battleMobile && styles.actionBtnImageLargeMobile]}
                     resizeMode="contain"
                   />
                   <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.magicBtnTxt]}>
@@ -1264,7 +1268,7 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 4 }],
   },
   btnFace: {
-    minHeight: 50,
+    minHeight: 82,
     borderRadius: 12,
     borderWidth: 3,
     alignItems: 'center',
@@ -1277,7 +1281,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   btnFaceMobile: {
-    minHeight: 72,
+    minHeight: 106,
     borderRadius: 15,
     borderWidth: 3,
     paddingHorizontal: 4,
@@ -1293,6 +1297,14 @@ const styles = StyleSheet.create({
   actionBtnImageMobile: {
     width: 40,
     height: 40,
+  },
+  actionBtnImageLarge: {
+    width: 60,
+    height: 60,
+  },
+  actionBtnImageLargeMobile: {
+    width: 80,
+    height: 80,
   },
   fightBtn: {
     flex: 1,

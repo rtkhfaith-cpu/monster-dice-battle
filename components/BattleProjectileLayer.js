@@ -366,16 +366,16 @@ const styles = StyleSheet.create({
   },
   projFromLeft: {
     left: '18%',
-    marginLeft: -fx(28),
+    marginLeft: -fx(80),
   },
   projFromRight: {
     right: '18%',
-    marginRight: -fx(28),
+    marginRight: -fx(80),
   },
   actionImage: {
     position: 'absolute',
-    width: 80,
-    height: 80,
+    width: 160,
+    height: 160,
   },
   projEmoji: {
     textAlign: 'center',

@@ -79,7 +79,6 @@ function ChestCard({ title, state, type }) {
 }
 
 export default function MonsterLadderHubScreen({
-  profileName,
   monsterLadder,
   activeFighter,
   onBack,
@@ -164,7 +163,6 @@ export default function MonsterLadderHubScreen({
             </View>
 
             <View style={styles.infoPanel}>
-              <Text style={styles.infoTitle}>Handler {profileName || '—'}</Text>
               <Text style={styles.infoLevel}>Level {formatStageLabel(stage.mainLevel, stage.subLevel)}</Text>
               <Text style={styles.infoLine}>Region: {theme.name}</Text>
               <Text style={styles.infoLine}>Stage: {bossBanner || stageTypeLabel(currentKind)}</Text>
@@ -353,20 +351,20 @@ const styles = StyleSheet.create({
     right: '4%',
     bottom: '10%',
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   actionButton: {
     flex: 1,
-    minHeight: 30,
-    borderRadius: 10,
+    minHeight: 24,
+    borderRadius: 9,
     borderWidth: 1,
     borderColor: '#b88a4b',
-    borderBottomWidth: 3,
+    borderBottomWidth: 2,
     borderBottomColor: '#58361c',
     backgroundColor: 'rgba(38, 20, 63, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 5,
   },
   actionButtonPrimary: {
     borderColor: '#f7d774',
@@ -378,7 +376,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#ffe7b8',
-    fontSize: 9,
+    fontSize: 7,
     fontWeight: '900',
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -396,12 +394,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: '4%',
     paddingVertical: '2.2%',
     justifyContent: 'center',
-  },
-  infoTitle: {
-    color: '#f9e9b8',
-    fontSize: 13,
-    fontWeight: '900',
-    textTransform: 'uppercase',
   },
   infoLevel: {
     color: '#ffffff',
@@ -494,26 +486,26 @@ const styles = StyleSheet.create({
   chestPanel: {
     position: 'absolute',
     top: '80.8%',
-    left: '9%',
-    width: '82%',
-    height: '9.2%',
+    left: '11%',
+    width: '78%',
+    height: '8.4%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    gap: 8,
+    gap: 6,
   },
   chestCard: {
     flex: 1,
     minWidth: 0,
-    height: '76%',
-    borderRadius: 12,
+    height: '70%',
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#85634c',
     backgroundColor: 'rgba(25, 13, 42, 0.62)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    gap: 6,
+    paddingHorizontal: 4,
+    gap: 4,
   },
   chestAvailable: {
     borderColor: '#fde68a',
@@ -528,8 +520,8 @@ const styles = StyleSheet.create({
     borderColor: '#e9d5ff',
   },
   chestImg: {
-    width: 30,
-    height: 30,
+    width: 24,
+    height: 24,
   },
   chestCopy: {
     flex: 1,
@@ -537,18 +529,18 @@ const styles = StyleSheet.create({
   },
   chestTitle: {
     color: '#fff3ca',
-    fontSize: 8,
+    fontSize: 6,
     fontWeight: '900',
   },
   chestState: {
     color: '#d8b4fe',
-    fontSize: 8,
+    fontSize: 6,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   chestSub: {
     color: '#a7f3d0',
-    fontSize: 7,
+    fontSize: 6,
     fontWeight: '800',
   },
   bottomPanel: {
