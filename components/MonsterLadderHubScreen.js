@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { ART, gamePanelStyle } from '../utils/artDirection';
 import { LOBBY } from '../utils/gameTheme';
@@ -14,7 +14,8 @@ import {
   stageTypeBanner,
   stageTypeLabel,
 } from '../utils/monsterLadder';
-import { getLadderRewardDayKey } from '../utils/monsterLadder/ladderDailyReset';
+import { getLadderRewardDayKey, isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
+import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
 function StageNode({ sub, current, cleared, kind }) {
   const isBoss = kind === 'miniBoss' || kind === 'bigBoss';
@@ -51,8 +52,11 @@ export default function MonsterLadderHubScreen({
   const hints = useMemo(() => nextRewardHints(ml), [ml]);
   const currentKind = getStageKind(stage.subLevel);
   const bossBanner = stageTypeBanner(currentKind);
+  const levelLocked = isLadderLevelLockedUntilReset(ml);
   const mapHint =
-    currentKind === 'miniBoss'
+    levelLocked
+      ? 'Level cleared for today. Next level unlocks at 6PM Singapore time.'
+      : currentKind === 'miniBoss'
       ? 'Mini Boss now: win for Gear Chest if today is unclaimed'
       : currentKind === 'bigBoss'
         ? 'Boss now: win for Monster Chest if today is unclaimed'
@@ -64,7 +68,7 @@ export default function MonsterLadderHubScreen({
 
   const featuredTpl = getLadderMonsterTemplate(theme.featuredMonsterId);
 
-  const canFight = !!activeFighter;
+  const canFight = !!activeFighter && !levelLocked;
 
   return (
     <View style={styles.root}>
@@ -121,13 +125,30 @@ export default function MonsterLadderHubScreen({
           <Text style={styles.panelTitle}>Daily chests (resets 6PM Singapore)</Text>
           <Text style={styles.dailyKey}>Today: {getLadderRewardDayKey()}</Text>
           <View style={styles.dailyRow}>
-            <Text style={styles.dailyItem}>
-              🎁 Gear chest: {ml.gearChestClaimedToday ? 'claimed' : 'available'}
-            </Text>
-            <Text style={styles.dailyItem}>
-              🥚 Monster chest: {ml.monsterChestClaimedToday ? 'claimed' : 'available'}
-            </Text>
+            <View style={styles.chestStatus}>
+              <Image
+                source={{ uri: ml.gearChestClaimedToday ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
+                style={styles.chestImg}
+                resizeMode="contain"
+              />
+              <Text style={styles.dailyItem}>
+                Gear chest: {ml.gearChestClaimedToday ? 'claimed' : 'available at sub 5'}
+              </Text>
+            </View>
+            <View style={styles.chestStatus}>
+              <Image
+                source={{ uri: ml.monsterChestClaimedToday ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
+                style={styles.chestImg}
+                resizeMode="contain"
+              />
+              <Text style={styles.dailyItem}>
+                Monster chest: {ml.monsterChestClaimedToday ? 'claimed' : 'available at sub 10'}
+              </Text>
+            </View>
           </View>
+          {levelLocked ? (
+            <Text style={styles.unlockHint}>Next ladder level unlocks after 6PM Singapore time.</Text>
+          ) : null}
         </View>
 
         <View style={styles.activePanel}>
@@ -190,11 +211,13 @@ export default function MonsterLadderHubScreen({
           onPress={onStartBattle}
         >
           <Text style={styles.startTxt}>
-            {bossBanner ? `Start ${stageTypeLabel(currentKind)} Battle` : 'Start Ladder Battle'}
+            {levelLocked ? 'Locked until 6PM SGT' : bossBanner ? `Start ${stageTypeLabel(currentKind)} Battle` : 'Start Ladder Battle'}
           </Text>
         </TouchableOpacity>
         {!canFight ? (
-          <Text style={styles.footerHint}>Select one of your own monsters first.</Text>
+          <Text style={styles.footerHint}>
+            {levelLocked ? "Today's 10 sub-levels are complete." : 'Select one of your own monsters first.'}
+          </Text>
         ) : null}
       </View>
     </View>
@@ -282,7 +305,10 @@ const styles = StyleSheet.create({
   },
   dailyKey: { fontWeight: '700', fontSize: 11, color: '#636e72' },
   dailyRow: { gap: 4 },
+  chestStatus: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chestImg: { width: 34, height: 34 },
   dailyItem: { fontWeight: '800', fontSize: 13, color: '#2d3436' },
+  unlockHint: { fontWeight: '900', fontSize: 12, color: '#6c5ce7', marginTop: 4 },
   activePanel: {
     padding: 12,
     borderRadius: ART.radiusMd,

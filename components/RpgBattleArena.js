@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, ImageBackground, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import AnimatedMonster from './AnimatedMonster';
 import { expToAdvanceFrom } from '../utils/expLevel';
 import { getStrictLayout } from '../utils/battleLayout';
@@ -7,6 +7,7 @@ import { ELEMENT_UI } from '../utils/elements';
 import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
 import { ART } from '../utils/artDirection';
 import { BATTLE } from '../utils/gameTheme';
+import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
 function MicroBar({ ratio, color, compact }) {
   const pct = Math.max(0, Math.min(1, ratio));
@@ -221,6 +222,12 @@ export default function RpgBattleArena({
         },
       ]}
     >
+      <ImageBackground
+        source={{ uri: GAME_ASSETS.battleGround }}
+        style={styles.battleBgImage}
+        imageStyle={styles.battleBgImageInner}
+        resizeMode="cover"
+      />
       <View style={styles.vignetteTop} pointerEvents="none" />
       <View style={styles.vignetteBottom} pointerEvents="none" />
       {/* z-index 0–1: background */}
@@ -434,9 +441,17 @@ const styles = StyleSheet.create({
   },
   arenaDim: { opacity: 0.9 },
 
+  battleBgImage: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  battleBgImageInner: {
+    opacity: 0.9,
+  },
+
   skyGrad: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#b8e4fa',
+    backgroundColor: 'rgba(184, 228, 250, 0.18)',
     zIndex: 0,
   },
   skyFade: {

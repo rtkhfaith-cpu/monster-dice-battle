@@ -46,6 +46,7 @@ import {
   getCurrentStage,
   getMonsterLadderState,
   getStageKind,
+  isLadderLevelLockedUntilReset,
   stageTypeBanner,
 } from './utils/monsterLadder';
 import { initAudio } from './utils/audioManager';
@@ -895,6 +896,11 @@ export default function App() {
     }
     const profile = getPlayerProfile(gameData, setupP1ProfileId);
     const ml = getMonsterLadderState(profile);
+    if (isLadderLevelLockedUntilReset(ml)) {
+      Alert.alert('Monster Ladder', "You cleared today's ladder level. The next level unlocks at 6PM Singapore time.");
+      setPhase('ladder');
+      return;
+    }
     const owned = profile?.ownedMonsters?.find((m) => m.id === setupP1Id)
       ?? profile?.ownedMonsters?.find((m) => m.id === profile?.selectedMonsterId)
       ?? profile?.ownedMonsters?.[0];

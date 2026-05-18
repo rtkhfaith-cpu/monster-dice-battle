@@ -1,5 +1,5 @@
 import { LADDER_MAIN_LEVELS, LADDER_SUB_LEVELS, LADDER_TOTAL_STAGES } from './ladderConstants';
-import { applyLadderDailyResetIfNeeded } from './ladderDailyReset';
+import { applyLadderDailyResetIfNeeded, getLadderRewardDayKey } from './ladderDailyReset';
 import { decodeStage, encodeStage, getStageKind } from './stages';
 
 /**
@@ -11,6 +11,8 @@ import { decodeStage, encodeStage, getStageKind } from './stages';
  * @property {string|null} lastRewardResetAt
  * @property {boolean} gearChestClaimedToday
  * @property {boolean} monsterChestClaimedToday
+ * @property {string|null} dailyLevelCompletedAt
+ * @property {number|null} dailyLevelCompletedMainLevel
  * @property {{ gearChestsOpened: number, monsterChestsOpened: number }} pity
  * @property {number} ladderGold
  * @property {number} ladderShards
@@ -31,6 +33,8 @@ export function defaultMonsterLadderState() {
     lastRewardResetAt: null,
     gearChestClaimedToday: false,
     monsterChestClaimedToday: false,
+    dailyLevelCompletedAt: null,
+    dailyLevelCompletedMainLevel: null,
     pity: { gearChestsOpened: 0, monsterChestsOpened: 0 },
     ladderGold: 0,
     ladderShards: 0,
@@ -77,6 +81,8 @@ export function normalizeMonsterLadder(raw, legacyLadderProgress) {
   base.lastRewardResetAt = typeof r.lastRewardResetAt === 'string' ? r.lastRewardResetAt : null;
   base.gearChestClaimedToday = !!r.gearChestClaimedToday;
   base.monsterChestClaimedToday = !!r.monsterChestClaimedToday;
+  base.dailyLevelCompletedAt = typeof r.dailyLevelCompletedAt === 'string' ? r.dailyLevelCompletedAt : null;
+  base.dailyLevelCompletedMainLevel = clampInt(r.dailyLevelCompletedMainLevel, 1, LADDER_MAIN_LEVELS, null);
 
   const pity = r.pity && typeof r.pity === 'object' ? r.pity : {};
   base.pity = {
@@ -169,12 +175,14 @@ export function advanceMonsterLadderStage(ml, won) {
   if (idx > ml.stats.highestStageReached) ml.stats.highestStageReached = idx;
 
   if (ml.mainLevel >= LADDER_MAIN_LEVELS && ml.subLevel >= LADDER_SUB_LEVELS) {
+    ml.dailyLevelCompletedAt = getLadderRewardDayKey();
+    ml.dailyLevelCompletedMainLevel = ml.mainLevel;
     return ml;
   }
 
   if (ml.subLevel >= LADDER_SUB_LEVELS) {
-    ml.mainLevel = Math.min(LADDER_MAIN_LEVELS, ml.mainLevel + 1);
-    ml.subLevel = 1;
+    ml.dailyLevelCompletedAt = getLadderRewardDayKey();
+    ml.dailyLevelCompletedMainLevel = ml.mainLevel;
   } else {
     ml.subLevel += 1;
   }

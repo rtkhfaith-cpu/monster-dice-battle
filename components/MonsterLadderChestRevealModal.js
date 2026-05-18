@@ -1,8 +1,9 @@
 import React from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderGear } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
+import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
 function rarityLabel(rarity) {
   return RARITY_UI[rarity]?.label ?? rarity ?? 'Reward';
@@ -25,7 +26,7 @@ export default function MonsterLadderChestRevealModal({ visible, drop, onClose }
         <View style={[styles.card, { borderColor: ui.border }]}>
           <Text style={styles.kicker}>Monster Ladder Chest</Text>
           <View style={[styles.orb, { backgroundColor: ui.chipBg, borderColor: ui.border }]}>
-            <Text style={styles.orbTxt}>{drop.kind === 'gear' ? '🎁' : '🥚'}</Text>
+            <Image source={{ uri: GAME_ASSETS.chestOpen }} style={styles.chestImg} resizeMode="contain" />
           </View>
           <Text style={[styles.rarity, { color: ui.border }]}>
             {rarityLabel(drop.rarity)}
@@ -86,7 +87,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  orbTxt: { fontSize: 42 },
+  chestImg: { width: 76, height: 76 },
   rarity: { fontWeight: '900', fontSize: 18, textTransform: 'uppercase' },
   name: {
     marginTop: 6,
