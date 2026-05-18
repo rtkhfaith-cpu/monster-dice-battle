@@ -368,7 +368,6 @@ export function startLadderMusic() {
 function playMenuTrack(kind = menuMusicKind) {
   const tracks = kind === 'ladder' ? LADDER_BGM : MENU_BGM;
   const path = menuPick && tracks.includes(menuPick) ? menuPick : pickRandom(tracks);
-  menuPick = path;
   startBgm(path, 'menu');
 }
 
@@ -397,7 +396,6 @@ export function startBattleMusic(options) {
 function playBattleTrack(kind = battleMusicKind) {
   const tracks = kind === 'miniBoss' ? MINI_BOSS_BGM : kind === 'bigBoss' ? BOSS_BGM : BATTLE_BGM;
   const path = battlePick && tracks.includes(battlePick) ? battlePick : pickRandom(tracks);
-  battlePick = path;
   startBgm(path, 'battle', kind === 'miniBoss' ? BOSS_BGM[0] : '');
 }
 
