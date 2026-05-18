@@ -168,6 +168,10 @@ export default function BattleScreen({
   const ladderStageKind = battleExtras?.ladderStageKind ?? fighter2?.ladderStageKind ?? 'normal';
   const ladderStageLabel = battleExtras?.ladderStageLabel ?? '';
   const bossStageBanner = ladderStageBanner(ladderStageKind);
+  const ladderStagePillLabel =
+    battleExtras?.mode === 'monsterLadder'
+      ? [ladderStageLabel || `Level ${ladderFloor ?? ''}`, ladderBossName].filter(Boolean).join(' · ')
+      : '';
   // Live battles use the React/SVG renderer until Phaser has real monster textures.
   const usePhaserBattleRenderer = false;
 
@@ -574,12 +578,12 @@ export default function BattleScreen({
 
     if (attackerId === PLAYER_ID) {
       setP2Pose('idle');
-      if (!usePhaserBattleRenderer) setP1Pose(superBomb ? 'superWindup' : 'cast');
+      if (!usePhaserBattleRenderer) setP1Pose(superBomb ? 'superWindup' : strikeKind === 'magic' ? 'cast' : 'idle');
       if (!usePhaserBattleRenderer) setP1Emotion('happy');
       setP2Emotion('angry');
     } else {
       setP1Pose('idle');
-      if (!usePhaserBattleRenderer) setP2Pose(superBomb ? 'superWindup' : 'cast');
+      if (!usePhaserBattleRenderer) setP2Pose(superBomb ? 'superWindup' : strikeKind === 'magic' ? 'cast' : 'idle');
       if (!usePhaserBattleRenderer) setP2Emotion('happy');
       setP1Emotion('angry');
     }
@@ -609,7 +613,7 @@ export default function BattleScreen({
           : { ...curP2 };
 
     const visuals = resolveAttackVisuals(skill, { templateId: atk.monsterTemplateId });
-    const isFly = visuals.animKind === 'fly_lunge' || visuals.animKind === 'bite_lunge';
+    const shouldAttackerJump = strikeKind !== 'magic';
 
     effectSeqRef.current += 1;
     const effectPayload = {
@@ -688,8 +692,8 @@ export default function BattleScreen({
 
     schedule(timing.attackerEnd, () => {
       if (usePhaserBattleRenderer && !phaserFailed) return;
-      setFlyStrikeP1(attackerId === PLAYER_ID && isFly);
-      setFlyStrikeP2(attackerId === CPU_ID && isFly);
+      setFlyStrikeP1(attackerId === PLAYER_ID && shouldAttackerJump);
+      setFlyStrikeP2(attackerId === CPU_ID && shouldAttackerJump);
       if (attackerId === PLAYER_ID) setP1Pose('lunge');
       else setP2Pose('lunge');
       setActiveAttackEffect({ ...effectPayload, seq: effectSeqRef.current });
@@ -886,7 +890,6 @@ export default function BattleScreen({
           ) : (
             <>
               <RpgBattleArena
-                ladderFloor={ladderFloor}
                 ladderRegionName={ladderRegionName}
                 ladderBossName={ladderBossName}
                 p1={p1}
@@ -924,7 +927,9 @@ export default function BattleScreen({
           )}
           {battleExtras?.mode === 'monsterLadder' ? (
             <View style={[styles.ladderStagePill, bossStageBanner && styles.ladderStagePillBoss]} pointerEvents="none">
-              <Text style={styles.ladderStagePillMain}>{ladderStageLabel || `Stage ${ladderFloor ?? ''}`}</Text>
+              <Text style={styles.ladderStagePillMain} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
+                {ladderStagePillLabel}
+              </Text>
               {bossStageBanner ? <Text style={styles.ladderStagePillBossTxt}>{bossStageBanner}</Text> : null}
             </View>
           ) : null}
@@ -1111,15 +1116,17 @@ const styles = StyleSheet.create({
   arenaInner: { flex: 1, width: '100%', minHeight: 0 },
   ladderStagePill: {
     position: 'absolute',
-    top: 10,
-    alignSelf: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    top: '2%',
+    left: '6%',
+    right: '6%',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+    backgroundColor: 'rgba(45, 27, 105, 0.9)',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.28)',
+    borderColor: 'rgba(250, 204, 21, 0.72)',
     alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 18,
   },
   ladderStagePillBoss: {

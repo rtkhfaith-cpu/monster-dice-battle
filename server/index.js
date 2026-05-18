@@ -210,10 +210,20 @@ function emitRoomUpdate(roomCode) {
 }
 
 function joinSocketToRoom(socket, roomCode, cb) {
-  socket.join(roomCode, (err) => {
-    if (err) console.error('[room] socket.join failed', roomCode, err.message || err);
+  try {
+    const joined = socket.join(roomCode);
+    if (joined && typeof joined.then === 'function') {
+      joined.then(() => cb?.(null)).catch((err) => {
+        console.error('[room] socket.join failed', roomCode, err.message || err);
+        cb?.(err);
+      });
+      return;
+    }
+    cb?.(null);
+  } catch (err) {
+    console.error('[room] socket.join failed', roomCode, err.message || err);
     cb?.(err);
-  });
+  }
 }
 
 function clearBattleTimer(room) {

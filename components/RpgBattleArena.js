@@ -94,9 +94,6 @@ export default function RpgBattleArena({
   player1Label = 'You',
   player2Label = 'Foe',
   topHudExtra = null,
-  ladderFloor = null,
-  ladderRegionName = '',
-  ladderBossName = '',
   battleDim,
   shakeX,
   stageZoom,
@@ -206,24 +203,6 @@ export default function RpgBattleArena({
 
       {/* z-index 10: top HUD */}
       <View style={styles.muteSlot}>{topHudExtra}</View>
-      {ladderFloor ? (
-        <View
-          style={[
-            styles.stageBadge,
-            {
-              top: L.stageBadgeTop,
-              width: L.stageBadgeW,
-              marginLeft: -(L.stageBadgeW / 2),
-            },
-            L.compactHud && styles.stageBadgeCompact,
-          ]}
-          pointerEvents="none"
-        >
-          <Text style={styles.stageBadgeFloor} numberOfLines={1}>
-            Level {ladderFloor}{ladderBossName ? ` · ${ladderBossName}` : ''}
-          </Text>
-        </View>
-      ) : null}
       {turnShort ? (
         <View
           style={[
@@ -274,15 +253,19 @@ export default function RpgBattleArena({
           { left: L.monsterSideInset, bottom: L.monsterBottom, opacity: p1Opacity, transform: [{ scale: p1Scale }] },
         ]}
       >
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.hitFlash,
-            sicklyFlashP1 && styles.hitFlashSickly,
-            { opacity: p1Flash },
-          ]}
-        />
         <View style={[styles.faceRight, styles.monsterWrap, { width: L.p1Monster }]}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.hitFlash,
+              sicklyFlashP1 && styles.hitFlashSickly,
+              {
+                opacity: p1Flash,
+                width: L.p1Monster * 0.78,
+                height: L.p1Monster * 0.78,
+              },
+            ]}
+          />
           {defendGlowP1 ? (
             <Animated.View
               pointerEvents="none"
@@ -311,15 +294,19 @@ export default function RpgBattleArena({
           { right: L.monsterSideInset, bottom: L.monsterBottom, opacity: p2Opacity, transform: [{ scale: p2Scale }] },
         ]}
       >
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.hitFlash,
-            sicklyFlashP2 && styles.hitFlashSickly,
-            { opacity: p2Flash },
-          ]}
-        />
         <View style={[styles.monsterWrap, { width: L.p2Monster }]}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.hitFlash,
+              sicklyFlashP2 && styles.hitFlashSickly,
+              {
+                opacity: p2Flash,
+                width: L.p2Monster * 0.78,
+                height: L.p2Monster * 0.78,
+              },
+            ]}
+          />
           {defendGlowP2 ? (
             <Animated.View
               pointerEvents="none"
@@ -723,30 +710,6 @@ const styles = StyleSheet.create({
     left: '5%',
     zIndex: 10,
   },
-  stageBadge: {
-    position: 'absolute',
-    left: '50%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(108, 92, 231, 0.92)',
-    borderRadius: 13,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.24)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    zIndex: 12,
-    shadowColor: '#2d2d44',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.28,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  stageBadgeCompact: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-  },
-  stageBadgeFloor: { fontWeight: '900', fontSize: 14, color: '#fff', lineHeight: 18, textAlign: 'center' },
   turnBadge: {
     position: 'absolute',
     left: '5%',
@@ -821,13 +784,18 @@ const styles = StyleSheet.create({
   monsterWrap: { alignItems: 'center', justifyContent: 'flex-end', overflow: 'visible' },
   faceRight: { transform: [{ scaleX: -1 }], overflow: 'visible' },
   hitFlash: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#fff',
-    borderRadius: 20,
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: '14%',
+    backgroundColor: 'rgba(255, 244, 214, 0.22)',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 244, 214, 0.34)',
     zIndex: 5,
   },
   hitFlashSickly: {
-    backgroundColor: 'rgba(140, 230, 120, 0.55)',
+    backgroundColor: 'rgba(140, 230, 120, 0.22)',
+    borderColor: 'rgba(170, 255, 150, 0.34)',
   },
   shieldRing: {
     position: 'absolute',

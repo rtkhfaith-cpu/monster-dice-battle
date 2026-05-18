@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
-import { ART } from '../utils/artDirection';
 import { getMonsterIdleProfile } from '../utils/monsterIdleMotion';
 import { getMonsterImageAsset } from '../utils/monsterImageAssets';
 
@@ -31,13 +30,23 @@ export default function AnimatedMonster({
   const dodgeOp = useRef(new Animated.Value(1)).current;
   const ragePulse = useRef(new Animated.Value(0)).current;
   const flyTx = useRef(new Animated.Value(0)).current;
+  const flyTy = useRef(new Animated.Value(0)).current;
 
   const toward = side === 'left' ? 1 : -1;
   const profile = getMonsterIdleProfile(parts?.themeBody);
   const themed = !!parts?.themeBody;
   const usesImageSprite = !!getMonsterImageAsset(parts?.templateId);
+  const actionMotionActive = pose !== 'idle' || superJump || flyStrike;
+  const idleBreathingActive = pose === 'idle' && !superJump && !flyStrike;
 
   useEffect(() => {
+    if (!actionMotionActive) {
+      bob.setValue(0);
+      sway.setValue(0);
+      twist.setValue(0);
+      return undefined;
+    }
+
     const bobLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(bob, {
@@ -86,36 +95,40 @@ export default function AnimatedMonster({
         }),
       ]),
     );
+    bobLoop.start();
+    swayLoop.start();
+    twistLoop.start();
+    return () => {
+      bobLoop.stop();
+      swayLoop.stop();
+      twistLoop.stop();
+    };
+  }, [bob, sway, twist, profile, actionMotionActive]);
+
+  useEffect(() => {
+    const breathMs = idleBreathingActive ? 1450 : profile.squashMs;
     const squashLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(squash, {
           toValue: 1,
-          duration: profile.squashMs,
+          duration: breathMs,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(squash, {
           toValue: 0,
-          duration: profile.squashMs,
+          duration: breathMs,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
       ]),
     );
-    bobLoop.start();
-    swayLoop.start();
-    twistLoop.start();
     squashLoop.start();
-    return () => {
-      bobLoop.stop();
-      swayLoop.stop();
-      twistLoop.stop();
-      squashLoop.stop();
-    };
-  }, [bob, sway, twist, squash, profile]);
+    return () => squashLoop.stop();
+  }, [squash, profile.squashMs, idleBreathingActive]);
 
   useEffect(() => {
-    if (!profile.jitter) {
+    if (!profile.jitter || !actionMotionActive) {
       jitterX.setValue(0);
       return undefined;
     }
@@ -129,7 +142,7 @@ export default function AnimatedMonster({
     );
     loop.start();
     return () => loop.stop();
-  }, [profile, jitterX]);
+  }, [profile, jitterX, actionMotionActive]);
 
   useEffect(() => {
     const blinkLoop = Animated.loop(
@@ -162,23 +175,42 @@ export default function AnimatedMonster({
   useEffect(() => {
     if (!flyStrike) {
       flyTx.setValue(0);
+      flyTy.setValue(0);
       return undefined;
     }
     flyTx.setValue(0);
-    const arc = toward * (size * 0.95);
-    const flyAnim = Animated.sequence([
-      Animated.timing(flyTx, {
-        toValue: arc,
-        duration: 320,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(flyTx, { toValue: arc * 0.12, duration: 70, useNativeDriver: true }),
-      Animated.spring(flyTx, { toValue: 0, friction: 6, tension: 88, useNativeDriver: true }),
+    flyTy.setValue(0);
+    const arc = toward * (size * 0.62);
+    const lift = -(size * 0.12);
+    const flyAnim = Animated.parallel([
+      Animated.sequence([
+        Animated.timing(flyTx, {
+          toValue: arc,
+          duration: 320,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(flyTx, { toValue: arc * 0.16, duration: 70, useNativeDriver: true }),
+        Animated.spring(flyTx, { toValue: 0, friction: 6, tension: 88, useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.timing(flyTy, {
+          toValue: lift,
+          duration: 180,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(flyTy, {
+          toValue: 0,
+          duration: 260,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
     ]);
     flyAnim.start();
     return () => flyAnim.stop();
-  }, [flyStrike, flyTx, toward, size]);
+  }, [flyStrike, flyTx, flyTy, toward, size]);
 
   useEffect(() => {
     poseTx.stopAnimation();
@@ -256,8 +288,18 @@ export default function AnimatedMonster({
   const jAmp = profile.jitterAmp ?? 0;
   const jitterPx = jitterX.interpolate({ inputRange: [-1, 0, 1], outputRange: [-jAmp, 0, jAmp] });
   const jolt = shake.interpolate({ inputRange: [-1, 0, 1], outputRange: [-9, 0, 11] });
-  const squashX = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
-  const squashY = squash.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] });
+  const squashX = squash.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, idleBreathingActive ? 1.025 : 1.06],
+  });
+  const squashY = squash.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, idleBreathingActive ? 1.045 : 0.9],
+  });
+  const breathLift = squash.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, idleBreathingActive ? -scaledSize * 0.022 : 0],
+  });
   const glowOpacity = ragePulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
 
   return (
@@ -265,9 +307,16 @@ export default function AnimatedMonster({
       <View
         style={[
           styles.groundShadow,
-          { width: scaledSize * 0.72, height: scaledSize * 0.1, borderRadius: scaledSize },
+          { width: scaledSize * 0.82, height: scaledSize * 0.13, borderRadius: scaledSize },
         ]}
-      />
+      >
+        <View
+          style={[
+            styles.groundShadowCore,
+            { width: scaledSize * 0.54, height: scaledSize * 0.075, borderRadius: scaledSize },
+          ]}
+        />
+      </View>
       {rage ? (
         <Animated.View
           pointerEvents="none"
@@ -289,7 +338,7 @@ export default function AnimatedMonster({
             opacity: usesImageSprite ? 1 : blink,
             transform: [
               { translateX: Animated.add(flyTx, Animated.add(jitterPx, Animated.add(swayX, Animated.add(poseTx, jolt)))) },
-              { translateY: Animated.add(bobY, poseTy) },
+              { translateY: Animated.add(flyTy, Animated.add(bobY, Animated.add(poseTy, breathLift))) },
               { rotate: swayR },
               { scale: poseScale },
               { scaleX: squashX },
@@ -314,8 +363,13 @@ const styles = StyleSheet.create({
   groundShadow: {
     position: 'absolute',
     bottom: 2,
-    backgroundColor: ART.shadowDeep,
-    opacity: 0.35,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.36)',
+    opacity: 0.82,
+  },
+  groundShadowCore: {
+    backgroundColor: 'rgba(0, 0, 0, 0.48)',
   },
   core: {
     alignItems: 'center',

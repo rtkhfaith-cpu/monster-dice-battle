@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     maxWidth: '100%',
   },
-  pillOk: { backgroundColor: 'rgba(232, 248, 238, 0.95)', borderColor: '#5cb88a' },
+  pillOk: { backgroundColor: 'rgba(18, 83, 45, 0.94)', borderColor: '#86efac' },
   pillWarn: { backgroundColor: 'rgba(255, 243, 224, 0.95)', borderColor: '#f0b429' },
   pillErr: { backgroundColor: 'rgba(255, 235, 235, 0.95)', borderColor: '#e74c3c' },
   retryBtn: {

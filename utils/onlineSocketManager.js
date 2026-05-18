@@ -545,6 +545,11 @@ export function joinOnlineRoom(roomCode) {
         resolve({ error, url });
         return;
       }
+      const ready = await waitForSocketConnected(sock);
+      if (!ready) {
+        resolve({ error: 'Not connected', url });
+        return;
+      }
       const code = String(roomCode || '').trim().toUpperCase();
       const res = await emitWithAck(sock, 'joinRoom', { roomCode: code });
       if (res?.error) {

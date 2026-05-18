@@ -43,6 +43,8 @@ let battleWanted = false;
 /** @type {'none'|'menu'|'battle'} */
 let bgmMode = 'none';
 let bgmAudio = null;
+let bgmTargetMode = 'none';
+let bgmTargetPath = '';
 let fadeTimer = null;
 let duckUntil = 0;
 let menuPick = '';
@@ -151,7 +153,7 @@ function clearFade() {
   }
 }
 
-function stopBgmElement() {
+function stopBgmElement({ clearTarget = true } = {}) {
   try {
     if (bgmAudio) {
       bgmAudio.onended = null;
@@ -163,9 +165,13 @@ function stopBgmElement() {
   }
   bgmAudio = null;
   bgmMode = 'none';
+  if (clearTarget) {
+    bgmTargetMode = 'none';
+    bgmTargetPath = '';
+  }
 }
 
-function fadeOutBgm(onDone) {
+function fadeOutBgm(onDone, { preserveTarget = false } = {}) {
   if (!bgmAudio) {
     onDone?.();
     return;
@@ -184,7 +190,7 @@ function fadeOutBgm(onDone) {
     }
     if (step >= steps) {
       clearFade();
-      stopBgmElement();
+      stopBgmElement({ clearTarget: !preserveTarget });
       onDone?.();
     }
   }, FADE_STEP_MS);
@@ -196,6 +202,10 @@ function fadeOutBgm(onDone) {
  */
 function startBgm(path, mode, fallbackPath = '') {
   if (!path || !isWeb() || settings.muted || !isAppAudioActive()) return false;
+
+  if (fadeTimer && bgmTargetMode === mode && bgmTargetPath === path) {
+    return true;
+  }
 
   const url = encodePublicPath(path);
   if (bgmAudio && bgmMode === mode) {
@@ -210,7 +220,10 @@ function startBgm(path, mode, fallbackPath = '') {
     stopBgmElement();
   }
 
+  bgmTargetMode = mode;
+  bgmTargetPath = path;
   fadeOutBgm(() => {
+    if (bgmTargetMode !== mode || bgmTargetPath !== path) return;
     try {
       const a = new Audio(url);
       a.loop = true;
@@ -227,7 +240,7 @@ function startBgm(path, mode, fallbackPath = '') {
     } catch {
       stopBgmElement();
     }
-  });
+  }, { preserveTarget: true });
 
   return true;
 }
@@ -392,8 +405,7 @@ export function startBattleMusic(options) {
   battleMusicKind = kind;
   menuWanted = false;
   if (!unlocked || settings.muted) return;
-  if (bgmMode === 'menu') fadeOutBgm(() => playBattleTrack(kind));
-  else playBattleTrack(kind);
+  playBattleTrack(kind);
 }
 
 function playBattleTrack(kind = battleMusicKind) {
