@@ -153,6 +153,28 @@ function clearFade() {
   }
 }
 
+function battleTracksForKind(kind) {
+  if (kind === 'miniBoss') return MINI_BOSS_BGM;
+  if (kind === 'bigBoss') return BOSS_BGM;
+  return BATTLE_BGM;
+}
+
+function pickBattleTrackPath(kind = battleMusicKind) {
+  const tracks = battleTracksForKind(kind);
+  if (battlePick && tracks.includes(battlePick)) return battlePick;
+  return pickRandom(tracks);
+}
+
+function isBgmTrackActive(path, mode) {
+  if (!path || !bgmAudio || bgmMode !== mode) return false;
+  const pick = mode === 'battle' ? battlePick : menuPick;
+  return pick === path && !bgmAudio.paused;
+}
+
+function isBgmFadingTo(path, mode) {
+  return !!fadeTimer && bgmTargetMode === mode && bgmTargetPath === path;
+}
+
 function stopBgmElement({ clearTarget = true } = {}) {
   try {
     if (bgmAudio) {
@@ -203,7 +225,8 @@ function fadeOutBgm(onDone, { preserveTarget = false } = {}) {
 function startBgm(path, mode, fallbackPath = '') {
   if (!path || !isWeb() || settings.muted || !isAppAudioActive()) return false;
 
-  if (fadeTimer && bgmTargetMode === mode && bgmTargetPath === path) {
+  if (isBgmFadingTo(path, mode) || isBgmTrackActive(path, mode)) {
+    refreshBgmVolume();
     return true;
   }
 
@@ -260,6 +283,15 @@ function refreshBgmVolume() {
 function resumeWantedBgm() {
   if (!unlocked || settings.muted || !isAppAudioActive()) return;
   bgmPausedForInactivity = false;
+  if (bgmAudio?.paused) {
+    try {
+      void bgmAudio.play();
+      refreshBgmVolume();
+      return;
+    } catch {
+      /* fall through to restart wanted track */
+    }
+  }
   if (battleWanted) startBattleMusic({ kind: battleMusicKind });
   else if (menuWanted) startMenuMusic({ kind: menuMusicKind });
 }
@@ -397,24 +429,51 @@ export function stopMenuMusic() {
 
 function normalizeBattleMusicKind(input) {
   const raw = typeof input === 'string' ? input : input?.kind ?? input?.stageKind ?? input?.ladderStageKind;
-  if (raw === 'miniBoss') return 'miniBoss';
+  if (raw === 'miniBoss' || input?.mainMiniBoss) return 'miniBoss';
   if (raw === 'bigBoss' || raw === 'boss') return 'bigBoss';
   return 'normal';
 }
 
 export function startBattleMusic(options) {
   const kind = normalizeBattleMusicKind(options);
+  const kindChanged = battleMusicKind !== kind;
   battleWanted = true;
-  battleMusicKind = kind;
   menuWanted = false;
+  battleMusicKind = kind;
+
   if (!unlocked || settings.muted) return;
+
+  const path = pickBattleTrackPath(kind);
+
+  if (!kindChanged && (isBgmTrackActive(path, 'battle') || isBgmFadingTo(path, 'battle'))) {
+    refreshBgmVolume();
+    return;
+  }
+
+  if (!kindChanged && bgmMode === 'battle' && bgmAudio?.paused) {
+    try {
+      void bgmAudio.play();
+      refreshBgmVolume();
+      return;
+    } catch {
+      /* restart below */
+    }
+  }
+
+  if (kindChanged) {
+    const tracks = battleTracksForKind(kind);
+    if (!tracks.includes(battlePick)) battlePick = '';
+  }
+
   playBattleTrack(kind);
 }
 
 function playBattleTrack(kind = battleMusicKind) {
-  const tracks = kind === 'miniBoss' ? MINI_BOSS_BGM : kind === 'bigBoss' ? BOSS_BGM : BATTLE_BGM;
-  const path = battlePick && tracks.includes(battlePick) ? battlePick : pickRandom(tracks);
-  startBgm(path, 'battle', kind === 'miniBoss' ? BOSS_BGM[0] : '');
+  const path = pickBattleTrackPath(kind);
+  battlePick = path;
+  // If mini-boss file is missing, fall back to normal battle music (not boss theme).
+  const fallback = kind === 'miniBoss' ? BATTLE_BGM[0] : '';
+  startBgm(path, 'battle', fallback);
 }
 
 /** @deprecated use startBattleMusic */

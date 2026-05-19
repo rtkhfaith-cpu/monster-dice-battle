@@ -27,7 +27,12 @@ import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
-import { rollMainBattleChestDrop } from './mainBattleChest';
+import {
+  clearMainMiniBossBlock,
+  normalizeMainBattleState,
+  recordMainMiniBossLoss,
+  rollMainBattleChestDrop,
+} from './mainBattleChest';
 
 export const SAVE_KEY = 'MONSTER_DICE_BATTLE_SAVE';
 const LEGACY_KEY_V2 = 'monster_dice_battle_v2';
@@ -260,6 +265,7 @@ function normalizePlayerProfile(p) {
   if (!p.selectedMonsterId && p.ownedMonsters[0]) p.selectedMonsterId = p.ownedMonsters[0].id;
   if (!p.battleProgress) p.battleProgress = defaultBattleProgress();
   if (!p.meta) p.meta = defaultProfileMeta();
+  normalizeMainBattleState(p);
   p.monsterLadder = normalizeMonsterLadder(p.monsterLadder, p.ladderProgress);
   syncLadderRewardsToMainInventory(p);
   delete p.ladderProgress;
@@ -873,6 +879,10 @@ export function awardBattleRewards(gameData, payload) {
       payload.outcome === 2,
       payload.outcome === 'draw',
     );
+    if (payload.wasMainMiniBoss) {
+      if (payload.outcome === 2 || payload.fled) recordMainMiniBossLoss(profileP1);
+      else if (payload.outcome === 1) clearMainMiniBossBlock(profileP1);
+    }
     tuneProfileAiMeta(profileP1, payload);
     gd.battleSummary.winStreakGuest = profileP1.battleProgress.winStreak;
     gd.battleSummary.lossStreakGuest = profileP1.battleProgress.lossStreak;

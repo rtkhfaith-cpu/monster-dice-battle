@@ -10,6 +10,41 @@ export const MAIN_MINI_BOSS_CHANCE = 0.05;
 /** Mini boss stats = same template at level × this multiplier (vs normal CPU 0.9×). */
 export const MAIN_MINI_BOSS_STAT_MULT = 1.5;
 
+/** Battles before another main-game mini boss can appear after a loss. */
+export const MAIN_MINI_BOSS_BATTLES_AFTER_LOSS = 12;
+
+export function normalizeMainBattleState(profile) {
+  if (!profile) return;
+  if (!profile.mainBattle || typeof profile.mainBattle !== 'object') {
+    profile.mainBattle = { blockMiniBossUntilBattle: 0 };
+  }
+  if (typeof profile.mainBattle.blockMiniBossUntilBattle !== 'number') {
+    profile.mainBattle.blockMiniBossUntilBattle = 0;
+  }
+}
+
+/** Whether this profile may roll a new main-game mini boss encounter. */
+export function canSpawnMainMiniBoss(profile) {
+  if (!profile) return true;
+  normalizeMainBattleState(profile);
+  const total = profile.battleProgress?.totalBattles ?? 0;
+  return total >= profile.mainBattle.blockMiniBossUntilBattle;
+}
+
+/** Call after the player loses or flees a main-game mini boss battle. */
+export function recordMainMiniBossLoss(profile) {
+  if (!profile) return;
+  normalizeMainBattleState(profile);
+  const total = profile.battleProgress?.totalBattles ?? 0;
+  profile.mainBattle.blockMiniBossUntilBattle = total + MAIN_MINI_BOSS_BATTLES_AFTER_LOSS;
+}
+
+export function clearMainMiniBossBlock(profile) {
+  if (!profile) return;
+  normalizeMainBattleState(profile);
+  profile.mainBattle.blockMiniBossUntilBattle = 0;
+}
+
 const CHEST_GEAR_POOL = GEAR_CATALOG.filter(
   (g) => g?.id && !g.ladderExclusive && typeof g.price === 'number' && g.price <= 55,
 );

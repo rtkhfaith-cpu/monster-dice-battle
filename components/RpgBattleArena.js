@@ -261,7 +261,7 @@ export default function RpgBattleArena({
           { left: L.monsterSideInset, bottom: L.monsterBottom, opacity: p1Opacity, transform: [{ scale: p1Scale }] },
         ]}
       >
-        <View style={[styles.faceRight, styles.monsterWrap, { width: p1MonsterSize }]}>
+        <View style={[styles.faceRight, styles.monsterWrap]}>
           <Animated.View
             pointerEvents="none"
             style={[
@@ -303,7 +303,7 @@ export default function RpgBattleArena({
           { right: L.monsterSideInset, bottom: L.monsterBottom, opacity: p2Opacity, transform: [{ scale: p2Scale }] },
         ]}
       >
-        <View style={[styles.monsterWrap, { width: p2MonsterSize }]}>
+        <View style={[styles.monsterWrap]}>
           <Animated.View
             pointerEvents="none"
             style={[
@@ -790,7 +790,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
 
-  monsterWrap: { alignItems: 'center', justifyContent: 'flex-end', overflow: 'visible' },
+  monsterWrap: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    overflow: 'visible',
+    paddingTop: 28,
+    paddingHorizontal: 20,
+  },
   faceRight: { transform: [{ scaleX: -1 }], overflow: 'visible' },
   hitFlash: {
     position: 'absolute',

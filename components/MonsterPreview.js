@@ -149,8 +149,16 @@ export default function MonsterPreview({
   const hasThemedSilhouette = !!themeBody;
 
   return (
-    <View style={{ width: size, height: size * 1.06, alignSelf: 'center', justifyContent: 'flex-start' }}>
-      {themeAura && !hasThemedSilhouette ? (
+    <View
+      style={{
+        width: size,
+        height: size * (hideBuiltInShadow ? 1.12 : 1.06),
+        alignSelf: 'center',
+        justifyContent: 'flex-start',
+        overflow: 'visible',
+      }}
+    >
+      {themeAura && !hasThemedSilhouette && !hideBuiltInShadow ? (
         <View
           style={{
             position: 'absolute',

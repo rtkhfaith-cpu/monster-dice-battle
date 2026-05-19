@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useContext } from 'react';
+import { BattleShadingContext } from '../BattleShadingContext';
 import BodyBubbleTea from './BodyBubbleTea';
 import BodyCableSerpent from './BodyCableSerpent';
 import BodyChicken from './BodyChicken';
@@ -69,20 +70,23 @@ export function ThemedMonsterBody(p) {
   const { themeBody } = p;
   const Body = BODY_MAP[themeBody];
   if (!Body) return null;
+  const isBattle = useContext(BattleShadingContext);
   const tier = Math.min(3, Math.max(0, p.evolutionTier ?? p.visualFormTier ?? 0));
-  const { transform } = evolutionBodyTransform(tier);
+  const { transform: evoTransform } = isBattle ? {} : evolutionBodyTransform(tier);
   const palette = p.palette ?? p.themePalette ?? FALLBACK_PALETTE;
   return (
     <G>
-      <G transform={transform}>
+      <G transform={isBattle ? undefined : evoTransform}>
         <Body {...p} palette={palette} evolutionTier={tier} />
       </G>
-      <EvolutionOverlay
-        themeBody={themeBody}
-        evolutionTier={tier}
-        palette={palette}
-        stroke={p.stroke}
-      />
+      {!isBattle ? (
+        <EvolutionOverlay
+          themeBody={themeBody}
+          evolutionTier={tier}
+          palette={palette}
+          stroke={p.stroke}
+        />
+      ) : null}
     </G>
   );
 }

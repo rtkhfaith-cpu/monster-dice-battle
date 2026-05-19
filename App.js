@@ -901,7 +901,7 @@ export default function App() {
     return Promise.resolve({ drop: res.drop, gameData: res.gameData });
   }
 
-  function startGameFromSetup() {
+  function startGameFromSetup(options = {}) {
     if (!setupP1ProfileId) {
       showNotice('Player setup', 'Select or create a player profile first.');
       return;
@@ -912,7 +912,9 @@ export default function App() {
       return;
     }
     const gdClone = JSON.parse(JSON.stringify(gameData));
-    const ai = buildAiFighter(f1, gdClone, setupP1ProfileId);
+    const ai = buildAiFighter(f1, gdClone, setupP1ProfileId, {
+      skipMiniBoss: !!options.skipMiniBoss,
+    });
     if (!ai) {
       showNotice('Player setup', 'Could not build CPU opponent. Try again.');
       return;
@@ -943,6 +945,7 @@ export default function App() {
 
   function playAgainFromReward() {
     const wasOnline = !!rewardSummary?.online;
+    const skipMiniBoss = !!rewardSummary?.mainMiniBossLost;
     setWinner(null);
     setPlayer1(null);
     setPlayer2(null);
@@ -953,7 +956,7 @@ export default function App() {
     } else if (wasLadder) {
       startMonsterLadderBattle();
     } else {
-      startGameFromSetup();
+      startGameFromSetup({ skipMiniBoss });
     }
   }
 
@@ -1100,7 +1103,10 @@ export default function App() {
       return;
     }
     unlockAudio();
-    startBattleMusic({ kind: p2Fighter?.ladderStageKind });
+    startBattleMusic({
+      kind: p2Fighter?.ladderStageKind,
+      mainMiniBoss: !!p2Fighter?.isMainMiniBoss,
+    });
     setPlayer1(arm(p1Fighter));
     setPlayer2(arm(p2Fighter));
     setWinner(null);
@@ -1186,10 +1192,16 @@ export default function App() {
     }
 
     const lastAiWeak = resolvedBattleMode === 'onePlayer' && (player2Snapshot?.aiPowerRatio ?? 2) < 0.82;
+    const wasMainMiniBoss =
+      resolvedBattleMode === 'onePlayer' && !!battleExtras?.mainMiniBoss;
+    const mainMiniBossLost =
+      wasMainMiniBoss && (outcome === 2 || !!battleExtras?.fled);
 
     const { gameData: nextGd, summary } = awardBattleRewards(baseGameData, {
       outcome: outcome,
       mode: resolvedBattleMode === 'onePlayer' ? 'onePlayer' : 'twoPlayer',
+      wasMainMiniBoss,
+      fled: !!battleExtras?.fled,
       p1ProfileId: setupP1ProfileId,
       p2ProfileId: setupP2ProfileId,
       p1OwnedId: player1Snapshot?.ownedMonsterId ?? null,
@@ -1207,7 +1219,10 @@ export default function App() {
     const profileIds = [setupP1ProfileId, setupP2ProfileId].filter(Boolean);
     persistSave(nextGd, 'battle_ended', profileIds);
 
-    setRewardSummary(summary);
+    setRewardSummary({
+      ...summary,
+      mainMiniBossLost,
+    });
 
     const winTpl =
       outcome === 1
@@ -1582,7 +1597,15 @@ export default function App() {
               player2={player2}
               totalCoins={rewardSummary?.monsterLadder ? rewardSummary?.ladderGoldTotal : coins}
               encourageLines={encourage}
-              playAgainLabel={rewardSummary?.online ? 'Back to Home' : rewardSummary?.monsterLadder ? 'Next Ladder Battle' : 'Play Again'}
+              playAgainLabel={
+                rewardSummary?.online
+                  ? 'Back to Home'
+                  : rewardSummary?.monsterLadder
+                    ? 'Next Ladder Battle'
+                    : rewardSummary?.mainMiniBossLost
+                      ? 'Next Battle'
+                      : 'Play Again'
+              }
               hideShopButtons={!!rewardSummary?.monsterLadder || !!rewardSummary?.online}
               onPlayAgain={playAgainFromReward}
               onOpenMonsterGear={

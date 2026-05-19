@@ -35,14 +35,18 @@ export default function MonsterLayerStack({
   const tier = Math.min(3, Math.max(0, visualFormTier ?? evolutionTier ?? 0));
   const rimColor = themePalette?.glow ?? themeAura ?? ART.crit;
 
+  const isBattle = !showShadow;
+  const svgH = isBattle ? size * 1.12 : size;
+  const viewBox = isBattle ? '0 -14 200 214' : '0 0 200 200';
+
   return (
-    <BattleShadingContext.Provider value={!showShadow}>
-      <View style={{ width: size, height: size, alignSelf: 'center' }}>
-        <Svg width={size} height={size} viewBox="0 0 200 200">
+    <BattleShadingContext.Provider value={isBattle}>
+      <View style={{ width: size, height: svgH, alignSelf: 'center', overflow: 'visible' }}>
+        <Svg width={size} height={svgH} viewBox={viewBox}>
           <G>
             {showShadow ? <LayerShadow /> : null}
-            <LayerAura color={themeAura} />
-            {showRarityRim ? <LayerRarityRim color={rimColor} /> : null}
+            {showShadow && themeAura ? <LayerAura color={themeAura} /> : null}
+            {showShadow && showRarityRim ? <LayerRarityRim color={rimColor} /> : null}
             <ThemedMonsterBody
               themeBody={themeBody}
               stroke={stroke}

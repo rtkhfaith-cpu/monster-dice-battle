@@ -11,7 +11,12 @@ import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import { getLadderMonsterSkillSet } from './monsterLadder/ladderMonsterSkills';
 import { computeLadderBattleStats } from './monsterLadder/ladderStatsCalc';
 import { mergeLadderMonsterParts } from './monsterLadder/ladderProfile';
-import { MAIN_MINI_BOSS_CHANCE, MAIN_MINI_BOSS_STAT_MULT } from './mainBattleChest';
+import {
+  canSpawnMainMiniBoss,
+  MAIN_MINI_BOSS_CHANCE,
+  MAIN_MINI_BOSS_STAT_MULT,
+} from './mainBattleChest';
+import { getPlayerProfile } from './gameStorage';
 import { clampMergeTier, scaleStatsByMergeTier } from './mergeSystem';
 
 /**
@@ -165,8 +170,11 @@ function pickRandomCpuTemplate(playerLevel, excludeTemplateId = null) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-/** CPU opponent — random monster from level-appropriate rarities, ~10% weaker (1v CPU). */
-export function buildAiFighter(humanFighter, _gameData = null, _profileId = null) {
+/**
+ * CPU opponent — random monster from level-appropriate rarities, ~10% weaker (1v CPU).
+ * @param {{ skipMiniBoss?: boolean }} [options]
+ */
+export function buildAiFighter(humanFighter, gameData = null, profileId = null, options = {}) {
   const excludeId = humanFighter?.monsterTemplateId || null;
   const playerLevel = humanFighter?.level ?? 1;
   const picked = pickRandomCpuTemplate(playerLevel, excludeId);
@@ -174,7 +182,10 @@ export function buildAiFighter(humanFighter, _gameData = null, _profileId = null
   const tpl = getMonsterTemplate(tplId);
   const levelJitter = Math.floor(Math.random() * 3) - 1;
   const level = Math.max(1, Math.min(99, playerLevel + levelJitter));
-  const isMainMiniBoss = Math.random() < MAIN_MINI_BOSS_CHANCE;
+  const profile = profileId && gameData ? getPlayerProfile(gameData, profileId) : null;
+  const allowMiniBoss =
+    !options.skipMiniBoss && canSpawnMainMiniBoss(profile);
+  const isMainMiniBoss = allowMiniBoss && Math.random() < MAIN_MINI_BOSS_CHANCE;
 
   const fakeOwned = {
     id: `ai_${Date.now().toString(36)}`,

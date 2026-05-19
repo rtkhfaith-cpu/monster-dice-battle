@@ -250,7 +250,7 @@ export default function BattleScreen({
 
   useEffect(() => {
     unlockBattleAudio();
-    startBattleMusic({ kind: ladderStageKind });
+    startBattleMusic({ kind: ladderStageKind, mainMiniBoss: isMainMiniBoss });
     if (!bossStageBanner) return undefined;
     setBusy(true);
     setBattleIntro(true);
@@ -267,7 +267,7 @@ export default function BattleScreen({
       setBusy(false);
     }, ladderStageKind === 'bigBoss' ? 1250 : 900);
     return () => clearTimeout(t);
-  }, [bossStageBanner, ladderStageKind]);
+  }, [bossStageBanner, isMainMiniBoss, ladderStageKind]);
 
   useEffect(() => {
     if (!usePhaserBattleRenderer || phaserFailed || isActionPlaying || busy) return;
@@ -844,7 +844,7 @@ export default function BattleScreen({
 
   function startBattleAudioFromInput() {
     unlockBattleAudio();
-    startBattleMusic({ kind: ladderStageKind });
+    startBattleMusic({ kind: ladderStageKind, mainMiniBoss: isMainMiniBoss });
   }
 
   function tapUi() {
@@ -924,7 +924,7 @@ export default function BattleScreen({
       winner: CPU_ID,
       player1Snapshot: snapshotFight({ ...latestP1, hp: 0 }),
       player2Snapshot: snapshotFight(latestP2),
-      battleExtras: { ...battleExtras, fled: true },
+      battleExtras: { ...battleExtras, fled: true, mainMiniBoss: isMainMiniBoss },
     });
   }
 

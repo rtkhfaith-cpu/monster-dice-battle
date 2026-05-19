@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { getMonsterIdleProfile } from '../utils/monsterIdleMotion';
 import { getMonsterImageAsset } from '../utils/monsterImageAssets';
@@ -310,11 +310,11 @@ export default function AnimatedMonster({
   });
   const glowOpacity = ragePulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
 
-  const shadowW = scaledSize * 0.56;
-  const shadowH = Math.max(8, scaledSize * 0.09);
+  const shadowW = scaledSize * 0.5;
+  const shadowH = Math.max(6, scaledSize * 0.07);
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { minHeight: scaledSize * 1.2, minWidth: scaledSize * 1.15 }]}>
       <View
         pointerEvents="none"
         style={[
@@ -368,26 +368,20 @@ const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     justifyContent: 'flex-end',
+    overflow: 'visible',
   },
   groundShadow: {
     position: 'absolute',
-    bottom: 6,
+    bottom: 2,
     alignSelf: 'center',
-    backgroundColor: 'rgba(12, 18, 32, 0.34)',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0 6px 18px rgba(0, 0, 0, 0.38)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.38,
-          shadowRadius: 10,
-          elevation: 3,
-        }),
+    zIndex: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
   },
   core: {
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
+    overflow: 'visible',
   },
   fadeDodge: {
     alignItems: 'center',
