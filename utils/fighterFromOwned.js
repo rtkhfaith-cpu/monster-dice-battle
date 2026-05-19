@@ -12,6 +12,7 @@ import { getLadderMonsterSkillSet } from './monsterLadder/ladderMonsterSkills';
 import { computeLadderBattleStats } from './monsterLadder/ladderStatsCalc';
 import { mergeLadderMonsterParts } from './monsterLadder/ladderProfile';
 import { MAIN_MINI_BOSS_CHANCE, MAIN_MINI_BOSS_STAT_MULT } from './mainBattleChest';
+import { clampMergeTier, scaleStatsByMergeTier } from './mergeSystem';
 
 /**
  * Build runtime fighter object used by BattleScreen from persisted owned monster row.
@@ -27,7 +28,9 @@ export function fighterFromOwned(owned) {
   const visualTier = visualFormTierFromLevel(owned.level);
   const form = evolutionFormForMonster(owned.templateId, visualTier);
   const gearIds = compactGearIds(owned.equippedGear);
-  const { stats: finalStats, bonuses: gearBonuses } = applyGearBonuses(built.stats, gearIds);
+  const mergeTier = clampMergeTier(owned.mergeTier);
+  const mergedBase = scaleStatsByMergeTier(built.stats, mergeTier);
+  const { stats: finalStats, bonuses: gearBonuses } = applyGearBonuses(mergedBase, gearIds);
   const mergedParts = mergeMonsterParts(owned.templateId, owned.monsterParts || {});
   const parts = {
     ...mergedParts,
@@ -48,11 +51,12 @@ export function fighterFromOwned(owned) {
   return {
     monsterParts: parts,
     stats: finalStats,
-    baseStats: built.stats,
+    baseStats: mergedBase,
     gearBonuses,
     equippedGear: gearIds,
     monsterTemplateId: owned.templateId,
     ownedMonsterId: owned.id,
+    mergeTier,
     superNeedThreshold: built.meta.superNeedThreshold,
     displayName: owned.nickname || tpl.name,
     rarity: tpl.rarity,
@@ -73,7 +77,9 @@ function fighterFromLadderOwnedInMainInventory(owned, tpl) {
   const visualTier = visualFormTierFromLevel(owned.level);
   const form = evolutionFormForMonster(owned.templateId, visualTier);
   const gearIds = compactGearIds(owned.equippedGear);
-  const { stats: finalStats, bonuses: gearBonuses } = applyGearBonuses(built.stats, gearIds);
+  const mergeTier = clampMergeTier(owned.mergeTier);
+  const mergedBase = scaleStatsByMergeTier(built.stats, mergeTier);
+  const { stats: finalStats, bonuses: gearBonuses } = applyGearBonuses(mergedBase, gearIds);
   const parts = {
     ...mergeLadderMonsterParts(owned.templateId, owned.monsterParts || {}),
     templateId: owned.templateId,
@@ -92,11 +98,12 @@ function fighterFromLadderOwnedInMainInventory(owned, tpl) {
   return {
     monsterParts: parts,
     stats: finalStats,
-    baseStats: built.stats,
+    baseStats: mergedBase,
     gearBonuses,
     equippedGear: gearIds,
     monsterTemplateId: owned.templateId,
     ownedMonsterId: owned.id,
+    mergeTier,
     superNeedThreshold: 3,
     displayName: owned.nickname || tpl.name,
     rarity: tpl.rarity,

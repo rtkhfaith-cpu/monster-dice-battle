@@ -1,27 +1,24 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { chestDropSubtitle, chestDropTitle } from '../utils/mainBattleChest';
 
-function ExpRow({ label, pack }) {
+function ExpRowCompact({ label, pack }) {
   if (!pack || pack.level == null) return null;
   const pct = Math.min(100, Math.round(((pack.exp ?? 0) / Math.max(1, pack.expToNext ?? 1)) * 100));
   const evolved = pack.evolved
-    ? ` · EVOLVED → ${pack.evolutionFormName || pack.nextStage}`
+    ? ` · EVOLVED ${pack.evolutionFormName || pack.nextStage || ''}`
     : '';
   return (
     <View style={styles.expBlock}>
-      <Text style={styles.expLbl}>
-        {label}: Lv {pack.level}
+      <Text style={styles.expLbl} numberOfLines={1}>
+        {label} Lv{pack.level}
         {pack.levelsGained ? ` (+${pack.levelsGained})` : ''}
         {evolved}
       </Text>
       <View style={styles.barOuter}>
         <View style={[styles.barInner, { width: `${pct}%` }]} />
       </View>
-      <Text style={styles.expTiny}>
-        EXP {pack.exp ?? 0}/{pack.expToNext ?? '—'} toward next level
-      </Text>
     </View>
   );
 }
@@ -57,339 +54,344 @@ export default function RewardScreen({
   onlineResult = false,
   onlineWon = false,
 }) {
-  const line =
-    onlineResult
-      ? winner === 'draw'
-        ? 'Both monsters are still standing.'
-        : onlineWon
-          ? 'Your monster ruled the arena!'
-          : 'Your monster fought hard. Train up and try again.'
-    : monsterLadder
-      ? winner === 1
-        ? 'The Ladder shifts upward.'
-        : winner === 'draw'
-          ? 'The Noise holds its breath.'
-          : 'Same stage. Adjust and retry.'
-      : winner === 'draw'
-      ? 'Nobody wins but everybody snacks.'
-      : winner === 1
-        ? 'Player 1 steals the spotlight!'
-        : 'Player 2 rules the living room!';
+  const { height } = useWindowDimensions();
+  const compact = height < 720;
+  const portraitSize = compact ? 88 : 104;
+  const dualPortraitSize = compact ? 64 : 72;
 
-  const evolveFlash =
-    expP1?.evolved || expP2?.evolved ? (
-      <Text style={styles.evolve}>EVOLUTION!</Text>
-    ) : null;
+  const line = useMemo(() => {
+    if (onlineResult) {
+      if (winner === 'draw') return 'Both monsters still standing.';
+      return onlineWon ? 'Arena victory!' : 'Train up and rematch.';
+    }
+    if (monsterLadder) {
+      if (winner === 1) return 'Ladder advances.';
+      if (winner === 'draw') return 'Stalemate on the climb.';
+      return 'Same stage — try again.';
+    }
+    if (winner === 'draw') return 'Peace treaty signed.';
+    if (winner === 1) return 'Victory!';
+    return 'Defeat this round.';
+  }, [monsterLadder, onlineResult, onlineWon, winner]);
+
+  const extras = [];
+  if (bonusUnderdog) extras.push('Underdog +10🪙 +10 EXP');
+  if (ladderFloor) {
+    extras.push(
+      `${monsterLadder ? 'Lv' : 'Floor'} ${ladderFloor}${ladderRegionName ? ` · ${ladderRegionName}` : ''}`,
+    );
+  }
+  if (ladderFirstClear && ladderBonusCoins > 0) {
+    extras.push(`+${ladderBonusCoins} ladder gold`);
+  }
+  if (monsterLadder && chestDrop) {
+    extras.push(
+      `${chestDrop.kind === 'gear' ? 'Gear' : 'Monster'} chest${chestDrop.duplicate ? ' (shards)' : ''}`,
+    );
+  }
+  if (monsterLadder && chestBlocked) extras.push('Daily chest claimed');
+  if (!monsterLadder && mainChestDrop) {
+    extras.push(`Chest: ${chestDropTitle(mainChestDrop)}`);
+  }
+  const extraLine = extras.join(' · ');
+  const tipLine = encourageLines?.[0] ?? '';
+
+  const showP2Exp = !!expP2?.level && !monsterLadder && !onlineResult;
 
   return (
-    <View style={styles.wrap}>
-      <View style={styles.glowOrb} pointerEvents="none" />
-      {evolveFlash}
-      <Text style={styles.boom}>{monsterLadder ? 'Ladder Result' : 'Battle Result'}</Text>
-      <Text style={styles.title}>{funnyTitle}</Text>
-      <Text style={styles.sub}>{line}</Text>
-
-      {bonusUnderdog ? <Text style={styles.underdog}>UNDERDOG BONUS! +10 coins · +10 EXP</Text> : null}
-
-      {ladderFloor ? (
-        <Text style={styles.ladderMeta}>
-          {monsterLadder ? `Level ${ladderFloor}` : `Floor ${ladderFloor}`}
-          {ladderRegionName ? ` · ${ladderRegionName}` : ''}
+    <View style={[styles.root, compact && styles.rootCompact]}>
+      <View style={styles.header}>
+        {expP1?.evolved || expP2?.evolved ? (
+          <Text style={styles.evolve}>EVOLUTION!</Text>
+        ) : null}
+        <Text style={styles.boom}>{monsterLadder ? 'Ladder' : 'Battle'} Result</Text>
+        <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.72}>
+          {funnyTitle}
         </Text>
-      ) : null}
-      {ladderFirstClear && ladderBonusCoins > 0 ? (
-        <Text style={styles.ladderBonus}>
-          {monsterLadder ? `Ladder gold: +${ladderBonusCoins}` : `First clear bonus: +${ladderBonusCoins} coins`}
+        <Text style={styles.sub} numberOfLines={1}>
+          {line}
         </Text>
-      ) : null}
-      {monsterLadder && chestDrop ? (
-        <Text style={styles.ladderBonus}>
-          {chestDrop.kind === 'gear' ? 'Gear Chest' : 'Monster Chest'} reward:{' '}
-          {chestDrop.duplicate ? 'duplicate converted to shards' : 'new reward found'}
-        </Text>
-      ) : null}
-      {monsterLadder && chestBlocked ? (
-        <Text style={styles.ladderMeta}>Daily chest already claimed. Reset is 6PM Singapore.</Text>
-      ) : null}
-      {!monsterLadder && mainChestDrop ? (
-        <Text style={styles.ladderBonus}>
-          Mini Boss chest: {chestDropTitle(mainChestDrop)} — {chestDropSubtitle(mainChestDrop)}
-        </Text>
-      ) : null}
-
-      <View style={styles.rewardPanel}>
-        <Text style={styles.coins}>
-          {monsterLadder ? 'Ladder gold earned' : 'Coins banked this match'}
-        </Text>
-        <Text style={styles.coinsStrong}>+{coinsAwarded}</Text>
-        <Text style={styles.bank}>
-          {monsterLadder
-            ? `Ladder bank: ${ladderGoldTotal ?? totalCoins ?? 0} · Shards: ${ladderShardsTotal ?? 0}`
-            : `Piggy bank: ${totalCoins ?? 0}`}
-        </Text>
+        {extraLine ? (
+          <Text style={styles.extra} numberOfLines={2}>
+            {extraLine}
+          </Text>
+        ) : null}
       </View>
 
-      <ExpRow label={monsterLadder ? 'Ladder monster progress' : 'Player 1 progress'} pack={expP1} />
-      <ExpRow label="Player 2 progress" pack={expP2} />
+      <View style={styles.mainRow}>
+        <View style={styles.portraitCol}>
+          {onlineResult ? (
+            <MonsterPreview
+              parts={player1?.monsterParts}
+              size={portraitSize}
+              mood={onlineWon ? 'happy' : 'dizzy'}
+            />
+          ) : winner === 'draw' ? (
+            <View style={styles.dualPortrait}>
+              <MonsterPreview parts={player1?.monsterParts} size={dualPortraitSize} mood="dizzy" />
+              <MonsterPreview parts={player2?.monsterParts} size={dualPortraitSize} mood="dizzy" />
+            </View>
+          ) : (
+            <MonsterPreview
+              parts={(winner === 1 ? player1 : player2)?.monsterParts}
+              size={portraitSize}
+              mood="happy"
+            />
+          )}
+        </View>
 
-      <View style={styles.row}>
-        {onlineResult ? (
-          <MonsterPreview parts={player1?.monsterParts} size={200} mood={onlineWon ? 'happy' : 'dizzy'} />
-        ) : winner === 'draw' ? (
-          <>
-            <MonsterPreview parts={player1?.monsterParts} size={120} mood="dizzy" />
-            <MonsterPreview parts={player2?.monsterParts} size={120} mood="dizzy" />
-          </>
-        ) : (
-          <MonsterPreview parts={winner === 1 ? player1?.monsterParts : player2?.monsterParts} size={200} mood="happy" />
-        )}
+        <View style={styles.detailsCol}>
+          <View style={styles.rewardPanel}>
+            <Text style={styles.coinsLbl}>
+              {monsterLadder ? 'Ladder gold' : 'Coins'}
+            </Text>
+            <Text style={styles.coinsStrong}>+{coinsAwarded}</Text>
+            <Text style={styles.bank} numberOfLines={1}>
+              {monsterLadder
+                ? `Bank ${ladderGoldTotal ?? totalCoins ?? 0} · Shards ${ladderShardsTotal ?? 0}`
+                : `Total ${totalCoins ?? 0}🪙`}
+            </Text>
+          </View>
+          <ExpRowCompact
+            label={monsterLadder ? 'Climber' : 'You'}
+            pack={expP1}
+          />
+          {showP2Exp ? <ExpRowCompact label="Rival" pack={expP2} /> : null}
+          {tipLine ? (
+            <Text style={styles.tip} numberOfLines={1}>
+              {tipLine}
+            </Text>
+          ) : null}
+        </View>
       </View>
 
-      {encourageLines.map((ln, i) => (
-        <Text key={`enc-${i}`} style={styles.encourage}>
-          {ln}
-        </Text>
-      ))}
-
-      <TouchableOpacity style={styles.primary} onPress={onPlayAgain}>
-        <Text style={styles.primaryTxt}>{playAgainLabel}</Text>
-      </TouchableOpacity>
-
-      {!hideShopButtons && onOpenMonsterMart ? (
-        <TouchableOpacity style={styles.secondary} onPress={onOpenMonsterMart}>
-          <Text style={styles.secondaryTxt}>Go to Monster Mart 🛒</Text>
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.primary} onPress={onPlayAgain}>
+          <Text style={styles.primaryTxt}>{playAgainLabel}</Text>
         </TouchableOpacity>
-      ) : null}
 
-      {!hideShopButtons && onOpenMonsterGear ? (
-        <TouchableOpacity style={styles.tertiary} onPress={onOpenMonsterGear}>
-          <Text style={styles.tertiaryTxt}>Monster Gear — look & power</Text>
-        </TouchableOpacity>
-      ) : null}
+        {!hideShopButtons && (onOpenMonsterMart || onOpenMonsterGear) ? (
+          <View style={styles.shopRow}>
+            {onOpenMonsterMart ? (
+              <TouchableOpacity style={styles.shopBtn} onPress={onOpenMonsterMart}>
+                <Text style={styles.shopBtnTxt}>Mart</Text>
+              </TouchableOpacity>
+            ) : null}
+            {onOpenMonsterGear ? (
+              <TouchableOpacity style={styles.shopBtn} onPress={onOpenMonsterGear}>
+                <Text style={styles.shopBtnTxt}>Gear</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
 
-      {onBackToHome ? (
-        <TouchableOpacity style={styles.ghost} onPress={onBackToHome}>
-          <Text style={styles.ghostTxt}>{backToHomeLabel}</Text>
-        </TouchableOpacity>
-      ) : null}
+        {onBackToHome ? (
+          <TouchableOpacity style={styles.ghost} onPress={onBackToHome}>
+            <Text style={styles.ghostTxt}>{backToHomeLabel}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 22,
+  root: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 18,
     borderWidth: 2,
     borderColor: 'rgba(255,224,138,0.42)',
-    borderBottomWidth: 5,
+    borderBottomWidth: 4,
     borderBottomColor: '#5f3a1b',
-    backgroundColor: 'rgba(12, 24, 45, 0.92)',
+    backgroundColor: 'rgba(12, 24, 45, 0.94)',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
-  glowOrb: {
-    position: 'absolute',
-    top: -80,
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    backgroundColor: 'rgba(96, 165, 250, 0.16)',
+  rootCompact: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 6,
   },
   evolve: {
-    fontSize: 24,
+    fontSize: 14,
     fontWeight: '900',
     color: '#f0abfc',
-    marginBottom: 6,
-    textAlign: 'center',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0,0,0,0.7)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  underdog: {
-    fontWeight: '900',
-    fontSize: 13,
-    color: '#93c5fd',
-    marginBottom: 10,
-    textAlign: 'center',
+    marginBottom: 2,
     textTransform: 'uppercase',
-  },
-  ladderMeta: {
-    fontWeight: '900',
-    fontSize: 12,
-    color: '#c4b5fd',
-    marginBottom: 6,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-  },
-  ladderBonus: {
-    fontWeight: '900',
-    fontSize: 13,
-    color: '#fbbf24',
-    marginBottom: 8,
-    textAlign: 'center',
   },
   boom: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '900',
     color: '#fcd34d',
-    marginBottom: 4,
-    letterSpacing: 1.4,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   title: {
-    fontSize: 25,
+    fontSize: 18,
     fontWeight: '900',
     color: '#fff4cf',
     textAlign: 'center',
-    marginBottom: 6,
-    lineHeight: 30,
+    marginTop: 2,
+    lineHeight: 22,
     paddingHorizontal: 4,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 5,
   },
   sub: {
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 11,
+    fontWeight: '800',
     color: '#bfdbfe',
     textAlign: 'center',
-    marginBottom: 10,
-    lineHeight: 19,
+    marginTop: 2,
+  },
+  extra: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#fde68a',
+    textAlign: 'center',
+    marginTop: 3,
+    lineHeight: 12,
+  },
+  mainRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 0,
+    marginBottom: 6,
+  },
+  portraitCol: {
+    width: 108,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dualPortrait: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  detailsCol: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+    gap: 5,
   },
   rewardPanel: {
-    width: '100%',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.45)',
+    backgroundColor: 'rgba(7, 17, 32, 0.75)',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     alignItems: 'center',
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: 'rgba(255,224,138,0.5)',
-    backgroundColor: 'rgba(7, 17, 32, 0.7)',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    marginBottom: 12,
   },
-  coins: {
-    fontSize: 12,
+  coinsLbl: {
+    fontSize: 9,
     fontWeight: '900',
     color: '#d9f7ff',
-    marginBottom: 2,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
   },
   coinsStrong: {
     color: '#fcd34d',
     fontWeight: '900',
-    fontSize: 28,
-    textShadowColor: 'rgba(0,0,0,0.65)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 3,
+    fontSize: 22,
+    lineHeight: 24,
   },
   bank: {
-    fontSize: 12,
-    fontWeight: '900',
+    fontSize: 10,
+    fontWeight: '800',
     color: '#86efac',
-    marginTop: 2,
+    marginTop: 1,
   },
   expBlock: {
-    width: '100%',
-    marginBottom: 10,
-    borderRadius: 15,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    padding: 9,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 7,
+    paddingVertical: 5,
   },
-  expLbl: { fontWeight: '900', fontSize: 13, color: '#fff4cf', marginBottom: 6, lineHeight: 18 },
+  expLbl: {
+    fontWeight: '800',
+    fontSize: 10,
+    color: '#fff4cf',
+    marginBottom: 4,
+  },
   barOuter: {
-    height: 12,
+    height: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,224,138,0.3)',
   },
-  barInner: { height: '100%', backgroundColor: '#34d399' },
-  expTiny: { fontWeight: '800', fontSize: 11, color: '#bfdbfe', marginTop: 4 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 4,
+  barInner: {
+    height: '100%',
+    backgroundColor: '#34d399',
   },
-  encourage: {
-    fontWeight: '900',
-    fontSize: 12,
+  tip: {
+    fontWeight: '800',
+    fontSize: 9,
     color: '#dbeafe',
     textAlign: 'center',
-    marginBottom: 6,
-    lineHeight: 17,
-    paddingHorizontal: 8,
+    fontStyle: 'italic',
+  },
+  actions: {
+    gap: 5,
   },
   primary: {
     width: '100%',
     backgroundColor: 'rgba(48, 129, 66, 0.96)',
-    borderRadius: 18,
-    borderWidth: 2,
+    borderRadius: 12,
+    borderWidth: 1,
     borderColor: '#efd17a',
-    borderBottomWidth: 5,
+    borderBottomWidth: 3,
     borderBottomColor: '#31551f',
-    paddingVertical: 16,
+    paddingVertical: 10,
     alignItems: 'center',
-    marginBottom: 10,
   },
   primaryTxt: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '900',
     color: '#fff8dd',
     textTransform: 'uppercase',
-    letterSpacing: 0.7,
   },
-  secondary: {
-    width: '100%',
+  shopRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  shopBtn: {
+    flex: 1,
     backgroundColor: 'rgba(237, 210, 155, 0.94)',
-    borderRadius: 14,
-    borderWidth: 2,
+    borderRadius: 10,
+    borderWidth: 1,
     borderColor: '#b9843b',
-    borderBottomWidth: 4,
+    borderBottomWidth: 3,
     borderBottomColor: '#68401f',
-    paddingVertical: 12,
+    paddingVertical: 8,
     alignItems: 'center',
-    marginBottom: 8,
   },
-  secondaryTxt: {
-    fontSize: 18,
+  shopBtnTxt: {
+    fontSize: 12,
     fontWeight: '900',
     color: '#5c3618',
     textTransform: 'uppercase',
   },
-  tertiary: {
-    width: '100%',
-    backgroundColor: 'rgba(42, 58, 86, 0.9)',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#8b6b3f',
-    borderBottomWidth: 4,
-    borderBottomColor: '#49311c',
-    paddingVertical: 11,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  tertiaryTxt: { fontWeight: '900', fontSize: 15, color: '#f4e3bd', textTransform: 'uppercase' },
   ghost: {
-    paddingVertical: 11,
-    paddingHorizontal: 18,
-    marginTop: 4,
-    borderRadius: 14,
+    paddingVertical: 7,
+    alignItems: 'center',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,224,138,0.35)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,224,138,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  ghostTxt: { fontWeight: '900', fontSize: 13, color: '#ffe08a', textTransform: 'uppercase' },
+  ghostTxt: {
+    fontWeight: '900',
+    fontSize: 11,
+    color: '#ffe08a',
+    textTransform: 'uppercase',
+  },
 });

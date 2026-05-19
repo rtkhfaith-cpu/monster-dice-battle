@@ -2,16 +2,27 @@ import { BREAKPOINT_MOBILE } from './responsive';
 
 /** Symmetrical arcade battle layout — mirrored left/right fighters. */
 
-/** Enemy sprite scale vs player (p1) during boss encounters */
+/** Enemy sprite scale vs normal fighter size during boss encounters */
 export const BOSS_DISPLAY_SCALE = {
-  miniBoss: 1.85,
-  bigBoss: 2.3,
+  miniBoss: 1.2,
+  bigBoss: 1.5,
 };
+
+/** Player shrinks during mini boss / boss fights */
+export const PLAYER_BOSS_ENCOUNTER_SCALE = 0.7;
+
+export function isBossEncounter(stageKind) {
+  return stageKind === 'miniBoss' || stageKind === 'bigBoss';
+}
 
 export function enemyBossDisplayScale(stageKind) {
   if (stageKind === 'bigBoss') return BOSS_DISPLAY_SCALE.bigBoss;
   if (stageKind === 'miniBoss') return BOSS_DISPLAY_SCALE.miniBoss;
   return 1;
+}
+
+export function playerBossEncounterScale(stageKind) {
+  return isBossEncounter(stageKind) ? PLAYER_BOSS_ENCOUNTER_SCALE : 1;
 }
 
 export function isMobileLayout(width, height) {

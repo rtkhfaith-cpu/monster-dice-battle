@@ -15,6 +15,7 @@ import OnlineRoomBanner from './OnlineRoomBanner';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
+import { groupOwnedMonsters, MAX_MERGE_TIER, pickPrimaryInstance } from '../utils/mergeSystem';
 
 const MAX_VISIBLE_PROFILES = 4;
 
@@ -124,6 +125,8 @@ export default function HomeSetupScreen({
   onCreateWithId,
   ladderAvailable,
   coins,
+  ladderOwnedMonsters = [],
+  onMergeMonster,
 }) {
   const [tray, setTray] = useState(null);
   const [nameDraft, setNameDraft] = useState('');
@@ -139,6 +142,19 @@ export default function HomeSetupScreen({
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const activeWallet = walletP1 || wallet;
   const monsters = activeWallet?.ownedMonsters ?? [];
+  const monsterGroups = useMemo(() => {
+    return groupOwnedMonsters(monsters, ladderOwnedMonsters)
+      .map((group) => {
+        const mainInstances = group.instances.filter((i) => i._source === 'main');
+        const battlePrimary = pickPrimaryInstance(mainInstances);
+        return {
+          ...group,
+          battlePrimary,
+          mainCount: mainInstances.length,
+        };
+      })
+      .filter((g) => g.mainCount > 0);
+  }, [monsters, ladderOwnedMonsters]);
   const canStart = !!selectedP1Id && monsters.some((m) => m.id === selectedP1Id);
   const multiplayerHandler = onEnterMultiplayer || onOpenOnlineLobby;
   const playerName = activeProfile?.name || slotProfileName || 'Trainer';
@@ -284,7 +300,7 @@ export default function HomeSetupScreen({
                 <TextInput
                   value={loginId}
                   onChangeText={(v) => setLoginId(String(v || '').slice(0, 10))}
-                  placeholder="ID (10 max)"
+                  placeholder="ID"
                   placeholderTextColor="rgba(255,255,255,0.58)"
                   style={[styles.loginInput, styles.loginIdInput]}
                   maxLength={10}
@@ -388,18 +404,23 @@ export default function HomeSetupScreen({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator
           >
-            {monsters.map((monster) => {
-              const picked = monster.id === selectedP1Id;
+            {monsterGroups.map((group) => {
+              const primary = group.battlePrimary;
+              if (!primary) return null;
+              const picked = primary.id === selectedP1Id;
+              const countLabel = group.count > 1 ? ` ×${group.count}` : '';
               return (
                 <Pressable
-                  key={monster.id}
-                  onPress={pressWithSound(() => onSelectMonster?.(monster.id))}
+                  key={group.templateId}
+                  onPress={pressWithSound(() => onSelectMonster?.(primary.id))}
                   style={[styles.monsterChip, picked && styles.monsterChipActive]}
                 >
                   <Text style={styles.monsterChipText} numberOfLines={1}>
-                    {monster.nickname || monster.templateId || 'Monster'}
+                    {group.displayName}{countLabel}
                   </Text>
-                  <Text style={styles.monsterChipSub}>Lv {monster.level ?? 1}</Text>
+                  <Text style={styles.monsterChipSub}>
+                    Lv {primary.level ?? 1}{group.mergeTier > 0 ? ` · +${group.mergeTier}` : ''}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -493,7 +514,7 @@ export default function HomeSetupScreen({
         <View style={styles.trayHeader}>
           <View>
             <Text style={styles.trayTitle}>Owned Monsters</Text>
-            <Text style={styles.traySub}>Tap a monster to use it in main battles</Text>
+            <Text style={styles.traySub}>Grouped by type · tap to select · merge duplicates</Text>
           </View>
           <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
             <Text style={styles.trayCloseText}>Close</Text>
@@ -506,24 +527,45 @@ export default function HomeSetupScreen({
           showsVerticalScrollIndicator
           nestedScrollEnabled
         >
-          {monsters.map((monster) => {
-            const picked = monster.id === selectedP1Id;
+          {monsterGroups.map((group) => {
+            const primary = group.battlePrimary ?? group.primary;
+            if (!primary) return null;
+            const picked = primary.id === selectedP1Id;
+            const countLabel = group.count > 1 ? ` ×${group.count}` : '';
+            const mergeLabel = group.mergeTier > 0 ? ` · +${group.mergeTier}` : '';
+            const mergeTargetId = group.primary?.id ?? primary.id;
             return (
-              <Pressable
-                key={monster.id}
-                onPress={pressWithSound(() => onSelectMonster?.(monster.id))}
-                style={[styles.monsterSelectRow, picked && styles.monsterChipActive]}
-              >
-                <View style={styles.monsterSelectPortrait}>
-                  <MonsterPreview parts={monster.monsterParts} size={46} mood={picked ? 'happy' : 'neutral'} />
-                </View>
-                <View style={styles.monsterSelectMeta}>
-                  <Text style={styles.monsterChipText} numberOfLines={1}>
-                    {monster.nickname || monster.templateId || 'Monster'}
-                  </Text>
-                  <Text style={styles.monsterChipSub}>Lv {monster.level ?? 1}{picked ? ' · Selected' : ''}</Text>
-                </View>
-              </Pressable>
+              <View key={group.templateId} style={[styles.monsterSelectRow, picked && styles.monsterChipActive]}>
+                <Pressable
+                  style={styles.monsterSelectMain}
+                  onPress={pressWithSound(() => onSelectMonster?.(primary.id))}
+                >
+                  <View style={styles.monsterSelectPortrait}>
+                    <MonsterPreview parts={primary.monsterParts} size={46} mood={picked ? 'happy' : 'neutral'} />
+                  </View>
+                  <View style={styles.monsterSelectMeta}>
+                    <Text style={styles.monsterChipText} numberOfLines={1}>
+                      {group.displayName}{countLabel}
+                    </Text>
+                    <Text style={styles.monsterChipSub}>
+                      Lv {primary.level ?? 1}{mergeLabel}{picked ? ' · Selected' : ''}
+                    </Text>
+                  </View>
+                </Pressable>
+                {group.canMerge && onMergeMonster ? (
+                  <Pressable
+                    style={styles.mergeBtn}
+                    onPress={pressWithSound(() => onMergeMonster(mergeTargetId))}
+                  >
+                    <Text style={styles.mergeBtnTxt}>Merge</Text>
+                    <Text style={styles.mergeBtnSub}>+{group.mergeTier + 1}</Text>
+                  </Pressable>
+                ) : group.mergeTier >= MAX_MERGE_TIER ? (
+                  <View style={styles.mergeMaxBadge}>
+                    <Text style={styles.mergeMaxTxt}>MAX</Text>
+                  </View>
+                ) : null}
+              </View>
             );
           })}
         </ScrollView>
@@ -856,15 +898,15 @@ const styles = StyleSheet.create({
   },
   loginPanel: {
     position: 'absolute',
-    top: '31%',
-    left: '10%',
-    right: '10%',
+    top: '29%',
+    left: '26%',
+    right: '26%',
     flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: 5,
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    borderRadius: 14,
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 4,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,224,143,0.62)',
     backgroundColor: 'rgba(15, 22, 42, 0.72)',
@@ -873,35 +915,40 @@ const styles = StyleSheet.create({
   loginRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'center',
+    gap: 4,
     width: '100%',
+    maxWidth: 156,
   },
   loginInput: {
-    height: 32,
-    borderRadius: 10,
+    height: 24,
+    borderRadius: 7,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
     backgroundColor: 'rgba(0,0,0,0.28)',
     color: '#fff8e5',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
-    paddingHorizontal: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 0,
   },
   loginIdInput: {
-    flex: 2.4,
-    minWidth: 0,
+    width: 74,
+    flexGrow: 0,
+    flexShrink: 0,
   },
   loginPinInput: {
-    width: 52,
+    width: 36,
     flexGrow: 0,
     flexShrink: 0,
     textAlign: 'center',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
   },
   loginMiniBtn: {
-    minHeight: 32,
-    paddingHorizontal: 7,
-    borderRadius: 10,
+    minHeight: 24,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+    borderRadius: 7,
     borderWidth: 1,
     borderColor: '#ffe08a',
     backgroundColor: 'rgba(117, 76, 24, 0.86)',
@@ -911,19 +958,21 @@ const styles = StyleSheet.create({
   loginActionBtn: {
     flex: 1,
     minWidth: 0,
+    maxWidth: 74,
   },
   loginMiniTxt: {
     color: '#fff4c7',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   loginMsg: {
     color: '#bfdbfe',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '800',
     textAlign: 'center',
-    marginTop: 1,
+    marginTop: 0,
+    maxWidth: 156,
   },
   tray: {
     position: 'absolute',
@@ -1114,9 +1163,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  monsterSelectMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+  },
   monsterSelectMeta: {
     flex: 1,
     minWidth: 0,
+  },
+  mergeBtn: {
+    minWidth: 52,
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#c4b5fd',
+    backgroundColor: 'rgba(88, 28, 135, 0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  mergeBtnTxt: {
+    color: '#f5f3ff',
+    fontWeight: '900',
+    fontSize: 10,
+    textTransform: 'uppercase',
+  },
+  mergeBtnSub: {
+    color: '#e9d5ff',
+    fontWeight: '800',
+    fontSize: 8,
+    marginTop: 1,
+  },
+  mergeMaxBadge: {
+    minWidth: 40,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(250, 204, 21, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(250, 204, 21, 0.55)',
+  },
+  mergeMaxTxt: {
+    color: '#fde68a',
+    fontWeight: '900',
+    fontSize: 9,
+    textAlign: 'center',
   },
   createBox: {
     gap: 7,

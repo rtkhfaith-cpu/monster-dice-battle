@@ -1,7 +1,7 @@
 import BattleAnimationController from './BattleAnimationController';
 import MonsterActor from './MonsterActor';
 import { GAME_ASSETS } from '../../utils/gameAssetPaths';
-import { BOSS_DISPLAY_SCALE } from '../../utils/battleLayout';
+import { BOSS_DISPLAY_SCALE, playerBossEncounterScale } from '../../utils/battleLayout';
 import { MONSTER_ASSETS, getNormalMonsterAsset } from './monsterAssetManifest';
 
 export const ACTION_IMAGE_ASSETS = {
@@ -100,11 +100,16 @@ export function createPhaserBattleScene(Phaser) {
     createMonsterActor(key, x, y, facing, depth) {
       this.actors[key]?.destroy();
       const fighter = this.fighters[key] || {};
-      const bossScale =
-        key === 'enemy' && fighter.stageKind === 'bigBoss'
-          ? BOSS_DISPLAY_SCALE.bigBoss
-          : key === 'enemy' && fighter.stageKind === 'miniBoss'
-            ? BOSS_DISPLAY_SCALE.miniBoss
+      const stageKind = this.fighters.enemy?.stageKind ?? fighter.stageKind;
+      const encounterScale =
+        key === 'player'
+          ? playerBossEncounterScale(stageKind)
+          : key === 'enemy'
+            ? fighter.stageKind === 'bigBoss'
+              ? BOSS_DISPLAY_SCALE.bigBoss
+              : fighter.stageKind === 'miniBoss'
+                ? BOSS_DISPLAY_SCALE.miniBoss
+                : 1
             : 1;
       this.actors[key] = new MonsterActor(this, Phaser, {
         key,
@@ -112,7 +117,7 @@ export function createPhaserBattleScene(Phaser) {
         y,
         facing,
         depth,
-        scale: (key === 'player' ? 1 : 1.03) * bossScale,
+        scale: (key === 'player' ? 1 : 1.03) * encounterScale,
         asset: getNormalMonsterAsset(fighter.templateId),
         ...fighter,
       });

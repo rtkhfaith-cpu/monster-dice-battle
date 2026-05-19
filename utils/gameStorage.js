@@ -20,7 +20,8 @@ import { expMultiplierFromGear } from './gearStats';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
-import { mergeLadderMonsterParts } from './monsterLadder/ladderProfile';
+import { getMonsterLadderState, mergeLadderMonsterParts, setMonsterLadderState } from './monsterLadder/ladderProfile';
+import { clampMergeTier, mergeCostForNextTier } from './mergeSystem';
 import { assertShopGearPurchase, assertShopMonsterPurchase } from './shopGuards';
 import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
@@ -168,6 +169,7 @@ export function generateOwnedMonster(templateId, nickname = '') {
     equippedGear: [],
     gearSlotCount: DEFAULT_GEAR_SLOTS,
     unlockedVisualTags: [],
+    mergeTier: 0,
   };
 }
 
@@ -186,6 +188,7 @@ function normalizeOwnedMonster(om) {
       ? mergeLadderMonsterParts(om.templateId)
       : mergeMonsterParts(om.templateId);
   }
+  om.mergeTier = clampMergeTier(om.mergeTier);
 }
 
 function migrateLegacyWalletGear(wallet) {
@@ -961,4 +964,69 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
   }
 
   return { gameData: gd, drop: applied };
+}
+
+/**
+ * Merge duplicate monsters (main + ladder inventory) into one primary instance.
+ * @param {object} gameData
+ * @param {string|null} profileId
+ * @param {string} primaryOwnedId
+ */
+export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
+  const gd = cloneGameData(gameData);
+  const profile = profileId ? getPlayerProfile(gd, profileId) : null;
+  const wallet = walletForProfile(gd, profileId);
+  if (!profile || !wallet) return { gameData: gd, error: 'Profile not found.' };
+
+  const ml = getMonsterLadderState(profile);
+  const refs = [];
+  for (const m of wallet.ownedMonsters || []) refs.push({ monster: m, list: 'main' });
+  for (const m of ml.ownedMonsters || []) refs.push({ monster: m, list: 'ladder' });
+
+  const primaryRef = refs.find((r) => r.monster.id === primaryOwnedId);
+  if (!primaryRef) return { gameData: gd, error: 'Monster not found.' };
+
+  const templateId = primaryRef.monster.templateId;
+  const tier = clampMergeTier(primaryRef.monster.mergeTier);
+  const cost = mergeCostForNextTier(tier);
+  if (cost == null) return { gameData: gd, error: 'Already at max merge level (+9).' };
+
+  const others = refs.filter((r) => r.monster.templateId === templateId && r.monster.id !== primaryOwnedId);
+  if (others.length < cost) {
+    return {
+      gameData: gd,
+      error: `Need ${cost} extra cop${cost === 1 ? 'y' : 'ies'} for +${tier + 1} (have ${others.length}).`,
+    };
+  }
+
+  const sorted = [...others].sort((a, b) => {
+    const td = clampMergeTier(a.monster.mergeTier) - clampMergeTier(b.monster.mergeTier);
+    if (td !== 0) return td;
+    return (a.monster.level ?? 1) - (b.monster.level ?? 1);
+  });
+  const removeIds = new Set(sorted.slice(0, cost).map((r) => r.monster.id));
+
+  wallet.ownedMonsters = (wallet.ownedMonsters || []).filter((m) => {
+    if (!removeIds.has(m.id)) return true;
+    if (profile.selectedMonsterId === m.id) profile.selectedMonsterId = primaryOwnedId;
+    return false;
+  });
+
+  if (removeIds.has(ml.activeMonsterId)) {
+    const primaryOnLadder = (ml.ownedMonsters || []).some((m) => m.id === primaryOwnedId);
+    ml.activeMonsterId = primaryOnLadder
+      ? primaryOwnedId
+      : (ml.ownedMonsters || []).find((m) => !removeIds.has(m.id))?.id ?? null;
+  }
+  ml.ownedMonsters = (ml.ownedMonsters || []).filter((m) => !removeIds.has(m.id));
+
+  primaryRef.monster.mergeTier = tier + 1;
+  setMonsterLadderState(profile, ml);
+
+  return {
+    gameData: gd,
+    mergeTier: tier + 1,
+    consumed: cost,
+    templateId,
+  };
 }

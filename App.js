@@ -67,6 +67,7 @@ import {
   equipOwnedGear,
   getPlayerProfile,
   mergeMonsterParts,
+  mergeOwnedMonsters,
   setActiveProfile,
   setPlayerKeyForProfile,
   setProfileSelectedMonster,
@@ -312,7 +313,7 @@ export default function App() {
     const html = document.documentElement;
     const body = document.body;
     const root = document.getElementById('root');
-    const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'gameOver' || phase === 'audioSettings';
+    const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'audioSettings';
     if (scrollableLobby) {
       // Lobby scrolls inside the app (ScrollView), not the document — fixed viewport + inner overflow.
       html.style.overflow = 'hidden';
@@ -876,6 +877,19 @@ export default function App() {
     if (res.newSlotCount) {
       showNotice('Slot unlocked!', `This monster now has ${res.newSlotCount} gear slots.`);
     }
+  }
+
+  function handleMergeMonster(primaryOwnedId) {
+    if (!gameData || !setupP1ProfileId || !primaryOwnedId) return;
+    const res = mergeOwnedMonsters(gameData, setupP1ProfileId, primaryOwnedId);
+    if (res.error) {
+      showNotice('Merge monsters', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'monster_merged', setupP1ProfileId);
+    setGameData(res.gameData);
+    playSound('levelUp');
+    showNotice('Merge complete', `Now +${res.mergeTier} merge (used ${res.consumed} duplicate${res.consumed === 1 ? '' : 's'}).`);
   }
 
   function handleClaimMainMiniBossChest(payload) {
@@ -1452,6 +1466,12 @@ export default function App() {
               setMonsterMartOpen(true);
             }}
             onOpenAudioSettings={() => setPhase('audioSettings')}
+            ladderOwnedMonsters={
+              setupP1ProfileId
+                ? getMonsterLadderState(getPlayerProfile(gameData, setupP1ProfileId))?.ownedMonsters ?? []
+                : []
+            }
+            onMergeMonster={handleMergeMonster}
           />
         )}
 
@@ -1534,7 +1554,7 @@ export default function App() {
         ) : null}
 
         {phase === 'gameOver' && (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.endCard}>
+          <View style={styles.endCardShell}>
             <RewardScreen
               winner={winner}
               coinsAwarded={rewardSummary?.coinsAwarded ?? 0}
@@ -1580,7 +1600,7 @@ export default function App() {
               onBackToHome={rewardSummary?.online ? undefined : rewardSummary?.monsterLadder ? returnToLadder : resetToMenu}
               backToHomeLabel={rewardSummary?.monsterLadder ? 'Monster Ladder map' : 'Back to Home'}
             />
-          </ScrollView>
+          </View>
         )}
 
         {phase === 'online' && (
@@ -1882,9 +1902,9 @@ const styles = StyleSheet.create({
     color: '#1b1b2f',
     textAlign: 'center',
   },
-  endCard: {
-    alignItems: 'stretch',
-    paddingVertical: 10,
-    paddingBottom: 24,
+  endCardShell: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
   },
 });

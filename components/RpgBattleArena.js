@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, ImageBackground, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import AnimatedMonster from './AnimatedMonster';
 import { expToAdvanceFrom } from '../utils/expLevel';
-import { enemyBossDisplayScale, getStrictLayout } from '../utils/battleLayout';
+import { enemyBossDisplayScale, getStrictLayout, playerBossEncounterScale } from '../utils/battleLayout';
 import { ELEMENT_UI } from '../utils/elements';
 import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
 import { ART } from '../utils/artDirection';
@@ -144,8 +144,9 @@ export default function RpgBattleArena({
   const { width, height } = useWindowDimensions();
   const narrow = width < 520;
   const L = useMemo(() => getStrictLayout(width, height), [width, height]);
-  const bossScale = enemyBossDisplayScale(enemyStageKind ?? p2?.ladderStageKind);
-  const p2MonsterSize = Math.round(L.p2Monster * bossScale);
+  const stageKind = enemyStageKind ?? p2?.ladderStageKind;
+  const p1MonsterSize = Math.round(L.p1Monster * playerBossEncounterScale(stageKind));
+  const p2MonsterSize = Math.round(L.p2Monster * enemyBossDisplayScale(stageKind));
   const p1Focus = useRef(new Animated.Value(activeTurn === 1 ? 1 : 0)).current;
   const p2Focus = useRef(new Animated.Value(activeTurn === 2 ? 1 : 0)).current;
 
@@ -260,7 +261,7 @@ export default function RpgBattleArena({
           { left: L.monsterSideInset, bottom: L.monsterBottom, opacity: p1Opacity, transform: [{ scale: p1Scale }] },
         ]}
       >
-        <View style={[styles.faceRight, styles.monsterWrap, { width: L.p1Monster }]}>
+        <View style={[styles.faceRight, styles.monsterWrap, { width: p1MonsterSize }]}>
           <Animated.View
             pointerEvents="none"
             style={[
@@ -268,8 +269,8 @@ export default function RpgBattleArena({
               sicklyFlashP1 && styles.hitFlashSickly,
               {
                 opacity: p1Flash,
-                width: L.p1Monster * 0.78,
-                height: L.p1Monster * 0.78,
+                width: p1MonsterSize * 0.78,
+                height: p1MonsterSize * 0.78,
               },
             ]}
           />
@@ -284,7 +285,7 @@ export default function RpgBattleArena({
           ) : null}
           <AnimatedMonster
             parts={p1.monsterParts}
-            size={L.p1Monster}
+            size={p1MonsterSize}
             pose={p1Pose}
             // The wrapper is mirrored to face right, so local movement direction is inverted.
             side="right"
