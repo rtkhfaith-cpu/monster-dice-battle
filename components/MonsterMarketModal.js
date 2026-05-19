@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
+import MonsterStatCardOverlay from './MonsterStatCardOverlay';
 import { mergeMonsterParts } from '../utils/gameStorage';
 import { MONSTER_CATALOG, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 import { computeBattleStats } from '../utils/statsCalc';
@@ -15,29 +16,21 @@ function ownedCounts(wallet) {
   return m;
 }
 
-function statGrid(stats) {
-  if (!stats) return [[], []];
-  const range = (r) => `${r?.min ?? 0}-${r?.max ?? 0}`;
-  return [
-    [
-      ['HP', stats.hp],
-      ['MP', stats.mp],
-      ['ATK', range(stats.attack)],
-      ['MAG', range(stats.magic)],
-    ],
-    [
-      ['DEF', range(stats.def)],
-      ['HIT', `${stats.hitRate ?? 92}%`],
-      ['AGI', stats.agility ?? stats.speed ?? 10],
-    ],
-  ];
-}
-
 export default function MonsterMarketModal({ visible, coins, wallet, onClose, onBuy }) {
   const [cardMonster, setCardMonster] = useState(null);
   const counts = ownedCounts(wallet || {});
-  const cardStats = cardMonster ? computeBattleStats(cardMonster.id, 1)?.stats : null;
-  const cardRarity = cardMonster ? RARITY_UI[cardMonster.rarity] : null;
+  const cardFighter = useMemo(() => {
+    if (!cardMonster) return null;
+    const built = computeBattleStats(cardMonster.id, 1);
+    return {
+      monsterParts: mergeMonsterParts(cardMonster.id),
+      displayName: cardMonster.name,
+      rarity: cardMonster.rarity,
+      role: cardMonster.role,
+      level: 1,
+      stats: built?.stats,
+    };
+  }, [cardMonster]);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -84,38 +77,14 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
             <Text style={styles.closeTxt}>Close</Text>
           </TouchableOpacity>
-          {cardMonster ? (
-            <View style={styles.cardOverlay}>
-              <View style={[styles.monsterCard, { borderColor: cardRarity?.border ?? '#facc15' }]}>
-                <TouchableOpacity style={styles.cardClose} onPress={() => setCardMonster(null)}>
-                  <Text style={styles.cardCloseTxt}>×</Text>
-                </TouchableOpacity>
-                <Text style={styles.cardKicker}>Monster Card</Text>
-                <Text style={styles.cardName}>{cardMonster.name}</Text>
-                <View style={styles.cardArt}>
-                  <MonsterPreview parts={mergeMonsterParts(cardMonster.id)} size={170} mood="happy" />
-                </View>
-                <View style={styles.cardMetaRow}>
-                  <Text style={[styles.cardBadge, { backgroundColor: cardRarity?.chipBg ?? '#334155', color: cardRarity?.chipFg ?? '#fff' }]}>
-                    {cardRarity?.label ?? cardMonster.rarity}
-                  </Text>
-                  <Text style={styles.cardRole}>{ROLE_LABELS[cardMonster.role] ?? cardMonster.role}</Text>
-                </View>
-                <Text style={styles.cardDesc}>{cardMonster.description}</Text>
-                <View style={styles.cardStatsGrid}>
-                  {statGrid(cardStats).map((col, colIndex) => (
-                    <View key={colIndex ? 'right' : 'left'} style={styles.cardStatsCol}>
-                      {col.map(([label, value]) => (
-                        <View key={label} style={styles.cardStatRow}>
-                          <Text style={styles.cardStatLabel}>{label}</Text>
-                          <Text style={styles.cardStatValue}>{value}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ))}
-                </View>
-              </View>
-            </View>
+          {cardFighter ? (
+            <MonsterStatCardOverlay
+              fighter={cardFighter}
+              description={cardMonster?.description}
+              kicker="Monster Card"
+              layerZIndex={30}
+              onClose={() => setCardMonster(null)}
+            />
           ) : null}
         </View>
       </View>
@@ -222,76 +191,4 @@ const styles = StyleSheet.create({
   },
   closeTxt: { fontWeight: '900', fontSize: 17, color: '#fff1bc', textTransform: 'uppercase' },
   tapHint: { color: '#fde68a', fontWeight: '900', fontSize: 9, marginTop: 2, textTransform: 'uppercase' },
-  cardOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(3, 7, 18, 0.72)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 18,
-  },
-  monsterCard: {
-    width: '92%',
-    maxWidth: 360,
-    borderRadius: 24,
-    borderWidth: 3,
-    backgroundColor: 'rgba(15, 23, 42, 0.98)',
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#facc15',
-    shadowOpacity: 0.55,
-    shadowRadius: 18,
-  },
-  cardClose: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(127, 29, 29, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardCloseTxt: { color: '#fff', fontSize: 20, fontWeight: '900', lineHeight: 22 },
-  cardKicker: { color: '#fde68a', fontWeight: '900', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 },
-  cardName: { color: '#fff4cf', fontWeight: '900', fontSize: 23, textAlign: 'center', marginTop: 3 },
-  cardArt: {
-    width: '86%',
-    minHeight: 190,
-    marginVertical: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,224,138,0.32)',
-    backgroundColor: 'rgba(7, 17, 32, 0.86)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  cardBadge: { fontWeight: '900', fontSize: 12, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
-  cardRole: { color: '#c4b5fd', fontWeight: '900', fontSize: 13, textTransform: 'capitalize' },
-  cardDesc: { color: '#bfdbfe', fontWeight: '800', fontSize: 12, lineHeight: 17, textAlign: 'center', marginBottom: 8 },
-  cardStatsGrid: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 14,
-    marginTop: 4,
-  },
-  cardStatsCol: {
-    flex: 1,
-    gap: 5,
-  },
-  cardStatRow: {
-    minHeight: 24,
-    borderRadius: 10,
-    backgroundColor: 'rgba(134, 239, 172, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(134, 239, 172, 0.22)',
-    paddingHorizontal: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardStatLabel: { color: '#bbf7d0', fontWeight: '900', fontSize: 11 },
-  cardStatValue: { color: '#fff7cc', fontWeight: '900', fontSize: 12 },
 });

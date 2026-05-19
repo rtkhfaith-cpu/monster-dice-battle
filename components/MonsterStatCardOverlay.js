@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 
@@ -27,16 +27,16 @@ function hasGearBonuses(bonuses) {
   return Object.values(bonuses).some((v) => typeof v === 'number' && v > 0);
 }
 
-/**
- * Full-screen overlay showing one monster's current battle stats (gear + merge included).
- */
+/** Shared monster detail card — same layout as Monster Mart preview card. */
 export default function MonsterStatCardOverlay({
   fighter,
-  kicker = 'Your Monster',
+  kicker = 'Monster Card',
   mergeTier = 0,
   selected = false,
+  description,
   primaryAction,
   onClose,
+  layerZIndex = 50,
 }) {
   if (!fighter) return null;
 
@@ -46,9 +46,9 @@ export default function MonsterStatCardOverlay({
   const gearNote = hasGearBonuses(fighter.gearBonuses);
 
   return (
-    <View style={styles.cardOverlay} pointerEvents="box-none">
+    <View style={[styles.cardOverlay, { zIndex: layerZIndex }]} pointerEvents="box-none">
       <Pressable style={styles.cardBackdrop} onPress={onClose} accessibilityLabel="Close monster card" />
-      <View style={[styles.monsterCard, { borderColor: rarity?.border ?? '#6c5ce7' }]}>
+      <View style={[styles.monsterCard, { borderColor: rarity?.border ?? '#facc15' }]}>
         <Pressable style={styles.cardClose} onPress={onClose} accessibilityLabel="Close">
           <Text style={styles.cardCloseTxt}>×</Text>
         </Pressable>
@@ -61,18 +61,21 @@ export default function MonsterStatCardOverlay({
           <Text
             style={[
               styles.cardBadge,
-              { backgroundColor: rarity?.chipBg ?? '#ede7ff', color: rarity?.chipFg ?? '#6c5ce7' },
+              { backgroundColor: rarity?.chipBg ?? '#334155', color: rarity?.chipFg ?? '#fff' },
             ]}
           >
             {rarity?.label ?? fighter.rarity}
           </Text>
           <Text style={styles.cardRole}>{ROLE_LABELS[fighter.role] ?? fighter.role}</Text>
-          <Text style={styles.cardRole}>Lv {fighter.level ?? 1}{mergeLabel}</Text>
+          {fighter.level != null ? (
+            <Text style={styles.cardRole}>Lv {fighter.level ?? 1}{mergeLabel}</Text>
+          ) : null}
           {fighter.element ? (
             <Text style={styles.cardElement}>{String(fighter.element).toUpperCase()}</Text>
           ) : null}
           {selected ? <Text style={styles.cardSelected}>SELECTED</Text> : null}
         </View>
+        {description ? <Text style={styles.cardDesc}>{description}</Text> : null}
         {gearNote ? <Text style={styles.gearNote}>Stats include equipped gear</Text> : null}
         <View style={styles.cardStatsGrid}>
           {statGrid(stats).map((col, colIndex) => (
@@ -108,14 +111,16 @@ export default function MonsterStatCardOverlay({
 const styles = StyleSheet.create({
   cardOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 20,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 18,
+    ...(Platform.OS === 'web'
+      ? { paddingBottom: 'max(18px, calc(env(safe-area-inset-bottom) + 12px))' }
+      : {}),
   },
   cardBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(3, 7, 18, 0.7)',
+    backgroundColor: 'rgba(3, 7, 18, 0.72)',
   },
   monsterCard: {
     width: '92%',
@@ -126,6 +131,10 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     zIndex: 1,
+    shadowColor: '#facc15',
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+    elevation: 12,
   },
   cardClose: {
     position: 'absolute',
@@ -165,7 +174,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   cardBadge: {
     fontWeight: '900',
@@ -185,6 +194,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
+  },
+  cardDesc: {
+    color: '#bfdbfe',
+    fontWeight: '800',
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+    marginBottom: 8,
+    width: '100%',
   },
   gearNote: {
     color: '#94a3b8',

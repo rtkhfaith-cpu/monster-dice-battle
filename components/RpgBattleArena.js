@@ -5,6 +5,7 @@ import { expToAdvanceFrom } from '../utils/expLevel';
 import {
   debugBattleMonsterLayout,
   enemyBossDisplayScale,
+  getBossFeetNudges,
   getMonsterPlacement,
   getStrictLayout,
   isBossEncounter,
@@ -157,8 +158,10 @@ export default function RpgBattleArena({
   const p1MonsterSize = Math.round(L.p1Monster * playerBossEncounterScale(stageKind));
   const p2MonsterSize = Math.round(L.p2Monster * enemyBossDisplayScale(stageKind));
   const bossFight = isBossEncounter(stageKind);
-  /** Pull smaller player sprite down so feet meet boss ground line */
-  const p1BossFeetNudge = bossFight ? Math.round((p2MonsterSize - p1MonsterSize) * 0.14) : 0;
+  const feetNudge = useMemo(
+    () => getBossFeetNudges(stageKind, p1MonsterSize, p2MonsterSize),
+    [stageKind, p1MonsterSize, p2MonsterSize],
+  );
 
   useEffect(() => {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
@@ -280,7 +283,7 @@ export default function RpgBattleArena({
           {
             left: placement.p1Left,
             bottom: placement.p1Bottom,
-            marginBottom: p1BossFeetNudge ? -p1BossFeetNudge : 0,
+            marginBottom: feetNudge.p1 ? -feetNudge.p1 : 0,
             opacity: p1Opacity,
             transform: [{ scale: p1Scale }],
           },
@@ -332,6 +335,7 @@ export default function RpgBattleArena({
           {
             right: placement.p2Right,
             bottom: placement.p2Bottom,
+            marginBottom: feetNudge.p2 ? -feetNudge.p2 : 0,
             opacity: p2Opacity,
             transform: [{ scale: p2Scale }],
           },

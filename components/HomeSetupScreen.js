@@ -544,23 +544,6 @@ export default function HomeSetupScreen({
             );
           })}
         </ScrollView>
-        {cardFighter ? (
-          <MonsterStatCardOverlay
-            fighter={cardFighter}
-            mergeTier={cardMonster?.mergeTier ?? 0}
-            selected={cardMonster?.id === selectedMonsterId}
-            kicker="Your Monster"
-            onClose={() => setCardMonster(null)}
-            primaryAction={{
-              label: cardMonster?.id === selectedMonsterId ? 'Equipped' : 'Equip for battle',
-              disabled: cardMonster?.id === selectedMonsterId,
-              onPress: pressWithSound(() => {
-                onSelectMonster?.(cardMonster.id);
-                setCardMonster(null);
-              }),
-            }}
-          />
-        ) : null}
       </View>
     );
   }
@@ -684,6 +667,25 @@ export default function HomeSetupScreen({
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
+
+            {cardFighter && tray === 'monsters' ? (
+              <MonsterStatCardOverlay
+                fighter={cardFighter}
+                mergeTier={cardMonster?.mergeTier ?? 0}
+                selected={cardMonster?.id === selectedMonsterId}
+                kicker="Monster Card"
+                layerZIndex={50}
+                onClose={() => setCardMonster(null)}
+                primaryAction={{
+                  label: cardMonster?.id === selectedMonsterId ? 'Equipped' : 'Equip for battle',
+                  disabled: cardMonster?.id === selectedMonsterId,
+                  onPress: pressWithSound(() => {
+                    onSelectMonster?.(cardMonster.id);
+                    setCardMonster(null);
+                  }),
+                }}
+              />
+            ) : null}
           </View>
         </ImageBackground>
       </View>

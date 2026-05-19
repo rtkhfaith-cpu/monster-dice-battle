@@ -37,6 +37,30 @@ export function playerBossEncounterScale(stageKind) {
 }
 
 /**
+ * Downward px offset for bottom-anchored fighters (apply as negative marginBottom).
+ * Large mini bosses need extra drop so feet meet the same ground line as the player.
+ */
+export function getBossFeetNudges(stageKind, p1SizePx, p2SizePx) {
+  if (!isBossEncounter(stageKind)) return { p1: 0, p2: 0 };
+  const p1 = Math.max(0, Math.round(p1SizePx || 0));
+  const p2 = Math.max(0, Math.round(p2SizePx || 0));
+  const gap = Math.max(0, p2 - p1);
+  if (stageKind === 'miniBoss') {
+    return {
+      p1: Math.round(gap * 0.04),
+      p2: Math.round(p2 * 0.07 + gap * 0.22),
+    };
+  }
+  if (stageKind === 'bigBoss') {
+    return {
+      p1: Math.round(gap * 0.12),
+      p2: Math.round(gap * 0.14 + p2 * 0.035),
+    };
+  }
+  return { p1: 0, p2: 0 };
+}
+
+/**
  * Feet anchor + horizontal lanes per fight type.
  * Uses pixel insets from screen width so wide battle padding boxes do not overlap in the center.
  *
