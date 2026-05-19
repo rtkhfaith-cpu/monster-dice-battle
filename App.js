@@ -423,6 +423,12 @@ export default function App() {
     if (setupP2Id === gearMonsterId) return setupP2ProfileId;
     return activeProfileId ?? slotProfileId;
   }, [gearMonsterId, gameData, setupP1Id, setupP2Id, setupP1ProfileId, setupP2ProfileId, activeProfileId, slotProfileId]);
+  const ladderAvailable = useMemo(() => {
+    if (!gameData || !setupP1ProfileId) return false;
+    const profile = getPlayerProfile(gameData, setupP1ProfileId);
+    if (!profile) return false;
+    return !isLadderLevelLockedUntilReset(getMonsterLadderState(profile));
+  }, [gameData, setupP1ProfileId]);
 
   function markProfileUnlocked(profileId) {
     if (profileId) unlockedProfileIdsRef.current.add(profileId);
@@ -568,11 +574,11 @@ export default function App() {
     }
   }
 
-  async function finalizeCloudLogin(profileId, playerKey, { requiresKey = true } = {}) {
-    if (keyModalBusy) return;
+  async function finalizeCloudLogin(profileId, playerKey, { requiresKey = true, showModalOnFail = true } = {}) {
+    if (keyModalBusy) return { ok: false, error: 'Login already in progress.' };
     if (!playerKey || playerKey.length !== 4) {
       setKeyModalError('Enter your 4-digit Player Key.');
-      return;
+      return { ok: false, error: 'Enter your 4-digit Player Key.' };
     }
     setKeyModalBusy(true);
     setKeyModalError('');
@@ -587,15 +593,17 @@ export default function App() {
               ? 'Incorrect key. Please try again.'
               : login.error || 'Could not load player from cloud.';
 
-        setKeyModal({
-          mode: 'login',
-          profileId,
-          playerName: keyModal?.playerName || 'Player',
-          fromCloud: true,
-          requiresKey: true,
-        });
+        if (showModalOnFail) {
+          setKeyModal({
+            mode: 'login',
+            profileId,
+            playerName: keyModal?.playerName || 'Player',
+            fromCloud: true,
+            requiresKey: true,
+          });
+        }
         setKeyModalError(msg);
-        return;
+        return { ok: false, error: msg };
       }
 
       const baseGd = gameData || (await loadGameSave());
@@ -605,7 +613,7 @@ export default function App() {
       const applied = next.players?.find((p) => p.id === resolvedId || p.id === profileId);
       if (!applied) {
         setKeyModalError('Could not apply cloud save. Try again or redeploy the save API.');
-        return;
+        return { ok: false, error: 'Could not apply cloud save. Try again or redeploy the save API.' };
       }
       const activeId = applied.id;
       if (requiresKey && pin.length === 4) next = setPlayerKeyForProfile(next, activeId, pin);
@@ -620,11 +628,13 @@ export default function App() {
       persistSave(next, 'profile_loaded', activeId);
       emitSaveStatus('player_loaded');
       applyProfileSelection(activeId, next);
+      return { ok: true, profileId: activeId };
     } catch (err) {
       if (typeof __DEV__ !== 'undefined' && __DEV__) {
         console.warn('[cloud] finalizeCloudLogin failed', err);
       }
       setKeyModalError('Load failed. Check your connection and try again.');
+      return { ok: false, error: 'Load failed. Check your connection and try again.' };
     } finally {
       setKeyModalBusy(false);
     }
@@ -707,6 +717,46 @@ export default function App() {
     syncSetupMonstersFromProfiles(next, newId, null, 'onePlayer');
     persistSave(next, 'profile_created', newId);
     applyProfileSelection(newId, next);
+  }
+
+  async function handleMainMenuLogin(profileId, playerKey) {
+    const id = String(profileId || '').trim();
+    const pin = normalizePlayerKey(playerKey);
+    if (!id || pin.length !== 4) return { ok: false, error: 'Enter ID and 4-digit PIN.' };
+    const localProfile = gameData ? getPlayerProfile(gameData, id) : null;
+    if (localProfile) {
+      if (profileNeedsPlayerKeyMigration(localProfile)) {
+        const next = setPlayerKeyForProfile(gameData, id, pin);
+        markProfileUnlocked(id);
+        persistSave(next, 'player_key_migrated', id);
+        applyProfileSelection(id, next);
+        return { ok: true, profileId: id };
+      }
+      if (!verifyPlayerKeyForProfile(localProfile, pin)) {
+        return { ok: false, error: 'Incorrect PIN.' };
+      }
+      markProfileUnlocked(id);
+      applyProfileSelection(id);
+      return { ok: true, profileId: id };
+    }
+    return finalizeCloudLogin(id, pin, { requiresKey: true, showModalOnFail: false });
+  }
+
+  async function handleMainMenuCreate(name, playerKey) {
+    if (!gameData) return { ok: false, error: 'Save is still loading.' };
+    const trimmed = String(name || '').trim().slice(0, 24);
+    const pin = normalizePlayerKey(playerKey);
+    if (!trimmed || pin.length !== 4) return { ok: false, error: 'Enter name/ID and 4-digit PIN.' };
+    const res = createPlayerProfile(gameData, trimmed, pin);
+    const newId = res.playerId;
+    markProfileUnlocked(newId);
+    const next = enforceSingleActiveProfile(res.gameData, newId);
+    setSetupP1ProfileId(newId);
+    setSetupP2ProfileId(null);
+    syncSetupMonstersFromProfiles(next, newId, null, 'onePlayer');
+    persistSave(next, 'profile_created', newId);
+    applyProfileSelection(newId, next);
+    return { ok: true, profileId: newId };
   }
 
   function handleUpdateProfileName(profileId, name) {
@@ -1306,8 +1356,11 @@ export default function App() {
             onFetchCloudPlayers={handleFetchCloudPlayers}
             onRequestSelectCloudProfile={handleRequestSelectCloudProfile}
             onUpdateProfileName={handleUpdateProfileName}
+            onLoginWithId={handleMainMenuLogin}
+            onCreateWithId={handleMainMenuCreate}
             onStartGame={startGameFromSetup}
             onOpenMonsterLadder={openMonsterLadder}
+            ladderAvailable={ladderAvailable}
             onOpenMonsterGear={openMonsterGear}
             onlineRoom={onlineRoom}
             onlineSlot={onlineSlot}

@@ -33,6 +33,8 @@ import { getLadderGear } from './monsterLadder/ladderGearCatalog';
  *     magicDefMax?: number,
  *     critPct?: number,
  *     dodgePct?: number,
+ *     hitRate?: number,
+ *     agility?: number,
  *     expPct?: number,
  *   },
  *   element?: string,
@@ -107,6 +109,8 @@ export function sumGearBonuses(gearIds) {
     magicDefMax: 0,
     critPct: 0,
     dodgePct: 0,
+    hitRate: 0,
+    agility: 0,
     expPct: 0,
   };
   const ids = compactGearIds(gearIds);
@@ -126,6 +130,8 @@ export function sumGearBonuses(gearIds) {
     out.magicDefMax += b.magicDefMax ?? 0;
     out.critPct += b.critPct ?? 0;
     out.dodgePct += b.dodgePct ?? 0;
+    out.hitRate += b.hitRate ?? 0;
+    out.agility += b.agility ?? 0;
     out.expPct += b.expPct ?? 0;
   }
   return out;
@@ -144,6 +150,8 @@ export function formatGearBonusLines(gearDef) {
   if (b.defMin || b.defMax) lines.push(`+${Math.min(20, ((b.defMin || 0) + (b.defMax || 0)) * 2)}% Defense`);
   if (b.magicDefMin || b.magicDefMax) lines.push(`+${Math.min(20, ((b.magicDefMin || 0) + (b.magicDefMax || 0)) * 2)}% Magic Def`);
   if (b.critPct) lines.push(`+${b.critPct}% Crit`);
+  if (b.hitRate) lines.push(`+${b.hitRate}% Hit`);
+  if (b.agility) lines.push(`+${b.agility} Agility`);
   if (b.dodgePct) lines.push(`+${Math.min(25, b.dodgePct * 2)}% Speed`);
   if (b.expPct) lines.push(`+${b.expPct}% EXP`);
   if (gearDef.element) {

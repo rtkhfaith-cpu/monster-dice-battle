@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   ImageBackground,
   Platform,
   Pressable,
@@ -40,14 +41,35 @@ function FantasyButton({ label, icon, variant = 'default', style, disabled, onPr
   );
 }
 
-function BottomNavButton({ label, icon, badge, style, onPress }) {
+function BottomNavButton({ label, icon, badge, style, onPress, highlight }) {
+  const pulse = useRef(new Animated.Value(0.35)).current;
+  useEffect(() => {
+    if (!highlight) {
+      pulse.setValue(0.35);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.92, duration: 620, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.35, duration: 620, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [highlight, pulse]);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [styles.bottomNavButton, style, pressed && styles.realButtonPressed]}
+      style={({ pressed }) => [
+        styles.bottomNavButton,
+        highlight && styles.bottomNavButtonHighlight,
+        style,
+        pressed && styles.realButtonPressed,
+      ]}
     >
+      {highlight ? <Animated.View pointerEvents="none" style={[styles.bottomPulse, { opacity: pulse }]} /> : null}
       <View style={styles.bottomNavShine} pointerEvents="none" />
       <Text style={styles.bottomNavIcon}>{icon}</Text>
       <Text style={styles.bottomNavText}>{label}</Text>
@@ -98,6 +120,9 @@ export default function HomeSetupScreen({
   onUpdateProfileName,
   onResetSave,
   onOpenAudioSettings,
+  onLoginWithId,
+  onCreateWithId,
+  ladderAvailable,
   coins,
 }) {
   const [tray, setTray] = useState(null);
@@ -107,6 +132,9 @@ export default function HomeSetupScreen({
   const [createKey, setCreateKey] = useState('');
   const [createConfirm, setCreateConfirm] = useState('');
   const [createError, setCreateError] = useState('');
+  const [loginId, setLoginId] = useState('');
+  const [loginPin, setLoginPin] = useState('');
+  const [loginMsg, setLoginMsg] = useState('');
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const activeWallet = walletP1 || wallet;
@@ -157,6 +185,35 @@ export default function HomeSetupScreen({
     setCreateError('');
   }
 
+  async function handleInlineLogin() {
+    const id = loginId.trim();
+    const pin = normalizePlayerKey(loginPin);
+    if (!id || pin.length !== 4) {
+      setLoginMsg('Enter ID and 4-digit PIN.');
+      return;
+    }
+    const res = await onLoginWithId?.(id, pin);
+    setLoginMsg(res?.error || (res?.ok ? 'Logged in.' : 'Login unavailable.'));
+    if (res?.ok) {
+      setLoginId('');
+      setLoginPin('');
+    }
+  }
+
+  async function handleInlineCreate() {
+    const id = loginId.trim();
+    const pin = normalizePlayerKey(loginPin);
+    if (!id || pin.length !== 4) {
+      setLoginMsg('Enter name/ID and 4-digit PIN.');
+      return;
+    }
+    const res = await onCreateWithId?.(id, pin);
+    setLoginMsg(res?.error || (res?.ok ? `Created. ID: ${res.profileId}` : 'Create unavailable.'));
+    if (res?.ok) {
+      setLoginPin('');
+    }
+  }
+
   function pressWithSound(onPress) {
     if (!onPress) return undefined;
     return (...args) => {
@@ -201,28 +258,62 @@ export default function HomeSetupScreen({
             </Pressable>
 
             <View style={styles.menuLayer} pointerEvents="box-none">
-              <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonOne} onPress={pressWithSound(onOpenGearMart)} />
-              <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonTwo} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
-              <FantasyButton label="Monsters" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
-              <FantasyButton
-                label="Multiplayer"
-                icon="⚔"
-                variant="legendary"
-                style={styles.menuButtonFour}
-                disabled={!multiplayerHandler}
-                onPress={pressWithSound(multiplayerHandler)}
-              />
               <FantasyButton
                 label="Start Battle"
                 icon="▶"
                 variant="primary"
-                style={styles.menuButtonFive}
+                style={styles.menuButtonOne}
                 disabled={!canStart}
                 onPress={pressWithSound(onStartGame)}
               />
+              <FantasyButton
+                label="Multiplayer"
+                icon="⚔"
+                variant="legendary"
+                style={styles.menuButtonTwo}
+                disabled={!multiplayerHandler}
+                onPress={pressWithSound(multiplayerHandler)}
+              />
+              <FantasyButton label="Monster Mart" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
+              <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
+              <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonFive} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             </View>
 
-            <BottomNavButton label="Quests" icon="!" badge="!" style={styles.bottomQuest} onPress={pressWithSound(onOpenMonsterLadder)} />
+            <View style={styles.loginPanel}>
+              <TextInput
+                value={loginId}
+                onChangeText={setLoginId}
+                placeholder="ID / name"
+                placeholderTextColor="rgba(255,255,255,0.58)"
+                style={styles.loginInput}
+                autoCapitalize="none"
+              />
+              <TextInput
+                value={loginPin}
+                onChangeText={(v) => setLoginPin(normalizePlayerKey(v))}
+                placeholder="PIN"
+                placeholderTextColor="rgba(255,255,255,0.58)"
+                style={[styles.loginInput, styles.loginPinInput]}
+                maxLength={4}
+                keyboardType="number-pad"
+                secureTextEntry
+              />
+              <Pressable style={styles.loginMiniBtn} onPress={pressWithSound(handleInlineLogin)}>
+                <Text style={styles.loginMiniTxt}>Login</Text>
+              </Pressable>
+              <Pressable style={styles.loginMiniBtn} onPress={pressWithSound(handleInlineCreate)}>
+                <Text style={styles.loginMiniTxt}>Create</Text>
+              </Pressable>
+              {loginMsg ? <Text style={styles.loginMsg} numberOfLines={1}>{loginMsg}</Text> : null}
+            </View>
+
+            <BottomNavButton
+              label="Quests"
+              icon="★"
+              style={styles.bottomQuest}
+              highlight={ladderAvailable}
+              onPress={pressWithSound(onOpenMonsterLadder)}
+            />
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             <BottomNavButton label="Heroes" icon="♜" style={styles.bottomHeroes} onPress={pressWithSound(() => toggleTray('profile'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
@@ -690,6 +781,24 @@ const styles = StyleSheet.create({
     elevation: 8,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
+  bottomNavButtonHighlight: {
+    borderColor: '#fde68a',
+    borderBottomColor: '#b45309',
+    backgroundColor: 'rgba(146, 96, 20, 0.98)',
+    shadowColor: '#facc15',
+    shadowOpacity: 0.78,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  bottomPulse: {
+    position: 'absolute',
+    left: -8,
+    right: -8,
+    top: -8,
+    bottom: -8,
+    borderRadius: 18,
+    backgroundColor: 'rgba(250, 204, 21, 0.36)',
+  },
   bottomNavShine: {
     position: 'absolute',
     top: 2,
@@ -739,6 +848,65 @@ const styles = StyleSheet.create({
     right: '5%',
     top: '11%',
     pointerEvents: 'auto',
+  },
+  loginPanel: {
+    position: 'absolute',
+    top: '75.2%',
+    left: '7%',
+    right: '7%',
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,143,0.62)',
+    backgroundColor: 'rgba(15, 22, 42, 0.72)',
+    pointerEvents: 'auto',
+  },
+  loginInput: {
+    flex: 1,
+    minWidth: 0,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    color: '#fff8e5',
+    fontSize: 10,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+  },
+  loginPinInput: {
+    flex: 0.55,
+  },
+  loginMiniBtn: {
+    minHeight: 32,
+    paddingHorizontal: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ffe08a',
+    backgroundColor: 'rgba(117, 76, 24, 0.86)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginMiniTxt: {
+    color: '#fff4c7',
+    fontSize: 9,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  loginMsg: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: -15,
+    color: '#bfdbfe',
+    fontSize: 9,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   tray: {
     position: 'absolute',

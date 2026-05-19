@@ -7,7 +7,7 @@ import { fighterFromLadderOwned } from '../utils/monsterLadder/ladderFighters';
 
 function formatStats(stats) {
   if (!stats) return '';
-  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max}`;
+  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max} · HIT ${stats.hitRate ?? 92}% · AGI ${stats.agility ?? stats.speed ?? 10}`;
 }
 
 export default function MonsterLadderCollectionScreen({

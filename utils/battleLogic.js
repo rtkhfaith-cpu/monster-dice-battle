@@ -35,12 +35,27 @@ function statMid(range, fallback) {
 /** Auto dodge roll from speed delta (capped). */
 function rollAutoDodge(attacker, defender, magic = false) {
   const pct = dodgeChance({
-    attackerSpeed: attacker?.stats?.speed ?? attacker?.stats?.dodgePct ?? 10,
-    defenderSpeed: defender?.stats?.speed ?? defender?.stats?.dodgePct ?? 10,
+    attackerSpeed: attacker?.stats?.agility ?? attacker?.stats?.speed ?? attacker?.stats?.dodgePct ?? 10,
+    defenderSpeed: defender?.stats?.agility ?? defender?.stats?.speed ?? defender?.stats?.dodgePct ?? 10,
     magic,
     bossKind: attacker?.ladderStageKind ?? null,
   });
   return rollPercentChance(pct);
+}
+
+function attackHitChance(attacker, defender, magic = false) {
+  const hitRate = attacker?.stats?.hitRate ?? 92;
+  const attackerAgility = attacker?.stats?.agility ?? attacker?.stats?.speed ?? 10;
+  const defenderAgility = defender?.stats?.agility ?? defender?.stats?.speed ?? 10;
+  const agilityDelta = defenderAgility - attackerAgility;
+  const magicBonus = magic ? 2 : 0;
+  const pct = 92 + (hitRate - 92) * 0.45 - agilityDelta * 0.25 + magicBonus;
+  return Math.max(76, Math.min(98, pct));
+}
+
+function rollAttackAvoided(attacker, defender, magic = false) {
+  if (!rollPercentChance(attackHitChance(attacker, defender, magic))) return true;
+  return rollAutoDodge(attacker, defender, magic);
 }
 
 function ladderEffects(fighter, type) {
@@ -73,7 +88,7 @@ function defenseMitigationRatio(defStat, attackPower) {
  * @param {{ attacker: object, defender: object, skill?: { power?: number } }} opts
  */
 export function resolvePhysicalBattleDamage({ attacker, defender, skill = null }) {
-  if (rollAutoDodge(attacker, defender, false)) {
+  if (rollAttackAvoided(attacker, defender, false)) {
     return {
       damage: 0,
       critical: false,
@@ -141,7 +156,7 @@ export function resolveMagicBattleDamage({
   defElement,
 }) {
   const extraMiss = ladderEffectPct(defender, 'enemyMissMagicChance');
-  if (rollAutoDodge(attacker, defender, true) || rollPercentChance(extraMiss)) {
+  if (rollAttackAvoided(attacker, defender, true) || rollPercentChance(extraMiss)) {
     const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';
     const dEl = defElement ?? defender?.element ?? 'earth';
     return {

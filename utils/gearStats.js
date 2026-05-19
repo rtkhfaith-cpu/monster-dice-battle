@@ -35,6 +35,8 @@ function scaleRange(range, amountPct) {
 export function applyGearBonuses(baseStats, gearIds) {
   const b = sumGearBonuses(gearIds);
   const p = percentFromLegacyBonuses(b);
+  const speedBase = baseStats.speed ?? baseStats.agility ?? 10;
+  const agility = Math.max(1, Math.round((baseStats.agility ?? speedBase) + (b.agility ?? 0) + (b.dodgePct ?? 0)));
   const stats = {
     hp: Math.max(1, Math.round(baseStats.hp * (1 + pct(p.hpPct)))),
     mp: Math.max(1, Math.round(baseStats.mp * (1 + pct(p.mpPct)))),
@@ -44,7 +46,9 @@ export function applyGearBonuses(baseStats, gearIds) {
     magicDef: scaleRange(baseStats.magicDef, p.magicDefPct),
     critPct: Math.min(55, Math.max(4, baseStats.critPct + b.critPct)),
     dodgePct: Math.min(25, Math.max(3, baseStats.dodgePct + b.dodgePct)),
-    speed: Math.max(1, Math.round((baseStats.speed ?? 10) * (1 + pct(p.speedPct)))),
+    hitRate: Math.min(99, Math.max(75, (baseStats.hitRate ?? 90) + (b.hitRate ?? 0))),
+    agility,
+    speed: Math.max(1, Math.round(speedBase * (1 + pct(p.speedPct)) + (b.agility ?? 0))),
   };
   return { stats, bonuses: { ...b, percentBonuses: p } };
 }

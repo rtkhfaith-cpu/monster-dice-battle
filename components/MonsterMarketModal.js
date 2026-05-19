@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { mergeMonsterParts } from '../utils/gameStorage';
@@ -17,11 +17,14 @@ function ownedCounts(wallet) {
 
 function formatStats(stats) {
   if (!stats) return '';
-  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max} · DEF ${stats.def.min}-${stats.def.max}`;
+  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max} · DEF ${stats.def.min}-${stats.def.max} · HIT ${stats.hitRate ?? 92}% · AGI ${stats.agility ?? stats.speed ?? 10}`;
 }
 
 export default function MonsterMarketModal({ visible, coins, wallet, onClose, onBuy }) {
+  const [cardMonster, setCardMonster] = useState(null);
   const counts = ownedCounts(wallet || {});
+  const cardStats = cardMonster ? computeBattleStats(cardMonster.id, 1)?.stats : null;
+  const cardRarity = cardMonster ? RARITY_UI[cardMonster.rarity] : null;
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -36,19 +39,18 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
               const purchasable = typeof price === 'number';
               const afford = purchasable && (coins ?? 0) >= price;
               const previewParts = mergeMonsterParts(m.id);
-              const base = computeBattleStats(m.id, 1)?.stats;
               return (
                 <View key={m.id} style={[styles.row, { borderLeftColor: ru.border }]}>
-                  <View style={styles.thumbCol}>
+                  <TouchableOpacity style={styles.thumbCol} activeOpacity={0.86} onPress={() => setCardMonster(m)}>
                     <MonsterPreview parts={previewParts} size={80} mood="happy" />
-                  </View>
+                    <Text style={styles.tapHint}>Card</Text>
+                  </TouchableOpacity>
                   <View style={styles.mid}>
                     <View style={styles.titleRow}>
                       <Text style={styles.name}>{m.name}</Text>
                       <Text style={[styles.rChip, { backgroundColor: ru.chipBg, color: ru.chipFg }]}>{ru.label}</Text>
                     </View>
                     <Text style={styles.role}>{ROLE_LABELS[m.role] ?? m.role}</Text>
-                    <Text style={styles.stats}>{formatStats(base)}</Text>
                     <Text style={styles.desc}>{m.description}</Text>
                     <Text style={styles.ownedLbl}>{count ? `Owned ×${count}` : 'Not owned yet'}</Text>
                   </View>
@@ -69,6 +71,28 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
             <Text style={styles.closeTxt}>Close</Text>
           </TouchableOpacity>
+          {cardMonster ? (
+            <View style={styles.cardOverlay}>
+              <View style={[styles.monsterCard, { borderColor: cardRarity?.border ?? '#facc15' }]}>
+                <TouchableOpacity style={styles.cardClose} onPress={() => setCardMonster(null)}>
+                  <Text style={styles.cardCloseTxt}>×</Text>
+                </TouchableOpacity>
+                <Text style={styles.cardKicker}>Monster Card</Text>
+                <Text style={styles.cardName}>{cardMonster.name}</Text>
+                <View style={styles.cardArt}>
+                  <MonsterPreview parts={mergeMonsterParts(cardMonster.id)} size={170} mood="happy" />
+                </View>
+                <View style={styles.cardMetaRow}>
+                  <Text style={[styles.cardBadge, { backgroundColor: cardRarity?.chipBg ?? '#334155', color: cardRarity?.chipFg ?? '#fff' }]}>
+                    {cardRarity?.label ?? cardMonster.rarity}
+                  </Text>
+                  <Text style={styles.cardRole}>{ROLE_LABELS[cardMonster.role] ?? cardMonster.role}</Text>
+                </View>
+                <Text style={styles.cardDesc}>{cardMonster.description}</Text>
+                <Text style={styles.cardStats}>{formatStats(cardStats)}</Text>
+              </View>
+            </View>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -145,7 +169,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   role: { fontWeight: '900', fontSize: 12, color: '#c4b5fd', marginTop: 2 },
-  stats: { fontWeight: '900', fontSize: 11, color: '#86efac', marginTop: 3, lineHeight: 15 },
   desc: { fontWeight: '800', fontSize: 13, color: '#bfdbfe', marginTop: 4, lineHeight: 18 },
   ownedLbl: { fontWeight: '900', fontSize: 12, color: '#86efac', marginTop: 4 },
   right: { justifyContent: 'space-between', alignItems: 'flex-end', width: 88 },
@@ -174,4 +197,54 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,224,138,0.62)',
   },
   closeTxt: { fontWeight: '900', fontSize: 17, color: '#fff1bc', textTransform: 'uppercase' },
+  tapHint: { color: '#fde68a', fontWeight: '900', fontSize: 9, marginTop: 2, textTransform: 'uppercase' },
+  cardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(3, 7, 18, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  monsterCard: {
+    width: '92%',
+    maxWidth: 360,
+    borderRadius: 24,
+    borderWidth: 3,
+    backgroundColor: 'rgba(15, 23, 42, 0.98)',
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#facc15',
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+  },
+  cardClose: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(127, 29, 29, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardCloseTxt: { color: '#fff', fontSize: 20, fontWeight: '900', lineHeight: 22 },
+  cardKicker: { color: '#fde68a', fontWeight: '900', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 },
+  cardName: { color: '#fff4cf', fontWeight: '900', fontSize: 23, textAlign: 'center', marginTop: 3 },
+  cardArt: {
+    width: '86%',
+    minHeight: 190,
+    marginVertical: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.32)',
+    backgroundColor: 'rgba(7, 17, 32, 0.86)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  cardBadge: { fontWeight: '900', fontSize: 12, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
+  cardRole: { color: '#c4b5fd', fontWeight: '900', fontSize: 13, textTransform: 'capitalize' },
+  cardDesc: { color: '#bfdbfe', fontWeight: '800', fontSize: 12, lineHeight: 17, textAlign: 'center', marginBottom: 8 },
+  cardStats: { color: '#86efac', fontWeight: '900', fontSize: 12, lineHeight: 18, textAlign: 'center' },
 });

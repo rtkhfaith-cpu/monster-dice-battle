@@ -4,11 +4,11 @@ import { baseSpeedForRole, growthForRole } from '../src/gameBalance/monsters';
 
 /** Flat rarity bumps — keeps commons playable while highs feel premium */
 export const RARITY_FLAT = {
-  common: { hp: 0, mp: 0, atk: 0, mag: 0, def: 0, md: 0, crit: 0, dodge: 0, speed: 0 },
-  rare: { hp: 10, mp: 6, atk: 1, mag: 1, def: 1, md: 1, crit: 1, dodge: 1, speed: 1 },
-  epic: { hp: 22, mp: 14, atk: 2, mag: 2, def: 2, md: 2, crit: 2, dodge: 1, speed: 1 },
-  legendary: { hp: 38, mp: 26, atk: 3, mag: 3, def: 3, md: 3, crit: 3, dodge: 2, speed: 2 },
-  mythic: { hp: 58, mp: 42, atk: 5, mag: 5, def: 4, md: 4, crit: 4, dodge: 3, speed: 3 },
+  common: { hp: 0, mp: 0, atk: 0, mag: 0, def: 0, md: 0, crit: 0, dodge: 0, speed: 0, hit: 0 },
+  rare: { hp: 10, mp: 6, atk: 1, mag: 1, def: 1, md: 1, crit: 1, dodge: 1, speed: 1, hit: 1 },
+  epic: { hp: 22, mp: 14, atk: 2, mag: 2, def: 2, md: 2, crit: 2, dodge: 1, speed: 1, hit: 1 },
+  legendary: { hp: 38, mp: 26, atk: 3, mag: 3, def: 3, md: 3, crit: 3, dodge: 2, speed: 2, hit: 2 },
+  mythic: { hp: 58, mp: 42, atk: 5, mag: 5, def: 4, md: 4, crit: 4, dodge: 3, speed: 3, hit: 3 },
 };
 
 const ROLE_SUPER_NEED = {
@@ -66,6 +66,7 @@ export function computeBattleStats(templateId, level) {
   let crit = b.critical + critSteps;
   let dodge = b.dodge + dodgeSteps;
   let speed = (b.speed ?? baseSpeedForRole(t.role)) + speedSteps;
+  let hitRate = 90 + Math.floor(speed * 0.25);
 
   const rf = RARITY_FLAT[t.rarity] ?? RARITY_FLAT.common;
   hp += rf.hp;
@@ -81,6 +82,7 @@ export function computeBattleStats(templateId, level) {
   crit += rf.crit;
   dodge += rf.dodge;
   speed += rf.speed ?? 0;
+  hitRate += rf.hit ?? 0;
 
   /** Tiny evolution scaling inside tier — rewards leveling without exploding numbers */
   const stage = evolutionStageFromLevel(lv);
@@ -94,12 +96,14 @@ export function computeBattleStats(templateId, level) {
   crit += Math.floor(stage.tierIndex * 0.35);
   dodge += Math.floor(stage.tierIndex * 0.25);
   speed += Math.floor(stage.tierIndex * 0.5);
+  hitRate += Math.floor(stage.tierIndex * 0.3);
 
   const atk = clampRange(atkMin, atkMax);
   const mag = clampRange(magMin, magMax);
   const def = clampRange(defMin, defMax);
   const magicDef = clampRange(mdMin, mdMax);
 
+  const agility = Math.max(1, Math.round(speed));
   const stats = {
     hp,
     mp,
@@ -107,9 +111,11 @@ export function computeBattleStats(templateId, level) {
     magic: mag,
     def,
     magicDef,
+    hitRate: Math.min(98, Math.max(75, Math.round(hitRate))),
+    agility,
     critPct: Math.min(55, Math.max(4, Math.round(crit))),
     dodgePct: Math.min(25, Math.max(3, Math.round(dodge))),
-    speed: Math.max(1, Math.round(speed)),
+    speed: agility,
   };
 
   const superNeedThreshold = ROLE_SUPER_NEED[t.role] ?? 3;
@@ -145,7 +151,8 @@ export function powerScoreFromBundle(stats) {
     mdAvg * 9 +
     stats.critPct * 7 +
     stats.dodgePct * 6 +
-    (stats.speed ?? 10) * 8
+    (stats.hitRate ?? 90) * 5 +
+    (stats.agility ?? stats.speed ?? 10) * 8
   );
 }
 

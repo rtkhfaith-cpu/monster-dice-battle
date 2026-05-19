@@ -37,6 +37,7 @@ export function computeLadderBattleStats(templateId, level) {
   let crit = b.critical + critSteps;
   let dodge = b.dodge + dodgeSteps;
   let speed = (b.speed ?? baseSpeedForRole(t.role)) + speedSteps;
+  let hitRate = 90 + Math.floor(speed * 0.25);
 
   const rf = RARITY_FLAT[t.rarity] ?? RARITY_FLAT.common;
   hp += rf.hp;
@@ -52,11 +53,13 @@ export function computeLadderBattleStats(templateId, level) {
   crit += rf.crit;
   dodge += rf.dodge;
   speed += rf.speed ?? 0;
+  hitRate += rf.hit ?? 0;
 
   const st = evolutionStageFromLevel(lv);
   const visualTier = visualFormTierFromLevel(lv);
   const form = evolutionFormForMonster(templateId, visualTier);
 
+  const agility = Math.max(1, Math.round(speed));
   return {
     stats: {
       hp,
@@ -65,9 +68,11 @@ export function computeLadderBattleStats(templateId, level) {
       magic: { min: magMin, max: magMax },
       def: { min: defMin, max: defMax },
       magicDef: { min: mdMin, max: mdMax },
+      hitRate: Math.min(98, Math.max(75, Math.round(hitRate))),
+      agility,
       critPct: Math.min(55, Math.max(4, Math.round(crit))),
       dodgePct: Math.min(25, Math.max(3, Math.round(dodge))),
-      speed: Math.max(1, Math.round(speed)),
+      speed: agility,
     },
     meta: {
       superNeedThreshold: 3,

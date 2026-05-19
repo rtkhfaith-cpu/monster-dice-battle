@@ -40,9 +40,26 @@ function getElementalDamageModifier(relation) {
   return 1;
 }
 
-function rollAutoDodge(defender) {
-  const pct = Math.max(0, Math.min(55, defender?.stats?.dodgePct ?? 15));
+function attackHitChance(attacker, defender, magic = false) {
+  const hitRate = attacker?.stats?.hitRate ?? 92;
+  const attackerAgility = attacker?.stats?.agility ?? attacker?.stats?.speed ?? 10;
+  const defenderAgility = defender?.stats?.agility ?? defender?.stats?.speed ?? 10;
+  const agilityDelta = defenderAgility - attackerAgility;
+  const magicBonus = magic ? 2 : 0;
+  return Math.max(76, Math.min(98, 92 + (hitRate - 92) * 0.45 - agilityDelta * 0.25 + magicBonus));
+}
+
+function rollAutoDodge(attacker, defender, magic = false) {
+  const attackerAgility = attacker?.stats?.agility ?? attacker?.stats?.speed ?? attacker?.stats?.dodgePct ?? 10;
+  const defenderAgility = defender?.stats?.agility ?? defender?.stats?.speed ?? defender?.stats?.dodgePct ?? 10;
+  const base = 3 + (defenderAgility - attackerAgility) * 0.25;
+  const pct = Math.max(3, Math.min(25, magic ? base * 0.5 : base));
   return rollPercentChance(pct);
+}
+
+function rollAttackAvoided(attacker, defender, magic = false) {
+  if (!rollPercentChance(attackHitChance(attacker, defender, magic))) return true;
+  return rollAutoDodge(attacker, defender, magic);
 }
 
 function defenseMitigationRatio(defStat, attackPower) {
@@ -52,7 +69,7 @@ function defenseMitigationRatio(defStat, attackPower) {
 }
 
 function resolvePhysicalBattleDamage({ attacker, defender, skill = null }) {
-  if (rollAutoDodge(defender)) {
+  if (rollAttackAvoided(attacker, defender, false)) {
     return {
       damage: 0,
       critical: false,
@@ -103,7 +120,7 @@ function resolveMagicBattleDamage({
   atkElement,
   defElement,
 }) {
-  if (rollAutoDodge(defender)) {
+  if (rollAttackAvoided(attacker, defender, true)) {
     const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';
     const dEl = defElement ?? defender?.element ?? 'earth';
     return {
