@@ -11,11 +11,13 @@ import {
   View,
 } from 'react-native';
 import MonsterPreview from './MonsterPreview';
+import MonsterStatCardOverlay from './MonsterStatCardOverlay';
 import OnlineRoomBanner from './OnlineRoomBanner';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
 import { groupOwnedMonsters, MAX_MERGE_TIER, pickPrimaryInstance } from '../utils/mergeSystem';
+import { fighterFromOwned } from '../utils/fighterFromOwned';
 
 const MAX_VISIBLE_PROFILES = 4;
 
@@ -129,6 +131,7 @@ export default function HomeSetupScreen({
   onMergeMonster,
 }) {
   const [tray, setTray] = useState(null);
+  const [cardMonster, setCardMonster] = useState(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -169,6 +172,10 @@ export default function HomeSetupScreen({
   useEffect(() => {
     if (tray === 'cloud') onFetchCloudPlayers?.();
   }, [tray, onFetchCloudPlayers]);
+
+  useEffect(() => {
+    if (tray !== 'monsters') setCardMonster(null);
+  }, [tray]);
 
   function resetLoginModalLayout() {
     loginScrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -518,13 +525,16 @@ export default function HomeSetupScreen({
     );
   }
 
+  const cardFighter = cardMonster ? fighterFromOwned(cardMonster) : null;
+  const selectedMonsterId = activeSlot === 2 ? selectedP2Id : selectedP1Id;
+
   function renderMonsterTray() {
     return (
       <View style={styles.tray} pointerEvents="box-none">
         <View style={styles.trayHeader}>
           <View>
             <Text style={styles.trayTitle}>Monsters</Text>
-            <Text style={styles.traySub}>Your collection · tap to equip · merge duplicates</Text>
+            <Text style={styles.traySub}>Your collection · tap for stats · equip from card</Text>
           </View>
           <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
             <Text style={styles.trayCloseText}>Close</Text>
@@ -540,7 +550,7 @@ export default function HomeSetupScreen({
           {monsterGroups.map((group) => {
             const primary = group.battlePrimary ?? group.primary;
             if (!primary) return null;
-            const picked = primary.id === selectedP1Id;
+            const picked = primary.id === selectedMonsterId;
             const countLabel = group.count > 1 ? ` ×${group.count}` : '';
             const mergeLabel = group.mergeTier > 0 ? ` · +${group.mergeTier}` : '';
             const mergeTargetId = group.primary?.id ?? primary.id;
@@ -548,7 +558,7 @@ export default function HomeSetupScreen({
               <View key={group.templateId} style={[styles.monsterSelectRow, picked && styles.monsterChipActive]}>
                 <Pressable
                   style={styles.monsterSelectMain}
-                  onPress={pressWithSound(() => onSelectMonster?.(primary.id))}
+                  onPress={pressWithSound(() => setCardMonster(primary))}
                 >
                   <View style={styles.monsterSelectPortrait}>
                     <MonsterPreview parts={primary.monsterParts} size={46} mood={picked ? 'happy' : 'neutral'} />
@@ -579,6 +589,23 @@ export default function HomeSetupScreen({
             );
           })}
         </ScrollView>
+        {cardFighter ? (
+          <MonsterStatCardOverlay
+            fighter={cardFighter}
+            mergeTier={cardMonster?.mergeTier ?? 0}
+            selected={cardMonster?.id === selectedMonsterId}
+            kicker="Your Monster"
+            onClose={() => setCardMonster(null)}
+            primaryAction={{
+              label: cardMonster?.id === selectedMonsterId ? 'Equipped' : 'Equip for battle',
+              disabled: cardMonster?.id === selectedMonsterId,
+              onPress: pressWithSound(() => {
+                onSelectMonster?.(cardMonster.id);
+                setCardMonster(null);
+              }),
+            }}
+          />
+        ) : null}
       </View>
     );
   }
