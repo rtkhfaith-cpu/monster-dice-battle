@@ -1,24 +1,166 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
-import { chestDropSubtitle, chestDropTitle } from '../utils/mainBattleChest';
+import { chestDropTitle } from '../utils/mainBattleChest';
+import { applyGearBonuses } from '../utils/gearStats';
+import { computeBattleStats } from '../utils/statsCalc';
+import { computeLadderBattleStats } from '../utils/monsterLadder/ladderStatsCalc';
+import { clampMergeTier, scaleStatsByMergeTier } from '../utils/mergeSystem';
 
-function ExpRowCompact({ label, pack }) {
-  if (!pack || pack.level == null) return null;
-  const pct = Math.min(100, Math.round(((pack.exp ?? 0) / Math.max(1, pack.expToNext ?? 1)) * 100));
-  const evolved = pack.evolved
-    ? ` · EVOLVED ${pack.evolutionFormName || pack.nextStage || ''}`
-    : '';
+function resolveStatsAtLevel(player, level) {
+  const templateId = player?.monsterTemplateId;
+  if (!templateId || !level) return null;
+  const built = player?.isLadderMonster
+    ? computeLadderBattleStats(templateId, level)
+    : computeBattleStats(templateId, level);
+  if (!built?.stats) return null;
+  const mergeTier = clampMergeTier(player?.mergeTier);
+  const merged = scaleStatsByMergeTier(built.stats, mergeTier);
+  const gearIds = player?.equippedGear ?? [];
+  return applyGearBonuses(merged, gearIds).stats;
+}
+
+function rangeLabel(range) {
+  if (!range) return '—';
+  return `${range.min}-${range.max}`;
+}
+
+function rangeDelta(prev, cur) {
+  if (!prev || !cur) return 0;
+  const dMin = cur.min - prev.min;
+  const dMax = cur.max - prev.max;
+  if (dMin === dMax) return dMin;
+  return Math.max(dMin, dMax);
+}
+
+function formatBonus(delta, showBonus) {
+  if (!showBonus || !delta || delta <= 0) return '';
+  return ` (+${delta})`;
+}
+
+function StatLine({ label, value, bonus, compact }) {
   return (
-    <View style={styles.expBlock}>
-      <Text style={styles.expLbl} numberOfLines={1}>
-        {label} Lv{pack.level}
-        {pack.levelsGained ? ` (+${pack.levelsGained})` : ''}
-        {evolved}
+    <View style={[styles.statLine, compact && styles.statLineCompact]}>
+      <Text style={[styles.statKey, compact && styles.statKeyCompact]}>{label}</Text>
+      <Text style={[styles.statVal, compact && styles.statValCompact]} numberOfLines={1}>
+        {value}
+        {bonus ? <Text style={styles.statBonus}>{bonus}</Text> : null}
       </Text>
-      <View style={styles.barOuter}>
-        <View style={[styles.barInner, { width: `${pct}%` }]} />
+    </View>
+  );
+}
+
+function MonsterBattleSummary({ player, expPack, compact }) {
+  const level = expPack?.level ?? player?.level ?? 1;
+  const prevLevel = expPack?.prevLevel ?? Math.max(1, level - (expPack?.levelsGained ?? 0));
+  const levelsGained = expPack?.levelsGained ?? 0;
+  const leveledUp = levelsGained > 0;
+  const expDelta = expPack?.expDelta ?? 0;
+  const exp = expPack?.exp ?? player?.battleExp ?? 0;
+  const expToNext = expPack?.expToNext ?? player?.battleExpToNext ?? 1;
+  const expPct = Math.min(100, Math.round((exp / Math.max(1, expToNext)) * 100));
+  const expRemaining = Math.max(0, expToNext - exp);
+
+  const { currentStats, prevStats } = useMemo(() => {
+    const cur = resolveStatsAtLevel(player, level) ?? player?.stats ?? null;
+    const prev = leveledUp ? resolveStatsAtLevel(player, prevLevel) : null;
+    return { currentStats: cur, prevStats: prev };
+  }, [player, level, prevLevel, leveledUp]);
+
+  if (!currentStats && !expPack) return null;
+
+  const showBonus = leveledUp && !!prevStats;
+
+  const lines = currentStats
+    ? [
+        {
+          key: 'HP',
+          value: String(currentStats.hp),
+          bonus: formatBonus(currentStats.hp - (prevStats?.hp ?? currentStats.hp), showBonus),
+        },
+        {
+          key: 'MP',
+          value: String(currentStats.mp),
+          bonus: formatBonus(currentStats.mp - (prevStats?.mp ?? currentStats.mp), showBonus),
+        },
+        {
+          key: 'ATK',
+          value: rangeLabel(currentStats.attack),
+          bonus: formatBonus(rangeDelta(prevStats?.attack, currentStats.attack), showBonus),
+        },
+        {
+          key: 'MAG',
+          value: rangeLabel(currentStats.magic),
+          bonus: formatBonus(rangeDelta(prevStats?.magic, currentStats.magic), showBonus),
+        },
+        {
+          key: 'DEF',
+          value: rangeLabel(currentStats.def),
+          bonus: formatBonus(rangeDelta(prevStats?.def, currentStats.def), showBonus),
+        },
+        {
+          key: 'HIT',
+          value: `${currentStats.hitRate ?? 90}%`,
+          bonus: formatBonus(
+            (currentStats.hitRate ?? 90) - (prevStats?.hitRate ?? currentStats.hitRate ?? 90),
+            showBonus,
+          ),
+        },
+        {
+          key: 'AGI',
+          value: String(currentStats.agility ?? currentStats.speed ?? 10),
+          bonus: formatBonus(
+            (currentStats.agility ?? currentStats.speed ?? 10)
+              - (prevStats?.agility ?? prevStats?.speed ?? currentStats.agility ?? 10),
+            showBonus,
+          ),
+        },
+      ]
+    : [];
+
+  return (
+    <View style={[styles.monsterPanel, compact && styles.monsterPanelCompact]}>
+      <View style={styles.monsterPanelHeader}>
+        <Text style={[styles.monsterName, compact && styles.monsterNameCompact]} numberOfLines={1}>
+          {player?.displayName || 'Monster'}
+        </Text>
+        <Text style={[styles.monsterLevel, compact && styles.monsterLevelCompact]}>
+          Lv {level}
+          {leveledUp ? (
+            <Text style={styles.levelUpTag}> · LEVEL UP!</Text>
+          ) : null}
+        </Text>
       </View>
+
+      {lines.length > 0 ? (
+        <View style={styles.statGrid}>
+          {lines.map((row) => (
+            <StatLine
+              key={row.key}
+              label={row.key}
+              value={row.value}
+              bonus={row.bonus}
+              compact={compact}
+            />
+          ))}
+        </View>
+      ) : null}
+
+      {expPack ? (
+        <View style={styles.expSection}>
+          <Text style={[styles.expGain, compact && styles.expGainCompact]}>
+            EXP {expDelta >= 0 ? '+' : ''}
+            {expDelta}
+          </Text>
+          <Text style={[styles.expProgress, compact && styles.expProgressCompact]} numberOfLines={1}>
+            {exp} / {expToNext} to next level
+            {expRemaining > 0 ? ` · ${expRemaining} left` : ''}
+          </Text>
+          <View style={styles.barOuter}>
+            <View style={[styles.barInner, { width: `${expPct}%` }]} />
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -28,7 +170,6 @@ export default function RewardScreen({
   coinsAwarded = 0,
   bonusUnderdog = false,
   expP1,
-  expP2,
   funnyTitle,
   player1,
   player2,
@@ -56,8 +197,8 @@ export default function RewardScreen({
 }) {
   const { height } = useWindowDimensions();
   const compact = height < 720;
-  const portraitSize = compact ? 88 : 104;
-  const dualPortraitSize = compact ? 64 : 72;
+  const portraitSize = compact ? 80 : 96;
+  const dualPortraitSize = compact ? 58 : 66;
 
   const line = useMemo(() => {
     if (onlineResult) {
@@ -96,12 +237,12 @@ export default function RewardScreen({
   const extraLine = extras.join(' · ');
   const tipLine = encourageLines?.[0] ?? '';
 
-  const showP2Exp = !!expP2?.level && !monsterLadder && !onlineResult;
+  const displayPlayer = player1;
 
   return (
     <View style={[styles.root, compact && styles.rootCompact]}>
       <View style={styles.header}>
-        {expP1?.evolved || expP2?.evolved ? (
+        {expP1?.evolved ? (
           <Text style={styles.evolve}>EVOLUTION!</Text>
         ) : null}
         <Text style={styles.boom}>{monsterLadder ? 'Ladder' : 'Battle'} Result</Text>
@@ -152,11 +293,7 @@ export default function RewardScreen({
                 : `Total ${totalCoins ?? 0}🪙`}
             </Text>
           </View>
-          <ExpRowCompact
-            label={monsterLadder ? 'Climber' : 'You'}
-            pack={expP1}
-          />
-          {showP2Exp ? <ExpRowCompact label="Rival" pack={expP2} /> : null}
+          <MonsterBattleSummary player={displayPlayer} expPack={expP1} compact={compact} />
           {tipLine ? (
             <Text style={styles.tip} numberOfLines={1}>
               {tipLine}
@@ -215,10 +352,10 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   evolve: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     color: '#f0abfc',
     marginBottom: 2,
@@ -232,12 +369,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
     color: '#fff4cf',
     textAlign: 'center',
     marginTop: 2,
-    lineHeight: 22,
+    lineHeight: 20,
     paddingHorizontal: 4,
   },
   sub: {
@@ -252,19 +389,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#fde68a',
     textAlign: 'center',
-    marginTop: 3,
+    marginTop: 2,
     lineHeight: 12,
   },
   mainRow: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'stretch',
+    gap: 6,
     minHeight: 0,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   portraitCol: {
-    width: 108,
+    width: 96,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -272,25 +409,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
   },
   detailsCol: {
     flex: 1,
     minWidth: 0,
-    justifyContent: 'center',
-    gap: 5,
+    justifyContent: 'flex-start',
+    gap: 4,
   },
   rewardPanel: {
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,224,138,0.45)',
     backgroundColor: 'rgba(7, 17, 32, 0.75)',
-    paddingVertical: 6,
+    paddingVertical: 4,
     paddingHorizontal: 8,
     alignItems: 'center',
   },
   coinsLbl: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '900',
     color: '#d9f7ff',
     textTransform: 'uppercase',
@@ -299,31 +436,117 @@ const styles = StyleSheet.create({
   coinsStrong: {
     color: '#fcd34d',
     fontWeight: '900',
-    fontSize: 22,
-    lineHeight: 24,
+    fontSize: 20,
+    lineHeight: 22,
   },
   bank: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
     color: '#86efac',
     marginTop: 1,
   },
-  expBlock: {
+  monsterPanel: {
+    flex: 1,
+    minHeight: 0,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 7,
+    paddingHorizontal: 6,
     paddingVertical: 5,
   },
-  expLbl: {
-    fontWeight: '800',
-    fontSize: 10,
-    color: '#fff4cf',
+  monsterPanelCompact: {
+    paddingHorizontal: 5,
+    paddingVertical: 4,
+  },
+  monsterPanelHeader: {
     marginBottom: 4,
   },
+  monsterName: {
+    fontWeight: '900',
+    fontSize: 11,
+    color: '#fff4cf',
+  },
+  monsterNameCompact: {
+    fontSize: 10,
+  },
+  monsterLevel: {
+    fontWeight: '800',
+    fontSize: 10,
+    color: '#bfdbfe',
+    marginTop: 1,
+  },
+  monsterLevelCompact: {
+    fontSize: 9,
+  },
+  levelUpTag: {
+    color: '#86efac',
+    fontWeight: '900',
+  },
+  statGrid: {
+    gap: 2,
+    marginBottom: 4,
+  },
+  statLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  statLineCompact: {
+    gap: 2,
+  },
+  statKey: {
+    width: 32,
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+  },
+  statKeyCompact: {
+    width: 28,
+    fontSize: 8,
+  },
+  statVal: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#fff8e5',
+  },
+  statValCompact: {
+    fontSize: 8,
+  },
+  statBonus: {
+    color: '#86efac',
+    fontWeight: '900',
+  },
+  expSection: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    paddingTop: 4,
+    marginTop: 2,
+  },
+  expGain: {
+    fontWeight: '900',
+    fontSize: 10,
+    color: '#fde68a',
+  },
+  expGainCompact: {
+    fontSize: 9,
+  },
+  expProgress: {
+    fontWeight: '800',
+    fontSize: 9,
+    color: '#bfdbfe',
+    marginTop: 2,
+    marginBottom: 3,
+  },
+  expProgressCompact: {
+    fontSize: 8,
+  },
   barOuter: {
-    height: 7,
+    height: 6,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
@@ -334,13 +557,13 @@ const styles = StyleSheet.create({
   },
   tip: {
     fontWeight: '800',
-    fontSize: 9,
+    fontSize: 8,
     color: '#dbeafe',
     textAlign: 'center',
     fontStyle: 'italic',
   },
   actions: {
-    gap: 5,
+    gap: 4,
   },
   primary: {
     width: '100%',
@@ -350,11 +573,11 @@ const styles = StyleSheet.create({
     borderColor: '#efd17a',
     borderBottomWidth: 3,
     borderBottomColor: '#31551f',
-    paddingVertical: 10,
+    paddingVertical: 9,
     alignItems: 'center',
   },
   primaryTxt: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     color: '#fff8dd',
     textTransform: 'uppercase',
@@ -371,17 +594,17 @@ const styles = StyleSheet.create({
     borderColor: '#b9843b',
     borderBottomWidth: 3,
     borderBottomColor: '#68401f',
-    paddingVertical: 8,
+    paddingVertical: 7,
     alignItems: 'center',
   },
   shopBtnTxt: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     color: '#5c3618',
     textTransform: 'uppercase',
   },
   ghost: {
-    paddingVertical: 7,
+    paddingVertical: 6,
     alignItems: 'center',
     borderRadius: 10,
     borderWidth: 1,
@@ -390,7 +613,7 @@ const styles = StyleSheet.create({
   },
   ghostTxt: {
     fontWeight: '900',
-    fontSize: 11,
+    fontSize: 10,
     color: '#ffe08a',
     textTransform: 'uppercase',
   },

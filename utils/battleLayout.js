@@ -2,6 +2,9 @@ import { BREAKPOINT_MOBILE } from './responsive';
 
 /** Symmetrical arcade battle layout — mirrored left/right fighters. */
 
+/** All battle-screen monster sprites (RN arena + Phaser lab). */
+export const BATTLE_MONSTER_SIZE_MULT = 0.8;
+
 /** Enemy sprite scale vs normal fighter size during boss encounters */
 export const BOSS_DISPLAY_SCALE = {
   miniBoss: 1.2,
@@ -36,11 +39,12 @@ export function isPhoneLayout(width) {
 export function getStrictLayout(width, height) {
   const mobile = isMobileLayout(width, height);
   const phone = isPhoneLayout(width);
-  const monster = phone
+  const monsterBase = phone
     ? Math.max(118, Math.min(138, width * 0.34))
     : mobile
       ? Math.max(150, Math.min(190, width * 0.31))
       : 280;
+  const monster = Math.round(monsterBase * BATTLE_MONSTER_SIZE_MULT);
   const statsW = phone
     ? Math.max(132, Math.min(150, width * 0.37))
     : mobile

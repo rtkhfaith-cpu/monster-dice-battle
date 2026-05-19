@@ -1,7 +1,7 @@
 import BattleAnimationController from './BattleAnimationController';
 import MonsterActor from './MonsterActor';
 import { GAME_ASSETS } from '../../utils/gameAssetPaths';
-import { BOSS_DISPLAY_SCALE, playerBossEncounterScale } from '../../utils/battleLayout';
+import { BOSS_DISPLAY_SCALE, BATTLE_MONSTER_SIZE_MULT, playerBossEncounterScale } from '../../utils/battleLayout';
 import { MONSTER_ASSETS, getNormalMonsterAsset } from './monsterAssetManifest';
 
 export const ACTION_IMAGE_ASSETS = {
@@ -117,7 +117,7 @@ export function createPhaserBattleScene(Phaser) {
         y,
         facing,
         depth,
-        scale: (key === 'player' ? 1 : 1.03) * encounterScale,
+        scale: (key === 'player' ? 1 : 1.03) * encounterScale * BATTLE_MONSTER_SIZE_MULT,
         asset: getNormalMonsterAsset(fighter.templateId),
         ...fighter,
       });

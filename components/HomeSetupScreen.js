@@ -139,6 +139,7 @@ export default function HomeSetupScreen({
   const [loginId, setLoginId] = useState('');
   const [loginPin, setLoginPin] = useState('');
   const [loginMsg, setLoginMsg] = useState('');
+  const loginScrollRef = useRef(null);
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const activeWallet = walletP1 || wallet;
@@ -169,11 +170,44 @@ export default function HomeSetupScreen({
     if (tray === 'cloud') onFetchCloudPlayers?.();
   }, [tray, onFetchCloudPlayers]);
 
+  function resetLoginModalLayout() {
+    loginScrollRef.current?.scrollTo({ y: 0, animated: false });
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    });
+  }
+
+  useEffect(() => {
+    if (!loginOpen) {
+      resetLoginModalLayout();
+      return undefined;
+    }
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    let lastHeight = vv.height;
+    const onViewportResize = () => {
+      if (vv.height > lastHeight + 40) resetLoginModalLayout();
+      lastHeight = vv.height;
+    };
+    vv.addEventListener('resize', onViewportResize);
+    return () => {
+      vv.removeEventListener('resize', onViewportResize);
+      resetLoginModalLayout();
+    };
+  }, [loginOpen]);
+
   function closeLoginModal() {
+    resetLoginModalLayout();
     setLoginOpen(false);
     setCreateError('');
     setCreateOpen(false);
   }
+
+  const loginModalInputBlur = resetLoginModalLayout;
 
   function openLoginModal() {
     setTray(null);
@@ -342,9 +376,12 @@ export default function HomeSetupScreen({
           </View>
 
           <ScrollView
+            ref={loginScrollRef}
             style={styles.loginModalScroll}
             contentContainerStyle={styles.loginModalScrollContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            nestedScrollEnabled
             showsVerticalScrollIndicator={false}
           >
             <Text style={styles.loginSectionLbl}>Quick sign-in</Text>
@@ -352,18 +389,20 @@ export default function HomeSetupScreen({
               <TextInput
                 value={loginId}
                 onChangeText={(v) => setLoginId(String(v || '').slice(0, 10))}
+                onBlur={loginModalInputBlur}
                 placeholder="Player ID"
                 placeholderTextColor="rgba(255,255,255,0.58)"
-                style={[styles.loginInput, styles.loginIdInputModal]}
+                style={[styles.loginInput, styles.loginIdInputModal, styles.loginInputNoZoom]}
                 maxLength={10}
                 autoCapitalize="none"
               />
               <TextInput
                 value={loginPin}
                 onChangeText={(v) => setLoginPin(normalizePlayerKey(v))}
+                onBlur={loginModalInputBlur}
                 placeholder="PIN"
                 placeholderTextColor="rgba(255,255,255,0.58)"
-                style={[styles.loginInput, styles.loginPinInputModal]}
+                style={[styles.loginInput, styles.loginPinInputModal, styles.loginInputNoZoom]}
                 maxLength={4}
                 keyboardType="number-pad"
                 secureTextEntry
@@ -406,9 +445,10 @@ export default function HomeSetupScreen({
                 <TextInput
                   value={nameDraft}
                   onChangeText={setNameDraft}
+                  onBlur={loginModalInputBlur}
                   placeholder="Name"
                   placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={[styles.textInput, styles.loginModalTextInput]}
+                  style={[styles.textInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
                   maxLength={24}
                 />
                 <Pressable onPress={pressWithSound(handleSaveName)} style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}>
@@ -422,18 +462,20 @@ export default function HomeSetupScreen({
                 <TextInput
                   value={createName}
                   onChangeText={setCreateName}
+                  onBlur={loginModalInputBlur}
                   placeholder="Name"
                   placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={[styles.textInput, styles.loginModalTextInput]}
+                  style={[styles.textInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
                   maxLength={24}
                 />
                 <View style={[styles.keyRow, styles.loginModalKeyRow]}>
                   <TextInput
                     value={createKey}
                     onChangeText={setCreateKey}
+                    onBlur={loginModalInputBlur}
                     placeholder="PIN"
                     placeholderTextColor="rgba(255,255,255,0.58)"
-                    style={[styles.textInput, styles.keyInput, styles.loginModalTextInput]}
+                    style={[styles.textInput, styles.keyInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
                     maxLength={4}
                     keyboardType="number-pad"
                     secureTextEntry
@@ -441,9 +483,10 @@ export default function HomeSetupScreen({
                   <TextInput
                     value={createConfirm}
                     onChangeText={setCreateConfirm}
+                    onBlur={loginModalInputBlur}
                     placeholder="OK"
                     placeholderTextColor="rgba(255,255,255,0.58)"
-                    style={[styles.textInput, styles.keyInput, styles.loginModalTextInput]}
+                    style={[styles.textInput, styles.keyInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
                     maxLength={4}
                     keyboardType="number-pad"
                     secureTextEntry
@@ -671,7 +714,7 @@ const styles = StyleSheet.create({
   },
   topCoinDisplay: {
     position: 'absolute',
-    top: '4.8%',
+    top: '2.8%',
     left: '5.5%',
     flexDirection: 'row',
     alignItems: 'center',
@@ -695,7 +738,7 @@ const styles = StyleSheet.create({
   },
   topPlayerNameWrap: {
     position: 'absolute',
-    top: '4.8%',
+    top: '2.8%',
     right: '5%',
     maxWidth: '34%',
     minHeight: 28,
@@ -798,11 +841,11 @@ const styles = StyleSheet.create({
     opacity: 0.48,
   },
   menuButtonOne: { top: '42%' },
-  menuButtonTwo: { top: '50%' },
-  menuButtonThree: { top: '58%' },
-  menuButtonFour: { top: '66%' },
-  menuButtonFive: { top: '74%' },
-  menuButtonSix: { top: '82%' },
+  menuButtonTwo: { top: '48.2%' },
+  menuButtonThree: { top: '54.4%' },
+  menuButtonFour: { top: '60.6%' },
+  menuButtonFive: { top: '66.8%' },
+  menuButtonSix: { top: '73%' },
   bottomNavButton: {
     position: 'absolute',
     top: '90%',
@@ -908,8 +951,7 @@ const styles = StyleSheet.create({
   loginModalCard: {
     width: '46%',
     maxWidth: 210,
-    maxHeight: '40%',
-    minHeight: 150,
+    maxHeight: 300,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255,224,143,0.9)',
@@ -917,6 +959,8 @@ const styles = StyleSheet.create({
     padding: 8,
     zIndex: 41,
     pointerEvents: 'auto',
+    overflow: 'hidden',
+    flexDirection: 'column',
     ...webShadow,
   },
   loginModalHeader: {
@@ -957,8 +1001,17 @@ const styles = StyleSheet.create({
   },
   loginModalScroll: {
     flexGrow: 0,
-    maxHeight: 260,
+    flexShrink: 1,
+    maxHeight: 248,
   },
+  loginInputNoZoom: Platform.OS === 'web'
+    ? {
+        fontSize: 16,
+        lineHeight: 20,
+        minHeight: 36,
+        height: 36,
+      }
+    : {},
   loginModalScrollContent: {
     paddingBottom: 6,
     gap: 2,

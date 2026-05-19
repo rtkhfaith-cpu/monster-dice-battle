@@ -84,6 +84,7 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
     ?? ml.ownedMonsters.find((m) => m.id === payload.ownedMonsterId);
   let expPack = null;
   if (om && expDelta !== 0) {
+    const prevLevel = om.level;
     const res = expDelta >= 0
       ? addExperience({ level: om.level, exp: om.exp }, expDelta)
       : subtractExperience({ level: om.level, exp: om.exp }, Math.abs(expDelta));
@@ -93,6 +94,7 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
       level: om.level,
       exp: om.exp,
       expToNext: expToAdvanceFrom(om.level),
+      prevLevel,
       levelsGained: res.levelsGained ?? 0,
       expDelta,
     };
