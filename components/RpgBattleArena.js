@@ -2,7 +2,12 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, ImageBackground, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import AnimatedMonster from './AnimatedMonster';
 import { expToAdvanceFrom } from '../utils/expLevel';
-import { enemyBossDisplayScale, getStrictLayout, playerBossEncounterScale } from '../utils/battleLayout';
+import {
+  enemyBossDisplayScale,
+  getMonsterPlacement,
+  getStrictLayout,
+  playerBossEncounterScale,
+} from '../utils/battleLayout';
 import { ELEMENT_UI } from '../utils/elements';
 import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
 import { ART } from '../utils/artDirection';
@@ -145,6 +150,7 @@ export default function RpgBattleArena({
   const narrow = width < 520;
   const L = useMemo(() => getStrictLayout(width, height), [width, height]);
   const stageKind = enemyStageKind ?? p2?.ladderStageKind;
+  const placement = useMemo(() => getMonsterPlacement(stageKind, L), [stageKind, L]);
   const p1MonsterSize = Math.round(L.p1Monster * playerBossEncounterScale(stageKind));
   const p2MonsterSize = Math.round(L.p2Monster * enemyBossDisplayScale(stageKind));
   const p1Focus = useRef(new Animated.Value(activeTurn === 1 ? 1 : 0)).current;
@@ -259,7 +265,12 @@ export default function RpgBattleArena({
       <Animated.View
         style={[
           styles.playerMonster,
-          { left: L.monsterSideInset, bottom: L.monsterBottom, opacity: p1Opacity, transform: [{ scale: p1Scale }] },
+          {
+            left: placement.sideInset,
+            bottom: placement.p1Bottom,
+            opacity: p1Opacity,
+            transform: [{ scale: p1Scale }],
+          },
         ]}
       >
         <View style={styles.monsterWrap}>
@@ -305,7 +316,12 @@ export default function RpgBattleArena({
       <Animated.View
         style={[
           styles.enemyMonster,
-          { right: L.monsterSideInset, bottom: L.monsterBottom, opacity: p2Opacity, transform: [{ scale: p2Scale }] },
+          {
+            right: placement.sideInset,
+            bottom: placement.p2Bottom,
+            opacity: p2Opacity,
+            transform: [{ scale: p2Scale }],
+          },
         ]}
       >
         <View style={styles.monsterWrap}>

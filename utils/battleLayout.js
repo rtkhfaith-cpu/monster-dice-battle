@@ -28,6 +28,19 @@ export function playerBossEncounterScale(stageKind) {
   return isBossEncounter(stageKind) ? PLAYER_BOSS_ENCOUNTER_SCALE : 1;
 }
 
+/**
+ * Feet anchor + horizontal spread per fight type.
+ * Boss enemies are scaled up (1.2×–1.5×) so they need a lower bottom % to share the ground line.
+ */
+export function getMonsterPlacement(stageKind, layout) {
+  const boss = isBossEncounter(stageKind);
+  return {
+    p1Bottom: boss ? layout.monsterBottomPlayerBoss : layout.monsterBottom,
+    p2Bottom: boss ? layout.monsterBottomEnemyBoss : layout.monsterBottom,
+    sideInset: layout.monsterSideInset,
+  };
+}
+
 export function isMobileLayout(width, height) {
   return width < BREAKPOINT_MOBILE || height < 640;
 }
@@ -59,9 +72,14 @@ export function getStrictLayout(width, height) {
     hudBannerW: phone ? Math.min(136, width * 0.34) : mobile ? Math.min(152, width * 0.38) : 260,
     diceActive: mobile ? 68 : 92,
     diceInactive: mobile ? 48 : 64,
-    /** Shared ground line (% from bottom) */
+    /** Shared ground line (% from bottom of arena) */
     monsterBottom: phone ? '15%' : mobile ? '13%' : '10%',
-    monsterSideInset: phone ? '3%' : mobile ? '4%' : '8%',
+    /** Boss: shrunk player reads low — nudge up slightly */
+    monsterBottomPlayerBoss: phone ? '17%' : mobile ? '15%' : '12%',
+    /** Boss: enlarged enemy reads high — nudge down to match ground */
+    monsterBottomEnemyBoss: phone ? '11%' : mobile ? '9%' : '6%',
+    /** Horizontal inset from arena edges (higher = fighters farther apart) */
+    monsterSideInset: phone ? '6%' : mobile ? '9%' : '14%',
     statsTop: phone ? '10.5%' : mobile ? '9.5%' : '8.5%',
     statsSideInset: phone ? '3%' : '5%',
     stageBadgeTop: phone ? '6.2%' : mobile ? '5.8%' : '5.6%',
