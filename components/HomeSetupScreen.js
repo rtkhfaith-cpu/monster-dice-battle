@@ -441,20 +441,23 @@ export default function HomeSetupScreen({
             })}
 
             {activeProfile ? (
-              <View style={[styles.inputRow, styles.loginModalInputRow]}>
-                <TextInput
-                  value={nameDraft}
-                  onChangeText={setNameDraft}
-                  onBlur={loginModalInputBlur}
-                  placeholder="Name"
-                  placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={[styles.textInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
-                  maxLength={24}
-                />
-                <Pressable onPress={pressWithSound(handleSaveName)} style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}>
-                  <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>Save</Text>
-                </Pressable>
-              </View>
+              <>
+                <Text style={styles.loginSectionLbl}>Change display name</Text>
+                <View style={[styles.inputRow, styles.loginModalInputRow]}>
+                  <TextInput
+                    value={nameDraft}
+                    onChangeText={setNameDraft}
+                    onBlur={loginModalInputBlur}
+                    placeholder="Trainer name"
+                    placeholderTextColor="rgba(255,255,255,0.58)"
+                    style={[styles.textInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
+                    maxLength={24}
+                  />
+                  <Pressable onPress={pressWithSound(handleSaveName)} style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}>
+                    <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>Save name</Text>
+                  </Pressable>
+                </View>
+              </>
             ) : null}
 
             {createOpen ? (
@@ -509,40 +512,6 @@ export default function HomeSetupScreen({
               </Pressable>
             )}
 
-            <Pressable
-              onPress={pressWithSound(() => {
-                closeLoginModal();
-                setTray('cloud');
-              })}
-              style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}
-            >
-              <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>Cloud</Text>
-            </Pressable>
-
-            {gameMode && onGameModeChange ? (
-              <View style={[styles.modeRow, styles.loginModalModeRow]}>
-                <Pressable
-                  onPress={pressWithSound(() => onGameModeChange('onePlayer'))}
-                  style={[styles.modeBtn, styles.loginModalModeBtn, gameMode === 'onePlayer' && styles.modeBtnActive]}
-                >
-                  <Text style={[styles.modeText, styles.loginModalModeText]}>1P</Text>
-                </Pressable>
-                <Pressable
-                  onPress={pressWithSound(() => onGameModeChange('twoPlayer'))}
-                  style={[styles.modeBtn, styles.loginModalModeBtn, gameMode !== 'onePlayer' && styles.modeBtnActive]}
-                >
-                  <Text style={[styles.modeText, styles.loginModalModeText]}>2P</Text>
-                </Pressable>
-                {onActiveSlotChange ? (
-                  <Pressable
-                    onPress={pressWithSound(() => onActiveSlotChange(activeSlot === 2 ? 1 : 2))}
-                    style={[styles.modeBtn, styles.loginModalModeBtn]}
-                  >
-                    <Text style={[styles.modeText, styles.loginModalModeText]}>S{activeSlot || 1}</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
           </ScrollView>
         </View>
       </View>
@@ -949,8 +918,8 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   loginModalCard: {
-    width: '46%',
-    maxWidth: 210,
+    width: '58%',
+    maxWidth: 280,
     maxHeight: 300,
     borderRadius: 14,
     borderWidth: 1,

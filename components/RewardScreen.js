@@ -38,11 +38,25 @@ function formatBonus(delta, showBonus) {
   return ` (+${delta})`;
 }
 
-function StatLine({ label, value, bonus, compact }) {
+function FighterCard({ fighter, label, mood, portraitSize }) {
+  if (!fighter?.monsterParts) return null;
   return (
-    <View style={[styles.statLine, compact && styles.statLineCompact]}>
-      <Text style={[styles.statKey, compact && styles.statKeyCompact]}>{label}</Text>
-      <Text style={[styles.statVal, compact && styles.statValCompact]} numberOfLines={1}>
+    <View style={styles.fighterCard}>
+      <Text style={styles.fighterLabel} numberOfLines={1}>{label}</Text>
+      <MonsterPreview parts={fighter.monsterParts} size={portraitSize} mood={mood} />
+      <Text style={styles.fighterName} numberOfLines={1}>
+        {fighter.displayName || 'Monster'}
+      </Text>
+      <Text style={styles.fighterLv}>Lv {fighter.level ?? 1}</Text>
+    </View>
+  );
+}
+
+function StatCell({ label, value, bonus }) {
+  return (
+    <View style={styles.statCell}>
+      <Text style={styles.statKey}>{label}</Text>
+      <Text style={styles.statVal} numberOfLines={1}>
         {value}
         {bonus ? <Text style={styles.statBonus}>{bonus}</Text> : null}
       </Text>
@@ -50,16 +64,11 @@ function StatLine({ label, value, bonus, compact }) {
   );
 }
 
-function MonsterBattleSummary({ player, expPack, compact }) {
+function MonsterStatsPanel({ player, expPack }) {
   const level = expPack?.level ?? player?.level ?? 1;
   const prevLevel = expPack?.prevLevel ?? Math.max(1, level - (expPack?.levelsGained ?? 0));
   const levelsGained = expPack?.levelsGained ?? 0;
   const leveledUp = levelsGained > 0;
-  const expDelta = expPack?.expDelta ?? 0;
-  const exp = expPack?.exp ?? player?.battleExp ?? 0;
-  const expToNext = expPack?.expToNext ?? player?.battleExpToNext ?? 1;
-  const expPct = Math.min(100, Math.round((exp / Math.max(1, expToNext)) * 100));
-  const expRemaining = Math.max(0, expToNext - exp);
 
   const { currentStats, prevStats } = useMemo(() => {
     const cur = resolveStatsAtLevel(player, level) ?? player?.stats ?? null;
@@ -67,92 +76,70 @@ function MonsterBattleSummary({ player, expPack, compact }) {
     return { currentStats: cur, prevStats: prev };
   }, [player, level, prevLevel, leveledUp]);
 
-  if (!currentStats && !expPack) return null;
+  if (!currentStats) return null;
 
   const showBonus = leveledUp && !!prevStats;
 
-  const lines = currentStats
-    ? [
-        {
-          key: 'HP',
-          value: String(currentStats.hp),
-          bonus: formatBonus(currentStats.hp - (prevStats?.hp ?? currentStats.hp), showBonus),
-        },
-        {
-          key: 'MP',
-          value: String(currentStats.mp),
-          bonus: formatBonus(currentStats.mp - (prevStats?.mp ?? currentStats.mp), showBonus),
-        },
-        {
-          key: 'ATK',
-          value: rangeLabel(currentStats.attack),
-          bonus: formatBonus(rangeDelta(prevStats?.attack, currentStats.attack), showBonus),
-        },
-        {
-          key: 'MAG',
-          value: rangeLabel(currentStats.magic),
-          bonus: formatBonus(rangeDelta(prevStats?.magic, currentStats.magic), showBonus),
-        },
-        {
-          key: 'DEF',
-          value: rangeLabel(currentStats.def),
-          bonus: formatBonus(rangeDelta(prevStats?.def, currentStats.def), showBonus),
-        },
-        {
-          key: 'HIT',
-          value: `${currentStats.hitRate ?? 90}%`,
-          bonus: formatBonus(
-            (currentStats.hitRate ?? 90) - (prevStats?.hitRate ?? currentStats.hitRate ?? 90),
-            showBonus,
-          ),
-        },
-        {
-          key: 'AGI',
-          value: String(currentStats.agility ?? currentStats.speed ?? 10),
-          bonus: formatBonus(
-            (currentStats.agility ?? currentStats.speed ?? 10)
-              - (prevStats?.agility ?? prevStats?.speed ?? currentStats.agility ?? 10),
-            showBonus,
-          ),
-        },
-      ]
-    : [];
+  const rows = [
+    { key: 'HP', value: String(currentStats.hp), bonus: formatBonus(currentStats.hp - (prevStats?.hp ?? currentStats.hp), showBonus) },
+    { key: 'MP', value: String(currentStats.mp), bonus: formatBonus(currentStats.mp - (prevStats?.mp ?? currentStats.mp), showBonus) },
+    { key: 'ATK', value: rangeLabel(currentStats.attack), bonus: formatBonus(rangeDelta(prevStats?.attack, currentStats.attack), showBonus) },
+    { key: 'MAG', value: rangeLabel(currentStats.magic), bonus: formatBonus(rangeDelta(prevStats?.magic, currentStats.magic), showBonus) },
+    { key: 'DEF', value: rangeLabel(currentStats.def), bonus: formatBonus(rangeDelta(prevStats?.def, currentStats.def), showBonus) },
+    { key: 'HIT', value: `${currentStats.hitRate ?? 90}%`, bonus: formatBonus((currentStats.hitRate ?? 90) - (prevStats?.hitRate ?? currentStats.hitRate ?? 90), showBonus) },
+    { key: 'AGI', value: String(currentStats.agility ?? currentStats.speed ?? 10), bonus: formatBonus((currentStats.agility ?? currentStats.speed ?? 10) - (prevStats?.agility ?? prevStats?.speed ?? currentStats.agility ?? 10), showBonus) },
+  ];
 
   return (
-    <View style={[styles.monsterPanel, compact && styles.monsterPanelCompact]}>
-      <View style={styles.monsterPanelHeader}>
-        <Text style={[styles.monsterName, compact && styles.monsterNameCompact]} numberOfLines={1}>
-          {player?.displayName || 'Monster'}
-        </Text>
-        <Text style={[styles.monsterLevel, compact && styles.monsterLevelCompact]}>
+    <View style={styles.statsPanel}>
+      <View style={styles.statsPanelHeader}>
+        <Text style={styles.statsPanelTitle}>Current stats</Text>
+        <Text style={styles.statsPanelLevel}>
           Lv {level}
-          {leveledUp ? (
-            <Text style={styles.levelUpTag}> · LEVEL UP!</Text>
-          ) : null}
+          {leveledUp ? <Text style={styles.levelUpTag}> · LEVEL UP!</Text> : null}
         </Text>
       </View>
+      <View style={styles.statGrid}>
+        {rows.map((row) => (
+          <StatCell key={row.key} label={row.key} value={row.value} bonus={row.bonus} />
+        ))}
+      </View>
+    </View>
+  );
+}
 
-      {lines.length > 0 ? (
-        <View style={styles.statGrid}>
-          {lines.map((row) => (
-            <StatLine
-              key={row.key}
-              label={row.key}
-              value={row.value}
-              bonus={row.bonus}
-              compact={compact}
-            />
-          ))}
-        </View>
-      ) : null}
+function RewardsFooter({
+  coinsAwarded,
+  totalCoins,
+  monsterLadder,
+  ladderGoldTotal,
+  ladderShardsTotal,
+  expPack,
+}) {
+  const expDelta = expPack?.expDelta ?? 0;
+  const exp = expPack?.exp ?? 0;
+  const expToNext = expPack?.expToNext ?? 1;
+  const expPct = Math.min(100, Math.round((exp / Math.max(1, expToNext)) * 100));
+  const expRemaining = Math.max(0, expToNext - exp);
 
+  return (
+    <View style={styles.rewardsFooter}>
+      <View style={styles.coinsBlock}>
+        <Text style={styles.coinsLbl}>{monsterLadder ? 'Ladder gold' : 'Coins'}</Text>
+        <Text style={styles.coinsStrong}>+{coinsAwarded}</Text>
+        <Text style={styles.bank} numberOfLines={1}>
+          {monsterLadder
+            ? `Bank ${ladderGoldTotal ?? totalCoins ?? 0} · Shards ${ladderShardsTotal ?? 0}`
+            : `Total ${totalCoins ?? 0}🪙`}
+        </Text>
+      </View>
       {expPack ? (
-        <View style={styles.expSection}>
-          <Text style={[styles.expGain, compact && styles.expGainCompact]}>
+        <View style={styles.expBlock}>
+          <Text style={styles.expGain}>
             EXP {expDelta >= 0 ? '+' : ''}
             {expDelta}
           </Text>
-          <Text style={[styles.expProgress, compact && styles.expProgressCompact]} numberOfLines={1}>
+          <Text style={styles.expProgress} numberOfLines={2}>
             {exp} / {expToNext} to next level
             {expRemaining > 0 ? ` · ${expRemaining} left` : ''}
           </Text>
@@ -195,10 +182,8 @@ export default function RewardScreen({
   onlineResult = false,
   onlineWon = false,
 }) {
-  const { height } = useWindowDimensions();
-  const compact = height < 720;
-  const portraitSize = compact ? 80 : 96;
-  const dualPortraitSize = compact ? 58 : 66;
+  const { width } = useWindowDimensions();
+  const portraitSize = Math.min(112, Math.max(88, Math.round(width * 0.22)));
 
   const line = useMemo(() => {
     if (onlineResult) {
@@ -237,69 +222,70 @@ export default function RewardScreen({
   const extraLine = extras.join(' · ');
   const tipLine = encourageLines?.[0] ?? '';
 
-  const displayPlayer = player1;
+  const heroFighter = player1;
+  const heroLabel = monsterLadder
+    ? (heroFighter?.isLadderMonster ? 'Ladder monster' : 'Climber')
+    : 'Your monster';
+  const enemyLabel = monsterLadder ? 'Stage foe' : 'Enemy';
+
+  const p1Mood =
+    winner === 'draw'
+      ? 'dizzy'
+      : onlineResult
+        ? onlineWon
+          ? 'happy'
+          : 'dizzy'
+        : winner === 1
+          ? 'happy'
+          : 'dizzy';
+  const p2Mood =
+    winner === 'draw' ? 'dizzy' : winner === 2 ? 'happy' : 'dizzy';
 
   return (
-    <View style={[styles.root, compact && styles.rootCompact]}>
+    <View style={styles.root}>
       <View style={styles.header}>
-        {expP1?.evolved ? (
-          <Text style={styles.evolve}>EVOLUTION!</Text>
-        ) : null}
+        {expP1?.evolved ? <Text style={styles.evolve}>EVOLUTION!</Text> : null}
         <Text style={styles.boom}>{monsterLadder ? 'Ladder' : 'Battle'} Result</Text>
-        <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.72}>
+        <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>
           {funnyTitle}
         </Text>
-        <Text style={styles.sub} numberOfLines={1}>
-          {line}
-        </Text>
-        {extraLine ? (
-          <Text style={styles.extra} numberOfLines={2}>
-            {extraLine}
-          </Text>
-        ) : null}
+        <Text style={styles.sub} numberOfLines={1}>{line}</Text>
+        {extraLine ? <Text style={styles.extra} numberOfLines={2}>{extraLine}</Text> : null}
       </View>
 
-      <View style={styles.mainRow}>
-        <View style={styles.portraitCol}>
-          {onlineResult ? (
-            <MonsterPreview
-              parts={player1?.monsterParts}
-              size={portraitSize}
-              mood={onlineWon ? 'happy' : 'dizzy'}
+      <View style={styles.body}>
+        <View style={styles.vsRow}>
+          <FighterCard
+            fighter={heroFighter}
+            label={heroLabel}
+            mood={p1Mood}
+            portraitSize={portraitSize}
+          />
+          <Text style={styles.vsBadge}>VS</Text>
+          {player2?.monsterParts && !onlineResult ? (
+            <FighterCard
+              fighter={player2}
+              label={enemyLabel}
+              mood={p2Mood}
+              portraitSize={portraitSize}
             />
-          ) : winner === 'draw' ? (
-            <View style={styles.dualPortrait}>
-              <MonsterPreview parts={player1?.monsterParts} size={dualPortraitSize} mood="dizzy" />
-              <MonsterPreview parts={player2?.monsterParts} size={dualPortraitSize} mood="dizzy" />
-            </View>
           ) : (
-            <MonsterPreview
-              parts={(winner === 1 ? player1 : player2)?.monsterParts}
-              size={portraitSize}
-              mood="happy"
-            />
+            <View style={styles.fighterCardPlaceholder} />
           )}
         </View>
 
-        <View style={styles.detailsCol}>
-          <View style={styles.rewardPanel}>
-            <Text style={styles.coinsLbl}>
-              {monsterLadder ? 'Ladder gold' : 'Coins'}
-            </Text>
-            <Text style={styles.coinsStrong}>+{coinsAwarded}</Text>
-            <Text style={styles.bank} numberOfLines={1}>
-              {monsterLadder
-                ? `Bank ${ladderGoldTotal ?? totalCoins ?? 0} · Shards ${ladderShardsTotal ?? 0}`
-                : `Total ${totalCoins ?? 0}🪙`}
-            </Text>
-          </View>
-          <MonsterBattleSummary player={displayPlayer} expPack={expP1} compact={compact} />
-          {tipLine ? (
-            <Text style={styles.tip} numberOfLines={1}>
-              {tipLine}
-            </Text>
-          ) : null}
-        </View>
+        <MonsterStatsPanel player={heroFighter} expPack={expP1} />
+
+        <RewardsFooter
+          coinsAwarded={coinsAwarded}
+          totalCoins={totalCoins}
+          monsterLadder={monsterLadder}
+          ladderGoldTotal={ladderGoldTotal}
+          ladderShardsTotal={ladderShardsTotal}
+          expPack={expP1}
+        />
+
+        {tipLine ? <Text style={styles.tip} numberOfLines={2}>{tipLine}</Text> : null}
       </View>
 
       <View style={styles.actions}>
@@ -343,91 +329,189 @@ const styles = StyleSheet.create({
     borderBottomColor: '#5f3a1b',
     backgroundColor: 'rgba(12, 24, 45, 0.94)',
     overflow: 'hidden',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  rootCompact: {
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   evolve: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '900',
     color: '#f0abfc',
     marginBottom: 2,
     textTransform: 'uppercase',
   },
   boom: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '900',
     color: '#fcd34d',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   title: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: '900',
     color: '#fff4cf',
     textAlign: 'center',
     marginTop: 2,
-    lineHeight: 20,
+    lineHeight: 22,
     paddingHorizontal: 4,
   },
   sub: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
     color: '#bfdbfe',
     textAlign: 'center',
     marginTop: 2,
   },
   extra: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     color: '#fde68a',
     textAlign: 'center',
-    marginTop: 2,
-    lineHeight: 12,
+    marginTop: 3,
+    lineHeight: 13,
   },
-  mainRow: {
+  body: {
     flex: 1,
+    minHeight: 0,
+    gap: 8,
+  },
+  vsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.35)',
+    backgroundColor: 'rgba(7, 17, 32, 0.55)',
+  },
+  vsBadge: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#fde68a',
+    letterSpacing: 1,
+  },
+  fighterCard: {
+    flex: 1,
+    alignItems: 'center',
+    minWidth: 0,
+    gap: 2,
+  },
+  fighterCardPlaceholder: {
+    flex: 1,
+  },
+  fighterLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  fighterName: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#fff4cf',
+    textAlign: 'center',
+  },
+  fighterLv: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#bfdbfe',
+  },
+  statsPanel: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  statsPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 8,
+  },
+  statsPanelTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#ffe6a3',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statsPanelLevel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#bfdbfe',
+  },
+  levelUpTag: {
+    color: '#86efac',
+    fontWeight: '900',
+  },
+  statGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  statCell: {
+    width: '48%',
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  statKey: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+  },
+  statVal: {
+    flex: 1,
+    textAlign: 'right',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#fff8e5',
+  },
+  statBonus: {
+    color: '#86efac',
+    fontWeight: '900',
+  },
+  rewardsFooter: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    gap: 6,
-    minHeight: 0,
-    marginBottom: 4,
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.4)',
+    backgroundColor: 'rgba(7, 17, 32, 0.78)',
+    padding: 10,
   },
-  portraitCol: {
-    width: 96,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dualPortrait: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    gap: 3,
-  },
-  detailsCol: {
+  coinsBlock: {
     flex: 1,
     minWidth: 0,
-    justifyContent: 'flex-start',
-    gap: 4,
-  },
-  rewardPanel: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,224,138,0.45)',
-    backgroundColor: 'rgba(7, 17, 32, 0.75)',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.12)',
+    paddingRight: 8,
   },
   coinsLbl: {
-    fontSize: 8,
+    fontSize: 10,
     fontWeight: '900',
     color: '#d9f7ff',
     textTransform: 'uppercase',
@@ -436,119 +520,40 @@ const styles = StyleSheet.create({
   coinsStrong: {
     color: '#fcd34d',
     fontWeight: '900',
-    fontSize: 20,
-    lineHeight: 22,
+    fontSize: 26,
+    lineHeight: 28,
+    marginTop: 2,
   },
   bank: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#86efac',
-    marginTop: 1,
-  },
-  monsterPanel: {
-    flex: 1,
-    minHeight: 0,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 6,
-    paddingVertical: 5,
-  },
-  monsterPanelCompact: {
-    paddingHorizontal: 5,
-    paddingVertical: 4,
-  },
-  monsterPanelHeader: {
-    marginBottom: 4,
-  },
-  monsterName: {
-    fontWeight: '900',
     fontSize: 11,
-    color: '#fff4cf',
-  },
-  monsterNameCompact: {
-    fontSize: 10,
-  },
-  monsterLevel: {
     fontWeight: '800',
-    fontSize: 10,
-    color: '#bfdbfe',
-    marginTop: 1,
-  },
-  monsterLevelCompact: {
-    fontSize: 9,
-  },
-  levelUpTag: {
     color: '#86efac',
-    fontWeight: '900',
-  },
-  statGrid: {
-    gap: 2,
-    marginBottom: 4,
-  },
-  statLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 4,
-  },
-  statLineCompact: {
-    gap: 2,
-  },
-  statKey: {
-    width: 32,
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#94a3b8',
-    textTransform: 'uppercase',
-  },
-  statKeyCompact: {
-    width: 28,
-    fontSize: 8,
-  },
-  statVal: {
-    flex: 1,
-    textAlign: 'right',
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#fff8e5',
-  },
-  statValCompact: {
-    fontSize: 8,
-  },
-  statBonus: {
-    color: '#86efac',
-    fontWeight: '900',
-  },
-  expSection: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
-    paddingTop: 4,
     marginTop: 2,
+    textAlign: 'center',
+  },
+  expBlock: {
+    flex: 1.2,
+    minWidth: 0,
+    justifyContent: 'center',
+    paddingLeft: 4,
   },
   expGain: {
     fontWeight: '900',
-    fontSize: 10,
+    fontSize: 14,
     color: '#fde68a',
-  },
-  expGainCompact: {
-    fontSize: 9,
   },
   expProgress: {
     fontWeight: '800',
-    fontSize: 9,
+    fontSize: 11,
     color: '#bfdbfe',
-    marginTop: 2,
-    marginBottom: 3,
-  },
-  expProgressCompact: {
-    fontSize: 8,
+    marginTop: 4,
+    marginBottom: 6,
+    lineHeight: 14,
   },
   barOuter: {
-    height: 6,
+    height: 8,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     overflow: 'hidden',
   },
   barInner: {
@@ -557,13 +562,14 @@ const styles = StyleSheet.create({
   },
   tip: {
     fontWeight: '800',
-    fontSize: 8,
+    fontSize: 10,
     color: '#dbeafe',
     textAlign: 'center',
     fontStyle: 'italic',
   },
   actions: {
-    gap: 4,
+    marginTop: 8,
+    gap: 5,
   },
   primary: {
     width: '100%',
@@ -573,11 +579,11 @@ const styles = StyleSheet.create({
     borderColor: '#efd17a',
     borderBottomWidth: 3,
     borderBottomColor: '#31551f',
-    paddingVertical: 9,
+    paddingVertical: 10,
     alignItems: 'center',
   },
   primaryTxt: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '900',
     color: '#fff8dd',
     textTransform: 'uppercase',
@@ -594,17 +600,17 @@ const styles = StyleSheet.create({
     borderColor: '#b9843b',
     borderBottomWidth: 3,
     borderBottomColor: '#68401f',
-    paddingVertical: 7,
+    paddingVertical: 8,
     alignItems: 'center',
   },
   shopBtnTxt: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
     color: '#5c3618',
     textTransform: 'uppercase',
   },
   ghost: {
-    paddingVertical: 6,
+    paddingVertical: 7,
     alignItems: 'center',
     borderRadius: 10,
     borderWidth: 1,
@@ -613,7 +619,7 @@ const styles = StyleSheet.create({
   },
   ghostTxt: {
     fontWeight: '900',
-    fontSize: 10,
+    fontSize: 11,
     color: '#ffe08a',
     textTransform: 'uppercase',
   },
