@@ -129,6 +129,7 @@ export default function HomeSetupScreen({
   onMergeMonster,
 }) {
   const [tray, setTray] = useState(null);
+  const [loginOpen, setLoginOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
@@ -168,11 +169,24 @@ export default function HomeSetupScreen({
     if (tray === 'cloud') onFetchCloudPlayers?.();
   }, [tray, onFetchCloudPlayers]);
 
+  function closeLoginModal() {
+    setLoginOpen(false);
+    setCreateError('');
+    setCreateOpen(false);
+  }
+
+  function openLoginModal() {
+    setTray(null);
+    setLoginOpen(true);
+    setNameDraft(activeProfile?.name ?? '');
+    setLoginMsg('');
+  }
+
   function toggleTray(next) {
+    setLoginOpen(false);
     setTray((current) => (current === next ? null : next));
     setCreateError('');
     setCreateOpen(false);
-    if (next === 'profile') setNameDraft(activeProfile?.name ?? '');
   }
 
   function handleSaveName() {
@@ -264,14 +278,9 @@ export default function HomeSetupScreen({
               <Text style={styles.topCoinIcon}>◈</Text>
               <Text style={styles.topCoinText}>{coins ?? 0}</Text>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Select owned monster"
-              onPress={pressWithSound(() => toggleTray('monsters'))}
-              style={({ pressed }) => [styles.topPlayerNameBtn, pressed && styles.realButtonPressed]}
-            >
+            <View style={styles.topPlayerNameWrap} pointerEvents="none">
               <Text style={styles.topPlayerName} numberOfLines={1}>{playerName}</Text>
-            </Pressable>
+            </View>
 
             <View style={styles.menuLayer} pointerEvents="box-none">
               <FantasyButton
@@ -293,39 +302,7 @@ export default function HomeSetupScreen({
               <FantasyButton label="Monster Mart" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
               <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
               <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonFive} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
-            </View>
-
-            <View style={styles.loginPanel}>
-              <View style={styles.loginRow}>
-                <TextInput
-                  value={loginId}
-                  onChangeText={(v) => setLoginId(String(v || '').slice(0, 10))}
-                  placeholder="ID"
-                  placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={[styles.loginInput, styles.loginIdInput]}
-                  maxLength={10}
-                  autoCapitalize="none"
-                />
-                <TextInput
-                  value={loginPin}
-                  onChangeText={(v) => setLoginPin(normalizePlayerKey(v))}
-                  placeholder="PIN"
-                  placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={[styles.loginInput, styles.loginPinInput]}
-                  maxLength={4}
-                  keyboardType="number-pad"
-                  secureTextEntry
-                />
-              </View>
-              <View style={styles.loginRow}>
-                <Pressable style={[styles.loginMiniBtn, styles.loginActionBtn]} onPress={pressWithSound(handleInlineLogin)}>
-                  <Text style={styles.loginMiniTxt}>Login</Text>
-                </Pressable>
-                <Pressable style={[styles.loginMiniBtn, styles.loginActionBtn]} onPress={pressWithSound(handleInlineCreate)}>
-                  <Text style={styles.loginMiniTxt}>Create</Text>
-                </Pressable>
-              </View>
-              {loginMsg ? <Text style={styles.loginMsg} numberOfLines={1}>{loginMsg}</Text> : null}
+              <FantasyButton label="Login" icon="🔑" style={styles.menuButtonSix} onPress={pressWithSound(openLoginModal)} />
             </View>
 
             <BottomNavButton
@@ -336,12 +313,12 @@ export default function HomeSetupScreen({
               onPress={pressWithSound(onOpenMonsterLadder)}
             />
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
-            <BottomNavButton label="Heroes" icon="♜" style={styles.bottomHeroes} onPress={pressWithSound(() => toggleTray('profile'))} />
+            <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
 
             {onlineBanner}
+            {loginOpen ? renderLoginModal() : null}
             {tray === 'monsters' ? renderMonsterTray() : null}
-            {tray === 'profile' ? renderProfileTray() : null}
             {tray === 'cloud' ? renderCloudTray() : null}
           </View>
         </ImageBackground>
@@ -349,161 +326,182 @@ export default function HomeSetupScreen({
     </View>
   );
 
-  function renderProfileTray() {
+  function renderLoginModal() {
     return (
-      <View style={styles.tray} pointerEvents="box-none">
-        <View style={styles.trayHeader}>
-          <Text style={styles.trayTitle}>Trainer</Text>
-          <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
-            <Text style={styles.trayCloseText}>Close</Text>
-          </Pressable>
-        </View>
-
-        <ScrollView style={styles.trayScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          {profiles.slice(0, MAX_VISIBLE_PROFILES).map((profile) => {
-            const active = profile.id === activeProfileId;
-            return (
-              <View key={profile.id} style={[styles.compactRow, active && styles.compactRowActive]}>
-                <Pressable style={styles.rowMain} onPress={pressWithSound(() => onSelectProfile?.(profile.id))}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>{profile.name || 'Player'}</Text>
-                  <Text style={styles.rowSub}>{active ? 'Active save slot' : 'Tap to select'}</Text>
-                </Pressable>
-                {onRequestDeleteProfile ? (
-                  <Pressable
-                    disabled={deleteBusyProfileId === profile.id}
-                    onPress={pressWithSound(() => onRequestDeleteProfile(profile.id))}
-                    style={styles.rowMiniBtn}
-                  >
-                    <Text style={styles.rowMiniText}>Del</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            );
-          })}
-
-          {activeProfile ? (
-            <View style={styles.inputRow}>
-              <TextInput
-                value={nameDraft}
-                onChangeText={setNameDraft}
-                placeholder="Trainer name"
-                placeholderTextColor="rgba(255,255,255,0.58)"
-                style={styles.textInput}
-                maxLength={24}
-              />
-              <Pressable onPress={pressWithSound(handleSaveName)} style={styles.smallGoldBtn}>
-                <Text style={styles.smallGoldText}>Save</Text>
-              </Pressable>
+      <View style={styles.loginModalBackdrop} pointerEvents="box-none">
+        <Pressable style={styles.loginModalScrim} onPress={pressWithSound(closeLoginModal)} />
+        <View style={styles.loginModalCard}>
+          <View style={styles.loginModalHeader}>
+            <View>
+              <Text style={styles.loginModalTitle}>Login & Players</Text>
+              <Text style={styles.loginModalSub}>Sign in, create a save, or delete a slot</Text>
             </View>
-          ) : null}
+            <Pressable onPress={pressWithSound(closeLoginModal)} style={styles.loginModalClose}>
+              <Text style={styles.loginModalCloseTxt}>×</Text>
+            </Pressable>
+          </View>
 
           <ScrollView
-            style={styles.monsterPickScroll}
-            contentContainerStyle={styles.monsterPickStrip}
-            nestedScrollEnabled
+            style={styles.loginModalScroll}
+            contentContainerStyle={styles.loginModalScrollContent}
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator
+            showsVerticalScrollIndicator={false}
           >
-            {monsterGroups.map((group) => {
-              const primary = group.battlePrimary;
-              if (!primary) return null;
-              const picked = primary.id === selectedP1Id;
-              const countLabel = group.count > 1 ? ` ×${group.count}` : '';
-              return (
-                <Pressable
-                  key={group.templateId}
-                  onPress={pressWithSound(() => onSelectMonster?.(primary.id))}
-                  style={[styles.monsterChip, picked && styles.monsterChipActive]}
-                >
-                  <Text style={styles.monsterChipText} numberOfLines={1}>
-                    {group.displayName}{countLabel}
-                  </Text>
-                  <Text style={styles.monsterChipSub}>
-                    Lv {primary.level ?? 1}{group.mergeTier > 0 ? ` · +${group.mergeTier}` : ''}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          {createOpen ? (
-            <View style={styles.createBox}>
+            <Text style={styles.loginSectionLbl}>Quick sign-in</Text>
+            <View style={styles.loginRow}>
               <TextInput
-                value={createName}
-                onChangeText={setCreateName}
-                placeholder="New player name"
+                value={loginId}
+                onChangeText={(v) => setLoginId(String(v || '').slice(0, 10))}
+                placeholder="Player ID"
                 placeholderTextColor="rgba(255,255,255,0.58)"
-                style={styles.textInput}
-                maxLength={24}
+                style={[styles.loginInput, styles.loginIdInputModal]}
+                maxLength={10}
+                autoCapitalize="none"
               />
-              <View style={styles.keyRow}>
-                <TextInput
-                  value={createKey}
-                  onChangeText={setCreateKey}
-                  placeholder="4-digit key"
-                  placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={[styles.textInput, styles.keyInput]}
-                  maxLength={4}
-                  keyboardType="number-pad"
-                  secureTextEntry
-                />
-                <TextInput
-                  value={createConfirm}
-                  onChangeText={setCreateConfirm}
-                  placeholder="Confirm"
-                  placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={[styles.textInput, styles.keyInput]}
-                  maxLength={4}
-                  keyboardType="number-pad"
-                  secureTextEntry
-                />
-              </View>
-              {createError ? <Text style={styles.errorText}>{createError}</Text> : null}
-              <Pressable onPress={pressWithSound(handleCreateProfile)} style={styles.smallGoldBtn}>
-                <Text style={styles.smallGoldText}>Create Player</Text>
+              <TextInput
+                value={loginPin}
+                onChangeText={(v) => setLoginPin(normalizePlayerKey(v))}
+                placeholder="PIN"
+                placeholderTextColor="rgba(255,255,255,0.58)"
+                style={[styles.loginInput, styles.loginPinInputModal]}
+                maxLength={4}
+                keyboardType="number-pad"
+                secureTextEntry
+              />
+            </View>
+            <View style={styles.loginRow}>
+              <Pressable style={[styles.loginModalBtn, styles.loginModalBtnPrimary]} onPress={pressWithSound(handleInlineLogin)}>
+                <Text style={styles.loginModalBtnTxt}>Login</Text>
+              </Pressable>
+              <Pressable style={[styles.loginModalBtn, styles.loginModalBtnAlt]} onPress={pressWithSound(handleInlineCreate)}>
+                <Text style={styles.loginModalBtnTxt}>Create ID</Text>
               </Pressable>
             </View>
-          ) : (
+            {loginMsg ? <Text style={styles.loginMsg}>{loginMsg}</Text> : null}
+
+            <Text style={styles.loginSectionLbl}>Save slots</Text>
+            {profiles.slice(0, MAX_VISIBLE_PROFILES).map((profile) => {
+              const active = profile.id === activeProfileId;
+              return (
+                <View key={profile.id} style={[styles.compactRow, active && styles.compactRowActive]}>
+                  <Pressable style={styles.rowMain} onPress={pressWithSound(() => onSelectProfile?.(profile.id))}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>{profile.name || 'Player'}</Text>
+                    <Text style={styles.rowSub}>{active ? 'Active save' : 'Tap to switch'}</Text>
+                  </Pressable>
+                  {onRequestDeleteProfile ? (
+                    <Pressable
+                      disabled={deleteBusyProfileId === profile.id}
+                      onPress={pressWithSound(() => onRequestDeleteProfile(profile.id))}
+                      style={[styles.rowMiniBtn, styles.rowMiniBtnDanger]}
+                    >
+                      <Text style={styles.rowMiniText}>Delete</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              );
+            })}
+
+            {activeProfile ? (
+              <View style={styles.inputRow}>
+                <TextInput
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                  placeholder="Display name"
+                  placeholderTextColor="rgba(255,255,255,0.58)"
+                  style={styles.textInput}
+                  maxLength={24}
+                />
+                <Pressable onPress={pressWithSound(handleSaveName)} style={styles.smallGoldBtn}>
+                  <Text style={styles.smallGoldText}>Save name</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {createOpen ? (
+              <View style={styles.createBox}>
+                <TextInput
+                  value={createName}
+                  onChangeText={setCreateName}
+                  placeholder="New player name"
+                  placeholderTextColor="rgba(255,255,255,0.58)"
+                  style={styles.textInput}
+                  maxLength={24}
+                />
+                <View style={styles.keyRow}>
+                  <TextInput
+                    value={createKey}
+                    onChangeText={setCreateKey}
+                    placeholder="4-digit PIN"
+                    placeholderTextColor="rgba(255,255,255,0.58)"
+                    style={[styles.textInput, styles.keyInput]}
+                    maxLength={4}
+                    keyboardType="number-pad"
+                    secureTextEntry
+                  />
+                  <TextInput
+                    value={createConfirm}
+                    onChangeText={setCreateConfirm}
+                    placeholder="Confirm PIN"
+                    placeholderTextColor="rgba(255,255,255,0.58)"
+                    style={[styles.textInput, styles.keyInput]}
+                    maxLength={4}
+                    keyboardType="number-pad"
+                    secureTextEntry
+                  />
+                </View>
+                {createError ? <Text style={styles.errorText}>{createError}</Text> : null}
+                <Pressable onPress={pressWithSound(handleCreateProfile)} style={styles.smallGoldBtn}>
+                  <Text style={styles.smallGoldText}>Create save</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                onPress={pressWithSound(() => {
+                  setCreateOpen(true);
+                  setCreateName(`Player ${profiles.length + 1}`);
+                })}
+                style={styles.smallGoldBtn}
+              >
+                <Text style={styles.smallGoldText}>New local save</Text>
+              </Pressable>
+            )}
+
             <Pressable
               onPress={pressWithSound(() => {
-                setCreateOpen(true);
-                setCreateName(`Player ${profiles.length + 1}`);
+                closeLoginModal();
+                setTray('cloud');
               })}
               style={styles.smallGoldBtn}
             >
-              <Text style={styles.smallGoldText}>New Player</Text>
+              <Text style={styles.smallGoldText}>Cloud archive</Text>
             </Pressable>
-          )}
 
-          <Pressable onPress={pressWithSound(() => toggleTray('cloud'))} style={styles.smallGoldBtn}>
-            <Text style={styles.smallGoldText}>Cloud Archive</Text>
-          </Pressable>
-
-          {gameMode && onGameModeChange ? (
-            <View style={styles.modeRow}>
-              <Pressable
-                onPress={pressWithSound(() => onGameModeChange('onePlayer'))}
-                style={[styles.modeBtn, gameMode === 'onePlayer' && styles.modeBtnActive]}
-              >
-                <Text style={styles.modeText}>1P</Text>
-              </Pressable>
-              <Pressable
-                onPress={pressWithSound(() => onGameModeChange('twoPlayer'))}
-                style={[styles.modeBtn, gameMode !== 'onePlayer' && styles.modeBtnActive]}
-              >
-                <Text style={styles.modeText}>2P</Text>
-              </Pressable>
-              {onActiveSlotChange ? (
+            {gameMode && onGameModeChange ? (
+              <View style={styles.modeRow}>
                 <Pressable
-                  onPress={pressWithSound(() => onActiveSlotChange(activeSlot === 2 ? 1 : 2))}
-                  style={styles.modeBtn}
+                  onPress={pressWithSound(() => onGameModeChange('onePlayer'))}
+                  style={[styles.modeBtn, gameMode === 'onePlayer' && styles.modeBtnActive]}
                 >
-                  <Text style={styles.modeText}>Slot {activeSlot || 1}</Text>
+                  <Text style={styles.modeText}>1P</Text>
                 </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-        </ScrollView>
+                <Pressable
+                  onPress={pressWithSound(() => onGameModeChange('twoPlayer'))}
+                  style={[styles.modeBtn, gameMode !== 'onePlayer' && styles.modeBtnActive]}
+                >
+                  <Text style={styles.modeText}>2P</Text>
+                </Pressable>
+                {onActiveSlotChange ? (
+                  <Pressable
+                    onPress={pressWithSound(() => onActiveSlotChange(activeSlot === 2 ? 1 : 2))}
+                    style={styles.modeBtn}
+                  >
+                    <Text style={styles.modeText}>Slot {activeSlot || 1}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+          </ScrollView>
+        </View>
       </View>
     );
   }
@@ -513,8 +511,8 @@ export default function HomeSetupScreen({
       <View style={styles.tray} pointerEvents="box-none">
         <View style={styles.trayHeader}>
           <View>
-            <Text style={styles.trayTitle}>Owned Monsters</Text>
-            <Text style={styles.traySub}>Grouped by type · tap to select · merge duplicates</Text>
+            <Text style={styles.trayTitle}>Monsters</Text>
+            <Text style={styles.traySub}>Your collection · tap to equip · merge duplicates</Text>
           </View>
           <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
             <Text style={styles.trayCloseText}>Close</Text>
@@ -695,7 +693,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 2,
   },
-  topPlayerNameBtn: {
+  topPlayerNameWrap: {
     position: 'absolute',
     top: '4.8%',
     right: '5%',
@@ -704,8 +702,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-end',
     paddingHorizontal: 6,
-    borderRadius: 999,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   topPlayerName: {
     color: '#fff8df',
@@ -801,11 +797,12 @@ const styles = StyleSheet.create({
   realButtonDisabled: {
     opacity: 0.48,
   },
-  menuButtonOne: { top: '42.4%' },
-  menuButtonTwo: { top: '48.7%' },
-  menuButtonThree: { top: '55%' },
-  menuButtonFour: { top: '61.3%' },
-  menuButtonFive: { top: '67.6%' },
+  menuButtonOne: { top: '39.5%' },
+  menuButtonTwo: { top: '44.8%' },
+  menuButtonThree: { top: '50.1%' },
+  menuButtonFour: { top: '55.4%' },
+  menuButtonFive: { top: '60.7%' },
+  menuButtonSix: { top: '66%' },
   bottomNavButton: {
     position: 'absolute',
     top: '90%',
@@ -887,7 +884,7 @@ const styles = StyleSheet.create({
   },
   bottomQuest: { left: '10%' },
   bottomInventory: { left: '31%' },
-  bottomHeroes: { left: '52%' },
+  bottomMonsters: { left: '52%' },
   bottomSettings: { left: '73%' },
   onlineBanner: {
     position: 'absolute',
@@ -896,83 +893,149 @@ const styles = StyleSheet.create({
     top: '11%',
     pointerEvents: 'auto',
   },
-  loginPanel: {
-    position: 'absolute',
-    top: '29%',
-    left: '26%',
-    right: '26%',
-    flexDirection: 'column',
+  loginModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 5,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,224,143,0.62)',
-    backgroundColor: 'rgba(15, 22, 42, 0.72)',
+    justifyContent: 'center',
+    zIndex: 40,
+    pointerEvents: 'box-none',
+  },
+  loginModalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(4, 8, 18, 0.72)',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  loginModalCard: {
+    width: '92%',
+    maxWidth: 420,
+    maxHeight: '78%',
+    minHeight: 320,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(255,224,143,0.9)',
+    backgroundColor: 'rgba(15, 22, 42, 0.96)',
+    padding: 14,
+    zIndex: 41,
     pointerEvents: 'auto',
+    ...webShadow,
+  },
+  loginModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    gap: 8,
+  },
+  loginModalTitle: {
+    color: '#ffe6a3',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  loginModalSub: {
+    color: '#bfdbfe',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+    maxWidth: 280,
+  },
+  loginModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  loginModalCloseTxt: {
+    color: '#e0f2fe',
+    fontSize: 24,
+    fontWeight: '900',
+    lineHeight: 26,
+  },
+  loginModalScroll: {
+    flexGrow: 0,
+    maxHeight: 520,
+  },
+  loginModalScrollContent: {
+    paddingBottom: 12,
+    gap: 4,
+  },
+  loginSectionLbl: {
+    color: '#fde68a',
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: 8,
+    marginBottom: 6,
   },
   loginRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 8,
     width: '100%',
-    maxWidth: 156,
   },
   loginInput: {
-    height: 24,
-    borderRadius: 7,
+    height: 40,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
     backgroundColor: 'rgba(0,0,0,0.28)',
     color: '#fff8e5',
-    fontSize: 9,
+    fontSize: 13,
     fontWeight: '800',
-    paddingHorizontal: 5,
+    paddingHorizontal: 10,
     paddingVertical: 0,
   },
-  loginIdInput: {
-    width: 74,
-    flexGrow: 0,
-    flexShrink: 0,
+  loginIdInputModal: {
+    flex: 1,
+    minWidth: 0,
   },
-  loginPinInput: {
-    width: 36,
+  loginPinInputModal: {
+    width: 88,
     flexGrow: 0,
     flexShrink: 0,
     textAlign: 'center',
-    letterSpacing: 1.5,
+    letterSpacing: 2,
   },
-  loginMiniBtn: {
-    minHeight: 24,
-    paddingHorizontal: 5,
-    paddingVertical: 3,
-    borderRadius: 7,
+  loginModalBtn: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ffe08a',
-    backgroundColor: 'rgba(117, 76, 24, 0.86)',
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  loginActionBtn: {
-    flex: 1,
-    minWidth: 0,
-    maxWidth: 74,
+  loginModalBtnPrimary: {
+    borderColor: '#ffe08a',
+    backgroundColor: 'rgba(117, 76, 24, 0.92)',
   },
-  loginMiniTxt: {
+  loginModalBtnAlt: {
+    borderColor: '#93c5fd',
+    backgroundColor: 'rgba(30, 64, 175, 0.72)',
+  },
+  loginModalBtnTxt: {
     color: '#fff4c7',
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   loginMsg: {
     color: '#bfdbfe',
-    fontSize: 8,
+    fontSize: 11,
     fontWeight: '800',
     textAlign: 'center',
-    marginTop: 0,
-    maxWidth: 156,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  rowMiniBtnDanger: {
+    backgroundColor: 'rgba(185,28,28,0.88)',
+    minWidth: 64,
   },
   tray: {
     position: 'absolute',
