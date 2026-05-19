@@ -3,12 +3,12 @@
  */
 
 export const ACTION_TOTAL_MS = {
-  normal: 1600,
-  magic: 1800,
-  dodge: 1300,
-  defendHit: 1500,
-  critical: 2200,
-  super: 2000,
+  normal: 1850,
+  magic: 2050,
+  dodge: 1500,
+  defendHit: 1750,
+  critical: 2500,
+  super: 2300,
 };
 
 /**

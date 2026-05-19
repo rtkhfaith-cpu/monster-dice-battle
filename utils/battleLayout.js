@@ -14,7 +14,8 @@ export const BATTLE_MONSTER_SIZE_MULT = 0.7;
 
 /** Enemy sprite scale vs normal fighter size during boss encounters */
 export const BOSS_DISPLAY_SCALE = {
-  miniBoss: 1.2,
+  /** Was 1.2; +30% for mini boss encounter presence */
+  miniBoss: 1.56,
   bigBoss: 1.5,
 };
 
@@ -49,17 +50,29 @@ export function getMonsterPlacement(stageKind, layout, screenWidth = 0) {
   const phone = layout.phone;
   const mobile = layout.compactHud;
 
-  /** Fraction of arena width reserved as empty margin on each side (normal fights = wider). */
+  /**
+   * Side inset = empty margin from left/right edge (pushes fighters toward center).
+   * Lower inset → fighters nearer edges → more space between them.
+   */
   const normalInset = phone ? 0.1 : mobile ? 0.16 : 0.22;
+  /** Push normal fighters apart (~15% wider center gap vs base inset). */
+  const NORMAL_SPACING_APART = 1.15;
   const insetFrac = boss
     ? phone
       ? 0.07
       : mobile
         ? 0.1
         : 0.15
-    : normalInset * 1.15;
+    : normalInset / NORMAL_SPACING_APART;
 
-  const insetPx = w > 0 ? Math.round(w * insetFrac) : 0;
+  const slotW = Math.round(layout.p1Monster * 1.04);
+  let insetPx = w > 0 ? Math.round(w * insetFrac) : 0;
+  if (!boss && w > 0) {
+    const minCenterGapFrac = phone ? 0.38 : mobile ? 0.4 : 0.44;
+    const minGapPx = Math.round(w * minCenterGapFrac);
+    const maxInsetForGap = Math.max(0, Math.floor((w - minGapPx - 2 * slotW) / 2));
+    insetPx = Math.min(insetPx, maxInsetForGap);
+  }
 
   return {
     p1Bottom: boss ? layout.monsterBottomBoss : layout.monsterBottom,

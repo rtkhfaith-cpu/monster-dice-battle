@@ -15,6 +15,41 @@ function feedbackFor(effect) {
   return GAME_ASSETS.battleActions.feedback.hit;
 }
 
+/** Word badges (HIT, CRIT, DODGE, MISS) — +30% vs legacy 80px */
+const FEEDBACK_IMG_SIZE = 104;
+const IMPACT_IMG_SIZE = 96;
+const ACTION_IMG_SIZE = 160;
+
+const FEEDBACK_POP_IN_MS = 220;
+const FEEDBACK_FADE_MS = 520;
+const FEEDBACK_HOLD_MIN_MS = 1100;
+const IMPACT_POP_IN_MS = 240;
+const IMPACT_FADE_MS = 480;
+const IMPACT_HOLD_MIN_MS = 750;
+
+function feedbackHoldMs(effect, timing, sequenceControlled, travelMs = 0) {
+  if (sequenceControlled && timing?.total != null) {
+    const impactAt = timing.impactAt ?? Math.round(timing.total * 0.68);
+    const afterImpact = Math.max(0, timing.total - impactAt - FEEDBACK_FADE_MS - 80);
+    if (effect?.dodged) {
+      return Math.max(FEEDBACK_HOLD_MIN_MS, timing.total - travelMs - FEEDBACK_FADE_MS - 120);
+    }
+    return Math.max(FEEDBACK_HOLD_MIN_MS, afterImpact);
+  }
+  if (effect?.critical) return 1400;
+  if (effect?.dodged) return 1200;
+  return FEEDBACK_HOLD_MIN_MS;
+}
+
+function runPopHoldFade(value, { popMs, holdMs, fadeMs }) {
+  value.setValue(0);
+  Animated.sequence([
+    Animated.timing(value, { toValue: 1, duration: popMs, easing: Easing.out(Easing.back(1.15)), useNativeDriver: true }),
+    Animated.delay(holdMs),
+    Animated.timing(value, { toValue: 0, duration: fadeMs, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+  ]).start();
+}
+
 /**
  * Skill-matched battle VFX — timing driven by effect.actionTiming (fixed ms).
  */
@@ -34,7 +69,8 @@ export default function BattleProjectileLayer({
   const missFade = useRef(new Animated.Value(1)).current;
   const cloudGrow = useRef(new Animated.Value(0)).current;
   const burst = useRef(new Animated.Value(0)).current;
-  const calloutOp = useRef(new Animated.Value(0)).current;
+  const feedbackOp = useRef(new Animated.Value(0)).current;
+  const impactOp = useRef(new Animated.Value(0)).current;
   const runId = useRef(0);
   const impactFired = useRef(false);
 
@@ -42,8 +78,7 @@ export default function BattleProjectileLayer({
   const defId = effect?.defenderId ?? (atkId === 1 ? 2 : 1);
   const animKind = effect?.animKind ?? 'projectile';
   const fromLeft = atkId === 1;
-  const actionSize = 160;
-  const actionHalf = actionSize / 2;
+  const actionHalf = ACTION_IMG_SIZE / 2;
   const leftMonsterX = arenaW * 0.24;
   const rightMonsterX = arenaW * 0.76;
   const defenderX = fromLeft ? rightMonsterX : leftMonsterX;
@@ -71,10 +106,10 @@ export default function BattleProjectileLayer({
             : 760;
 
   const splatHoldMs = sequenceControlled
-    ? Math.max(360, (timing?.total ?? 1200) - (timing?.impactAt ?? 700))
+    ? Math.max(IMPACT_HOLD_MIN_MS, (timing?.total ?? 1200) - (timing?.impactAt ?? 700) - IMPACT_FADE_MS)
     : effect?.defended
-      ? 620
-      : 560;
+      ? 820
+      : IMPACT_HOLD_MIN_MS;
 
   const finish = () => {
     if (sequenceControlled) return;
@@ -89,20 +124,24 @@ export default function BattleProjectileLayer({
     splat.setValue(0);
     dmgUp.setValue(0);
     burst.setValue(0);
+    const wordHold = feedbackHoldMs(effect, timing, sequenceControlled, flyMs);
+    runPopHoldFade(feedbackOp, { popMs: FEEDBACK_POP_IN_MS, holdMs: wordHold, fadeMs: FEEDBACK_FADE_MS });
+    runPopHoldFade(impactOp, { popMs: IMPACT_POP_IN_MS, holdMs: splatHoldMs, fadeMs: IMPACT_FADE_MS });
+
     Animated.parallel([
       Animated.timing(splat, {
         toValue: splatPeak,
-        duration: effect.critical ? 220 : 170,
+        duration: effect.critical ? 280 : 220,
         useNativeDriver: true,
       }),
       Animated.timing(burst, {
         toValue: 1,
-        duration: effect.critical ? 280 : 220,
+        duration: effect.critical ? 340 : 280,
         useNativeDriver: true,
       }),
       Animated.timing(dmgUp, {
         toValue: 1,
-        duration: 580,
+        duration: 720,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
@@ -111,11 +150,11 @@ export default function BattleProjectileLayer({
       if (effect.defended) {
         setTimeout(() => {
           if (runId.current === id) finish();
-        }, splatHoldMs);
+        }, splatHoldMs + IMPACT_FADE_MS);
         return;
       }
       setTimeout(() => {
-        Animated.timing(splat, { toValue: 0, duration: 620, useNativeDriver: true }).start(() => {
+        Animated.timing(splat, { toValue: 0, duration: IMPACT_FADE_MS, useNativeDriver: true }).start(() => {
           if (runId.current === id) finish();
         });
       }, splatHoldMs);
@@ -133,26 +172,23 @@ export default function BattleProjectileLayer({
     spin.setValue(0);
     missFade.setValue(1);
     cloudGrow.setValue(0);
-    calloutOp.setValue(0);
-
-    Animated.sequence([
-      Animated.timing(calloutOp, { toValue: 1, duration: 120, useNativeDriver: true }),
-      Animated.timing(calloutOp, { toValue: 0, duration: 280, delay: 340, useNativeDriver: true }),
-    ]).start();
+    feedbackOp.setValue(0);
+    impactOp.setValue(0);
 
     if (effect.dodged) {
-      const dodgeTravel = sequenceControlled ? flyMs : 420;
+      const dodgeTravel = sequenceControlled ? flyMs : 520;
       Animated.timing(progress, {
         toValue: 1,
         duration: dodgeTravel,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }).start();
+      const dodgeHold = feedbackHoldMs(effect, timing, sequenceControlled, dodgeTravel);
+      runPopHoldFade(feedbackOp, { popMs: FEEDBACK_POP_IN_MS, holdMs: dodgeHold, fadeMs: FEEDBACK_FADE_MS });
       const holdT = setTimeout(() => {
         if (runId.current !== id) return;
-        Animated.timing(missFade, { toValue: 0, duration: 200, useNativeDriver: true }).start();
         if (!sequenceControlled) finish();
-      }, sequenceControlled ? Math.max(120, (timing?.total ?? 800) - dodgeTravel) : 1000);
+      }, dodgeTravel + dodgeHold + FEEDBACK_FADE_MS + 80);
       return () => {
         runId.current += 1;
         clearTimeout(holdT);
@@ -222,8 +258,7 @@ export default function BattleProjectileLayer({
   const dmgY = dmgUp.interpolate({ inputRange: [0, 1], outputRange: [0, -fx(36)] });
   const dmgOp = dmgUp.interpolate({ inputRange: [0, 0.15, 0.65, 1], outputRange: [0, 1, 1, 0] });
 
-  const splatScale = splat.interpolate({ inputRange: [0, 1], outputRange: [0.15, 1.15] });
-  const splatOp = splat.interpolate({ inputRange: [0, 0.15, 0.82, 1], outputRange: [0, 1, 1, 0.18] });
+  const splatScale = splat.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1.12] });
   const burstScale = burst.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.4] });
   const burstOp = burst.interpolate({ inputRange: [0, 0.2, 0.7, 1], outputRange: [0, 1, 0.85, 0] });
 
@@ -288,9 +323,9 @@ export default function BattleProjectileLayer({
               styles.impactImage,
               sickly && styles.splatSickly,
               {
-                left: impactX,
-                top: endY - 6,
-                opacity: splatOp,
+                left: impactX - (IMPACT_IMG_SIZE - 80) / 2,
+                top: endY - 10,
+                opacity: impactOp,
                 transform: [{ scale: splatScale }],
               },
             ]}
@@ -301,9 +336,9 @@ export default function BattleProjectileLayer({
             style={[
               styles.feedbackImage,
               {
-                left: feedbackX,
-                top: endY - fx(60),
-                opacity: splatOp,
+                left: feedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
+                top: endY - fx(68),
+                opacity: feedbackOp,
                 transform: [{ scale: splatScale }],
               },
             ]}
@@ -316,9 +351,9 @@ export default function BattleProjectileLayer({
           style={[
             styles.feedbackImage,
             {
-              left: feedbackX,
-              top: endY - fx(34),
-              opacity: missFade,
+              left: feedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
+              top: endY - fx(44),
+              opacity: feedbackOp,
             },
           ]}
           resizeMode="contain"
@@ -348,9 +383,9 @@ export default function BattleProjectileLayer({
           style={[
             styles.feedbackImage,
             {
-              left: feedbackX,
-              top: endY - fx(70),
-              opacity: missFade,
+              left: feedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
+              top: endY - fx(78),
+              opacity: feedbackOp,
               transform: [{ scale: 1.08 }],
             },
           ]}
@@ -375,8 +410,8 @@ const styles = StyleSheet.create({
   },
   actionImage: {
     position: 'absolute',
-    width: 160,
-    height: 160,
+    width: ACTION_IMG_SIZE,
+    height: ACTION_IMG_SIZE,
   },
   projEmoji: {
     textAlign: 'center',
@@ -442,15 +477,14 @@ const styles = StyleSheet.create({
   },
   impactImage: {
     position: 'absolute',
-    width: 80,
-    height: 80,
+    width: IMPACT_IMG_SIZE,
+    height: IMPACT_IMG_SIZE,
+    zIndex: 23,
   },
   feedbackImage: {
     position: 'absolute',
-    left: '50%',
-    marginLeft: -fx(40),
-    width: 80,
-    height: 80,
+    width: FEEDBACK_IMG_SIZE,
+    height: FEEDBACK_IMG_SIZE,
     zIndex: 24,
   },
   splatCenter: {
@@ -484,10 +518,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '900',
     fontSize: fx(32),
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    color: '#ff4757',
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
-  dmgCrit: { fontSize: fx(40) },
+  dmgCrit: { fontSize: fx(40), color: '#ff2d2d' },
   dmgDefended: { fontSize: fx(28), color: '#48cae4' },
 });

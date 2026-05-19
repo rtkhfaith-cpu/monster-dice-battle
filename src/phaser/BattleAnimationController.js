@@ -258,9 +258,12 @@ export default class BattleAnimationController {
 
   createActionPicture(x, y, textureKey, { depth = 38, startScale = 1 } = {}) {
     if (!this.scene.textures.exists(textureKey)) return null;
+    const key = String(textureKey);
+    const isFeedback = key.includes('feedback');
+    const display = isFeedback ? 104 : 96;
     return this.scene.add.image(x, y, textureKey)
       .setOrigin(0.5)
-      .setDisplaySize(80, 80)
+      .setDisplaySize(display, display)
       .setScale(startScale)
       .setDepth(depth);
   }
@@ -268,13 +271,15 @@ export default class BattleAnimationController {
   spawnActionPicture(x, y, textureKey, options = {}) {
     const sprite = this.createActionPicture(x, y, textureKey, options);
     if (!sprite) return null;
+    const key = String(textureKey);
+    const isFeedback = key.includes('feedback');
     sprite.setAlpha(options.alpha ?? 0.96);
     this.scene.tweens.add({
       targets: sprite,
       y: y + (options.driftY ?? -28),
       scale: options.endScale ?? 1.08,
       alpha: 0,
-      duration: options.duration ?? 900,
+      duration: options.duration ?? (isFeedback ? 1250 : 1000),
       ease: 'Cubic.out',
       onComplete: () => sprite.destroy(),
     });
@@ -318,13 +323,13 @@ export default class BattleAnimationController {
       depth: defender.depth + 18,
       startScale: result.crit ? 1.08 : 0.92,
       endScale: result.crit ? 1.42 : 1.16,
-      duration: result.crit ? 520 : 380,
+      duration: result.crit ? 680 : 560,
     });
     this.spawnActionPicture(defender.x, defender.y - 126, result.crit ? ACTION_IMAGE_KEYS.critical : guarded ? ACTION_IMAGE_KEYS.guard : ACTION_IMAGE_KEYS.hit, {
       depth: defender.depth + 20,
       startScale: 0.88,
       endScale: result.crit ? 1.28 : 1.08,
-      duration: result.crit ? 980 : 760,
+      duration: result.crit ? 1400 : 1200,
     });
     this.scene.showDamageNumber(defender, result);
     if (typeof result.hpAfter === 'number') {

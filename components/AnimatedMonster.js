@@ -1,8 +1,43 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { getMonsterIdleProfile } from '../utils/monsterIdleMotion';
 import { getMonsterImageAsset } from '../utils/monsterImageAssets';
+
+/** Soft oval contact shadow — sits under the sprite, outside the animated core (battle only). */
+function BattleGroundShadow({ size }) {
+  const outerW = Math.round(size * 0.76);
+  const outerH = Math.max(7, Math.round(size * 0.09));
+  const coreW = Math.round(size * 0.52);
+  const coreH = Math.max(5, Math.round(size * 0.058));
+  const webBlur =
+    Platform.OS === 'web'
+      ? { boxShadow: '0 3px 14px rgba(0, 0, 0, 0.45)' }
+      : null;
+
+  return (
+    <View pointerEvents="none" style={styles.battleShadowWrap}>
+      <View
+        style={[
+          styles.battleShadowOuter,
+          webBlur,
+          { width: outerW, height: outerH, borderRadius: outerH / 2 },
+        ]}
+      />
+      <View
+        style={[
+          styles.battleShadowCore,
+          {
+            width: coreW,
+            height: coreH,
+            borderRadius: coreH / 2,
+            marginTop: -Math.round(coreH * 0.55),
+          },
+        ]}
+      />
+    </View>
+  );
+}
 
 /**
  * Personality idle (per themeBody) + battle poses + fly strike + rage.
@@ -331,7 +366,9 @@ export default function AnimatedMonster({
         },
       ]}
     >
-      {!hideGroundShadow ? (
+      {battleMode ? (
+        <BattleGroundShadow size={scaledSize} />
+      ) : (
         <View
           pointerEvents="none"
           style={[
@@ -344,7 +381,7 @@ export default function AnimatedMonster({
             },
           ]}
         />
-      ) : null}
+      )}
       {rage ? (
         <Animated.View
           pointerEvents="none"
@@ -395,6 +432,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     zIndex: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.28)',
+  },
+  battleShadowWrap: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    zIndex: 0,
+  },
+  battleShadowOuter: {
+    backgroundColor: 'rgba(8, 14, 28, 0.22)',
+  },
+  battleShadowCore: {
+    backgroundColor: 'rgba(0, 0, 0, 0.36)',
   },
   core: {
     alignItems: 'center',

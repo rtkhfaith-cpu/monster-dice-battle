@@ -29,6 +29,7 @@ import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
 import {
   clearMainMiniBossBlock,
+  mainBattleChestDuplicateGold,
   normalizeMainBattleState,
   recordMainMiniBossLoss,
   rollMainBattleChestDrop,
@@ -956,7 +957,7 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
   } else if (drop.kind === 'gear') {
     const owned = wallet.cosmeticsOwned || [];
     if (owned.includes(drop.id)) {
-      const alt = Math.max(8, Math.floor(coinWinForEnemyLevel(payload.enemyLevel ?? 1) * 0.45));
+      const alt = mainBattleChestDuplicateGold(payload.enemyLevel ?? 1);
       wallet.coins += alt;
       applied.kind = 'gold';
       applied.amount = alt;

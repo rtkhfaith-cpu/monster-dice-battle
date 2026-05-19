@@ -1,8 +1,7 @@
+import { bossCoinsForEnemyLevel, bossExpForEnemyLevel } from '../src/gameBalance/rewards';
 import { GEAR_CATALOG, getGear } from './cosmetics';
-import { expWinForEnemyLevel } from './expLevel';
 import { getAllowedCpuRarities } from './fighterFromOwned';
 import { getMonsterTemplate, MONSTER_CATALOG } from './monsterTemplates';
-import { coinWinForEnemyLevel } from './rewards';
 
 /** 20% chance for a main-menu CPU battle to spawn a catalog mini boss (testing). */
 export const MAIN_MINI_BOSS_CHANCE = 0.2;
@@ -45,12 +44,42 @@ export function clearMainMiniBossBlock(profile) {
   profile.mainBattle.blockMiniBossUntilBattle = 0;
 }
 
-const CHEST_GEAR_POOL = GEAR_CATALOG.filter(
-  (g) => g?.id && !g.ladderExclusive && typeof g.price === 'number' && g.price <= 55,
+const CHEST_GEAR_STANDARD = GEAR_CATALOG.filter(
+  (g) => g?.id && !g.ladderExclusive && typeof g.price === 'number' && g.price <= 85,
 );
 
+const CHEST_GEAR_PREMIUM = GEAR_CATALOG.filter(
+  (g) => g?.id && !g.ladderExclusive && typeof g.price === 'number' && g.price > 85 && g.price <= 140,
+);
+
+const CHEST_GEAR_POOL = [...CHEST_GEAR_STANDARD, ...CHEST_GEAR_PREMIUM];
+
+function miniBossCoinPayout(level) {
+  const bossCoins = bossCoinsForEnemyLevel(level, 'miniBoss');
+  const bonus = Math.floor(Math.random() * Math.max(6, Math.floor(bossCoins * 0.3)));
+  return Math.max(bossCoins, Math.floor(bossCoins * 1.2) + bonus);
+}
+
+function miniBossExpPayout(level) {
+  const bossExp = bossExpForEnemyLevel(level, 'miniBoss');
+  const mult = 0.95 + Math.random() * 0.45;
+  return Math.max(14, Math.floor(bossExp * mult));
+}
+
+function pickChestGear() {
+  const premium = CHEST_GEAR_PREMIUM.length > 0 && Math.random() < 0.4;
+  const pool = premium
+    ? CHEST_GEAR_PREMIUM
+    : CHEST_GEAR_STANDARD.length
+      ? CHEST_GEAR_STANDARD
+      : CHEST_GEAR_POOL;
+  const fallback = GEAR_CATALOG.filter((g) => g?.id && !g.ladderExclusive);
+  const list = pool.length ? pool : fallback;
+  return list[Math.floor(Math.random() * list.length)] ?? null;
+}
+
 /**
- * Roll a single modest reward for beating a main-game mini boss.
+ * Roll a reward for beating a main-game mini boss (on top of normal battle payout).
  * @param {import('./gameStorage').PlayerProfile|null} profile
  * @param {{ enemyLevel?: number }} opts
  */
@@ -58,31 +87,36 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
   const lvl = Math.max(1, Math.floor(enemyLevel || 1));
   const roll = Math.random();
 
-  if (roll < 0.45) {
-    const base = coinWinForEnemyLevel(lvl);
-    const amount = Math.max(5, Math.floor(base * 0.6) + Math.floor(Math.random() * 8));
-    return { kind: 'gold', amount, label: `${amount} coins`, rarity: 'common' };
+  if (roll < 0.28) {
+    const amount = miniBossCoinPayout(lvl);
+    const bossCoins = bossCoinsForEnemyLevel(lvl, 'miniBoss');
+    return {
+      kind: 'gold',
+      amount,
+      label: `${amount} coins`,
+      rarity: amount >= bossCoins * 1.35 ? 'rare' : 'common',
+    };
   }
 
-  if (roll < 0.75) {
-    const amount = Math.max(8, Math.floor(expWinForEnemyLevel(lvl) * 0.38));
-    return { kind: 'exp', amount, label: `${amount} bonus EXP`, rarity: 'common' };
+  if (roll < 0.56) {
+    const amount = miniBossExpPayout(lvl);
+    return { kind: 'exp', amount, label: `${amount} bonus EXP`, rarity: 'rare' };
   }
 
-  if (roll < 0.95) {
-    const pool = CHEST_GEAR_POOL.length ? CHEST_GEAR_POOL : GEAR_CATALOG.filter((g) => g?.id && !g.ladderExclusive);
-    const gear = pool[Math.floor(Math.random() * pool.length)];
+  if (roll < 0.82) {
+    const gear = pickChestGear();
     if (!gear) {
-      const amount = Math.max(5, Math.floor(coinWinForEnemyLevel(lvl) * 0.5));
+      const amount = miniBossCoinPayout(lvl);
       return { kind: 'gold', amount, label: `${amount} coins`, rarity: 'common' };
     }
+    const premium = (gear.price ?? 0) > 85;
     return {
       kind: 'gear',
       id: gear.id,
       name: gear.name,
       emoji: gear.emoji,
       label: gear.name,
-      rarity: 'common',
+      rarity: premium ? 'rare' : 'common',
     };
   }
 
@@ -100,6 +134,13 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
     rarity: tpl?.rarity ?? 'common',
     duplicate,
   };
+}
+
+/** Coins when chest gear is already owned. */
+export function mainBattleChestDuplicateGold(enemyLevel = 1) {
+  const lvl = Math.max(1, Math.floor(enemyLevel || 1));
+  const bossCoins = bossCoinsForEnemyLevel(lvl, 'miniBoss');
+  return Math.max(18, Math.floor(bossCoins * 0.75));
 }
 
 export function chestDropTitle(drop) {
