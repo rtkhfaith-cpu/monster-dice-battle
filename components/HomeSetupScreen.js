@@ -334,7 +334,7 @@ export default function HomeSetupScreen({
           <View style={styles.loginModalHeader}>
             <View>
               <Text style={styles.loginModalTitle}>Login & Players</Text>
-              <Text style={styles.loginModalSub}>Sign in, create a save, or delete a slot</Text>
+              <Text style={styles.loginModalSub}>Sign in · create · delete</Text>
             </View>
             <Pressable onPress={pressWithSound(closeLoginModal)} style={styles.loginModalClose}>
               <Text style={styles.loginModalCloseTxt}>×</Text>
@@ -383,18 +383,18 @@ export default function HomeSetupScreen({
             {profiles.slice(0, MAX_VISIBLE_PROFILES).map((profile) => {
               const active = profile.id === activeProfileId;
               return (
-                <View key={profile.id} style={[styles.compactRow, active && styles.compactRowActive]}>
-                  <Pressable style={styles.rowMain} onPress={pressWithSound(() => onSelectProfile?.(profile.id))}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>{profile.name || 'Player'}</Text>
-                    <Text style={styles.rowSub}>{active ? 'Active save' : 'Tap to switch'}</Text>
+                <View key={profile.id} style={[styles.compactRow, styles.loginModalCompactRow, active && styles.compactRowActive]}>
+                  <Pressable style={[styles.rowMain, styles.loginModalRowMain]} onPress={pressWithSound(() => onSelectProfile?.(profile.id))}>
+                    <Text style={[styles.rowTitle, styles.loginModalRowTitle]} numberOfLines={1}>{profile.name || 'Player'}</Text>
+                    <Text style={[styles.rowSub, styles.loginModalRowSub]}>{active ? 'Active' : 'Switch'}</Text>
                   </Pressable>
                   {onRequestDeleteProfile ? (
                     <Pressable
                       disabled={deleteBusyProfileId === profile.id}
                       onPress={pressWithSound(() => onRequestDeleteProfile(profile.id))}
-                      style={[styles.rowMiniBtn, styles.rowMiniBtnDanger]}
+                      style={[styles.rowMiniBtn, styles.rowMiniBtnDanger, styles.loginModalRowMiniBtn]}
                     >
-                      <Text style={styles.rowMiniText}>Delete</Text>
+                      <Text style={[styles.rowMiniText, styles.loginModalRowMiniText]}>Del</Text>
                     </Pressable>
                   ) : null}
                 </View>
@@ -402,38 +402,38 @@ export default function HomeSetupScreen({
             })}
 
             {activeProfile ? (
-              <View style={styles.inputRow}>
+              <View style={[styles.inputRow, styles.loginModalInputRow]}>
                 <TextInput
                   value={nameDraft}
                   onChangeText={setNameDraft}
-                  placeholder="Display name"
+                  placeholder="Name"
                   placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={styles.textInput}
+                  style={[styles.textInput, styles.loginModalTextInput]}
                   maxLength={24}
                 />
-                <Pressable onPress={pressWithSound(handleSaveName)} style={styles.smallGoldBtn}>
-                  <Text style={styles.smallGoldText}>Save name</Text>
+                <Pressable onPress={pressWithSound(handleSaveName)} style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}>
+                  <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>Save</Text>
                 </Pressable>
               </View>
             ) : null}
 
             {createOpen ? (
-              <View style={styles.createBox}>
+              <View style={[styles.createBox, styles.loginModalCreateBox]}>
                 <TextInput
                   value={createName}
                   onChangeText={setCreateName}
-                  placeholder="New player name"
+                  placeholder="Name"
                   placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={styles.textInput}
+                  style={[styles.textInput, styles.loginModalTextInput]}
                   maxLength={24}
                 />
-                <View style={styles.keyRow}>
+                <View style={[styles.keyRow, styles.loginModalKeyRow]}>
                   <TextInput
                     value={createKey}
                     onChangeText={setCreateKey}
-                    placeholder="4-digit PIN"
+                    placeholder="PIN"
                     placeholderTextColor="rgba(255,255,255,0.58)"
-                    style={[styles.textInput, styles.keyInput]}
+                    style={[styles.textInput, styles.keyInput, styles.loginModalTextInput]}
                     maxLength={4}
                     keyboardType="number-pad"
                     secureTextEntry
@@ -441,17 +441,17 @@ export default function HomeSetupScreen({
                   <TextInput
                     value={createConfirm}
                     onChangeText={setCreateConfirm}
-                    placeholder="Confirm PIN"
+                    placeholder="OK"
                     placeholderTextColor="rgba(255,255,255,0.58)"
-                    style={[styles.textInput, styles.keyInput]}
+                    style={[styles.textInput, styles.keyInput, styles.loginModalTextInput]}
                     maxLength={4}
                     keyboardType="number-pad"
                     secureTextEntry
                   />
                 </View>
-                {createError ? <Text style={styles.errorText}>{createError}</Text> : null}
-                <Pressable onPress={pressWithSound(handleCreateProfile)} style={styles.smallGoldBtn}>
-                  <Text style={styles.smallGoldText}>Create save</Text>
+                {createError ? <Text style={[styles.errorText, styles.loginModalErrorText]}>{createError}</Text> : null}
+                <Pressable onPress={pressWithSound(handleCreateProfile)} style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}>
+                  <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>Create</Text>
                 </Pressable>
               </View>
             ) : (
@@ -460,9 +460,9 @@ export default function HomeSetupScreen({
                   setCreateOpen(true);
                   setCreateName(`Player ${profiles.length + 1}`);
                 })}
-                style={styles.smallGoldBtn}
+                style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}
               >
-                <Text style={styles.smallGoldText}>New local save</Text>
+                <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>New save</Text>
               </Pressable>
             )}
 
@@ -471,31 +471,31 @@ export default function HomeSetupScreen({
                 closeLoginModal();
                 setTray('cloud');
               })}
-              style={styles.smallGoldBtn}
+              style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}
             >
-              <Text style={styles.smallGoldText}>Cloud archive</Text>
+              <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>Cloud</Text>
             </Pressable>
 
             {gameMode && onGameModeChange ? (
-              <View style={styles.modeRow}>
+              <View style={[styles.modeRow, styles.loginModalModeRow]}>
                 <Pressable
                   onPress={pressWithSound(() => onGameModeChange('onePlayer'))}
-                  style={[styles.modeBtn, gameMode === 'onePlayer' && styles.modeBtnActive]}
+                  style={[styles.modeBtn, styles.loginModalModeBtn, gameMode === 'onePlayer' && styles.modeBtnActive]}
                 >
-                  <Text style={styles.modeText}>1P</Text>
+                  <Text style={[styles.modeText, styles.loginModalModeText]}>1P</Text>
                 </Pressable>
                 <Pressable
                   onPress={pressWithSound(() => onGameModeChange('twoPlayer'))}
-                  style={[styles.modeBtn, gameMode !== 'onePlayer' && styles.modeBtnActive]}
+                  style={[styles.modeBtn, styles.loginModalModeBtn, gameMode !== 'onePlayer' && styles.modeBtnActive]}
                 >
-                  <Text style={styles.modeText}>2P</Text>
+                  <Text style={[styles.modeText, styles.loginModalModeText]}>2P</Text>
                 </Pressable>
                 {onActiveSlotChange ? (
                   <Pressable
                     onPress={pressWithSound(() => onActiveSlotChange(activeSlot === 2 ? 1 : 2))}
-                    style={styles.modeBtn}
+                    style={[styles.modeBtn, styles.loginModalModeBtn]}
                   >
-                    <Text style={styles.modeText}>Slot {activeSlot || 1}</Text>
+                    <Text style={[styles.modeText, styles.loginModalModeText]}>S{activeSlot || 1}</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -797,12 +797,12 @@ const styles = StyleSheet.create({
   realButtonDisabled: {
     opacity: 0.48,
   },
-  menuButtonOne: { top: '39.5%' },
-  menuButtonTwo: { top: '44.8%' },
-  menuButtonThree: { top: '50.1%' },
-  menuButtonFour: { top: '55.4%' },
-  menuButtonFive: { top: '60.7%' },
-  menuButtonSix: { top: '66%' },
+  menuButtonOne: { top: '42%' },
+  menuButtonTwo: { top: '50%' },
+  menuButtonThree: { top: '58%' },
+  menuButtonFour: { top: '66%' },
+  menuButtonFive: { top: '74%' },
+  menuButtonSix: { top: '82%' },
   bottomNavButton: {
     position: 'absolute',
     top: '90%',
@@ -906,15 +906,15 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   loginModalCard: {
-    width: '92%',
-    maxWidth: 420,
-    maxHeight: '78%',
-    minHeight: 320,
-    borderRadius: 22,
-    borderWidth: 2,
+    width: '46%',
+    maxWidth: 210,
+    maxHeight: '40%',
+    minHeight: 150,
+    borderRadius: 14,
+    borderWidth: 1,
     borderColor: 'rgba(255,224,143,0.9)',
     backgroundColor: 'rgba(15, 22, 42, 0.96)',
-    padding: 14,
+    padding: 8,
     zIndex: 41,
     pointerEvents: 'auto',
     ...webShadow,
@@ -923,27 +923,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    gap: 8,
+    marginBottom: 6,
+    gap: 4,
   },
   loginModalTitle: {
     color: '#ffe6a3',
-    fontSize: 18,
+    fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
   loginModalSub: {
     color: '#bfdbfe',
-    fontSize: 11,
+    fontSize: 8,
     fontWeight: '800',
-    marginTop: 2,
-    maxWidth: 280,
+    marginTop: 1,
+    maxWidth: 140,
   },
   loginModalClose: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.1)',
@@ -951,44 +951,112 @@ const styles = StyleSheet.create({
   },
   loginModalCloseTxt: {
     color: '#e0f2fe',
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: '900',
-    lineHeight: 26,
+    lineHeight: 18,
   },
   loginModalScroll: {
     flexGrow: 0,
-    maxHeight: 520,
+    maxHeight: 260,
   },
   loginModalScrollContent: {
-    paddingBottom: 12,
-    gap: 4,
+    paddingBottom: 6,
+    gap: 2,
   },
   loginSectionLbl: {
     color: '#fde68a',
-    fontSize: 11,
+    fontSize: 8,
     fontWeight: '900',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginTop: 8,
-    marginBottom: 6,
+    letterSpacing: 0.4,
+    marginTop: 4,
+    marginBottom: 3,
+  },
+  loginModalCompactRow: {
+    minHeight: 34,
+    gap: 4,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  loginModalRowMain: {
+    minHeight: 28,
+  },
+  loginModalRowTitle: {
+    fontSize: 10,
+  },
+  loginModalRowSub: {
+    fontSize: 8,
+  },
+  loginModalRowMiniBtn: {
+    minHeight: 26,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    minWidth: 44,
+  },
+  loginModalRowMiniText: {
+    fontSize: 8,
+  },
+  loginModalInputRow: {
+    gap: 4,
+    marginBottom: 4,
+  },
+  loginModalTextInput: {
+    minHeight: 30,
+    borderRadius: 9,
+    paddingHorizontal: 8,
+    fontSize: 10,
+  },
+  loginModalSmallBtn: {
+    minHeight: 30,
+    borderRadius: 9,
+    paddingHorizontal: 8,
+    marginBottom: 4,
+  },
+  loginModalSmallGoldText: {
+    fontSize: 9,
+  },
+  loginModalCreateBox: {
+    gap: 4,
+    marginBottom: 4,
+  },
+  loginModalKeyRow: {
+    gap: 4,
+  },
+  loginModalModeRow: {
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  loginModalModeBtn: {
+    minHeight: 28,
+    paddingHorizontal: 8,
+    borderRadius: 9,
+  },
+  loginModalModeText: {
+    fontSize: 9,
+  },
+  loginModalErrorText: {
+    fontSize: 8,
+    marginBottom: 2,
   },
   loginRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 4,
     width: '100%',
   },
   loginInput: {
-    height: 40,
-    borderRadius: 12,
+    height: 28,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
     backgroundColor: 'rgba(0,0,0,0.28)',
     color: '#fff8e5',
-    fontSize: 13,
+    fontSize: 10,
     fontWeight: '800',
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
     paddingVertical: 0,
   },
   loginIdInputModal: {
@@ -996,16 +1064,16 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   loginPinInputModal: {
-    width: 88,
+    width: 52,
     flexGrow: 0,
     flexShrink: 0,
     textAlign: 'center',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
   },
   loginModalBtn: {
     flex: 1,
-    minHeight: 42,
-    borderRadius: 12,
+    minHeight: 28,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1021,17 +1089,17 @@ const styles = StyleSheet.create({
   },
   loginModalBtnTxt: {
     color: '#fff4c7',
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: '900',
     textTransform: 'uppercase',
   },
   loginMsg: {
     color: '#bfdbfe',
-    fontSize: 11,
+    fontSize: 8,
     fontWeight: '800',
     textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 4,
+    marginTop: 3,
+    marginBottom: 2,
   },
   rowMiniBtnDanger: {
     backgroundColor: 'rgba(185,28,28,0.88)',
