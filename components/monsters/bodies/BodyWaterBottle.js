@@ -1,6 +1,6 @@
 import React from 'react';
 import { Ellipse, G, Path, Rect } from 'react-native-svg';
-import { DEFAULT_ST, RigArm, RigFace, RigLeg, RigTail, ShadeBody } from '../../../art/monsters/monsterRig';
+import { DEFAULT_ST, RigArm, RigFace, RigFootPad, RigLeg, RigTail, ShadeBody } from '../../../art/monsters/monsterRig';
 import { resolvePalette } from './shared';
 
 /** Water Bottle Beast — bulging bottle torso, slosh belly */
@@ -16,7 +16,7 @@ export default function BodyWaterBottle({ stroke, m, mood, eyeWhite, pupil, pale
         strokeWidth={ST - 2}
         opacity={0.8}
       />
-      <Ellipse cx={100} cy={170} rx={38} ry={11} fill={p.light} stroke={stroke} strokeWidth={2} opacity={0.7} />
+      <RigFootPad cx={100} cy={170} rx={38} ry={11} fill={p.light} stroke={stroke} strokeWidth={2} opacity={0.7} />
       <Rect x={68} y={50} width={64} height={18} rx={6} fill={p.accent} stroke={stroke} strokeWidth={ST} />
       <Rect x={76} y={44} width={14} height={12} rx={4} fill={p.dark} stroke={stroke} strokeWidth={2} />
       <Rect x={62} y={70} width={76} height={100} rx={18} fill={`url(#${gid})`} stroke={stroke} strokeWidth={ST} />

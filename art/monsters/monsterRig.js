@@ -64,16 +64,26 @@ export function RigArm({ sx, sy, ex, ey, hx, hy, stroke, fill, sw = DEFAULT_ST -
   );
 }
 
-/** Stub leg + chunky foot */
+/** Stub leg + chunky foot (foot pad hidden in battle — reads as white rings on the arena). */
 export function RigLeg({ hipX, hipY, footX, footY, stroke, fill, sw = DEFAULT_ST - 2, thick = false }) {
+  const isBattle = useContext(BattleShadingContext);
   const frx = thick ? 14 : 11;
   const fry = thick ? 7 : 6;
   return (
     <G>
       <Line x1={hipX} y1={hipY} x2={footX} y2={footY - 5} stroke={stroke} strokeWidth={sw + (thick ? 1 : 0)} strokeLinecap="round" />
-      <Ellipse cx={footX} cy={footY} rx={frx} ry={fry} fill={fill} stroke={stroke} strokeWidth={sw} />
+      {!isBattle ? (
+        <Ellipse cx={footX} cy={footY} rx={frx} ry={fry} fill={fill} stroke={stroke} strokeWidth={sw} />
+      ) : null}
     </G>
   );
+}
+
+/** Wide contact oval under feet (collection / menu only). */
+export function RigFootPad(props) {
+  const isBattle = useContext(BattleShadingContext);
+  if (isBattle) return null;
+  return <Ellipse {...props} />;
 }
 
 /** Mech panel with bolt */
@@ -93,6 +103,8 @@ export function RigPanel({ x, y, w, h, rx = 6, fill, stroke, sw = DEFAULT_ST - 1
 
 /** Alien / mage glow core */
 export function RigGlowCore({ cx, cy, r, color, stroke, opacity = 0.85 }) {
+  const isBattle = useContext(BattleShadingContext);
+  if (isBattle) return null;
   return (
     <G>
       <Circle cx={cx} cy={cy} r={r + 6} fill={color} opacity={0.22} />
@@ -130,6 +142,7 @@ export function RigFace({
   scale = 1.15,
   brawler = false,
 }) {
+  const isBattle = useContext(BattleShadingContext);
   const eyeL = cx - 20 * scale;
   const eyeR = cx + 20 * scale;
   const eyeY = cy - 5 * scale;
@@ -146,14 +159,22 @@ export function RigFace({
           <Line x1={eyeR + 10} y1={eyeY - 12} x2={eyeR - 7} y2={eyeY - 7} stroke={stroke} strokeWidth={3.5} strokeLinecap="round" />
         </>
       ) : null}
-      <LayerSubsurface cx={eyeL - 14} cy={eyeY + 10} r={7} color="#ff9eb5" opacity={0.45} />
-      <LayerSubsurface cx={eyeR + 14} cy={eyeY + 10} r={7} color="#ff9eb5" opacity={0.45} />
+      {!isBattle ? (
+        <>
+          <LayerSubsurface cx={eyeL - 14} cy={eyeY + 10} r={7} color="#ff9eb5" opacity={0.45} />
+          <LayerSubsurface cx={eyeR + 14} cy={eyeY + 10} r={7} color="#ff9eb5" opacity={0.45} />
+        </>
+      ) : null}
       <Circle cx={eyeL} cy={eyeY} r={r} fill={eyeWhite} stroke={stroke} strokeWidth={sw - 1} />
       <Circle cx={eyeR} cy={eyeY} r={r} fill={eyeWhite} stroke={stroke} strokeWidth={sw - 1} />
       <Circle cx={eyeL + brow} cy={eyeY + 2} r={pr} fill={pupil} />
       <Circle cx={eyeR - brow} cy={eyeY + 2} r={pr} fill={pupil} />
-      <Circle cx={eyeL + brow + 3} cy={eyeY - 1} r={2.2} fill="#fff" opacity={0.9} />
-      <Circle cx={eyeR - brow - 3} cy={eyeY - 1} r={2.2} fill="#fff" opacity={0.9} />
+      {!isBattle ? (
+        <>
+          <Circle cx={eyeL + brow + 3} cy={eyeY - 1} r={2.2} fill="#fff" opacity={0.9} />
+          <Circle cx={eyeR - brow - 3} cy={eyeY - 1} r={2.2} fill="#fff" opacity={0.9} />
+        </>
+      ) : null}
       {m === 0 ? (
         <Path
           d={`M ${cx - 14 * scale} ${mouthY} Q ${cx} ${mouthY + 10 * scale} ${cx + 14 * scale} ${mouthY}`}
@@ -198,10 +219,13 @@ export function RigHead({ cx, cy, r, gradId, stroke, sw = DEFAULT_ST }) {
 
 /** Chest plate with embossed detail */
 export function RigChestPlate({ x, y, w, h, rx = 8, fill, stroke, sw = DEFAULT_ST - 1, children }) {
+  const isBattle = useContext(BattleShadingContext);
   return (
     <G>
       <Rect x={x} y={y} width={w} height={h} rx={rx} fill={fill} stroke={stroke} strokeWidth={sw} />
-      <Rect x={x + 4} y={y + 4} width={w - 8} height={h - 8} rx={Math.max(2, rx - 2)} fill="none" stroke="#fff" strokeWidth={1.5} opacity={0.35} />
+      {!isBattle ? (
+        <Rect x={x + 4} y={y + 4} width={w - 8} height={h - 8} rx={Math.max(2, rx - 2)} fill="none" stroke="#fff" strokeWidth={1.5} opacity={0.35} />
+      ) : null}
       {children}
     </G>
   );

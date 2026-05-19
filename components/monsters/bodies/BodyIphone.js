@@ -1,6 +1,6 @@
 import React from 'react';
 import { Circle, G, Path, Rect } from 'react-native-svg';
-import { DEFAULT_ST, RigFace, RigLeg, RigPanel, ShadeBody } from '../../../art/monsters/monsterRig';
+import { DEFAULT_ST, RigFace, RigFootPad, RigLeg, RigPanel, ShadeBody } from '../../../art/monsters/monsterRig';
 import { resolvePalette } from './shared';
 
 /** iPhone Warrior — mech phone slab, cable tail, gauntlets */
@@ -28,7 +28,7 @@ export default function BodyIphone({ stroke, m, mood, eyeWhite, pupil, palette, 
       <Circle cx={166} cy={120} r={12} fill={p.light} stroke={stroke} strokeWidth={ST - 2} />
       <RigLeg hipX={80} hipY={166} footX={74} footY={176} stroke={stroke} fill={p.base} />
       <RigLeg hipX={120} hipY={166} footX={126} footY={176} stroke={stroke} fill={p.base} />
-      <Circle cx={100} cy={170} r={8} fill={p.light} stroke={stroke} strokeWidth={2} />
+      <RigFootPad cx={100} cy={170} rx={8} ry={8} fill={p.light} stroke={stroke} strokeWidth={2} />
       <RigFace cx={100} cy={108} m={m} mood={mood} stroke={stroke} eyeWhite={eyeWhite} pupil={pupil} ST={ST} scale={0.9} />
     </ShadeBody>
   );

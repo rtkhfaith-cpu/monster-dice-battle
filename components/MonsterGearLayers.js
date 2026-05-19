@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { G, Circle, Ellipse, Path, Polygon, Rect, Line } from 'react-native-svg';
 import { getGear } from '../utils/cosmetics';
-import { BattleShadingContext } from './BattleShadingContext';
+import { BattleShadingContext } from './monsters/BattleShadingContext';
 
 const ELEMENT_GLOW = {
   fire: '#ff6b35',
