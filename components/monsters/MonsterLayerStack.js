@@ -36,8 +36,8 @@ export default function MonsterLayerStack({
   const rimColor = themePalette?.glow ?? themeAura ?? ART.crit;
 
   const isBattle = !showShadow;
-  const svgH = isBattle ? size * 1.12 : size;
-  const viewBox = isBattle ? '0 -14 200 214' : '0 0 200 200';
+  const svgH = isBattle ? size * 1.32 : size;
+  const viewBox = isBattle ? '-10 -36 220 248' : '0 0 200 200';
 
   return (
     <BattleShadingContext.Provider value={isBattle}>

@@ -109,6 +109,8 @@ export function RigTail({ points, fill, stroke, sw = DEFAULT_ST - 1 }) {
 
 /** Chrome gleam line */
 export function RigGleam({ x1, y1, x2, y2, opacity = 0.65 }) {
+  const isBattle = useContext(BattleShadingContext);
+  if (isBattle) return null;
   return <Line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#fff" strokeWidth={2.5} strokeLinecap="round" opacity={opacity} />;
 }
 

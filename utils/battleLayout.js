@@ -3,7 +3,7 @@ import { BREAKPOINT_MOBILE } from './responsive';
 /** Symmetrical arcade battle layout — mirrored left/right fighters. */
 
 /** All battle-screen monster sprites (RN arena + Phaser lab). */
-export const BATTLE_MONSTER_SIZE_MULT = 0.8;
+export const BATTLE_MONSTER_SIZE_MULT = 0.7;
 
 /** Enemy sprite scale vs normal fighter size during boss encounters */
 export const BOSS_DISPLAY_SCALE = {

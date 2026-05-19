@@ -16,6 +16,8 @@ export default function AnimatedMonster({
   rage = false,
   superJump = false,
   flyStrike = false,
+  mirror = false,
+  hideGroundShadow = false,
 }) {
   const bob = useRef(new Animated.Value(0)).current;
   const sway = useRef(new Animated.Value(0)).current;
@@ -180,7 +182,7 @@ export default function AnimatedMonster({
     }
     flyTx.setValue(0);
     flyTy.setValue(0);
-    const arc = toward * (size * 0.62);
+    const arc = toward * (size * 0.46);
     const lift = -(size * 0.12);
     const flyAnim = Animated.parallel([
       Animated.sequence([
@@ -232,9 +234,9 @@ export default function AnimatedMonster({
 
     const jumpExtra = superJump ? toward * 28 : 0;
     const windup = pose === 'cast' || pose === 'superWindup';
-    const lungeX = toward * (pose === 'lunge' || pose === 'cast' ? (windup ? 6 : 16) : 0) + jumpExtra;
+    const lungeX = toward * (pose === 'lunge' || pose === 'cast' ? (windup ? 5 : 11) : 0) + jumpExtra;
     const lungeY = windup ? -10 : pose === 'lunge' ? 2 : superJump ? -10 : 0;
-    const sc = pose === 'defend' ? 0.86 : windup || superJump ? 1.12 : pose === 'lunge' ? 1.08 : 1;
+    const sc = pose === 'defend' ? 0.86 : windup || superJump ? 1.08 : pose === 'lunge' ? 1.05 : 1;
 
     if (pose === 'hit') {
       Animated.parallel([
@@ -310,22 +312,35 @@ export default function AnimatedMonster({
   });
   const glowOpacity = ragePulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
 
-  const shadowW = scaledSize * 0.5;
-  const shadowH = Math.max(6, scaledSize * 0.07);
+  const padTop = Math.round(scaledSize * 0.22);
+  const padSides = Math.round(scaledSize * 0.14);
 
   return (
-    <View style={[styles.wrap, { minHeight: scaledSize * 1.2, minWidth: scaledSize * 1.15 }]}>
-      <View
-        pointerEvents="none"
-        style={[
-          styles.groundShadow,
-          {
-            width: shadowW,
-            height: shadowH,
-            borderRadius: shadowH,
-          },
-        ]}
-      />
+    <View
+      style={[
+        styles.wrap,
+        {
+          minHeight: scaledSize * 1.35 + padTop,
+          minWidth: scaledSize * 1.28 + padSides * 2,
+          paddingTop: padTop,
+          paddingHorizontal: padSides,
+        },
+      ]}
+    >
+      {!hideGroundShadow ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.groundShadow,
+            {
+              width: scaledSize * 0.48,
+              height: Math.max(5, scaledSize * 0.065),
+              borderRadius: Math.max(5, scaledSize * 0.065),
+              marginBottom: 2,
+            },
+          ]}
+        />
+      ) : null}
       {rage ? (
         <Animated.View
           pointerEvents="none"
@@ -350,7 +365,7 @@ export default function AnimatedMonster({
               { translateY: Animated.add(flyTy, Animated.add(bobY, Animated.add(poseTy, breathLift))) },
               { rotate: swayR },
               { scale: poseScale },
-              { scaleX: squashX },
+              { scaleX: Animated.multiply(squashX, mirror ? -1 : 1) },
               { scaleY: squashY },
             ],
           },

@@ -1252,10 +1252,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderColor: BATTLE.dockBorder,
-    overflow: 'hidden',
+    overflow: 'visible',
     backgroundColor: BATTLE.dockBorder,
   },
-  arenaField: { flex: 1, minHeight: 0, width: '100%', position: 'relative', overflow: 'hidden' },
+  arenaField: { flex: 1, minHeight: 0, width: '100%', position: 'relative', overflow: 'visible' },
   arenaInner: { flex: 1, width: '100%', minHeight: 0 },
   ladderStagePill: {
     position: 'absolute',

@@ -254,26 +254,30 @@ export default function RpgBattleArena({
         />
       </View>
 
-      {/* z-index 3: monsters */}
+      {/* z-index 3: monsters — overflow visible so attack lunges are not clipped */}
+      <View style={styles.monsterLayer} pointerEvents="box-none">
       <Animated.View
         style={[
           styles.playerMonster,
           { left: L.monsterSideInset, bottom: L.monsterBottom, opacity: p1Opacity, transform: [{ scale: p1Scale }] },
         ]}
       >
-        <View style={[styles.faceRight, styles.monsterWrap]}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.hitFlash,
-              sicklyFlashP1 && styles.hitFlashSickly,
-              {
-                opacity: p1Flash,
-                width: p1MonsterSize * 0.78,
-                height: p1MonsterSize * 0.78,
-              },
-            ]}
-          />
+        <View style={styles.monsterWrap}>
+          {defenderFlashP1 || sicklyFlashP1 ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.hitFlash,
+                sicklyFlashP1 && styles.hitFlashSickly,
+                {
+                  opacity: p1Flash,
+                  width: p1MonsterSize * 0.55,
+                  height: p1MonsterSize * 0.32,
+                  bottom: '22%',
+                },
+              ]}
+            />
+          ) : null}
           {defendGlowP1 ? (
             <Animated.View
               pointerEvents="none"
@@ -287,12 +291,13 @@ export default function RpgBattleArena({
             parts={p1.monsterParts}
             size={p1MonsterSize}
             pose={p1Pose}
-            // The wrapper is mirrored to face right, so local movement direction is inverted.
             side="right"
             mood={p1Mood}
             rage={p1Rage}
             superJump={superJumpSide === 'left'}
             flyStrike={flyStrikeP1}
+            mirror
+            hideGroundShadow
           />
         </View>
       </Animated.View>
@@ -303,19 +308,22 @@ export default function RpgBattleArena({
           { right: L.monsterSideInset, bottom: L.monsterBottom, opacity: p2Opacity, transform: [{ scale: p2Scale }] },
         ]}
       >
-        <View style={[styles.monsterWrap]}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.hitFlash,
-              sicklyFlashP2 && styles.hitFlashSickly,
-              {
-                opacity: p2Flash,
-                width: p2MonsterSize * 0.78,
-                height: p2MonsterSize * 0.78,
-              },
-            ]}
-          />
+        <View style={styles.monsterWrap}>
+          {defenderFlashP2 || sicklyFlashP2 ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.hitFlash,
+                sicklyFlashP2 && styles.hitFlashSickly,
+                {
+                  opacity: p2Flash,
+                  width: p2MonsterSize * 0.55,
+                  height: p2MonsterSize * 0.32,
+                  bottom: '22%',
+                },
+              ]}
+            />
+          ) : null}
           {defendGlowP2 ? (
             <Animated.View
               pointerEvents="none"
@@ -334,9 +342,11 @@ export default function RpgBattleArena({
             rage={p2Rage}
             superJump={superJumpSide === 'right'}
             flyStrike={flyStrikeP2}
+            hideGroundShadow
           />
         </View>
       </Animated.View>
+      </View>
 
     </Animated.View>
   );
@@ -347,7 +357,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     minHeight: 0,
-    overflow: 'hidden',
+    overflow: 'visible',
     backgroundColor: ART.skyMid,
   },
   vignetteTop: {
@@ -777,35 +787,40 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 6,
   },
+  monsterLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '12%',
+    bottom: 0,
+    zIndex: 3,
+    overflow: 'visible',
+  },
   playerMonster: {
     position: 'absolute',
     zIndex: 3,
     alignItems: 'flex-start',
     justifyContent: 'flex-end',
+    overflow: 'visible',
   },
   enemyMonster: {
     position: 'absolute',
     zIndex: 3,
     alignItems: 'flex-end',
     justifyContent: 'flex-end',
+    overflow: 'visible',
   },
 
   monsterWrap: {
     alignItems: 'center',
     justifyContent: 'flex-end',
     overflow: 'visible',
-    paddingTop: 28,
-    paddingHorizontal: 20,
   },
-  faceRight: { transform: [{ scaleX: -1 }], overflow: 'visible' },
   hitFlash: {
     position: 'absolute',
     alignSelf: 'center',
-    bottom: '14%',
-    backgroundColor: 'rgba(255, 244, 214, 0.22)',
+    backgroundColor: 'rgba(255, 244, 214, 0.28)',
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 244, 214, 0.34)',
     zIndex: 5,
   },
   hitFlashSickly: {
