@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { chestDropTitle } from '../utils/mainBattleChest';
 import { applyGearBonuses } from '../utils/gearStats';
@@ -99,11 +99,16 @@ function MonsterStatsPanel({ player, expPack }) {
           {leveledUp ? <Text style={styles.levelUpTag}> · LEVEL UP!</Text> : null}
         </Text>
       </View>
-      <View style={styles.statGrid}>
+      <ScrollView
+        style={styles.statsScroll}
+        contentContainerStyle={styles.statGrid}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+      >
         {rows.map((row) => (
           <StatCell key={row.key} label={row.key} value={row.value} bonus={row.bonus} />
         ))}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -335,6 +340,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 8,
+    flexShrink: 0,
   },
   evolve: {
     fontSize: 14,
@@ -380,6 +386,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   vsRow: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -426,19 +433,27 @@ const styles = StyleSheet.create({
   },
   statsPanel: {
     flex: 1,
+    flexShrink: 1,
     minHeight: 0,
+    overflow: 'hidden',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',
     backgroundColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingTop: 8,
+    paddingBottom: 6,
+  },
+  statsScroll: {
+    flex: 1,
+    minHeight: 0,
   },
   statsPanelHeader: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
     gap: 8,
   },
   statsPanelTitle: {
@@ -461,6 +476,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+    paddingBottom: 2,
   },
   statCell: {
     width: '48%',
@@ -492,6 +508,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   rewardsFooter: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: 8,
@@ -500,6 +517,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,224,138,0.4)',
     backgroundColor: 'rgba(7, 17, 32, 0.78)',
     padding: 10,
+    marginTop: 2,
   },
   coinsBlock: {
     flex: 1,
@@ -561,6 +579,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#34d399',
   },
   tip: {
+    flexShrink: 0,
     fontWeight: '800',
     fontSize: 10,
     color: '#dbeafe',
@@ -568,6 +587,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   actions: {
+    flexShrink: 0,
     marginTop: 8,
     gap: 5,
   },
