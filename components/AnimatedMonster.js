@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { getMonsterIdleProfile } from '../utils/monsterIdleMotion';
 import { getMonsterImageAsset } from '../utils/monsterImageAssets';
@@ -310,21 +310,22 @@ export default function AnimatedMonster({
   });
   const glowOpacity = ragePulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
 
+  const shadowW = scaledSize * 0.56;
+  const shadowH = Math.max(8, scaledSize * 0.09);
+
   return (
     <View style={styles.wrap}>
       <View
+        pointerEvents="none"
         style={[
           styles.groundShadow,
-          { width: scaledSize * 0.82, height: scaledSize * 0.13, borderRadius: scaledSize },
+          {
+            width: shadowW,
+            height: shadowH,
+            borderRadius: shadowH,
+          },
         ]}
-      >
-        <View
-          style={[
-            styles.groundShadowCore,
-            { width: scaledSize * 0.54, height: scaledSize * 0.075, borderRadius: scaledSize },
-          ]}
-        />
-      </View>
+      />
       {rage ? (
         <Animated.View
           pointerEvents="none"
@@ -356,7 +357,7 @@ export default function AnimatedMonster({
         ]}
       >
         <Animated.View style={[styles.fadeDodge, { opacity: dodgeOp }]}>
-          <MonsterPreview parts={parts} size={scaledSize} mood={mood} />
+          <MonsterPreview parts={parts} size={scaledSize} mood={mood} hideBuiltInShadow />
         </Animated.View>
       </Animated.View>
     </View>
@@ -370,18 +371,23 @@ const styles = StyleSheet.create({
   },
   groundShadow: {
     position: 'absolute',
-    bottom: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.36)',
-    opacity: 0.82,
-  },
-  groundShadowCore: {
-    backgroundColor: 'rgba(0, 0, 0, 0.48)',
+    bottom: 6,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(12, 18, 32, 0.34)',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 6px 18px rgba(0, 0, 0, 0.38)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.38,
+          shadowRadius: 10,
+          elevation: 3,
+        }),
   },
   core: {
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   fadeDodge: {
     alignItems: 'center',

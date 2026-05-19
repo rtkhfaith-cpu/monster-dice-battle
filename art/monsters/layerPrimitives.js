@@ -1,10 +1,13 @@
 import React from 'react';
 import { Circle, Defs, Ellipse, G, LinearGradient, RadialGradient, Stop } from 'react-native-svg';
 
-/** Ground shadow — fake depth under monster */
-export function LayerShadow({ cx = 100, cy = 190, rx = 58, ry = 13, opacity = 0.38 }) {
+/** Ground shadow — soft contact oval (menus / collection only; battle uses AnimatedMonster shadow) */
+export function LayerShadow({ cx = 100, cy = 192, rx = 44, ry = 10, opacity = 0.3 }) {
   return (
-    <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="#1a203a" opacity={opacity} />
+    <G>
+      <Ellipse cx={cx} cy={cy} rx={rx * 1.08} ry={ry * 1.15} fill="#1a203a" opacity={opacity * 0.45} />
+      <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="#1a203a" opacity={opacity} />
+    </G>
   );
 }
 
@@ -25,13 +28,13 @@ export function LayerAura({ color = '#a29bfe', cx = 100, cy = 118, r = 82, opaci
   );
 }
 
-/** Soft highlight blob for fake-3D shading on rounded bodies */
-export function LayerBodyHighlight({ cx = 88, cy = 100, rx = 24, ry = 30, opacity = 0.42 }) {
+/** Soft highlight blob for fake-3D shading on rounded bodies (collection / menu only) */
+export function LayerBodyHighlight({ cx = 88, cy = 92, rx = 22, ry = 26, opacity = 0.32 }) {
   return <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="#ffffff" opacity={opacity} />;
 }
 
-/** Core shadow on underside of mass */
-export function LayerCoreShadow({ cx = 100, cy = 148, rx = 40, ry = 18, opacity = 0.28 }) {
+/** Core shadow on underside of mass — kept above feet, not a long ground streak */
+export function LayerCoreShadow({ cx = 100, cy = 192, rx = 40, ry = 9, opacity = 0.26 }) {
   return <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="#1a203a" opacity={opacity} />;
 }
 

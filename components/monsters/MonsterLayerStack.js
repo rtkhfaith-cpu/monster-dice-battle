@@ -5,6 +5,7 @@ import { ThemedMonsterBody } from '../themedMonsterBodies';
 import MonsterGearLayers from '../MonsterGearLayers';
 import { LayerAura, LayerRarityRim, LayerShadow } from '../../art/monsters/layerPrimitives';
 import { ART } from '../../utils/artDirection';
+import { BattleShadingContext } from './BattleShadingContext';
 
 /**
  * Layered monster renderer — shadow → aura → body → gear (front).
@@ -35,29 +36,31 @@ export default function MonsterLayerStack({
   const rimColor = themePalette?.glow ?? themeAura ?? ART.crit;
 
   return (
-    <View style={{ width: size, height: size, alignSelf: 'center' }}>
-      <Svg width={size} height={size} viewBox="0 0 200 200">
-        <G>
-          {showShadow ? <LayerShadow /> : null}
-          <LayerAura color={themeAura} />
-          {showRarityRim ? <LayerRarityRim color={rimColor} /> : null}
-          <ThemedMonsterBody
-            themeBody={themeBody}
-            stroke={stroke}
-            ST={ST}
-            e={e}
-            m={m}
-            mood={mood}
-            eyeWhite={eyeWhite}
-            pupil={pupil}
-            palette={themePalette}
-            archetype={themeArchetype}
-            evolutionTier={tier}
-            visualFormTier={tier}
-          />
-          <MonsterGearLayers cosmetics={cosmetics} stroke={stroke} ST={ST} />
-        </G>
-      </Svg>
-    </View>
+    <BattleShadingContext.Provider value={!showShadow}>
+      <View style={{ width: size, height: size, alignSelf: 'center' }}>
+        <Svg width={size} height={size} viewBox="0 0 200 200">
+          <G>
+            {showShadow ? <LayerShadow /> : null}
+            <LayerAura color={themeAura} />
+            {showRarityRim ? <LayerRarityRim color={rimColor} /> : null}
+            <ThemedMonsterBody
+              themeBody={themeBody}
+              stroke={stroke}
+              ST={ST}
+              e={e}
+              m={m}
+              mood={mood}
+              eyeWhite={eyeWhite}
+              pupil={pupil}
+              palette={themePalette}
+              archetype={themeArchetype}
+              evolutionTier={tier}
+              visualFormTier={tier}
+            />
+            <MonsterGearLayers cosmetics={cosmetics} stroke={stroke} ST={ST} />
+          </G>
+        </Svg>
+      </View>
+    </BattleShadingContext.Provider>
   );
 }

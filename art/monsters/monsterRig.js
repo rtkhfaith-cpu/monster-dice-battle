@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
+import { BattleShadingContext } from '../../components/monsters/BattleShadingContext';
 import { LayerBodyHighlight, LayerCoreShadow, LayerGradientDef, LayerSubsurface } from './layerPrimitives';
 
 export const DEFAULT_ST = 6;
@@ -20,14 +21,19 @@ export const DEFAULT_MONSTER_PALETTE = {
  * @param {{ gradId: string, palette: MonsterPalette, highlight?: object, shadow?: object, children: React.ReactNode }} p
  */
 export function ShadeBody({ gradId, palette, highlight, shadow, children }) {
+  const hideContactShading = useContext(BattleShadingContext);
   const hi = highlight ?? { cx: 82, cy: 96, rx: 26, ry: 32 };
-  const sh = shadow ?? { cx: 100, cy: 152, rx: 44, ry: 16 };
+  const sh = shadow ?? { cx: 100, cy: 192, rx: 42, ry: 9 };
   return (
     <G>
       <LayerGradientDef id={gradId} top={palette.light} bottom={palette.dark} mid={palette.base} />
       {children}
-      <LayerCoreShadow {...sh} />
-      <LayerBodyHighlight {...hi} />
+      {!hideContactShading ? (
+        <>
+          <LayerCoreShadow {...sh} />
+          <LayerBodyHighlight {...hi} />
+        </>
+      ) : null}
     </G>
   );
 }

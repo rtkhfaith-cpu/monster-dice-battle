@@ -79,9 +79,15 @@ function BodyGrad({ children, gid, light, dark }) {
  * Whimsical SVG monster — thick cartoon outline, soft shadow, optional cosmetics & mood.
  *
  * `parts`: body, head, eyes, mouth, horn, tail, hands, legs, colorIdx, cosmetics?: string[]
- * @param {{ parts: object, size?: number, mood?: MonsterMood, counterMirror?: boolean }} props
+ * @param {{ parts: object, size?: number, mood?: MonsterMood, counterMirror?: boolean, hideBuiltInShadow?: boolean }} props
  */
-export default function MonsterPreview({ parts, size = 200, mood = 'neutral', counterMirror = false }) {
+export default function MonsterPreview({
+  parts,
+  size = 200,
+  mood = 'neutral',
+  counterMirror = false,
+  hideBuiltInShadow = false,
+}) {
   const instanceId = useId().replace(/:/g, '');
   const safe = parts && typeof parts === 'object' ? parts : null;
   const ST = 5;
@@ -184,17 +190,17 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral', co
           {themeEmoji}
         </Text>
       ) : null}
-      {!hasThemedSilhouette ? (
+      {!hasThemedSilhouette && !hideBuiltInShadow ? (
       <View
         style={{
           position: 'absolute',
           bottom: size * 0.04,
-          left: size * 0.12,
-          width: size * 0.76,
-          height: size * 0.1,
-          borderRadius: size,
+          left: size * 0.18,
+          width: size * 0.64,
+          height: size * 0.08,
+          borderRadius: size * 0.04,
           backgroundColor: ART.shadowDeep,
-          opacity: 0.28,
+          opacity: 0.26,
         }}
       />
       ) : null}
@@ -206,6 +212,7 @@ export default function MonsterPreview({ parts, size = 200, mood = 'neutral', co
           themePalette={themePalette}
           themeArchetype={themeArchetype}
           showRarityRim={safe.rarity === 'legendary' || safe.rarity === 'mythic'}
+          showShadow={!hideBuiltInShadow}
           stroke={stroke}
           ST={ST}
           e={e}
