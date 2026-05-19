@@ -142,6 +142,9 @@ export default function RpgBattleArena({
   const { width, height } = useWindowDimensions();
   const narrow = width < 520;
   const L = useMemo(() => getStrictLayout(width, height), [width, height]);
+  const enemyBossDisplayScale =
+    p2?.ladderStageKind === 'bigBoss' ? 1.6 : p2?.ladderStageKind === 'miniBoss' ? 1.3 : 1;
+  const p2MonsterSize = Math.round(L.p2Monster * enemyBossDisplayScale);
   const p1Focus = useRef(new Animated.Value(activeTurn === 1 ? 1 : 0)).current;
   const p2Focus = useRef(new Animated.Value(activeTurn === 2 ? 1 : 0)).current;
 
@@ -295,7 +298,7 @@ export default function RpgBattleArena({
           { right: L.monsterSideInset, bottom: L.monsterBottom, opacity: p2Opacity, transform: [{ scale: p2Scale }] },
         ]}
       >
-        <View style={[styles.monsterWrap, { width: L.p2Monster }]}>
+        <View style={[styles.monsterWrap, { width: p2MonsterSize }]}>
           <Animated.View
             pointerEvents="none"
             style={[
@@ -303,8 +306,8 @@ export default function RpgBattleArena({
               sicklyFlashP2 && styles.hitFlashSickly,
               {
                 opacity: p2Flash,
-                width: L.p2Monster * 0.78,
-                height: L.p2Monster * 0.78,
+                width: p2MonsterSize * 0.78,
+                height: p2MonsterSize * 0.78,
               },
             ]}
           />
@@ -319,7 +322,7 @@ export default function RpgBattleArena({
           ) : null}
           <AnimatedMonster
             parts={p2.monsterParts}
-            size={L.p2Monster}
+            size={p2MonsterSize}
             pose={p2Pose}
             side="right"
             mood={p2Mood}

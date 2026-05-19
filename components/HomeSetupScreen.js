@@ -282,10 +282,11 @@ export default function HomeSetupScreen({
             <View style={styles.loginPanel}>
               <TextInput
                 value={loginId}
-                onChangeText={setLoginId}
-                placeholder="ID / name"
+                onChangeText={(v) => setLoginId(String(v || '').slice(0, 10))}
+                placeholder="ID (10 max)"
                 placeholderTextColor="rgba(255,255,255,0.58)"
-                style={styles.loginInput}
+                style={[styles.loginInput, styles.loginIdInput]}
+                maxLength={10}
                 autoCapitalize="none"
               />
               <TextInput
@@ -851,9 +852,9 @@ const styles = StyleSheet.create({
   },
   loginPanel: {
     position: 'absolute',
-    top: '85.2%',
-    left: '26.25%',
-    right: '26.25%',
+    top: '35%',
+    left: '10%',
+    right: '10%',
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
@@ -867,8 +868,6 @@ const styles = StyleSheet.create({
     pointerEvents: 'auto',
   },
   loginInput: {
-    flex: 1,
-    minWidth: 0,
     height: 32,
     borderRadius: 10,
     borderWidth: 1,
@@ -879,8 +878,16 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     paddingHorizontal: 8,
   },
+  loginIdInput: {
+    flex: 2.4,
+    minWidth: 0,
+  },
   loginPinInput: {
-    flex: 0.55,
+    width: 52,
+    flexGrow: 0,
+    flexShrink: 0,
+    textAlign: 'center',
+    letterSpacing: 2,
   },
   loginMiniBtn: {
     minHeight: 32,

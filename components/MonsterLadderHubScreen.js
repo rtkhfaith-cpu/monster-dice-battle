@@ -18,6 +18,7 @@ import {
 import { LADDER_PITY, LADDER_RARITY_ORDER, LADDER_RARITY_WEIGHTS, LADDER_SHARDS_BY_RARITY } from '../utils/monsterLadder/ladderConstants';
 import { getLadderRewardDayKey, isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
+import { formatGearBonusLines } from '../utils/cosmetics';
 
 const RARITY_TONE = {
   common: '#cbd5e1',
@@ -61,32 +62,38 @@ function statGrid(stats) {
   ];
 }
 
-function CatalogChip({ item, type }) {
+function CatalogChip({ item, type, onPress }) {
   const color = RARITY_TONE[item.rarity] ?? '#fff';
   const sub = type === 'gear' ? `${item.slot} gear` : `${item.element} ${item.role}`;
   const monsterParts = type === 'monster' ? mergeLadderMonsterParts(item.id) : null;
-  const monsterStats = type === 'monster' ? computeLadderBattleStats(item.id, 1)?.stats : null;
   return (
-    <View style={[styles.catalogChip, type === 'monster' && styles.catalogChipMonster, { borderColor: color }]}>
+    <TouchableOpacity
+      activeOpacity={0.86}
+      onPress={() => onPress?.(item, type)}
+      style={[styles.catalogChip, type === 'monster' && styles.catalogChipMonster, { borderColor: color }]}
+    >
       {type === 'monster' ? (
         <View style={styles.catalogMonsterPortrait}>
           <MonsterPreview parts={monsterParts} size={38} mood="happy" />
+          <Text style={styles.catalogTapHint}>Card</Text>
         </View>
       ) : (
-        <Text style={styles.catalogIcon}>{item.emoji}</Text>
+        <View style={styles.catalogGearThumb}>
+          <Text style={styles.catalogIcon}>{item.emoji}</Text>
+          <Text style={styles.catalogTapHint}>Card</Text>
+        </View>
       )}
       <View style={styles.catalogCopy}>
         <Text style={styles.catalogName} numberOfLines={1}>{item.name}</Text>
         <Text style={[styles.catalogMeta, { color }]} numberOfLines={1}>
           {rarityLabel(item.rarity)} · {sub}
         </Text>
-        {monsterStats ? <Text style={styles.catalogStats} numberOfLines={1}>{formatStats(monsterStats)}</Text> : null}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
-function CatalogByRarity({ items, type }) {
+function CatalogByRarity({ items, type, onItemPress }) {
   return LADDER_RARITY_ORDER.map((rarity) => {
     const group = items.filter((item) => item.rarity === rarity);
     if (!group.length) return null;
@@ -99,11 +106,81 @@ function CatalogByRarity({ items, type }) {
           <Text style={styles.rarityGroupChance}>{rarityPercent(rarity)} drop tier</Text>
         </View>
         <View style={styles.catalogGrid}>
-          {group.map((item) => <CatalogChip key={item.id} item={item} type={type} />)}
+          {group.map((item) => (
+            <CatalogChip key={item.id} item={item} type={type} onPress={onItemPress} />
+          ))}
         </View>
       </View>
     );
   });
+}
+
+function CodexGearCard({ gear, onClose }) {
+  if (!gear) return null;
+  const ui = RARITY_UI[gear.rarity] ?? RARITY_UI.common;
+  const lines = formatGearBonusLines(gear);
+  return (
+    <View style={styles.codexCardOverlay}>
+      <View style={[styles.codexDetailCard, { borderColor: ui.border ?? '#facc15' }]}>
+        <TouchableOpacity style={styles.cardClose} onPress={onClose}>
+          <Text style={styles.cardCloseTxt}>×</Text>
+        </TouchableOpacity>
+        <Text style={styles.cardKicker}>Ladder Gear</Text>
+        <Text style={styles.codexDetailEmoji}>{gear.emoji}</Text>
+        <Text style={styles.cardName}>{gear.name}</Text>
+        <View style={styles.cardMetaRow}>
+          <Text style={[styles.cardBadge, { backgroundColor: ui.chipBg ?? '#334155', color: ui.chipFg ?? '#fff' }]}>
+            {ui.label ?? gear.rarity}
+          </Text>
+          <Text style={styles.cardRole}>{gear.slot} · Chest drop</Text>
+        </View>
+        {lines.map((line) => (
+          <Text key={line} style={styles.codexDetailLine}>{line}</Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CodexMonsterCard({ templateId, onClose }) {
+  if (!templateId) return null;
+  const t = getLadderMonsterTemplate(templateId);
+  if (!t) return null;
+  const ui = RARITY_UI[t.rarity] ?? RARITY_UI.common;
+  const stats = computeLadderBattleStats(templateId, 1)?.stats;
+  return (
+    <View style={styles.codexCardOverlay}>
+      <View style={[styles.codexDetailCard, { borderColor: ui.border ?? '#facc15' }]}>
+        <TouchableOpacity style={styles.cardClose} onPress={onClose}>
+          <Text style={styles.cardCloseTxt}>×</Text>
+        </TouchableOpacity>
+        <Text style={styles.cardKicker}>Ladder Monster</Text>
+        <Text style={styles.cardName}>{t.name}</Text>
+        <View style={styles.cardArt}>
+          <MonsterPreview parts={mergeLadderMonsterParts(templateId)} size={150} mood="happy" />
+        </View>
+        <View style={styles.cardMetaRow}>
+          <Text style={[styles.cardBadge, { backgroundColor: ui.chipBg ?? '#334155', color: ui.chipFg ?? '#fff' }]}>
+            {ui.label ?? t.rarity}
+          </Text>
+          <Text style={styles.cardRole}>{ROLE_LABELS[t.role] ?? t.role}</Text>
+          <Text style={styles.cardRole}>{t.element}</Text>
+        </View>
+        <View style={styles.cardStatsGrid}>
+          {statGrid(stats).map((col, colIndex) => (
+            <View key={colIndex ? 'right' : 'left'} style={styles.cardStatsCol}>
+              {col.map(([label, value]) => (
+                <View key={label} style={styles.cardStatRow}>
+                  <Text style={styles.cardStatLabel}>{label}</Text>
+                  <Text style={styles.cardStatValue}>{value}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
 }
 
 function ChestOddsCard({ title, sub, type }) {
@@ -134,6 +211,14 @@ function ChestOddsCard({ title, sub, type }) {
 }
 
 function RewardsCodexOverlay({ onClose }) {
+  const [detailGear, setDetailGear] = useState(null);
+  const [detailMonsterId, setDetailMonsterId] = useState(null);
+
+  function handleCatalogPress(item, type) {
+    if (type === 'gear') setDetailGear(item);
+    else setDetailMonsterId(item.id);
+  }
+
   return (
     <View style={styles.codexBackdrop}>
       <View style={styles.codexPanel}>
@@ -168,11 +253,13 @@ function RewardsCodexOverlay({ onClose }) {
           </View>
 
           <Text style={styles.sectionTitle}>Gear Chest Drops</Text>
-          <CatalogByRarity items={LADDER_GEAR_CATALOG} type="gear" />
+          <CatalogByRarity items={LADDER_GEAR_CATALOG} type="gear" onItemPress={handleCatalogPress} />
 
           <Text style={styles.sectionTitle}>Monster Chest Drops</Text>
-          <CatalogByRarity items={LADDER_MONSTER_CATALOG} type="monster" />
+          <CatalogByRarity items={LADDER_MONSTER_CATALOG} type="monster" onItemPress={handleCatalogPress} />
         </ScrollView>
+        <CodexGearCard gear={detailGear} onClose={() => setDetailGear(null)} />
+        <CodexMonsterCard templateId={detailMonsterId} onClose={() => setDetailMonsterId(null)} />
       </View>
     </View>
   );
@@ -217,25 +304,88 @@ function FantasyActionButton({ label, onPress, disabled, variant = 'default' }) 
   );
 }
 
-function ChestCard({ title, state, type }) {
+function ChestCard({ title, state, type, onPress }) {
   const available = state === 'available';
   const claimed = state === 'claimed';
-  const premium = state === 'premium';
+  const exchange = state === 'exchange';
   const uri = claimed ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed;
+  const body = (
+    <>
+      <Image source={{ uri }} style={styles.chestImg} resizeMode="contain" />
+      <View style={styles.chestCopy}>
+        <Text style={styles.chestTitle}>{title}</Text>
+        <Text style={styles.chestState}>{exchange ? 'Open' : state}</Text>
+        <Text style={styles.chestSub}>{type}</Text>
+      </View>
+    </>
+  );
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.86}
+        onPress={onPress}
+        style={[
+          styles.chestCard,
+          available && styles.chestAvailable,
+          claimed && styles.chestClaimed,
+          exchange && styles.chestExchange,
+        ]}
+      >
+        {body}
+      </TouchableOpacity>
+    );
+  }
   return (
     <View
       style={[
         styles.chestCard,
         available && styles.chestAvailable,
         claimed && styles.chestClaimed,
-        premium && styles.chestPremium,
+        exchange && styles.chestExchange,
       ]}
     >
-      <Image source={{ uri }} style={styles.chestImg} resizeMode="contain" />
-      <View style={styles.chestCopy}>
-        <Text style={styles.chestTitle}>{title}</Text>
-        <Text style={styles.chestState}>{state}</Text>
-        <Text style={styles.chestSub}>{type}</Text>
+      {body}
+    </View>
+  );
+}
+
+function ChestExchangeOverlay({ visible, shards, chestInventory, chestCosts, onClose, onBuyChest, onOpenChest }) {
+  if (!visible) return null;
+  return (
+    <View style={styles.exchangeBackdrop}>
+      <View style={styles.exchangePanel}>
+        <TouchableOpacity style={styles.exchangeClose} onPress={onClose}>
+          <Text style={styles.exchangeCloseTxt}>×</Text>
+        </TouchableOpacity>
+        <Text style={styles.exchangeTitle}>Chest Exchange</Text>
+        <Text style={styles.exchangeSub}>Shards: {shards ?? 0}</Text>
+        <View style={styles.exchangeRow}>
+          <Text style={styles.exchangeRowTitle}>Gear Chest x{chestInventory?.gear ?? 0}</Text>
+          <TouchableOpacity
+            style={styles.exchangeBtn}
+            onPress={() => onOpenChest?.('gear')}
+            disabled={(chestInventory?.gear ?? 0) <= 0}
+          >
+            <Text style={styles.exchangeBtnTxt}>Open</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.exchangeBtn} onPress={() => onBuyChest?.('gear')}>
+            <Text style={styles.exchangeBtnTxt}>Buy {chestCosts?.gear ?? 24}</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.exchangeRow}>
+          <Text style={styles.exchangeRowTitle}>Monster Chest x{chestInventory?.monster ?? 0}</Text>
+          <TouchableOpacity
+            style={styles.exchangeBtn}
+            onPress={() => onOpenChest?.('monster')}
+            disabled={(chestInventory?.monster ?? 0) <= 0}
+          >
+            <Text style={styles.exchangeBtnTxt}>Open</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.exchangeBtn} onPress={() => onBuyChest?.('monster')}>
+            <Text style={styles.exchangeBtnTxt}>Buy {chestCosts?.monster ?? 72}</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.exchangeFoot}>Duplicate gear becomes shards. Duplicate monsters are kept for future combine.</Text>
       </View>
     </View>
   );
@@ -254,6 +404,7 @@ export default function MonsterLadderHubScreen({
 }) {
   const [rewardsOpen, setRewardsOpen] = useState(false);
   const [activeCardOpen, setActiveCardOpen] = useState(false);
+  const [chestExchangeOpen, setChestExchangeOpen] = useState(false);
   const ml = monsterLadder;
   const stage = useMemo(() => getCurrentStage(ml), [ml]);
   const theme = useMemo(() => getLadderTheme(stage.mainLevel), [stage.mainLevel]);
@@ -355,27 +506,6 @@ export default function MonsterLadderHubScreen({
               </View>
             </View>
 
-            <View style={styles.chestInventoryPanel}>
-              <View style={styles.chestInventoryRow}>
-                <Text style={styles.chestInventoryTitle}>Gear Chest x{chestInventory.gear ?? 0}</Text>
-                <TouchableOpacity style={styles.chestMiniBtn} onPress={() => onOpenChest?.('gear')} disabled={(chestInventory.gear ?? 0) <= 0}>
-                  <Text style={styles.chestMiniTxt}>Open</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.chestMiniBtn} onPress={() => onBuyChest?.('gear')}>
-                  <Text style={styles.chestMiniTxt}>Buy {chestCosts?.gear ?? 24}</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.chestInventoryRow}>
-                <Text style={styles.chestInventoryTitle}>Monster Chest x{chestInventory.monster ?? 0}</Text>
-                <TouchableOpacity style={styles.chestMiniBtn} onPress={() => onOpenChest?.('monster')} disabled={(chestInventory.monster ?? 0) <= 0}>
-                  <Text style={styles.chestMiniTxt}>Open</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.chestMiniBtn} onPress={() => onBuyChest?.('monster')}>
-                  <Text style={styles.chestMiniTxt}>Buy {chestCosts?.monster ?? 72}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
             <View style={styles.stagePanel}>
               <View style={styles.nodeRow}>
                 {Array.from({ length: 10 }, (_, i) => {
@@ -398,7 +528,12 @@ export default function MonsterLadderHubScreen({
             <View style={styles.chestPanel}>
               <ChestCard title="Gear Chest" state={gearChestState} type="Sub 5" />
               <ChestCard title="Monster Chest" state={monsterChestState} type="Sub 10" />
-              <ChestCard title="Premium Chest" state="premium" type="Future" />
+              <ChestCard
+                title="Chest Exchange"
+                state="exchange"
+                type="Shards"
+                onPress={() => setChestExchangeOpen(true)}
+              />
             </View>
 
             <View style={styles.bottomPanel}>
@@ -411,6 +546,15 @@ export default function MonsterLadderHubScreen({
               />
             </View>
             {rewardsOpen ? <RewardsCodexOverlay onClose={() => setRewardsOpen(false)} /> : null}
+            <ChestExchangeOverlay
+              visible={chestExchangeOpen}
+              shards={ml.ladderShards}
+              chestInventory={chestInventory}
+              chestCosts={chestCosts}
+              onClose={() => setChestExchangeOpen(false)}
+              onBuyChest={onBuyChest}
+              onOpenChest={onOpenChest}
+            />
             {activeCardOpen && activeFighter ? (
               <View style={styles.cardOverlay}>
                 <View style={[styles.monsterCard, { borderColor: rarityUi?.border ?? '#facc15' }]}>
@@ -694,50 +838,64 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
   },
-  chestInventoryPanel: {
-    position: 'absolute',
-    top: '54%',
-    left: '13%',
-    width: '74%',
-    minHeight: '7%',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(250, 204, 21, 0.42)',
-    backgroundColor: 'rgba(19, 9, 37, 0.58)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    gap: 4,
+  exchangeBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 55,
+    backgroundColor: 'rgba(4, 2, 14, 0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '5%',
   },
-  chestInventoryRow: {
+  exchangePanel: {
+    width: '92%',
+    maxWidth: 380,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#facc15',
+    backgroundColor: 'rgba(15, 8, 34, 0.98)',
+    padding: 18,
+  },
+  exchangeClose: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(127, 29, 29, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exchangeCloseTxt: { color: '#fff', fontSize: 20, fontWeight: '900', lineHeight: 22 },
+  exchangeTitle: { color: '#fff7ad', fontWeight: '900', fontSize: 22, textAlign: 'center' },
+  exchangeSub: { color: '#c4b5fd', fontWeight: '900', fontSize: 14, textAlign: 'center', marginTop: 4, marginBottom: 12 },
+  exchangeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(250, 204, 21, 0.35)',
+    backgroundColor: 'rgba(25, 13, 42, 0.72)',
   },
-  chestInventoryTitle: {
-    flex: 1,
-    color: '#fff3ca',
-    fontSize: 8,
-    fontWeight: '900',
-  },
-  chestMiniBtn: {
-    minHeight: 20,
-    paddingHorizontal: 6,
-    borderRadius: 7,
+  exchangeRowTitle: { flex: 1, color: '#fff3ca', fontSize: 11, fontWeight: '900' },
+  exchangeBtn: {
+    minHeight: 30,
+    paddingHorizontal: 8,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#facc15',
     backgroundColor: 'rgba(88, 28, 135, 0.94)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chestMiniTxt: {
-    color: '#fff7ad',
-    fontSize: 7,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-  },
+  exchangeBtnTxt: { color: '#fff7ad', fontSize: 9, fontWeight: '900', textTransform: 'uppercase' },
+  exchangeFoot: { color: '#bfdbfe', fontSize: 10, fontWeight: '800', lineHeight: 14, marginTop: 4 },
   stagePanel: {
     position: 'absolute',
-    top: '70.3%',
+    top: '68.5%',
     left: '12.5%',
     width: '75%',
     height: '8.8%',
@@ -832,8 +990,9 @@ const styles = StyleSheet.create({
   chestClaimed: {
     borderColor: '#86efac',
   },
-  chestPremium: {
-    borderColor: '#e9d5ff',
+  chestExchange: {
+    borderColor: '#fde68a',
+    backgroundColor: 'rgba(88, 28, 135, 0.72)',
   },
   chestImg: {
     width: 24,
@@ -1212,5 +1371,49 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontWeight: '800',
     marginTop: 1,
+  },
+  catalogGearThumb: {
+    width: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catalogTapHint: {
+    color: '#fde68a',
+    fontSize: 6,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    marginTop: 1,
+    letterSpacing: 0.4,
+  },
+  codexCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    backgroundColor: 'rgba(4, 2, 14, 0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '5%',
+  },
+  codexDetailCard: {
+    width: '84%',
+    maxWidth: 340,
+    borderRadius: 22,
+    borderWidth: 3,
+    backgroundColor: 'rgba(15, 23, 42, 0.98)',
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#facc15',
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+  },
+  codexDetailEmoji: {
+    fontSize: 48,
+    marginVertical: 8,
+  },
+  codexDetailLine: {
+    color: '#bbf7d0',
+    fontWeight: '800',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

@@ -101,9 +101,9 @@ export function createPhaserBattleScene(Phaser) {
       const fighter = this.fighters[key] || {};
       const bossScale =
         key === 'enemy' && fighter.stageKind === 'bigBoss'
-          ? fighter.rarity === 'mythic' ? 1.38 : 1.28
+          ? 1.6
           : key === 'enemy' && fighter.stageKind === 'miniBoss'
-            ? 1.16
+            ? 1.3
             : 1;
       this.actors[key] = new MonsterActor(this, Phaser, {
         key,
