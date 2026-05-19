@@ -801,7 +801,6 @@ export default function App() {
     }
     persistSave(nextGd, 'coins_changed', slotProfileId);
     playSound('shop');
-    showNotice('Monster Mart', `${getMonsterTemplate(templateId)?.name ?? 'Monster'} joined your team!`);
   }
 
   function fighterFromSetupId(ownedId, profileId) {

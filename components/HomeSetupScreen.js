@@ -143,6 +143,7 @@ export default function HomeSetupScreen({
   const [loginPin, setLoginPin] = useState('');
   const [loginMsg, setLoginMsg] = useState('');
   const loginScrollRef = useRef(null);
+  const syncedMonsterIdRef = useRef(null);
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const activeWallet = walletP1 || wallet;
@@ -160,7 +161,11 @@ export default function HomeSetupScreen({
       })
       .filter((g) => g.mainCount > 0);
   }, [monsters, ladderOwnedMonsters]);
-  const canStart = !!selectedP1Id && monsters.some((m) => m.id === selectedP1Id);
+  const effectiveP1Id =
+    selectedP1Id && monsters.some((m) => m.id === selectedP1Id)
+      ? selectedP1Id
+      : monsters[0]?.id ?? null;
+  const canStart = !!effectiveP1Id;
   const multiplayerHandler = onEnterMultiplayer || onOpenOnlineLobby;
   const playerName = activeProfile?.name || slotProfileName || 'Trainer';
 
@@ -176,6 +181,16 @@ export default function HomeSetupScreen({
   useEffect(() => {
     if (tray !== 'monsters') setCardMonster(null);
   }, [tray]);
+
+  useEffect(() => {
+    if (!effectiveP1Id || effectiveP1Id === selectedP1Id) {
+      syncedMonsterIdRef.current = effectiveP1Id;
+      return;
+    }
+    if (syncedMonsterIdRef.current === effectiveP1Id) return;
+    syncedMonsterIdRef.current = effectiveP1Id;
+    onSelectMonster?.(effectiveP1Id);
+  }, [effectiveP1Id, selectedP1Id, onSelectMonster]);
 
   function resetLoginModalLayout() {
     loginScrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -464,7 +479,7 @@ export default function HomeSetupScreen({
         <View style={styles.trayHeader}>
           <View>
             <Text style={styles.trayTitle}>Monsters</Text>
-            <Text style={styles.traySub}>Your collection · tap for stats · equip from card</Text>
+            <Text style={styles.traySub}>Tap to equip · portrait for stats card</Text>
           </View>
           <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
             <Text style={styles.trayCloseText}>Close</Text>
@@ -489,25 +504,29 @@ export default function HomeSetupScreen({
             const mergeTargetId = group.primary?.id ?? primary.id;
             return (
               <View key={group.templateId} style={[styles.monsterSelectRow, picked && styles.monsterChipActive]}>
-                <Pressable
-                  style={styles.monsterSelectMain}
-                  onPress={pressWithSound(() => {
-                    const fighter = fighterFromOwned(primary);
-                    if (fighter) setCardMonster(primary);
-                  })}
-                >
-                  <View style={styles.monsterSelectPortrait}>
+                <View style={styles.monsterSelectMain}>
+                  <Pressable
+                    style={styles.monsterSelectPortrait}
+                    onPress={pressWithSound(() => {
+                      const fighter = fighterFromOwned(primary);
+                      if (fighter) setCardMonster(primary);
+                    })}
+                  >
                     <MonsterPreview parts={primary.monsterParts} size={46} mood={picked ? 'happy' : 'neutral'} />
-                  </View>
-                  <View style={styles.monsterSelectMeta}>
+                    <Text style={styles.monsterCardHint}>Stats</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.monsterSelectMeta}
+                    onPress={pressWithSound(() => onSelectMonster?.(primary.id))}
+                  >
                     <Text style={styles.monsterChipText} numberOfLines={1}>
                       {group.displayName}{countLabel}
                     </Text>
                     <Text style={styles.monsterChipSub}>
                       Lv {primary.level ?? 1}{mergeLabel}{picked ? ' · Selected' : ''}
                     </Text>
-                  </View>
-                </Pressable>
+                  </Pressable>
+                </View>
                 {group.canMerge && onMergeMonster ? (
                   <Pressable
                     style={styles.mergeBtn}
@@ -624,6 +643,11 @@ export default function HomeSetupScreen({
               <Text style={styles.topPlayerName} numberOfLines={1}>{playerName}</Text>
             </View>
 
+            {onlineBanner}
+            {loginOpen ? renderLoginModal() : null}
+            {tray === 'monsters' ? renderMonsterTray() : null}
+            {tray === 'cloud' ? renderCloudTray() : null}
+
             <View style={styles.menuLayer} pointerEvents="box-none">
               <FantasyButton
                 label="Start Battle"
@@ -657,11 +681,6 @@ export default function HomeSetupScreen({
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
-
-            {onlineBanner}
-            {loginOpen ? renderLoginModal() : null}
-            {tray === 'monsters' ? renderMonsterTray() : null}
-            {tray === 'cloud' ? renderCloudTray() : null}
           </View>
         </ImageBackground>
       </View>
@@ -763,6 +782,7 @@ const styles = StyleSheet.create({
   },
   menuLayer: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 30,
   },
   fantasyButton: {
     position: 'absolute',
@@ -854,6 +874,7 @@ const styles = StyleSheet.create({
   menuButtonSix: { top: '73%' },
   bottomNavButton: {
     position: 'absolute',
+    zIndex: 30,
     top: '90%',
     width: '17%',
     height: '6.4%',
@@ -1175,7 +1196,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,224,143,0.86)',
     backgroundColor: 'rgba(15, 22, 42, 0.82)',
     padding: 10,
-    pointerEvents: 'auto',
+    zIndex: 20,
     ...webShadow,
   },
   trayHeader: {
@@ -1352,13 +1373,21 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   monsterSelectPortrait: {
-    width: 48,
-    height: 48,
+    width: 52,
+    minHeight: 52,
     borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.22)',
+    backgroundColor: 'rgba(108,92,231,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    paddingVertical: 2,
+  },
+  monsterCardHint: {
+    color: '#c4b5fd',
+    fontWeight: '900',
+    fontSize: 7,
+    textTransform: 'uppercase',
+    marginTop: 1,
   },
   monsterSelectMain: {
     flex: 1,
