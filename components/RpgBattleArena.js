@@ -3,6 +3,7 @@ import { Animated, ImageBackground, StyleSheet, Text, useWindowDimensions, View 
 import AnimatedMonster from './AnimatedMonster';
 import { expToAdvanceFrom } from '../utils/expLevel';
 import {
+  debugBattleMonsterLayout,
   enemyBossDisplayScale,
   getMonsterPlacement,
   getStrictLayout,
@@ -150,9 +151,15 @@ export default function RpgBattleArena({
   const narrow = width < 520;
   const L = useMemo(() => getStrictLayout(width, height), [width, height]);
   const stageKind = enemyStageKind ?? p2?.ladderStageKind;
-  const placement = useMemo(() => getMonsterPlacement(stageKind, L), [stageKind, L]);
+  const placement = useMemo(() => getMonsterPlacement(stageKind, L, width), [stageKind, L, width]);
   const p1MonsterSize = Math.round(L.p1Monster * playerBossEncounterScale(stageKind));
   const p2MonsterSize = Math.round(L.p2Monster * enemyBossDisplayScale(stageKind));
+
+  useEffect(() => {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      debugBattleMonsterLayout(stageKind, L, width);
+    }
+  }, [stageKind, L, width, p1MonsterSize, p2MonsterSize]);
   const p1Focus = useRef(new Animated.Value(activeTurn === 1 ? 1 : 0)).current;
   const p2Focus = useRef(new Animated.Value(activeTurn === 2 ? 1 : 0)).current;
 
@@ -266,7 +273,7 @@ export default function RpgBattleArena({
         style={[
           styles.playerMonster,
           {
-            left: placement.sideInset,
+            left: placement.p1Left,
             bottom: placement.p1Bottom,
             opacity: p1Opacity,
             transform: [{ scale: p1Scale }],
@@ -317,7 +324,7 @@ export default function RpgBattleArena({
         style={[
           styles.enemyMonster,
           {
-            right: placement.sideInset,
+            right: placement.p2Right,
             bottom: placement.p2Bottom,
             opacity: p2Opacity,
             transform: [{ scale: p2Scale }],

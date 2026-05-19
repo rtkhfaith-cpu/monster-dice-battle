@@ -285,7 +285,11 @@ export default function AnimatedMonster({
     Math.max(0, Number(parts.visualFormTier ?? parts.evolutionTierIndex) || 0),
   );
   const statTier = Math.min(5, Math.max(0, Number(parts.evolutionTierIndex) || 0));
-  const scaledSize = size * (1 + visualTier * 0.055 + Math.max(0, statTier - visualTier) * 0.02);
+  const battleMode = hideGroundShadow;
+  const tierBump = battleMode
+    ? visualTier * 0.02 + Math.max(0, statTier - visualTier) * 0.01
+    : visualTier * 0.055 + Math.max(0, statTier - visualTier) * 0.02;
+  const scaledSize = size * (1 + tierBump);
   const baseBob = (themed ? -5.4 : -4.4) - visualTier * 1.4 - Math.max(0, statTier - visualTier) * 0.5;
   const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, baseBob * profile.bobMul] });
   const swayMag = (themed ? 3.4 : 2.6) * profile.swayMul;
@@ -312,16 +316,16 @@ export default function AnimatedMonster({
   });
   const glowOpacity = ragePulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
 
-  const padTop = Math.round(scaledSize * 0.22);
-  const padSides = Math.round(scaledSize * 0.14);
+  const padTop = Math.round(scaledSize * (battleMode ? 0.06 : 0.22));
+  const padSides = Math.round(scaledSize * (battleMode ? 0.04 : 0.14));
 
   return (
     <View
       style={[
         styles.wrap,
         {
-          minHeight: scaledSize * 1.35 + padTop,
-          minWidth: scaledSize * 1.28 + padSides * 2,
+          minHeight: scaledSize * (battleMode ? 1.06 : 1.35) + padTop,
+          minWidth: scaledSize * (battleMode ? 1.04 : 1.28) + padSides * 2,
           paddingTop: padTop,
           paddingHorizontal: padSides,
         },

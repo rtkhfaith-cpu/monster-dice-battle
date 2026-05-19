@@ -4,8 +4,8 @@ import { getAllowedCpuRarities } from './fighterFromOwned';
 import { getMonsterTemplate, MONSTER_CATALOG } from './monsterTemplates';
 import { coinWinForEnemyLevel } from './rewards';
 
-/** 5% chance for a main-menu CPU battle to spawn a catalog mini boss. */
-export const MAIN_MINI_BOSS_CHANCE = 0.05;
+/** 20% chance for a main-menu CPU battle to spawn a catalog mini boss (testing). */
+export const MAIN_MINI_BOSS_CHANCE = 0.2;
 
 /** Mini boss stats = same template at level × this multiplier (vs normal CPU 0.9×). */
 export const MAIN_MINI_BOSS_STAT_MULT = 1.5;
