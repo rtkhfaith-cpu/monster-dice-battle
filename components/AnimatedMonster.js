@@ -316,8 +316,8 @@ export default function AnimatedMonster({
   });
   const glowOpacity = ragePulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
 
-  const padTop = Math.round(scaledSize * (battleMode ? 0.06 : 0.22));
-  const padSides = Math.round(scaledSize * (battleMode ? 0.04 : 0.14));
+  const padTop = Math.round(scaledSize * (battleMode ? 0.02 : 0.22));
+  const padSides = Math.round(scaledSize * (battleMode ? 0.02 : 0.14));
 
   return (
     <View

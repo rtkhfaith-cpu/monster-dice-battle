@@ -53,6 +53,7 @@ import {
   stageTypeBanner,
 } from './utils/monsterLadder';
 import { initAudio } from './utils/audioManager';
+import { loadGameFonts } from './utils/gameFonts';
 import { pickFunnyWinTitle, winTitleForRarity } from './utils/rewards';
 import {
   activeWallet,
@@ -373,6 +374,7 @@ export default function App() {
   }, [phase]);
 
   useEffect(() => {
+    loadGameFonts();
     applyAudioSettings();
     initAudio();
     void loadSaveApiConfig();

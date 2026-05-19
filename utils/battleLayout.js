@@ -2,6 +2,13 @@ import { BREAKPOINT_MOBILE } from './responsive';
 
 /** Symmetrical arcade battle layout — mirrored left/right fighters. */
 
+/** Extra % from top of arena for battle comment / turn badge text */
+export const BATTLE_COMMENT_TOP_SHIFT_PCT = 10;
+
+function battleCommentTopPct(base) {
+  return `${base + BATTLE_COMMENT_TOP_SHIFT_PCT}%`;
+}
+
 /** All battle-screen monster sprites (RN arena + Phaser lab). */
 export const BATTLE_MONSTER_SIZE_MULT = 0.7;
 
@@ -43,23 +50,20 @@ export function getMonsterPlacement(stageKind, layout, screenWidth = 0) {
   const mobile = layout.compactHud;
 
   /** Fraction of arena width reserved as empty margin on each side (normal fights = wider). */
+  const normalInset = phone ? 0.1 : mobile ? 0.16 : 0.22;
   const insetFrac = boss
     ? phone
       ? 0.07
       : mobile
         ? 0.1
         : 0.15
-    : phone
-      ? 0.1
-      : mobile
-        ? 0.16
-        : 0.22;
+    : normalInset * 1.15;
 
   const insetPx = w > 0 ? Math.round(w * insetFrac) : 0;
 
   return {
-    p1Bottom: boss ? layout.monsterBottomPlayerBoss : layout.monsterBottom,
-    p2Bottom: boss ? layout.monsterBottomEnemyBoss : layout.monsterBottom,
+    p1Bottom: boss ? layout.monsterBottomBoss : layout.monsterBottom,
+    p2Bottom: boss ? layout.monsterBottomBoss : layout.monsterBottom,
     /** @deprecated use p1Left / p2Right when screenWidth provided */
     sideInset: layout.monsterSideInset,
     p1Left: insetPx,
@@ -124,10 +128,8 @@ export function getStrictLayout(width, height) {
     diceInactive: mobile ? 48 : 64,
     /** Shared ground line (% from bottom of arena) */
     monsterBottom: phone ? '15%' : mobile ? '13%' : '10%',
-    /** Boss: shrunk player reads low — nudge up slightly */
-    monsterBottomPlayerBoss: phone ? '17%' : mobile ? '15%' : '12%',
-    /** Boss: enlarged enemy reads high — nudge down to match ground */
-    monsterBottomEnemyBoss: phone ? '11%' : mobile ? '9%' : '6%',
+    /** Mini boss / boss — same ground line for player and enemy */
+    monsterBottomBoss: phone ? '13%' : mobile ? '11%' : '9%',
     /** Horizontal inset from arena edges (higher = fighters farther apart) */
     monsterSideInset: phone ? '6%' : mobile ? '9%' : '14%',
     statsTop: phone ? '10.5%' : mobile ? '9.5%' : '8.5%',
@@ -135,13 +137,13 @@ export function getStrictLayout(width, height) {
     stageBadgeTop: phone ? '6.2%' : mobile ? '5.8%' : '5.6%',
     stageBadgeW: phone ? 164 : mobile ? 184 : 220,
     stageBadgeMinH: phone ? 34 : mobile ? 36 : 40,
-    turnTop: phone ? '27%' : mobile ? '28%' : '29%',
-    combatTurnTop: phone ? '22%' : mobile ? '23%' : '24%',
+    turnTop: battleCommentTopPct(phone ? 27 : mobile ? 28 : 29),
+    combatTurnTop: battleCommentTopPct(phone ? 22 : mobile ? 23 : 24),
     monsterLaneY: 0.48,
     compactHud: mobile,
     phone,
-    /** Battle comment — ~25% from top (between top and screen center) */
-    commentTop: Math.round(height * 0.25),
+    /** Battle comment — ~35% from top (between top and screen center) */
+    commentTop: Math.round(height * 0.35),
     commentLeft: Math.round(width * 0.05),
     commentW: Math.round(width * 0.9),
   };

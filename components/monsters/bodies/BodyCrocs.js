@@ -1,6 +1,6 @@
 import React from 'react';
 import { Circle, Ellipse, G, Path } from 'react-native-svg';
-import { DEFAULT_ST, RigArm, RigFace, RigLeg, ShadeBody } from '../../../art/monsters/monsterRig';
+import { DEFAULT_ST, RigArm, RigDecorCircle, RigDecorEllipse, RigFace, RigLeg, ShadeBody } from '../../../art/monsters/monsterRig';
 import { resolvePalette } from './shared';
 
 /** Crocs Goblin — shoe-head alien, riverbank slick */
@@ -15,9 +15,9 @@ export default function BodyCrocs({ stroke, m, mood, eyeWhite, pupil, palette, S
         stroke={stroke}
         strokeWidth={ST}
       />
-      <Ellipse cx={100} cy={148} rx={74} ry={28} fill={p.light} stroke={stroke} strokeWidth={ST} />
+      <RigDecorEllipse cx={100} cy={148} rx={74} ry={28} fill={p.light} stroke={stroke} strokeWidth={ST} />
       {[46, 72, 100, 128, 154].map((x) => (
-        <Circle key={x} cx={x} cy={134} r={7} fill={p.glow} stroke={stroke} strokeWidth={2} />
+        <RigDecorCircle key={x} cx={x} cy={134} r={7} fill={p.glow} stroke={stroke} strokeWidth={2} />
       ))}
       <Ellipse cx={100} cy={86} rx={30} ry={34} fill={p.accent} stroke={stroke} strokeWidth={ST} />
       <Path d="M 70 60 Q 66 44 76 40 Q 86 48 80 62" fill={p.accent} stroke={stroke} strokeWidth={ST - 2} />

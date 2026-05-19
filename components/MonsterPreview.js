@@ -152,7 +152,7 @@ export default function MonsterPreview({
     <View
       style={{
         width: size,
-        height: size * (hideBuiltInShadow ? 1.08 : 1.06),
+        height: size * (hideBuiltInShadow ? 1.02 : 1.06),
         alignSelf: 'center',
         justifyContent: 'flex-start',
         overflow: 'visible',

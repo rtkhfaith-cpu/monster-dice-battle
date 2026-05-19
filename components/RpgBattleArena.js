@@ -7,11 +7,13 @@ import {
   enemyBossDisplayScale,
   getMonsterPlacement,
   getStrictLayout,
+  isBossEncounter,
   playerBossEncounterScale,
 } from '../utils/battleLayout';
 import { ELEMENT_UI } from '../utils/elements';
 import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
 import { ART } from '../utils/artDirection';
+import { FONT_BATTLE_COMBAT, FONT_BATTLE_COMMENT } from '../utils/gameFonts';
 import { BATTLE } from '../utils/gameTheme';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
@@ -154,6 +156,9 @@ export default function RpgBattleArena({
   const placement = useMemo(() => getMonsterPlacement(stageKind, L, width), [stageKind, L, width]);
   const p1MonsterSize = Math.round(L.p1Monster * playerBossEncounterScale(stageKind));
   const p2MonsterSize = Math.round(L.p2Monster * enemyBossDisplayScale(stageKind));
+  const bossFight = isBossEncounter(stageKind);
+  /** Pull smaller player sprite down so feet meet boss ground line */
+  const p1BossFeetNudge = bossFight ? Math.round((p2MonsterSize - p1MonsterSize) * 0.14) : 0;
 
   useEffect(() => {
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
@@ -275,6 +280,7 @@ export default function RpgBattleArena({
           {
             left: placement.p1Left,
             bottom: placement.p1Bottom,
+            marginBottom: p1BossFeetNudge ? -p1BossFeetNudge : 0,
             opacity: p1Opacity,
             transform: [{ scale: p1Scale }],
           },
@@ -764,24 +770,28 @@ const styles = StyleSheet.create({
     zIndex: 22,
   },
   turnBadgeTxt: {
-    fontWeight: '900',
-    fontSize: 17,
-    lineHeight: 23,
-    color: '#ffffff',
+    fontFamily: FONT_BATTLE_COMMENT,
+    fontWeight: '400',
+    fontSize: 18,
+    lineHeight: 24,
+    color: '#fff9f0',
     textAlign: 'center',
+    letterSpacing: 0.6,
     textShadowColor: 'rgba(0, 0, 0, 0.88)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 8,
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
     width: '100%',
   },
   turnBadgeTxtCombat: {
-    fontSize: 36,
-    lineHeight: 42,
+    fontFamily: FONT_BATTLE_COMBAT,
+    fontWeight: '400',
+    fontSize: 40,
+    lineHeight: 46,
     color: '#FFD700',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(120, 80, 0, 0.95)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 10,
+    letterSpacing: 1.5,
+    textShadowColor: 'rgba(80, 40, 0, 0.95)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 8,
   },
   roundBadge: {
     position: 'absolute',

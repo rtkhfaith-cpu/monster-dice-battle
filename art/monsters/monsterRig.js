@@ -40,6 +40,7 @@ export function ShadeBody({ gradId, palette, highlight, shadow, children }) {
 
 /** Cartoon arm: shoulder → elbow → round claw/hand */
 export function RigArm({ sx, sy, ex, ey, hx, hy, stroke, fill, sw = DEFAULT_ST - 2, claw = false }) {
+  const isBattle = useContext(BattleShadingContext);
   return (
     <G>
       <Path
@@ -50,15 +51,19 @@ export function RigArm({ sx, sy, ex, ey, hx, hy, stroke, fill, sw = DEFAULT_ST -
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <Circle cx={hx} cy={hy} r={claw ? 11 : 9} fill={fill} stroke={stroke} strokeWidth={sw} />
-      {claw ? (
-        <Path
-          d={`M ${hx - 6} ${hy - 4} L ${hx} ${hy - 10} L ${hx + 6} ${hy - 4}`}
-          fill={fill}
-          stroke={stroke}
-          strokeWidth={2}
-          strokeLinejoin="round"
-        />
+      {!isBattle ? (
+        <>
+          <Circle cx={hx} cy={hy} r={claw ? 11 : 9} fill={fill} stroke={stroke} strokeWidth={sw} />
+          {claw ? (
+            <Path
+              d={`M ${hx - 6} ${hy - 4} L ${hx} ${hy - 10} L ${hx + 6} ${hy - 4}`}
+              fill={fill}
+              stroke={stroke}
+              strokeWidth={2}
+              strokeLinejoin="round"
+            />
+          ) : null}
+        </>
       ) : null}
     </G>
   );
@@ -86,12 +91,34 @@ export function RigFootPad(props) {
   return <Ellipse {...props} />;
 }
 
+/** Decorative ellipse — hidden in battle (large light shoe/belly ovals read as white rings). */
+export function RigDecorEllipse(props) {
+  const isBattle = useContext(BattleShadingContext);
+  if (isBattle) return null;
+  return <Ellipse {...props} />;
+}
+
+/** Decorative circle — hidden in battle. */
+export function RigDecorCircle(props) {
+  const isBattle = useContext(BattleShadingContext);
+  if (isBattle) return null;
+  return <Circle {...props} />;
+}
+
+/** Decorative path / gleam stroke — hidden in battle. */
+export function RigDecorPath(props) {
+  const isBattle = useContext(BattleShadingContext);
+  if (isBattle) return null;
+  return <Path {...props} />;
+}
+
 /** Mech panel with bolt */
 export function RigPanel({ x, y, w, h, rx = 6, fill, stroke, sw = DEFAULT_ST - 1, bolts = true }) {
+  const isBattle = useContext(BattleShadingContext);
   return (
     <G>
       <Rect x={x} y={y} width={w} height={h} rx={rx} fill={fill} stroke={stroke} strokeWidth={sw} />
-      {bolts ? (
+      {bolts && !isBattle ? (
         <>
           <Circle cx={x + 8} cy={y + 8} r={2.5} fill="#dfe6e9" stroke={stroke} strokeWidth={1} />
           <Circle cx={x + w - 8} cy={y + 8} r={2.5} fill="#dfe6e9" stroke={stroke} strokeWidth={1} />
@@ -143,6 +170,7 @@ export function RigFace({
   brawler = false,
 }) {
   const isBattle = useContext(BattleShadingContext);
+  const sclera = isBattle ? '#c8ced8' : eyeWhite;
   const eyeL = cx - 20 * scale;
   const eyeR = cx + 20 * scale;
   const eyeY = cy - 5 * scale;
@@ -165,8 +193,8 @@ export function RigFace({
           <LayerSubsurface cx={eyeR + 14} cy={eyeY + 10} r={7} color="#ff9eb5" opacity={0.45} />
         </>
       ) : null}
-      <Circle cx={eyeL} cy={eyeY} r={r} fill={eyeWhite} stroke={stroke} strokeWidth={sw - 1} />
-      <Circle cx={eyeR} cy={eyeY} r={r} fill={eyeWhite} stroke={stroke} strokeWidth={sw - 1} />
+      <Circle cx={eyeL} cy={eyeY} r={r} fill={sclera} stroke={stroke} strokeWidth={sw - 1} />
+      <Circle cx={eyeR} cy={eyeY} r={r} fill={sclera} stroke={stroke} strokeWidth={sw - 1} />
       <Circle cx={eyeL + brow} cy={eyeY + 2} r={pr} fill={pupil} />
       <Circle cx={eyeR - brow} cy={eyeY + 2} r={pr} fill={pupil} />
       {!isBattle ? (
@@ -194,7 +222,7 @@ export function RigFace({
           strokeLinecap="round"
         />
       )}
-      {brawler && mood !== 'happy' ? (
+      {brawler && mood !== 'happy' && !isBattle ? (
         <Path
           d={`M ${cx - 6} ${mouthY + 2} L ${cx - 2} ${mouthY + 6} L ${cx + 2} ${mouthY + 2}`}
           fill="#fff"
