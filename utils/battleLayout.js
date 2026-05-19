@@ -74,13 +74,18 @@ export function getMonsterPlacement(stageKind, layout, screenWidth = 0) {
     insetPx = Math.min(insetPx, maxInsetForGap);
   }
 
+  /** Mini boss sits slightly closer to the right edge */
+  const miniBossRightNudgePx =
+    stageKind === 'miniBoss' && w > 0 ? Math.round(w * 0.03) : 0;
+  const p2RightPx = Math.max(0, insetPx - miniBossRightNudgePx);
+
   return {
     p1Bottom: boss ? layout.monsterBottomBoss : layout.monsterBottom,
     p2Bottom: boss ? layout.monsterBottomBoss : layout.monsterBottom,
     /** @deprecated use p1Left / p2Right when screenWidth provided */
     sideInset: layout.monsterSideInset,
     p1Left: insetPx,
-    p2Right: insetPx,
+    p2Right: p2RightPx,
     insetFrac,
   };
 }

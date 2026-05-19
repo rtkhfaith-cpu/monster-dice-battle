@@ -390,7 +390,7 @@ export default function BattleProjectileLayer({
             },
           ]}
         >
-          {Math.max(0, Math.round(effect.damage ?? 0))}
+          {`-${Math.max(0, Math.round(effect.damage ?? 0))}`}
         </Animated.Text>
       ) : null}
 

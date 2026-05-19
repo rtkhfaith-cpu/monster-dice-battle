@@ -384,7 +384,7 @@ export function createPhaserBattleScene(Phaser) {
       const damage = Math.max(0, Math.round(result.damage ?? 0));
       if (result.crit) this.showFeedbackImage(actor.x, actor.y - 154, ACTION_IMAGE_ASSETS.feedbackCritical.key);
       else if (result.defended) this.showFeedbackImage(actor.x, actor.y - 154, ACTION_IMAGE_ASSETS.feedbackGuard.key);
-      const label = `${damage}`;
+      const label = `-${damage}`;
       this.showFloatingText(actor.x, actor.y - 122, label, {
         color: result.crit ? '#facc15' : result.defended ? '#bfdbfe' : '#ef4444',
         size: result.crit ? 34 : result.defended ? 22 : 27,
