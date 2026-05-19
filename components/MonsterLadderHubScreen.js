@@ -6,6 +6,7 @@ import { getLadderMonsterTemplate, LADDER_MONSTER_CATALOG } from '../utils/monst
 import { LADDER_GEAR_CATALOG } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderTheme } from '../utils/monsterLadder/ladderLevelThemes';
 import { mergeLadderMonsterParts } from '../utils/monsterLadder/ladderProfile';
+import { computeLadderBattleStats } from '../utils/monsterLadder/ladderStatsCalc';
 import {
   formatStageLabel,
   getCurrentStage,
@@ -37,10 +38,16 @@ function rarityPercent(rarity) {
   return `${Number.isInteger(pct) ? pct : pct.toFixed(1)}%`;
 }
 
+function formatStats(stats) {
+  if (!stats) return '';
+  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max}`;
+}
+
 function CatalogChip({ item, type }) {
   const color = RARITY_TONE[item.rarity] ?? '#fff';
   const sub = type === 'gear' ? `${item.slot} gear` : `${item.element} ${item.role}`;
   const monsterParts = type === 'monster' ? mergeLadderMonsterParts(item.id) : null;
+  const monsterStats = type === 'monster' ? computeLadderBattleStats(item.id, 1)?.stats : null;
   return (
     <View style={[styles.catalogChip, type === 'monster' && styles.catalogChipMonster, { borderColor: color }]}>
       {type === 'monster' ? (
@@ -55,6 +62,7 @@ function CatalogChip({ item, type }) {
         <Text style={[styles.catalogMeta, { color }]} numberOfLines={1}>
           {rarityLabel(item.rarity)} · {sub}
         </Text>
+        {monsterStats ? <Text style={styles.catalogStats} numberOfLines={1}>{formatStats(monsterStats)}</Text> : null}
       </View>
     </View>
   );
@@ -992,5 +1000,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 1,
     textTransform: 'capitalize',
+  },
+  catalogStats: {
+    color: '#a7f3d0',
+    fontSize: 7,
+    fontWeight: '800',
+    marginTop: 1,
   },
 });

@@ -3,6 +3,7 @@ import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import MonsterPreview from './MonsterPreview';
 import { mergeMonsterParts } from '../utils/gameStorage';
 import { MONSTER_CATALOG, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
+import { computeBattleStats } from '../utils/statsCalc';
 import { monsterShopPrice } from '../src/gameBalance/shop';
 
 /** Count owned instances per template id */
@@ -12,6 +13,11 @@ function ownedCounts(wallet) {
     m[om.templateId] = (m[om.templateId] || 0) + 1;
   }
   return m;
+}
+
+function formatStats(stats) {
+  if (!stats) return '';
+  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max} · DEF ${stats.def.min}-${stats.def.max}`;
 }
 
 export default function MonsterMarketModal({ visible, coins, wallet, onClose, onBuy }) {
@@ -30,6 +36,7 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
               const purchasable = typeof price === 'number';
               const afford = purchasable && (coins ?? 0) >= price;
               const previewParts = mergeMonsterParts(m.id);
+              const base = computeBattleStats(m.id, 1)?.stats;
               return (
                 <View key={m.id} style={[styles.row, { borderLeftColor: ru.border }]}>
                   <View style={styles.thumbCol}>
@@ -41,6 +48,7 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
                       <Text style={[styles.rChip, { backgroundColor: ru.chipBg, color: ru.chipFg }]}>{ru.label}</Text>
                     </View>
                     <Text style={styles.role}>{ROLE_LABELS[m.role] ?? m.role}</Text>
+                    <Text style={styles.stats}>{formatStats(base)}</Text>
                     <Text style={styles.desc}>{m.description}</Text>
                     <Text style={styles.ownedLbl}>{count ? `Owned ×${count}` : 'Not owned yet'}</Text>
                   </View>
@@ -137,6 +145,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   role: { fontWeight: '900', fontSize: 12, color: '#c4b5fd', marginTop: 2 },
+  stats: { fontWeight: '900', fontSize: 11, color: '#86efac', marginTop: 3, lineHeight: 15 },
   desc: { fontWeight: '800', fontSize: 13, color: '#bfdbfe', marginTop: 4, lineHeight: 18 },
   ownedLbl: { fontWeight: '900', fontSize: 12, color: '#86efac', marginTop: 4 },
   right: { justifyContent: 'space-between', alignItems: 'flex-end', width: 88 },

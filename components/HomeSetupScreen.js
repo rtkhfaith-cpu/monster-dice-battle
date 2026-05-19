@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import MonsterPreview from './MonsterPreview';
 import OnlineRoomBanner from './OnlineRoomBanner';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
@@ -190,9 +191,14 @@ export default function HomeSetupScreen({
               <Text style={styles.topCoinIcon}>◈</Text>
               <Text style={styles.topCoinText}>{coins ?? 0}</Text>
             </View>
-            <Text style={styles.topPlayerName} numberOfLines={1} pointerEvents="none">
-              {playerName}
-            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Select owned monster"
+              onPress={pressWithSound(() => toggleTray('monsters'))}
+              style={({ pressed }) => [styles.topPlayerNameBtn, pressed && styles.realButtonPressed]}
+            >
+              <Text style={styles.topPlayerName} numberOfLines={1}>{playerName}</Text>
+            </Pressable>
 
             <View style={styles.menuLayer} pointerEvents="box-none">
               <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonOne} onPress={pressWithSound(onOpenGearMart)} />
@@ -222,6 +228,7 @@ export default function HomeSetupScreen({
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
 
             {onlineBanner}
+            {tray === 'monsters' ? renderMonsterTray() : null}
             {tray === 'profile' ? renderProfileTray() : null}
             {tray === 'cloud' ? renderCloudTray() : null}
           </View>
@@ -384,6 +391,50 @@ export default function HomeSetupScreen({
     );
   }
 
+  function renderMonsterTray() {
+    return (
+      <View style={styles.tray} pointerEvents="box-none">
+        <View style={styles.trayHeader}>
+          <View>
+            <Text style={styles.trayTitle}>Owned Monsters</Text>
+            <Text style={styles.traySub}>Tap a monster to use it in main battles</Text>
+          </View>
+          <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
+            <Text style={styles.trayCloseText}>Close</Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          style={styles.trayScroll}
+          contentContainerStyle={styles.monsterPickStrip}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
+          nestedScrollEnabled
+        >
+          {monsters.map((monster) => {
+            const picked = monster.id === selectedP1Id;
+            return (
+              <Pressable
+                key={monster.id}
+                onPress={pressWithSound(() => onSelectMonster?.(monster.id))}
+                style={[styles.monsterSelectRow, picked && styles.monsterChipActive]}
+              >
+                <View style={styles.monsterSelectPortrait}>
+                  <MonsterPreview parts={monster.monsterParts} size={46} mood={picked ? 'happy' : 'neutral'} />
+                </View>
+                <View style={styles.monsterSelectMeta}>
+                  <Text style={styles.monsterChipText} numberOfLines={1}>
+                    {monster.nickname || monster.templateId || 'Monster'}
+                  </Text>
+                  <Text style={styles.monsterChipSub}>Lv {monster.level ?? 1}{picked ? ' · Selected' : ''}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  }
+
   function renderCloudTray() {
     return (
       <View style={styles.tray} pointerEvents="box-none">
@@ -506,11 +557,19 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 2,
   },
-  topPlayerName: {
+  topPlayerNameBtn: {
     position: 'absolute',
     top: '4.8%',
     right: '5%',
     maxWidth: '34%',
+    minHeight: 28,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    paddingHorizontal: 6,
+    borderRadius: 999,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  topPlayerName: {
     color: '#fff8df',
     fontSize: 14,
     fontWeight: '900',
@@ -708,6 +767,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
+  traySub: {
+    color: '#bfdbfe',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 1,
+  },
   trayClose: {
     minHeight: 32,
     justifyContent: 'center',
@@ -840,6 +905,33 @@ const styles = StyleSheet.create({
     color: '#d9f7ff',
     fontWeight: '800',
     fontSize: 10,
+  },
+  monsterSelectRow: {
+    flexGrow: 1,
+    flexBasis: '47%',
+    minHeight: 68,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  monsterSelectPortrait: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  monsterSelectMeta: {
+    flex: 1,
+    minWidth: 0,
   },
   createBox: {
     gap: 7,

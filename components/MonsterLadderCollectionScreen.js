@@ -5,6 +5,11 @@ import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { fighterFromLadderOwned } from '../utils/monsterLadder/ladderFighters';
 
+function formatStats(stats) {
+  if (!stats) return '';
+  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max}`;
+}
+
 export default function MonsterLadderCollectionScreen({
   visible,
   ownedMonsters,
@@ -42,6 +47,7 @@ export default function MonsterLadderCollectionScreen({
                       <Text style={styles.lv}>
                         Lv {om.level} · {RARITY_UI[t?.rarity]?.label ?? t?.rarity}
                       </Text>
+                      <Text style={styles.stats} numberOfLines={2}>{formatStats(f?.baseStats || f?.stats)}</Text>
                     </View>
                     {active ? <Text style={styles.badge}>ACTIVE</Text> : null}
                   </TouchableOpacity>
@@ -90,6 +96,7 @@ const styles = StyleSheet.create({
   meta: { flex: 1 },
   name: { fontWeight: '900', fontSize: 15, color: '#1a1a2e' },
   lv: { fontWeight: '700', fontSize: 12, color: '#636e72', marginTop: 2 },
+  stats: { fontWeight: '800', fontSize: 11, color: '#2563eb', marginTop: 3, lineHeight: 14 },
   badge: {
     fontWeight: '900',
     fontSize: 10,
