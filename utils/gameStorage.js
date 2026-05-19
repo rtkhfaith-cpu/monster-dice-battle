@@ -26,6 +26,7 @@ import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
+import { rollMainBattleChestDrop } from './mainBattleChest';
 
 export const SAVE_KEY = 'MONSTER_DICE_BATTLE_SAVE';
 const LEGACY_KEY_V2 = 'monster_dice_battle_v2';
@@ -895,6 +896,16 @@ export function awardBattleRewards(gameData, payload) {
     }
   }
 
+  let mainChestDrop = null;
+  if (
+    payload.mode === 'onePlayer'
+    && payload.outcome === 1
+    && payload.mainChestAlreadyClaimed
+    && payload.mainChestDrop
+  ) {
+    mainChestDrop = payload.mainChestDrop;
+  }
+
   return {
     gameData: gd,
     summary: {
@@ -904,6 +915,50 @@ export function awardBattleRewards(gameData, payload) {
       bonusUnderdog,
       expP1: r1,
       expP2: r2,
+      mainChestDrop,
     },
   };
+}
+
+/**
+ * Roll and apply a main-game mini boss chest reward (called from battle screen before results).
+ * @param {object} gameData
+ * @param {string|null} profileId
+ * @param {{ p1OwnedId?: string|null, enemyLevel?: number }} payload
+ */
+export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) {
+  const gd = cloneGameData(gameData);
+  const profile = profileId ? getPlayerProfile(gd, profileId) : null;
+  const wallet = walletForProfile(gd, profileId);
+  if (!profile || !wallet) return { gameData: gd, drop: null, error: 'Profile not found.' };
+
+  const drop = rollMainBattleChestDrop(profile, { enemyLevel: payload.enemyLevel ?? 1 });
+  const applied = { ...drop };
+
+  if (drop.kind === 'gold') {
+    wallet.coins += drop.amount;
+    applied.coinsTotal = wallet.coins;
+  } else if (drop.kind === 'exp') {
+    applied.expPack = grantExpInWallet(wallet, payload.p1OwnedId ?? null, drop.amount);
+  } else if (drop.kind === 'gear') {
+    const owned = wallet.cosmeticsOwned || [];
+    if (owned.includes(drop.id)) {
+      const alt = Math.max(8, Math.floor(coinWinForEnemyLevel(payload.enemyLevel ?? 1) * 0.45));
+      wallet.coins += alt;
+      applied.kind = 'gold';
+      applied.amount = alt;
+      applied.duplicate = true;
+      applied.label = `${alt} coins`;
+    } else {
+      wallet.cosmeticsOwned = [...owned, drop.id];
+      applied.duplicate = false;
+    }
+  } else if (drop.kind === 'monster') {
+    const om = generateOwnedMonster(drop.id);
+    applied.duplicate = wallet.ownedMonsters.some((m) => m.templateId === drop.id);
+    wallet.ownedMonsters.push(om);
+    applied.ownedId = om.id;
+  }
+
+  return { gameData: gd, drop: applied };
 }

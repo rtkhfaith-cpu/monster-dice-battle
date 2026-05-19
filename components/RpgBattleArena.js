@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, ImageBackground, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import AnimatedMonster from './AnimatedMonster';
 import { expToAdvanceFrom } from '../utils/expLevel';
-import { getStrictLayout } from '../utils/battleLayout';
+import { enemyBossDisplayScale, getStrictLayout } from '../utils/battleLayout';
 import { ELEMENT_UI } from '../utils/elements';
 import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
 import { ART } from '../utils/artDirection';
@@ -108,6 +108,8 @@ export default function RpgBattleArena({
   sicklyFlashP2 = false,
   flyStrikeP1 = false,
   flyStrikeP2 = false,
+  mainMiniBossEncounter = false,
+  enemyStageKind = 'normal',
 }) {
   const p1Flash = useRef(new Animated.Value(0)).current;
   const p2Flash = useRef(new Animated.Value(0)).current;
@@ -142,9 +144,8 @@ export default function RpgBattleArena({
   const { width, height } = useWindowDimensions();
   const narrow = width < 520;
   const L = useMemo(() => getStrictLayout(width, height), [width, height]);
-  const enemyBossDisplayScale =
-    p2?.ladderStageKind === 'bigBoss' ? 1.6 : p2?.ladderStageKind === 'miniBoss' ? 1.3 : 1;
-  const p2MonsterSize = Math.round(L.p2Monster * enemyBossDisplayScale);
+  const bossScale = enemyBossDisplayScale(enemyStageKind ?? p2?.ladderStageKind);
+  const p2MonsterSize = Math.round(L.p2Monster * bossScale);
   const p1Focus = useRef(new Animated.Value(activeTurn === 1 ? 1 : 0)).current;
   const p2Focus = useRef(new Animated.Value(activeTurn === 2 ? 1 : 0)).current;
 
@@ -180,9 +181,12 @@ export default function RpgBattleArena({
   const turnShort = turnBadge || '';
   const combatCallout = !!turnBadgeCombatHighlight;
   const battleGroundUri = useMemo(() => {
+    if (mainMiniBossEncounter && GAME_ASSETS.battleGroundEncounter) {
+      return GAME_ASSETS.battleGroundEncounter;
+    }
     const pool = GAME_ASSETS.battleGrounds;
     return pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
-  }, []);
+  }, [mainMiniBossEncounter]);
 
   return (
     <Animated.View

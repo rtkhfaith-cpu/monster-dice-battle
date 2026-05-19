@@ -11,6 +11,7 @@ import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import { getLadderMonsterSkillSet } from './monsterLadder/ladderMonsterSkills';
 import { computeLadderBattleStats } from './monsterLadder/ladderStatsCalc';
 import { mergeLadderMonsterParts } from './monsterLadder/ladderProfile';
+import { MAIN_MINI_BOSS_CHANCE, MAIN_MINI_BOSS_STAT_MULT } from './mainBattleChest';
 
 /**
  * Build runtime fighter object used by BattleScreen from persisted owned monster row.
@@ -166,6 +167,7 @@ export function buildAiFighter(humanFighter, _gameData = null, _profileId = null
   const tpl = getMonsterTemplate(tplId);
   const levelJitter = Math.floor(Math.random() * 3) - 1;
   const level = Math.max(1, Math.min(99, playerLevel + levelJitter));
+  const isMainMiniBoss = Math.random() < MAIN_MINI_BOSS_CHANCE;
 
   const fakeOwned = {
     id: `ai_${Date.now().toString(36)}`,
@@ -178,15 +180,21 @@ export function buildAiFighter(humanFighter, _gameData = null, _profileId = null
   const f = fighterFromOwned(fakeOwned);
   if (!f) return null;
 
-  const ratio = 0.9;
+  const ratio = isMainMiniBoss ? MAIN_MINI_BOSS_STAT_MULT : 0.9;
   const scaled = scaleStatsBundle(f.stats, ratio);
 
   return {
     ...f,
     stats: scaled,
-    displayName: tpl?.name ?? 'CPU',
+    hp: scaled.hp,
+    maxHp: scaled.hp,
+    mp: scaled.mp,
+    maxMp: scaled.mp,
+    displayName: isMainMiniBoss ? `Mini Boss ${tpl?.name ?? 'CPU'}` : (tpl?.name ?? 'CPU'),
     ownedMonsterId: null,
     isAiOpponent: true,
+    isMainMiniBoss,
+    ladderStageKind: isMainMiniBoss ? 'miniBoss' : undefined,
     aiPowerRatio: ratio,
     humanPowerScoreSnapshot: null,
   };

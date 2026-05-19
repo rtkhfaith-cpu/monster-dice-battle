@@ -6,6 +6,8 @@ export const GAME_ASSETS = {
     '/assets/BattleGround/Battleground_2.png',
     '/assets/BattleGround/Battleground_3.png',
   ],
+  /** Main-game 1v CPU mini boss encounter arena */
+  battleGroundEncounter: '/assets/BattleGround/Encounter.png',
   battleActions: {
     attack: '/assets/actions/action_attack.png',
     attack1: '/assets/actions/action_attack1.png',

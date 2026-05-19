@@ -280,31 +280,35 @@ export default function HomeSetupScreen({
             </View>
 
             <View style={styles.loginPanel}>
-              <TextInput
-                value={loginId}
-                onChangeText={(v) => setLoginId(String(v || '').slice(0, 10))}
-                placeholder="ID (10 max)"
-                placeholderTextColor="rgba(255,255,255,0.58)"
-                style={[styles.loginInput, styles.loginIdInput]}
-                maxLength={10}
-                autoCapitalize="none"
-              />
-              <TextInput
-                value={loginPin}
-                onChangeText={(v) => setLoginPin(normalizePlayerKey(v))}
-                placeholder="PIN"
-                placeholderTextColor="rgba(255,255,255,0.58)"
-                style={[styles.loginInput, styles.loginPinInput]}
-                maxLength={4}
-                keyboardType="number-pad"
-                secureTextEntry
-              />
-              <Pressable style={styles.loginMiniBtn} onPress={pressWithSound(handleInlineLogin)}>
-                <Text style={styles.loginMiniTxt}>Login</Text>
-              </Pressable>
-              <Pressable style={styles.loginMiniBtn} onPress={pressWithSound(handleInlineCreate)}>
-                <Text style={styles.loginMiniTxt}>Create</Text>
-              </Pressable>
+              <View style={styles.loginRow}>
+                <TextInput
+                  value={loginId}
+                  onChangeText={(v) => setLoginId(String(v || '').slice(0, 10))}
+                  placeholder="ID (10 max)"
+                  placeholderTextColor="rgba(255,255,255,0.58)"
+                  style={[styles.loginInput, styles.loginIdInput]}
+                  maxLength={10}
+                  autoCapitalize="none"
+                />
+                <TextInput
+                  value={loginPin}
+                  onChangeText={(v) => setLoginPin(normalizePlayerKey(v))}
+                  placeholder="PIN"
+                  placeholderTextColor="rgba(255,255,255,0.58)"
+                  style={[styles.loginInput, styles.loginPinInput]}
+                  maxLength={4}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                />
+              </View>
+              <View style={styles.loginRow}>
+                <Pressable style={[styles.loginMiniBtn, styles.loginActionBtn]} onPress={pressWithSound(handleInlineLogin)}>
+                  <Text style={styles.loginMiniTxt}>Login</Text>
+                </Pressable>
+                <Pressable style={[styles.loginMiniBtn, styles.loginActionBtn]} onPress={pressWithSound(handleInlineCreate)}>
+                  <Text style={styles.loginMiniTxt}>Create</Text>
+                </Pressable>
+              </View>
               {loginMsg ? <Text style={styles.loginMsg} numberOfLines={1}>{loginMsg}</Text> : null}
             </View>
 
@@ -852,20 +856,25 @@ const styles = StyleSheet.create({
   },
   loginPanel: {
     position: 'absolute',
-    top: '35%',
+    top: '31%',
     left: '10%',
     right: '10%',
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'stretch',
     gap: 5,
     paddingHorizontal: 6,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255,224,143,0.62)',
     backgroundColor: 'rgba(15, 22, 42, 0.72)',
     pointerEvents: 'auto',
+  },
+  loginRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    width: '100%',
   },
   loginInput: {
     height: 32,
@@ -899,6 +908,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  loginActionBtn: {
+    flex: 1,
+    minWidth: 0,
+  },
   loginMiniTxt: {
     color: '#fff4c7',
     fontSize: 9,
@@ -906,14 +919,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   loginMsg: {
-    position: 'absolute',
-    left: 10,
-    right: 10,
-    bottom: -15,
     color: '#bfdbfe',
     fontSize: 9,
     fontWeight: '800',
     textAlign: 'center',
+    marginTop: 1,
   },
   tray: {
     position: 'absolute',

@@ -57,6 +57,7 @@ import { pickFunnyWinTitle, winTitleForRarity } from './utils/rewards';
 import {
   activeWallet,
   awardBattleRewards,
+  claimMainBattleMiniBossChest,
   buyGearForMonster,
   buyGearItem,
   buyMonster as purchaseMonsterRow,
@@ -877,6 +878,15 @@ export default function App() {
     }
   }
 
+  function handleClaimMainMiniBossChest(payload) {
+    if (!gameData || !setupP1ProfileId) return Promise.resolve(null);
+    const res = claimMainBattleMiniBossChest(gameData, setupP1ProfileId, payload);
+    if (res.error || !res.drop) return Promise.resolve(null);
+    setGameData(res.gameData);
+    void persistSave(res.gameData, 'main_mini_boss_chest', [setupP1ProfileId]);
+    return Promise.resolve({ drop: res.drop, gameData: res.gameData });
+  }
+
   function startGameFromSetup() {
     if (!setupP1ProfileId) {
       showNotice('Player setup', 'Select or create a player profile first.');
@@ -1109,15 +1119,17 @@ export default function App() {
     setPlayer2(player2Snapshot);
     setWinner(outcome);
 
-    if (!gameData) {
+    if (!gameData && !battleExtras?.gameDataAfterChest) {
       setPhase('gameOver');
       return;
     }
 
+    const baseGameData = battleExtras?.gameDataAfterChest ?? gameData;
+
     const resolvedBattleMode = battleExtras?.mode ?? currentBattleMode ?? gameMode;
     const ladderMode = resolvedBattleMode === 'monsterLadder' || gameMode === 'monsterLadder';
     if (ladderMode) {
-      const { gameData: rewardedGd, summary } = applyMonsterLadderBattleRewards(gameData, setupP1ProfileId, {
+      const { gameData: rewardedGd, summary } = applyMonsterLadderBattleRewards(baseGameData, setupP1ProfileId, {
         outcome,
         enemyLevel: player2Snapshot?.level ?? 1,
         ownedMonsterId: player1Snapshot?.ownedMonsterId ?? null,
@@ -1161,7 +1173,7 @@ export default function App() {
 
     const lastAiWeak = resolvedBattleMode === 'onePlayer' && (player2Snapshot?.aiPowerRatio ?? 2) < 0.82;
 
-    const { gameData: nextGd, summary } = awardBattleRewards(gameData, {
+    const { gameData: nextGd, summary } = awardBattleRewards(baseGameData, {
       outcome: outcome,
       mode: resolvedBattleMode === 'onePlayer' ? 'onePlayer' : 'twoPlayer',
       p1ProfileId: setupP1ProfileId,
@@ -1174,6 +1186,8 @@ export default function App() {
       p2Level: player2Snapshot?.level ?? 1,
       lastAiWasMuchWeaker: lastAiWeak,
       aiPowerRatio: player2Snapshot?.aiPowerRatio ?? null,
+      mainChestAlreadyClaimed: !!battleExtras?.mainChestClaimed,
+      mainChestDrop: battleExtras?.mainChestDrop ?? null,
     });
 
     const profileIds = [setupP1ProfileId, setupP2ProfileId].filter(Boolean);
@@ -1489,6 +1503,7 @@ export default function App() {
             fighter1={player1}
             fighter2={player2}
             onFinish={handleBattleFinish}
+            onClaimMainMiniBossChest={currentBattleMode === 'onePlayer' ? handleClaimMainMiniBossChest : undefined}
             player1Name={
               gameData.players.find((p) => p.id === setupP1ProfileId)?.name ??
               player1.displayName ??
@@ -1505,6 +1520,7 @@ export default function App() {
             opponentIsAi={gameMode === 'onePlayer' || gameMode === 'monsterLadder'}
             battleExtras={{
               mode: currentBattleMode ?? gameMode,
+              mainMiniBoss: !!player2?.isMainMiniBoss,
               ladderFloor: player2?.ladderStageIndex,
               ladderStageKind: player2?.ladderStageKind,
               ladderStageLabel:
@@ -1533,6 +1549,7 @@ export default function App() {
               }
               monsterLadder={!!rewardSummary?.monsterLadder}
               chestDrop={rewardSummary?.chestDrop}
+              mainChestDrop={rewardSummary?.mainChestDrop}
               chestBlocked={!!rewardSummary?.chestBlocked}
               ladderGoldTotal={rewardSummary?.ladderGoldTotal}
               ladderShardsTotal={rewardSummary?.ladderShardsTotal}

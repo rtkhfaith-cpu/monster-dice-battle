@@ -44,6 +44,9 @@ import {
 } from '../utils/battleCombatFeedback';
 import { getActionTiming } from '../utils/battleActionTiming';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
+import { chestDropSubtitle, chestDropTitle } from '../utils/mainBattleChest';
+import { RARITY_UI } from '../utils/monsterTemplates';
+import { getGear } from '../utils/cosmetics';
 
 const RESULT_SFX_DELAY_MS = 450;
 const PLAYER_ID = 1;
@@ -106,6 +109,8 @@ function seedFighter(p) {
     status: p.status ?? null,
     isAiOpponent: !!p.isAiOpponent,
     aiPowerRatio: p.aiPowerRatio ?? null,
+    isMainMiniBoss: !!p.isMainMiniBoss,
+    ladderStageKind: p.ladderStageKind,
   };
 }
 
@@ -155,6 +160,7 @@ export default function BattleScreen({
   fighter1,
   fighter2,
   onFinish,
+  onClaimMainMiniBossChest,
   player1Name = '',
   player2Name = '',
   opponentIsAi = true,
@@ -167,6 +173,7 @@ export default function BattleScreen({
   const ladderBossName = battleExtras?.ladderBossName;
   const ladderStageKind = battleExtras?.ladderStageKind ?? fighter2?.ladderStageKind ?? 'normal';
   const ladderStageLabel = battleExtras?.ladderStageLabel ?? '';
+  const isMainMiniBoss = !!(battleExtras?.mainMiniBoss ?? fighter2?.isMainMiniBoss);
   const bossStageBanner = ladderStageBanner(ladderStageKind);
   const ladderStagePillLabel =
     battleExtras?.mode === 'monsterLadder'
@@ -203,6 +210,12 @@ export default function BattleScreen({
   const [battleIntro, setBattleIntro] = useState(() => !!bossStageBanner);
   const [phaserFailed, setPhaserFailed] = useState(false);
   const [fleeConfirmOpen, setFleeConfirmOpen] = useState(false);
+  const [pendingFinish, setPendingFinish] = useState(null);
+  const [mainChestPhase, setMainChestPhase] = useState(null);
+  const [mainChestDrop, setMainChestDrop] = useState(null);
+  const [mainChestGameData, setMainChestGameData] = useState(null);
+  const [mainChestBusy, setMainChestBusy] = useState(false);
+  const chestDropY = useRef(new Animated.Value(-220)).current;
 
   const effectSeqRef = useRef(0);
   const timerRef = useRef(null);
@@ -358,6 +371,73 @@ export default function BattleScreen({
     setP2Emotion('neutral');
   }
 
+  function finishBattleNow(winner, np1, np2, extras = {}) {
+    setBusy(false);
+    setMainChestPhase(null);
+    setPendingFinish(null);
+    onFinish({
+      winner,
+      player1Snapshot: snapshotFight(np1),
+      player2Snapshot: snapshotFight(np2),
+      battleExtras: {
+        ...battleExtras,
+        mode: battleExtras?.mode ?? 'onePlayer',
+        mainMiniBoss: isMainMiniBoss,
+        ...extras,
+      },
+    });
+  }
+
+  function startMainChestDrop(np1, np2) {
+    setPendingFinish({ np1, np2 });
+    setMainChestPhase('dropping');
+    setMainChestDrop(null);
+    setMainChestGameData(null);
+    chestDropY.setValue(-220);
+    playSound('shop');
+    Animated.spring(chestDropY, {
+      toValue: 0,
+      friction: 7,
+      tension: 42,
+      useNativeDriver: true,
+    }).start(() => {
+      setMainChestPhase('ready');
+      showBanner('Tap the chest to open your reward!');
+    });
+  }
+
+  async function handleMainChestPress() {
+    if (mainChestPhase !== 'ready' || mainChestBusy || !pendingFinish) return;
+    if (!onClaimMainMiniBossChest) {
+      finishBattleNow(PLAYER_ID, pendingFinish.np1, pendingFinish.np2);
+      return;
+    }
+    setMainChestBusy(true);
+    playSound('shop');
+    try {
+      const result = await onClaimMainMiniBossChest({
+        p1OwnedId: pendingFinish.np1?.ownedMonsterId ?? fighter1?.ownedMonsterId ?? null,
+        enemyLevel: pendingFinish.np2?.level ?? fighter2?.level ?? 1,
+      });
+      setMainChestDrop(result?.drop ?? null);
+      setMainChestGameData(result?.gameData ?? null);
+      setMainChestPhase('revealed');
+      if (drop?.kind === 'monster') playSound('levelUp');
+    } finally {
+      setMainChestBusy(false);
+    }
+  }
+
+  function handleMainChestContinue() {
+    if (!pendingFinish) return;
+    tapUi();
+    finishBattleNow(PLAYER_ID, pendingFinish.np1, pendingFinish.np2, {
+      mainChestDrop: mainChestDrop ?? undefined,
+      mainChestClaimed: true,
+      gameDataAfterChest: mainChestGameData ?? undefined,
+    });
+  }
+
   function wrapUpBattle(winnerSide, np1, np2) {
     clearTimers();
     clearAttackEffects();
@@ -372,14 +452,20 @@ export default function BattleScreen({
       if (winner === PLAYER_ID) playSound('win');
       else if (winner === CPU_ID) playSound('lose');
     });
+
+    const mainBossWin =
+      winner === PLAYER_ID
+      && isMainMiniBoss
+      && (battleExtras?.mode === 'onePlayer' || battleExtras?.mode == null)
+      && battleExtras?.mode !== 'monsterLadder';
+
+    if (mainBossWin) {
+      schedule(RESULT_SFX_DELAY_MS + 320, () => startMainChestDrop(np1, np2));
+      return;
+    }
+
     schedule(RESULT_SFX_DELAY_MS + 280, () => {
-      setBusy(false);
-      onFinish({
-        winner,
-        player1Snapshot: snapshotFight(np1),
-        player2Snapshot: snapshotFight(np2),
-        battleExtras: { ...battleExtras, mode: 'onePlayer' },
-      });
+      finishBattleNow(winner, np1, np2);
     });
   }
 
@@ -894,6 +980,8 @@ export default function BattleScreen({
           ) : (
             <>
               <RpgBattleArena
+                mainMiniBossEncounter={isMainMiniBoss && battleExtras?.mode !== 'monsterLadder'}
+                enemyStageKind={ladderStageKind}
                 ladderRegionName={ladderRegionName}
                 ladderBossName={ladderBossName}
                 p1={p1}
@@ -935,6 +1023,12 @@ export default function BattleScreen({
                 {ladderStagePillLabel}
               </Text>
               {bossStageBanner ? <Text style={styles.ladderStagePillBossTxt}>{bossStageBanner}</Text> : null}
+            </View>
+          ) : null}
+          {battleExtras?.mode !== 'monsterLadder' && isMainMiniBoss ? (
+            <View style={[styles.ladderStagePill, styles.ladderStagePillBoss]} pointerEvents="none">
+              <Text style={styles.ladderStagePillMain}>Mini Boss Encounter</Text>
+              <Text style={styles.ladderStagePillBossTxt}>50% stronger · Chest reward</Text>
             </View>
           ) : null}
           {battleIntro && bossStageBanner ? (
@@ -1073,6 +1167,51 @@ export default function BattleScreen({
           )}
         </View>
       </View>
+      {mainChestPhase ? (
+        <View style={styles.mainChestOverlay} pointerEvents="box-none">
+          {(mainChestPhase === 'dropping' || mainChestPhase === 'ready') ? (
+            <Animated.View style={[styles.mainChestDropWrap, { transform: [{ translateY: chestDropY }] }]}>
+              <Pressable
+                onPress={handleMainChestPress}
+                disabled={mainChestPhase !== 'ready' || mainChestBusy}
+                style={({ pressed }) => [styles.mainChestTap, pressed && mainChestPhase === 'ready' && styles.mainChestTapPressed]}
+              >
+                <Image
+                  source={{ uri: GAME_ASSETS.chestClosed }}
+                  style={styles.mainChestImg}
+                  resizeMode="contain"
+                />
+                {mainChestPhase === 'ready' ? (
+                  <Text style={styles.mainChestTapHint}>Tap to open!</Text>
+                ) : null}
+              </Pressable>
+            </Animated.View>
+          ) : null}
+          {mainChestPhase === 'revealed' && mainChestDrop ? (
+            <View
+              style={[
+                styles.mainChestRevealPanel,
+                { borderColor: (RARITY_UI[mainChestDrop.rarity] ?? RARITY_UI.common).border },
+              ]}
+            >
+              <Image
+                source={{ uri: GAME_ASSETS.chestOpen }}
+                style={styles.mainChestImgOpen}
+                resizeMode="contain"
+              />
+              <Text style={styles.mainChestRevealKicker}>Mini Boss Chest</Text>
+              <Text style={styles.mainChestRevealTitle}>{chestDropTitle(mainChestDrop)}</Text>
+              {mainChestDrop.kind === 'gear' ? (
+                <Text style={styles.mainChestRevealEmoji}>{getGear(mainChestDrop.id)?.emoji ?? mainChestDrop.emoji ?? '🎁'}</Text>
+              ) : null}
+              <Text style={styles.mainChestRevealSub}>{chestDropSubtitle(mainChestDrop)}</Text>
+              <Pressable style={styles.mainChestContinueBtn} onPress={handleMainChestContinue}>
+                <Text style={styles.mainChestContinueTxt}>Continue</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       {fleeConfirmOpen ? (
         <View style={styles.fleeOverlay}>
           <View style={styles.fleePanel}>
@@ -1449,5 +1588,99 @@ const styles = StyleSheet.create({
   },
   fleeBtnDangerText: {
     color: '#fff4dc',
+  },
+  mainChestOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(4, 8, 20, 0.42)',
+  },
+  mainChestDropWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mainChestTap: {
+    alignItems: 'center',
+    padding: 12,
+  },
+  mainChestTapPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.96 }],
+  },
+  mainChestImg: {
+    width: 148,
+    height: 148,
+  },
+  mainChestImgOpen: {
+    width: 112,
+    height: 112,
+    marginBottom: 6,
+  },
+  mainChestTapHint: {
+    color: '#fde68a',
+    fontWeight: '900',
+    fontSize: 16,
+    marginTop: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  mainChestRevealPanel: {
+    width: '86%',
+    maxWidth: 340,
+    borderRadius: 22,
+    borderWidth: 3,
+    backgroundColor: 'rgba(15, 23, 42, 0.97)',
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#facc15',
+    shadowOpacity: 0.55,
+    shadowRadius: 16,
+  },
+  mainChestRevealKicker: {
+    color: '#fde68a',
+    fontWeight: '900',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  mainChestRevealTitle: {
+    color: '#fff4cf',
+    fontWeight: '900',
+    fontSize: 24,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  mainChestRevealEmoji: {
+    fontSize: 42,
+    marginVertical: 6,
+  },
+  mainChestRevealSub: {
+    color: '#bbf7d0',
+    fontWeight: '800',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 20,
+  },
+  mainChestContinueBtn: {
+    marginTop: 16,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#2f6f57',
+    borderWidth: 2,
+    borderColor: '#73d7a5',
+    borderBottomWidth: 4,
+    borderBottomColor: '#184332',
+  },
+  mainChestContinueTxt: {
+    color: '#effff5',
+    fontWeight: '900',
+    fontSize: 16,
+    textTransform: 'uppercase',
   },
 });

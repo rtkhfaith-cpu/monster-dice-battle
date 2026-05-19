@@ -1,6 +1,7 @@
 import BattleAnimationController from './BattleAnimationController';
 import MonsterActor from './MonsterActor';
 import { GAME_ASSETS } from '../../utils/gameAssetPaths';
+import { BOSS_DISPLAY_SCALE } from '../../utils/battleLayout';
 import { MONSTER_ASSETS, getNormalMonsterAsset } from './monsterAssetManifest';
 
 export const ACTION_IMAGE_ASSETS = {
@@ -101,9 +102,9 @@ export function createPhaserBattleScene(Phaser) {
       const fighter = this.fighters[key] || {};
       const bossScale =
         key === 'enemy' && fighter.stageKind === 'bigBoss'
-          ? 1.6
+          ? BOSS_DISPLAY_SCALE.bigBoss
           : key === 'enemy' && fighter.stageKind === 'miniBoss'
-            ? 1.3
+            ? BOSS_DISPLAY_SCALE.miniBoss
             : 1;
       this.actors[key] = new MonsterActor(this, Phaser, {
         key,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
+import { chestDropSubtitle, chestDropTitle } from '../utils/mainBattleChest';
 
 function ExpRow({ label, pack }) {
   if (!pack || pack.level == null) return null;
@@ -49,6 +50,7 @@ export default function RewardScreen({
   ladderRegionName,
   monsterLadder = false,
   chestDrop = null,
+  mainChestDrop = null,
   chestBlocked = false,
   ladderGoldTotal,
   ladderShardsTotal,
@@ -108,6 +110,11 @@ export default function RewardScreen({
       ) : null}
       {monsterLadder && chestBlocked ? (
         <Text style={styles.ladderMeta}>Daily chest already claimed. Reset is 6PM Singapore.</Text>
+      ) : null}
+      {!monsterLadder && mainChestDrop ? (
+        <Text style={styles.ladderBonus}>
+          Mini Boss chest: {chestDropTitle(mainChestDrop)} — {chestDropSubtitle(mainChestDrop)}
+        </Text>
       ) : null}
 
       <View style={styles.rewardPanel}>
