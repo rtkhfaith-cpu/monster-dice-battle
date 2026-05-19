@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Image, ImageBackground, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
-import { RARITY_UI } from '../utils/monsterTemplates';
+import { RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate, LADDER_MONSTER_CATALOG } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { LADDER_GEAR_CATALOG } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderTheme } from '../utils/monsterLadder/ladderLevelThemes';
@@ -41,6 +41,24 @@ function rarityPercent(rarity) {
 function formatStats(stats) {
   if (!stats) return '';
   return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max} · HIT ${stats.hitRate ?? 92}% · AGI ${stats.agility ?? stats.speed ?? 10}`;
+}
+
+function statGrid(stats) {
+  if (!stats) return [[], []];
+  const range = (r) => `${r?.min ?? 0}-${r?.max ?? 0}`;
+  return [
+    [
+      ['HP', stats.hp],
+      ['MP', stats.mp],
+      ['ATK', range(stats.attack)],
+      ['MAG', range(stats.magic)],
+    ],
+    [
+      ['DEF', range(stats.def)],
+      ['HIT', `${stats.hitRate ?? 92}%`],
+      ['AGI', stats.agility ?? stats.speed ?? 10],
+    ],
+  ];
 }
 
 function CatalogChip({ item, type }) {
@@ -230,8 +248,12 @@ export default function MonsterLadderHubScreen({
   onStartBattle,
   onOpenCollection,
   onOpenGear,
+  chestCosts,
+  onBuyChest,
+  onOpenChest,
 }) {
   const [rewardsOpen, setRewardsOpen] = useState(false);
+  const [activeCardOpen, setActiveCardOpen] = useState(false);
   const ml = monsterLadder;
   const stage = useMemo(() => getCurrentStage(ml), [ml]);
   const theme = useMemo(() => getLadderTheme(stage.mainLevel), [stage.mainLevel]);
@@ -259,6 +281,7 @@ export default function MonsterLadderHubScreen({
   const rarityUi = RARITY_UI[rarity] ?? RARITY_UI.common;
   const gearChestState = ml.gearChestClaimedToday ? 'claimed' : stage.subLevel >= 5 ? 'available' : 'locked';
   const monsterChestState = ml.monsterChestClaimedToday ? 'claimed' : stage.subLevel >= 10 ? 'available' : 'locked';
+  const chestInventory = ml.chestInventory ?? { gear: 0, monster: 0 };
   const bottomStatus = levelLocked
     ? "Today's level complete. Next level unlocks after 6PM Singapore time."
     : canFight
@@ -288,13 +311,21 @@ export default function MonsterLadderHubScreen({
             </View>
 
             <View style={styles.fighterPanel}>
-              <View style={[styles.monsterPortrait, styles[`rarity_${rarity}`] || styles.rarity_common]}>
+              <TouchableOpacity
+                activeOpacity={0.86}
+                disabled={!activeFighter}
+                onPress={() => setActiveCardOpen(true)}
+                style={[styles.monsterPortrait, styles[`rarity_${rarity}`] || styles.rarity_common]}
+              >
                 {activeFighter ? (
-                  <MonsterPreview parts={activeFighter.monsterParts} size={92} mood="happy" />
+                  <>
+                    <MonsterPreview parts={activeFighter.monsterParts} size={92} mood="happy" />
+                    <Text style={styles.portraitTapHint}>Card</Text>
+                  </>
                 ) : (
                   <Text style={styles.emptyMonster}>?</Text>
                 )}
-              </View>
+              </TouchableOpacity>
               <View style={styles.fighterInfo}>
                 <Text style={styles.fighterName} numberOfLines={1}>
                   {activeFighter?.displayName ?? 'No monster selected'}
@@ -321,6 +352,27 @@ export default function MonsterLadderHubScreen({
                 <Text style={styles.resourceText}>Gold {ml.ladderGold}</Text>
                 <Text style={styles.resourceText}>Shards {ml.ladderShards}</Text>
                 <Text style={styles.resourceText}>Day {getLadderRewardDayKey()}</Text>
+              </View>
+            </View>
+
+            <View style={styles.chestInventoryPanel}>
+              <View style={styles.chestInventoryRow}>
+                <Text style={styles.chestInventoryTitle}>Gear Chest x{chestInventory.gear ?? 0}</Text>
+                <TouchableOpacity style={styles.chestMiniBtn} onPress={() => onOpenChest?.('gear')} disabled={(chestInventory.gear ?? 0) <= 0}>
+                  <Text style={styles.chestMiniTxt}>Open</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.chestMiniBtn} onPress={() => onBuyChest?.('gear')}>
+                  <Text style={styles.chestMiniTxt}>Buy {chestCosts?.gear ?? 24}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.chestInventoryRow}>
+                <Text style={styles.chestInventoryTitle}>Monster Chest x{chestInventory.monster ?? 0}</Text>
+                <TouchableOpacity style={styles.chestMiniBtn} onPress={() => onOpenChest?.('monster')} disabled={(chestInventory.monster ?? 0) <= 0}>
+                  <Text style={styles.chestMiniTxt}>Open</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.chestMiniBtn} onPress={() => onBuyChest?.('monster')}>
+                  <Text style={styles.chestMiniTxt}>Buy {chestCosts?.monster ?? 72}</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -359,6 +411,39 @@ export default function MonsterLadderHubScreen({
               />
             </View>
             {rewardsOpen ? <RewardsCodexOverlay onClose={() => setRewardsOpen(false)} /> : null}
+            {activeCardOpen && activeFighter ? (
+              <View style={styles.cardOverlay}>
+                <View style={[styles.monsterCard, { borderColor: rarityUi?.border ?? '#facc15' }]}>
+                  <TouchableOpacity style={styles.cardClose} onPress={() => setActiveCardOpen(false)}>
+                    <Text style={styles.cardCloseTxt}>×</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.cardKicker}>Ladder Monster</Text>
+                  <Text style={styles.cardName}>{activeFighter.displayName}</Text>
+                  <View style={styles.cardArt}>
+                    <MonsterPreview parts={activeFighter.monsterParts} size={170} mood="happy" />
+                  </View>
+                  <View style={styles.cardMetaRow}>
+                    <Text style={[styles.cardBadge, { backgroundColor: rarityUi?.chipBg ?? '#334155', color: rarityUi?.chipFg ?? '#fff' }]}>
+                      {rarityUi?.label ?? rarity}
+                    </Text>
+                    <Text style={styles.cardRole}>{ROLE_LABELS[activeFighter.role] ?? activeFighter.role}</Text>
+                    <Text style={styles.cardRole}>Lv {activeFighter.level ?? 1}</Text>
+                  </View>
+                  <View style={styles.cardStatsGrid}>
+                    {statGrid(activeFighter.baseStats || activeFighter.stats).map((col, colIndex) => (
+                      <View key={colIndex ? 'right' : 'left'} style={styles.cardStatsCol}>
+                        {col.map(([label, value]) => (
+                          <View key={label} style={styles.cardStatRow}>
+                            <Text style={styles.cardStatLabel}>{label}</Text>
+                            <Text style={styles.cardStatValue}>{value}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            ) : null}
           </View>
         </ImageBackground>
       </View>
@@ -499,6 +584,14 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '900',
   },
+  portraitTapHint: {
+    position: 'absolute',
+    bottom: 3,
+    color: '#fde68a',
+    fontSize: 7,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
   fighterInfo: {
     position: 'absolute',
     top: '10%',
@@ -600,6 +693,47 @@ const styles = StyleSheet.create({
     color: '#9ff7d0',
     fontSize: 10,
     fontWeight: '900',
+  },
+  chestInventoryPanel: {
+    position: 'absolute',
+    top: '54%',
+    left: '13%',
+    width: '74%',
+    minHeight: '7%',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(250, 204, 21, 0.42)',
+    backgroundColor: 'rgba(19, 9, 37, 0.58)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    gap: 4,
+  },
+  chestInventoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  chestInventoryTitle: {
+    flex: 1,
+    color: '#fff3ca',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  chestMiniBtn: {
+    minHeight: 20,
+    paddingHorizontal: 6,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#facc15',
+    backgroundColor: 'rgba(88, 28, 135, 0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chestMiniTxt: {
+    color: '#fff7ad',
+    fontSize: 7,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   stagePanel: {
     position: 'absolute',
@@ -743,6 +877,78 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     lineHeight: 13,
   },
+  cardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 60,
+    backgroundColor: 'rgba(4, 2, 14, 0.74)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4%',
+  },
+  monsterCard: {
+    width: '78%',
+    maxWidth: 360,
+    borderRadius: 24,
+    borderWidth: 3,
+    backgroundColor: 'rgba(15, 23, 42, 0.98)',
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#facc15',
+    shadowOpacity: 0.55,
+    shadowRadius: 18,
+  },
+  cardClose: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(127, 29, 29, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardCloseTxt: { color: '#fff', fontSize: 20, fontWeight: '900', lineHeight: 22 },
+  cardKicker: { color: '#fde68a', fontWeight: '900', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 },
+  cardName: { color: '#fff4cf', fontWeight: '900', fontSize: 23, textAlign: 'center', marginTop: 3 },
+  cardArt: {
+    width: '86%',
+    minHeight: 190,
+    marginVertical: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.32)',
+    backgroundColor: 'rgba(7, 17, 32, 0.86)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  cardBadge: { fontWeight: '900', fontSize: 12, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
+  cardRole: { color: '#c4b5fd', fontWeight: '900', fontSize: 13, textTransform: 'capitalize' },
+  cardStatsGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 14,
+    marginTop: 4,
+  },
+  cardStatsCol: {
+    flex: 1,
+    gap: 5,
+  },
+  cardStatRow: {
+    minHeight: 24,
+    borderRadius: 10,
+    backgroundColor: 'rgba(134, 239, 172, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(134, 239, 172, 0.22)',
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardStatLabel: { color: '#bbf7d0', fontWeight: '900', fontSize: 11 },
+  cardStatValue: { color: '#fff7cc', fontWeight: '900', fontSize: 12 },
   codexBackdrop: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 50,

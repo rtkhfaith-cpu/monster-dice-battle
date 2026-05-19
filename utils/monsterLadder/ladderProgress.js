@@ -16,6 +16,7 @@ import { decodeStage, encodeStage, getStageKind } from './stages';
  * @property {{ gearChestsOpened: number, monsterChestsOpened: number }} pity
  * @property {number} ladderGold
  * @property {number} ladderShards
+ * @property {{ gear: number, monster: number }} chestInventory
  * @property {number} expDust
  * @property {import('./ladderProfile').LadderOwnedMonster[]} ownedMonsters
  * @property {string[]} ownedGear repeated ids are intentional for future forge/material systems
@@ -38,6 +39,7 @@ export function defaultMonsterLadderState() {
     pity: { gearChestsOpened: 0, monsterChestsOpened: 0 },
     ladderGold: 0,
     ladderShards: 0,
+    chestInventory: { gear: 0, monster: 0 },
     expDust: 0,
     ownedMonsters: [],
     ownedGear: [],
@@ -92,6 +94,11 @@ export function normalizeMonsterLadder(raw, legacyLadderProgress) {
 
   base.ladderGold = clampInt(r.ladderGold, 0, 999999999, 0);
   base.ladderShards = clampInt(r.ladderShards, 0, 999999999, 0);
+  const inv = r.chestInventory && typeof r.chestInventory === 'object' ? r.chestInventory : {};
+  base.chestInventory = {
+    gear: clampInt(/** @type {any} */ (inv).gear, 0, 999999, 0),
+    monster: clampInt(/** @type {any} */ (inv).monster, 0, 999999, 0),
+  };
   base.expDust = clampInt(r.expDust, 0, 999999999, 0);
   base.ownedMonsters = Array.isArray(r.ownedMonsters) ? r.ownedMonsters.map(normalizeOwnedRow).filter(Boolean) : [];
   base.ownedGear = Array.isArray(r.ownedGear) ? r.ownedGear.filter((x) => typeof x === 'string') : [];

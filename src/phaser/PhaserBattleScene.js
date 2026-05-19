@@ -249,8 +249,8 @@ export function createPhaserBattleScene(Phaser) {
         fontFamily: 'Arial',
         fontSize: event.critical ? '34px' : '25px',
         fontStyle: '900',
-        color: event.critical ? '#facc15' : '#ffffff',
-        stroke: '#111827',
+        color: event.critical ? '#facc15' : '#ef4444',
+        stroke: event.critical ? '#111827' : '#7f1d1d',
         strokeThickness: 5,
       }).setOrigin(0.5).setDepth(40);
       this.tweens.add({
@@ -380,9 +380,9 @@ export function createPhaserBattleScene(Phaser) {
       else if (result.defended) this.showFeedbackImage(actor.x, actor.y - 154, ACTION_IMAGE_ASSETS.feedbackGuard.key);
       const label = `${damage}`;
       this.showFloatingText(actor.x, actor.y - 122, label, {
-        color: result.crit ? '#facc15' : result.defended ? '#bfdbfe' : '#ffffff',
+        color: result.crit ? '#facc15' : result.defended ? '#bfdbfe' : '#ef4444',
         size: result.crit ? 34 : result.defended ? 22 : 27,
-        stroke: '#111827',
+        stroke: result.crit || result.defended ? '#111827' : '#7f1d1d',
       });
     }
 

@@ -16,6 +16,28 @@ import {
 } from '../utils/gearSlots';
 import { useReadableType } from '../utils/readableType';
 
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'attack', label: 'Attack' },
+  { id: 'magic', label: 'Magic' },
+  { id: 'defense', label: 'Defense' },
+  { id: 'speed', label: 'Speed' },
+  { id: 'element', label: 'Element' },
+  { id: 'utility', label: 'Utility' },
+];
+
+function gearMatchesFilter(g, filter) {
+  if (filter === 'all') return true;
+  const b = g.bonuses || {};
+  if (filter === 'attack') return !!(b.attackMin || b.attackMax || b.critPct);
+  if (filter === 'magic') return !!(b.magicMin || b.magicMax || b.mp || b.magicDefMin || b.magicDefMax);
+  if (filter === 'defense') return !!(b.hp || b.defMin || b.defMax || b.magicDefMin || b.magicDefMax);
+  if (filter === 'speed') return !!(b.dodgePct || b.agility || b.hitRate);
+  if (filter === 'element') return !!g.element;
+  if (filter === 'utility') return !!b.expPct || g.category === 'fun';
+  return true;
+}
+
 function StatBlock({ label, base, bonus, total, type }) {
   const showBonus = bonus > 0;
   return (
@@ -28,11 +50,14 @@ function StatBlock({ label, base, bonus, total, type }) {
   );
 }
 
-function GearShopRow({ g, have, worn, afford, selectedSlot, slotsFull, onBuy, onEquip, onUnequip, type }) {
+function GearShopRow({ g, have, worn, afford, selectedSlot, slotsFull, onBuy, onEquip, onUnequip, onDetails, type }) {
   const bonusLines = formatGearBonusLines(g);
   return (
     <View style={styles.row}>
-      <Text style={styles.emoji}>{g.emoji}</Text>
+      <TouchableOpacity style={styles.emojiCard} onPress={() => onDetails?.(g)} activeOpacity={0.86}>
+        <Text style={styles.emoji}>{g.emoji}</Text>
+        <Text style={styles.tapHint}>Details</Text>
+      </TouchableOpacity>
       <View style={styles.mid}>
         <Text style={[styles.name, { fontSize: type.stat }]}>{g.name}</Text>
         <Text style={[styles.slot, { fontSize: type.statSm }]}>
@@ -96,6 +121,7 @@ export default function MonsterGearScreen({
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [filterCat, setFilterCat] = useState('all');
   const [tab, setTab] = useState('equip');
+  const [detailGear, setDetailGear] = useState(null);
 
   const unlockedSlots = getUnlockedSlotCount(ownedMonster);
   const slots = normalizeEquippedSlots(ownedMonster?.equippedGear, unlockedSlots);
@@ -106,8 +132,7 @@ export default function MonsterGearScreen({
   const total = fighter?.stats;
 
   const catalog = useMemo(() => {
-    if (filterCat === 'all') return GEAR_CATALOG;
-    return GEAR_CATALOG.filter((g) => g.category === filterCat);
+    return GEAR_CATALOG.filter((g) => gearMatchesFilter(g, filterCat));
   }, [filterCat]);
 
   const ownedCatalog = useMemo(
@@ -254,6 +279,7 @@ export default function MonsterGearScreen({
                       slotsFull={slots}
                       onEquip={handleEquip}
                       onUnequip={onUnequip}
+                      onDetails={setDetailGear}
                       type={type}
                     />
                   ))
@@ -270,14 +296,14 @@ export default function MonsterGearScreen({
                   </TouchableOpacity>
                 ) : null}
                 <View style={styles.filterRow}>
-                  {['all', 'stat', 'element', 'fun'].map((cat) => (
+                  {FILTERS.map((filter) => (
                     <TouchableOpacity
-                      key={cat}
-                      style={[styles.filterChip, filterCat === cat && styles.filterChipOn]}
-                      onPress={() => setFilterCat(cat)}
+                      key={filter.id}
+                      style={[styles.filterChip, filterCat === filter.id && styles.filterChipOn]}
+                      onPress={() => setFilterCat(filter.id)}
                     >
-                      <Text style={[styles.filterTxt, filterCat === cat && styles.filterTxtOn]}>
-                        {cat === 'all' ? 'All' : GEAR_CATEGORY_LABELS[cat]}
+                      <Text style={[styles.filterTxt, filterCat === filter.id && styles.filterTxtOn]}>
+                        {filter.label}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -294,6 +320,7 @@ export default function MonsterGearScreen({
                     onBuy={onBuy}
                     onEquip={handleEquip}
                     onUnequip={onUnequip}
+                    onDetails={setDetailGear}
                     type={type}
                   />
                 ))}
@@ -304,6 +331,23 @@ export default function MonsterGearScreen({
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
             <Text style={[styles.closeTxt, { fontSize: type.btn }]}>Done</Text>
           </TouchableOpacity>
+          {detailGear ? (
+            <View style={styles.detailOverlay}>
+              <View style={styles.detailCard}>
+                <TouchableOpacity style={styles.detailClose} onPress={() => setDetailGear(null)}>
+                  <Text style={styles.detailCloseTxt}>×</Text>
+                </TouchableOpacity>
+                <Text style={styles.detailEmoji}>{detailGear.emoji}</Text>
+                <Text style={styles.detailName}>{detailGear.name}</Text>
+                <Text style={styles.detailMeta}>
+                  {GEAR_CATEGORY_LABELS[detailGear.category] ?? detailGear.category} · {detailGear.ladderExclusive ? 'Chest reward' : `${detailGear.price} coins`}
+                </Text>
+                {formatGearBonusLines(detailGear).map((line) => (
+                  <Text key={line} style={styles.detailLine}>{line}</Text>
+                ))}
+              </View>
+            </View>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -461,7 +505,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(14, 28, 52, 0.82)',
     marginBottom: 8,
   },
-  emoji: { fontSize: 32, width: 44, textAlign: 'center' },
+  emojiCard: { width: 54, alignItems: 'center', justifyContent: 'center' },
+  emoji: { fontSize: 32, textAlign: 'center' },
+  tapHint: { color: '#fde68a', fontWeight: '900', fontSize: 8, textTransform: 'uppercase', marginTop: 1 },
   mid: { flex: 1, paddingHorizontal: 6, minWidth: 0 },
   name: { fontWeight: '900', color: '#fff4cf' },
   slot: { fontWeight: '800', color: '#c4b5fd', marginTop: 2 },
@@ -491,4 +537,47 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,224,138,0.62)',
   },
   closeTxt: { fontWeight: '900', color: '#fff1bc', textTransform: 'uppercase' },
+  detailOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(3, 7, 18, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  detailCard: {
+    width: '90%',
+    maxWidth: 340,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#facc15',
+    backgroundColor: 'rgba(15, 23, 42, 0.98)',
+    padding: 18,
+    alignItems: 'center',
+  },
+  detailClose: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(127, 29, 29, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailCloseTxt: { color: '#fff', fontSize: 20, fontWeight: '900', lineHeight: 22 },
+  detailEmoji: { fontSize: 54, marginBottom: 4 },
+  detailName: { color: '#fff4cf', fontWeight: '900', fontSize: 22, textAlign: 'center' },
+  detailMeta: { color: '#c4b5fd', fontWeight: '900', fontSize: 13, marginTop: 4, marginBottom: 10 },
+  detailLine: {
+    alignSelf: 'stretch',
+    color: '#bbf7d0',
+    fontWeight: '900',
+    fontSize: 13,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(134, 239, 172, 0.1)',
+  },
 });

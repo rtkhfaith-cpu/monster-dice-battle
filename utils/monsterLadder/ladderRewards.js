@@ -1,6 +1,7 @@
 import { addExperience, subtractExperience, expToAdvanceFrom, expWinForEnemyLevel, expLossPenalty } from '../expLevel';
 import { ladderCoinsForEnemyLevel } from '../../src/gameBalance/rewards';
 import {
+  LADDER_CHEST_SHARD_COST,
   LADDER_EXP_MULTIPLIER,
   LADDER_SHARDS_BY_RARITY,
 } from './ladderConstants';
@@ -43,6 +44,15 @@ function addLadderGearToMainInventory(profile, gearId) {
 
 function countOwnedGear(ml, gearId) {
   return (ml.ownedGear || []).filter((id) => id === gearId).length;
+}
+
+function ensureChestInventory(ml) {
+  if (!ml.chestInventory || typeof ml.chestInventory !== 'object') {
+    ml.chestInventory = { gear: 0, monster: 0 };
+  }
+  ml.chestInventory.gear = Math.max(0, Math.floor(ml.chestInventory.gear || 0));
+  ml.chestInventory.monster = Math.max(0, Math.floor(ml.chestInventory.monster || 0));
+  return ml.chestInventory;
 }
 
 /**
@@ -91,26 +101,26 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
   if (ladderGoldGain > 0) ml.ladderGold += ladderGoldGain;
 
   let chestDrop = null;
+  let chestAwarded = null;
   let chestBlocked = false;
 
   if (won) {
     advanceMonsterLadderStage(ml, true);
+    const chestInventory = ensureChestInventory(ml);
     const kind = getStageKind(stage.subLevel);
     if (kind === 'miniBoss') {
       if (!ml.gearChestClaimedToday) {
-        chestDrop = resolveChestOpen(profile, ml, 'gear');
+        chestInventory.gear += 1;
+        chestAwarded = 'gear';
         ml.gearChestClaimedToday = true;
-        ml.pity.gearChestsOpened += 1;
-        ml.stats.gearChestsOpened += 1;
       } else {
         chestBlocked = true;
       }
     } else if (kind === 'bigBoss') {
       if (!ml.monsterChestClaimedToday) {
-        chestDrop = resolveChestOpen(profile, ml, 'monster');
+        chestInventory.monster += 1;
+        chestAwarded = 'monster';
         ml.monsterChestClaimedToday = true;
-        ml.pity.monsterChestsOpened += 1;
-        ml.stats.monsterChestsOpened += 1;
       } else {
         chestBlocked = true;
       }
@@ -131,11 +141,44 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
       ladderGoldGain,
       ladderGoldTotal: ml.ladderGold,
       chestDrop,
+      chestAwarded,
       chestBlocked,
       shardsGained: chestDrop?.shardsGained ?? 0,
       ladderShardsTotal: ml.ladderShards,
     },
   };
+}
+
+export function buyMonsterLadderChest(gameData, profileId, type) {
+  if (type !== 'gear' && type !== 'monster') return { gameData, error: 'Unknown chest type.' };
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found.' };
+  const ml = getMonsterLadderState(profile);
+  const cost = LADDER_CHEST_SHARD_COST[type];
+  if ((ml.ladderShards || 0) < cost) return { gameData: gd, error: `Need ${cost} shards.` };
+  const inv = ensureChestInventory(ml);
+  ml.ladderShards -= cost;
+  inv[type] += 1;
+  setMonsterLadderState(profile, ml);
+  return { gameData: gd, chestType: type, cost, ladderShardsTotal: ml.ladderShards };
+}
+
+export function openMonsterLadderChest(gameData, profileId, type) {
+  if (type !== 'gear' && type !== 'monster') return { gameData, error: 'Unknown chest type.' };
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found.' };
+  const ml = getMonsterLadderState(profile);
+  const inv = ensureChestInventory(ml);
+  if ((inv[type] || 0) <= 0) return { gameData: gd, error: 'No chest available.' };
+  inv[type] -= 1;
+  const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
+  const drop = resolveChestOpen(profile, ml, type);
+  ml.pity[pityKey] += 1;
+  ml.stats[pityKey] += 1;
+  setMonsterLadderState(profile, ml);
+  return { gameData: gd, drop, ladderShardsTotal: ml.ladderShards };
 }
 
 /** @param {object} profile @param {import('./ladderProgress').MonsterLadderState} ml @param {'gear'|'monster'} type */
@@ -146,9 +189,9 @@ function resolveChestOpen(profile, ml, type) {
 
   if (roll.kind === 'monster') {
     if (ml.ownedMonsters.some((m) => m.templateId === roll.id) || profileOwnsTemplate(profile, roll.id)) {
-      const shards = LADDER_SHARDS_BY_RARITY[roll.rarity] ?? 8;
-      ml.ladderShards += shards;
-      return { ...roll, duplicate: true, shardsGained: shards };
+      const row = generateLadderOwnedMonster(roll.id);
+      ml.ownedMonsters.push(row);
+      return { ...roll, duplicate: true, ownedId: row.id, shardsGained: 0, futureCombine: true };
     }
     const row = generateLadderOwnedMonster(roll.id);
     ml.ownedMonsters.push(row);
@@ -157,7 +200,13 @@ function resolveChestOpen(profile, ml, type) {
     return { ...roll, duplicate: false, ownedId: row.id, mainOwnedId: mainRow?.id ?? row.id };
   }
 
+  if (countOwnedGear(ml, roll.id) > 0) {
+    const shards = LADDER_SHARDS_BY_RARITY[roll.rarity] ?? 8;
+    ml.ladderShards += shards;
+    return { ...roll, duplicate: true, shardsGained: shards, exchangedForShards: true, quantity: countOwnedGear(ml, roll.id) };
+  }
+
   ml.ownedGear.push(roll.id);
   addLadderGearToMainInventory(profile, roll.id);
-  return { ...roll, duplicate: countOwnedGear(ml, roll.id) > 1, quantity: countOwnedGear(ml, roll.id) };
+  return { ...roll, duplicate: false, quantity: countOwnedGear(ml, roll.id) };
 }

@@ -39,7 +39,11 @@ import RewardScreen from './components/RewardScreen';
 import { buildAiFighter, fighterFromOwned } from './utils/fighterFromOwned';
 import { mergeLadderMonsterParts } from './utils/monsterLadder/ladderProfile';
 import { buildLadderEnemyFighter } from './utils/monsterLadder/ladderFighters';
-import { applyMonsterLadderBattleRewards } from './utils/monsterLadder/ladderRewards';
+import {
+  applyMonsterLadderBattleRewards,
+  buyMonsterLadderChest,
+  openMonsterLadderChest,
+} from './utils/monsterLadder/ladderRewards';
 import {
   formatStageLabel,
   getCurrentStage,
@@ -88,6 +92,7 @@ import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
 import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
+import { LADDER_CHEST_SHARD_COST } from './utils/monsterLadder/ladderConstants';
 import { startBattleMusic, startLadderMusic, startMenuMusic, stopMenuMusic, unlockAudio } from './utils/audioManager';
 
 const LOBBY_PHASES = new Set(['menu', 'ladder', 'online', 'gameOver', 'audioSettings']);
@@ -723,23 +728,32 @@ export default function App() {
     const id = String(profileId || '').trim();
     const pin = normalizePlayerKey(playerKey);
     if (!id || pin.length !== 4) return { ok: false, error: 'Enter ID and 4-digit PIN.' };
-    const localProfile = gameData ? getPlayerProfile(gameData, id) : null;
+    const query = id.toLowerCase();
+    const localProfile = gameData?.players?.find((p) => (
+      String(p.id || '').toLowerCase() === query ||
+      String(p.name || '').toLowerCase() === query
+    )) ?? null;
     if (localProfile) {
+      const localId = localProfile.id;
       if (profileNeedsPlayerKeyMigration(localProfile)) {
-        const next = setPlayerKeyForProfile(gameData, id, pin);
-        markProfileUnlocked(id);
-        persistSave(next, 'player_key_migrated', id);
-        applyProfileSelection(id, next);
-        return { ok: true, profileId: id };
+        const next = setPlayerKeyForProfile(gameData, localId, pin);
+        markProfileUnlocked(localId);
+        persistSave(next, 'player_key_migrated', localId);
+        applyProfileSelection(localId, next);
+        return { ok: true, profileId: localId };
       }
       if (!verifyPlayerKeyForProfile(localProfile, pin)) {
         return { ok: false, error: 'Incorrect PIN.' };
       }
-      markProfileUnlocked(id);
-      applyProfileSelection(id);
-      return { ok: true, profileId: id };
+      markProfileUnlocked(localId);
+      applyProfileSelection(localId);
+      return { ok: true, profileId: localId };
     }
-    return finalizeCloudLogin(id, pin, { requiresKey: true, showModalOnFail: false });
+    const cloudProfile = cloudPlayers.find((p) => (
+      String(p.profileID || '').toLowerCase() === query ||
+      String(p.playerName || '').toLowerCase() === query
+    ));
+    return finalizeCloudLogin(cloudProfile?.profileID || id, pin, { requiresKey: true, showModalOnFail: false });
   }
 
   async function handleMainMenuCreate(name, playerKey) {
@@ -970,6 +984,31 @@ export default function App() {
     profile.monsterLadder = ml;
     persistSave(gd, 'ladder_gear_unequipped', setupP1ProfileId);
     setGameData(gd);
+  }
+
+  function handleBuyLadderChest(type) {
+    if (!gameData || !setupP1ProfileId) return;
+    const res = buyMonsterLadderChest(gameData, setupP1ProfileId, type);
+    if (res.error) {
+      showNotice('Monster Ladder', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'ladder_chest_bought', setupP1ProfileId);
+    setGameData(res.gameData);
+    playSound('shop');
+  }
+
+  function handleOpenLadderChest(type) {
+    if (!gameData || !setupP1ProfileId) return;
+    const res = openMonsterLadderChest(gameData, setupP1ProfileId, type);
+    if (res.error) {
+      showNotice('Monster Ladder', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'ladder_chest_opened', setupP1ProfileId);
+    setGameData(res.gameData);
+    setLadderChestDrop(res.drop);
+    playSound('reward');
   }
 
   function startMonsterLadderBattle() {
@@ -1424,6 +1463,9 @@ export default function App() {
                 setGearOpen(true);
               }
             }}
+            chestCosts={LADDER_CHEST_SHARD_COST}
+            onBuyChest={handleBuyLadderChest}
+            onOpenChest={handleOpenLadderChest}
           />
         ) : null}
 

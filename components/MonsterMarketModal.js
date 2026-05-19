@@ -15,9 +15,22 @@ function ownedCounts(wallet) {
   return m;
 }
 
-function formatStats(stats) {
-  if (!stats) return '';
-  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max} · DEF ${stats.def.min}-${stats.def.max} · HIT ${stats.hitRate ?? 92}% · AGI ${stats.agility ?? stats.speed ?? 10}`;
+function statGrid(stats) {
+  if (!stats) return [[], []];
+  const range = (r) => `${r?.min ?? 0}-${r?.max ?? 0}`;
+  return [
+    [
+      ['HP', stats.hp],
+      ['MP', stats.mp],
+      ['ATK', range(stats.attack)],
+      ['MAG', range(stats.magic)],
+    ],
+    [
+      ['DEF', range(stats.def)],
+      ['HIT', `${stats.hitRate ?? 92}%`],
+      ['AGI', stats.agility ?? stats.speed ?? 10],
+    ],
+  ];
 }
 
 export default function MonsterMarketModal({ visible, coins, wallet, onClose, onBuy }) {
@@ -89,7 +102,18 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
                   <Text style={styles.cardRole}>{ROLE_LABELS[cardMonster.role] ?? cardMonster.role}</Text>
                 </View>
                 <Text style={styles.cardDesc}>{cardMonster.description}</Text>
-                <Text style={styles.cardStats}>{formatStats(cardStats)}</Text>
+                <View style={styles.cardStatsGrid}>
+                  {statGrid(cardStats).map((col, colIndex) => (
+                    <View key={colIndex ? 'right' : 'left'} style={styles.cardStatsCol}>
+                      {col.map(([label, value]) => (
+                        <View key={label} style={styles.cardStatRow}>
+                          <Text style={styles.cardStatLabel}>{label}</Text>
+                          <Text style={styles.cardStatValue}>{value}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+                </View>
               </View>
             </View>
           ) : null}
@@ -246,5 +270,28 @@ const styles = StyleSheet.create({
   cardBadge: { fontWeight: '900', fontSize: 12, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
   cardRole: { color: '#c4b5fd', fontWeight: '900', fontSize: 13, textTransform: 'capitalize' },
   cardDesc: { color: '#bfdbfe', fontWeight: '800', fontSize: 12, lineHeight: 17, textAlign: 'center', marginBottom: 8 },
-  cardStats: { color: '#86efac', fontWeight: '900', fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  cardStatsGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 14,
+    marginTop: 4,
+  },
+  cardStatsCol: {
+    flex: 1,
+    gap: 5,
+  },
+  cardStatRow: {
+    minHeight: 24,
+    borderRadius: 10,
+    backgroundColor: 'rgba(134, 239, 172, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(134, 239, 172, 0.22)',
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardStatLabel: { color: '#bbf7d0', fontWeight: '900', fontSize: 11 },
+  cardStatValue: { color: '#fff7cc', fontWeight: '900', fontSize: 12 },
 });

@@ -17,5 +17,10 @@ export const LADDER_SHARDS_BY_RARITY = LADDER_BALANCE.duplicateShards;
 export const LADDER_EXP_MULTIPLIER = LADDER_BALANCE.expMultiplier;
 export const LADDER_GOLD_MULTIPLIER = LADDER_BALANCE.coinMultiplier;
 
+export const LADDER_CHEST_SHARD_COST = {
+  gear: 24,
+  monster: 72,
+};
+
 export const LADDER_TIMEZONE = LADDER_BALANCE.dailyResetTimeZone;
 export const LADDER_DAILY_RESET_HOUR = LADDER_BALANCE.dailyResetHour;

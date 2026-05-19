@@ -851,9 +851,9 @@ const styles = StyleSheet.create({
   },
   loginPanel: {
     position: 'absolute',
-    top: '75.2%',
-    left: '7%',
-    right: '7%',
+    top: '85.2%',
+    left: '26.25%',
+    right: '26.25%',
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
