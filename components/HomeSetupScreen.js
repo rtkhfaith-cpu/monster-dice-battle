@@ -225,6 +225,7 @@ export default function HomeSetupScreen({
 
   function toggleTray(next) {
     setLoginOpen(false);
+    setCardMonster(null);
     setTray((current) => (current === next ? null : next));
     setCreateError('');
     setCreateOpen(false);
@@ -293,78 +294,10 @@ export default function HomeSetupScreen({
     };
   }
 
-  const onlineBanner =
-    onlineRoom?.roomCode ? (
-      <View style={styles.onlineBanner}>
-        <OnlineRoomBanner
-          roomState={onlineRoom}
-          mySlot={onlineSlot}
-          onOpenLobby={onOpenOnlineLobby || onEnterMultiplayer}
-          onLeaveRoom={onLeaveOnlineRoom}
-        />
-      </View>
-    ) : null;
-
-  return (
-    <View style={styles.root}>
-      <View style={styles.gameFrame}>
-        <ImageBackground
-          source={{ uri: GAME_ASSETS.homeMainMenu }}
-          resizeMode="cover"
-          style={styles.backgroundLayer}
-          imageStyle={styles.backgroundImage}
-        >
-          <View style={styles.uiLayer} pointerEvents="box-none">
-            <View style={styles.topCoinDisplay} pointerEvents="none">
-              <Text style={styles.topCoinIcon}>◈</Text>
-              <Text style={styles.topCoinText}>{coins ?? 0}</Text>
-            </View>
-            <View style={styles.topPlayerNameWrap} pointerEvents="none">
-              <Text style={styles.topPlayerName} numberOfLines={1}>{playerName}</Text>
-            </View>
-
-            <View style={styles.menuLayer} pointerEvents="box-none">
-              <FantasyButton
-                label="Start Battle"
-                icon="▶"
-                variant="primary"
-                style={styles.menuButtonOne}
-                disabled={!canStart}
-                onPress={pressWithSound(onStartGame)}
-              />
-              <FantasyButton
-                label="Multiplayer"
-                icon="⚔"
-                variant="legendary"
-                style={styles.menuButtonTwo}
-                disabled={!multiplayerHandler}
-                onPress={pressWithSound(multiplayerHandler)}
-              />
-              <FantasyButton label="Monster Mart" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
-              <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
-              <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonFive} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
-              <FantasyButton label="Login" icon="🔑" style={styles.menuButtonSix} onPress={pressWithSound(openLoginModal)} />
-            </View>
-
-            <BottomNavButton
-              label="Quests"
-              icon="★"
-              style={styles.bottomQuest}
-              highlight={ladderAvailable}
-              onPress={pressWithSound(onOpenMonsterLadder)}
-            />
-            <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
-            <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
-            <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
-
-            {onlineBanner}
-            {loginOpen ? renderLoginModal() : null}
-            {tray === 'monsters' ? renderMonsterTray() : null}
-            {tray === 'cloud' ? renderCloudTray() : null}
-          </View>
-        </ImageBackground>
-      </View>
-    </View>
+  const selectedMonsterId = activeSlot === 2 ? selectedP2Id : selectedP1Id;
+  const cardFighter = useMemo(
+    () => (cardMonster ? fighterFromOwned(cardMonster) : null),
+    [cardMonster],
   );
 
   function renderLoginModal() {
@@ -525,9 +458,6 @@ export default function HomeSetupScreen({
     );
   }
 
-  const cardFighter = cardMonster ? fighterFromOwned(cardMonster) : null;
-  const selectedMonsterId = activeSlot === 2 ? selectedP2Id : selectedP1Id;
-
   function renderMonsterTray() {
     return (
       <View style={styles.tray} pointerEvents="box-none">
@@ -547,6 +477,9 @@ export default function HomeSetupScreen({
           showsVerticalScrollIndicator
           nestedScrollEnabled
         >
+          {monsterGroups.length === 0 ? (
+            <Text style={styles.trayEmpty}>No monsters yet. Visit Monster Mart!</Text>
+          ) : null}
           {monsterGroups.map((group) => {
             const primary = group.battlePrimary ?? group.primary;
             if (!primary) return null;
@@ -558,7 +491,10 @@ export default function HomeSetupScreen({
               <View key={group.templateId} style={[styles.monsterSelectRow, picked && styles.monsterChipActive]}>
                 <Pressable
                   style={styles.monsterSelectMain}
-                  onPress={pressWithSound(() => setCardMonster(primary))}
+                  onPress={pressWithSound(() => {
+                    const fighter = fighterFromOwned(primary);
+                    if (fighter) setCardMonster(primary);
+                  })}
                 >
                   <View style={styles.monsterSelectPortrait}>
                     <MonsterPreview parts={primary.monsterParts} size={46} mood={picked ? 'happy' : 'neutral'} />
@@ -657,6 +593,80 @@ export default function HomeSetupScreen({
       </View>
     );
   }
+
+  const onlineBanner =
+    onlineRoom?.roomCode ? (
+      <View style={styles.onlineBanner}>
+        <OnlineRoomBanner
+          roomState={onlineRoom}
+          mySlot={onlineSlot}
+          onOpenLobby={onOpenOnlineLobby || onEnterMultiplayer}
+          onLeaveRoom={onLeaveOnlineRoom}
+        />
+      </View>
+    ) : null;
+
+  return (
+    <View style={styles.root}>
+      <View style={styles.gameFrame}>
+        <ImageBackground
+          source={{ uri: GAME_ASSETS.homeMainMenu }}
+          resizeMode="cover"
+          style={styles.backgroundLayer}
+          imageStyle={styles.backgroundImage}
+        >
+          <View style={styles.uiLayer} pointerEvents="box-none">
+            <View style={styles.topCoinDisplay} pointerEvents="none">
+              <Text style={styles.topCoinIcon}>◈</Text>
+              <Text style={styles.topCoinText}>{coins ?? 0}</Text>
+            </View>
+            <View style={styles.topPlayerNameWrap} pointerEvents="none">
+              <Text style={styles.topPlayerName} numberOfLines={1}>{playerName}</Text>
+            </View>
+
+            <View style={styles.menuLayer} pointerEvents="box-none">
+              <FantasyButton
+                label="Start Battle"
+                icon="▶"
+                variant="primary"
+                style={styles.menuButtonOne}
+                disabled={!canStart}
+                onPress={pressWithSound(onStartGame)}
+              />
+              <FantasyButton
+                label="Multiplayer"
+                icon="⚔"
+                variant="legendary"
+                style={styles.menuButtonTwo}
+                disabled={!multiplayerHandler}
+                onPress={pressWithSound(multiplayerHandler)}
+              />
+              <FantasyButton label="Monster Mart" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
+              <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
+              <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonFive} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
+              <FantasyButton label="Login" icon="🔑" style={styles.menuButtonSix} onPress={pressWithSound(openLoginModal)} />
+            </View>
+
+            <BottomNavButton
+              label="Quests"
+              icon="★"
+              style={styles.bottomQuest}
+              highlight={ladderAvailable}
+              onPress={pressWithSound(onOpenMonsterLadder)}
+            />
+            <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
+            <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
+            <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
+
+            {onlineBanner}
+            {loginOpen ? renderLoginModal() : null}
+            {tray === 'monsters' ? renderMonsterTray() : null}
+            {tray === 'cloud' ? renderCloudTray() : null}
+          </View>
+        </ImageBackground>
+      </View>
+    </View>
+  );
 }
 
 const webShadow = Platform.OS === 'web'
@@ -1186,6 +1196,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     marginTop: 1,
+  },
+  trayEmpty: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+    paddingVertical: 16,
   },
   trayClose: {
     minHeight: 32,

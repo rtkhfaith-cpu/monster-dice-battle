@@ -5,7 +5,7 @@ import { RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 
 function statGrid(stats) {
   if (!stats) return [[], []];
-  const range = (r) => `${r?.min ?? 0}-${r?.max ?? 0}`;
+  const range = (r) => (r && typeof r === 'object' ? `${r.min ?? 0}-${r.max ?? 0}` : String(r ?? '—'));
   return [
     [
       ['HP', stats.hp],
