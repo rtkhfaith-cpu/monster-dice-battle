@@ -28,10 +28,10 @@ import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
 import {
-  clearMainMiniBossBlock,
+  clearMainMiniBossSkipNext,
   mainBattleChestDuplicateGold,
   normalizeMainBattleState,
-  recordMainMiniBossLoss,
+  recordMainMiniBossSkipNext,
   rollMainBattleChestDrop,
 } from './mainBattleChest';
 
@@ -881,8 +881,8 @@ export function awardBattleRewards(gameData, payload) {
       payload.outcome === 'draw',
     );
     if (payload.wasMainMiniBoss) {
-      if (payload.outcome === 2 || payload.fled) recordMainMiniBossLoss(profileP1);
-      else if (payload.outcome === 1) clearMainMiniBossBlock(profileP1);
+      if (payload.outcome === 2 || payload.fled) recordMainMiniBossSkipNext(profileP1);
+      else if (payload.outcome === 1) clearMainMiniBossSkipNext(profileP1);
     }
     tuneProfileAiMeta(profileP1, payload);
     gd.battleSummary.winStreakGuest = profileP1.battleProgress.winStreak;

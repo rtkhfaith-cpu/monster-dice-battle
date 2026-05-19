@@ -191,7 +191,7 @@ export default class BattleAnimationController {
     }
 
     if (this.currentRun !== runId) return;
-    await this.impact(defender, result, element);
+    await this.impact(defender, result, element, attacker);
     await this.recover(attacker, defender, result);
   }
 
@@ -317,7 +317,7 @@ export default class BattleAnimationController {
     }
   }
 
-  async impact(defender, result, element) {
+  async impact(defender, result, element, attacker) {
     const tier = visualTier(defender);
     const heavy = result.crit || result.damage >= 30 || tier >= 2;
     const guarded = !!result.defended;
@@ -332,7 +332,8 @@ export default class BattleAnimationController {
       endScale: result.crit ? 1.42 : 1.16,
       duration: result.crit ? 680 : 560,
     });
-    this.spawnActionPicture(defender.x, defender.y - 126, result.crit ? ACTION_IMAGE_KEYS.critical : guarded ? ACTION_IMAGE_KEYS.guard : ACTION_IMAGE_KEYS.hit, {
+    const feedbackX = result.crit && attacker ? (attacker.x + defender.x) / 2 : defender.x;
+    this.spawnActionPicture(feedbackX, defender.y - 126, result.crit ? ACTION_IMAGE_KEYS.critical : guarded ? ACTION_IMAGE_KEYS.guard : ACTION_IMAGE_KEYS.hit, {
       depth: defender.depth + 20,
       startScale: 0.88,
       endScale: result.crit ? 1.28 : 1.08,

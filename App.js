@@ -97,6 +97,7 @@ import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
 import { LADDER_CHEST_SHARD_COST } from './utils/monsterLadder/ladderConstants';
 import { startBattleMusic, startLadderMusic, startMenuMusic, stopMenuMusic, unlockAudio } from './utils/audioManager';
+import { consumeMainMiniBossSkipNext } from './utils/mainBattleChest';
 
 const LOBBY_PHASES = new Set(['menu', 'ladder', 'online', 'gameOver', 'audioSettings']);
 
@@ -155,6 +156,8 @@ export default function App() {
   const [setupP1ProfileId, setSetupP1ProfileId] = useState(null);
   const [setupP2ProfileId, setSetupP2ProfileId] = useState(null);
   const unlockedProfileIdsRef = useRef(new Set());
+  /** First main CPU battle after a full page load cannot roll a mini boss. */
+  const skipMiniBossAfterReloadRef = useRef(true);
   const dismissedOnlineBattleRef = useRef(false);
   const onlineFinishHandledRef = useRef(false);
   const [keyModal, setKeyModal] = useState(null);
@@ -913,12 +916,19 @@ export default function App() {
       return;
     }
     const gdClone = JSON.parse(JSON.stringify(gameData));
-    const ai = buildAiFighter(f1, gdClone, setupP1ProfileId, {
-      skipMiniBoss: !!options.skipMiniBoss,
-    });
+    const profile = getPlayerProfile(gdClone, setupP1ProfileId);
+    const consumedSkip = profile ? consumeMainMiniBossSkipNext(profile) : false;
+    const skipAfterReload = skipMiniBossAfterReloadRef.current;
+    if (skipAfterReload) skipMiniBossAfterReloadRef.current = false;
+    const skipMiniBoss = !!options.skipMiniBoss || skipAfterReload || consumedSkip;
+    const ai = buildAiFighter(f1, gdClone, setupP1ProfileId, { skipMiniBoss });
     if (!ai) {
       showNotice('Player setup', 'Could not build CPU opponent. Try again.');
       return;
+    }
+    if (consumedSkip) {
+      setGameData(gdClone);
+      void persistSave(gdClone, 'mini_boss_skip_consumed', [setupP1ProfileId]);
     }
     setGameMode('onePlayer');
     beginBattle(f1, ai, 'onePlayer');
@@ -1219,6 +1229,7 @@ export default function App() {
 
     const profileIds = [setupP1ProfileId, setupP2ProfileId].filter(Boolean);
     persistSave(nextGd, 'battle_ended', profileIds);
+    setGameData(nextGd);
 
     setRewardSummary({
       ...summary,

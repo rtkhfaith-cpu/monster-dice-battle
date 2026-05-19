@@ -91,6 +91,8 @@ export default function BattleProjectileLayer({
   const impactX = defenderX - fx(40);
   const defenderFeedbackX = defenderX - fx(40);
   const attackerFeedbackX = attackerX - fx(40);
+  const centerFeedbackX = arenaW * 0.5 - fx(40);
+  const feedbackAnchorX = effect?.critical ? centerFeedbackX : defenderFeedbackX;
   const isLunge = animKind === 'fly_lunge' || animKind === 'bite_lunge';
   const arcLift = fx(animKind === 'egg_bomb' ? 28 : isLunge ? 10 : 14);
 
@@ -338,7 +340,7 @@ export default function BattleProjectileLayer({
             style={[
               styles.feedbackImage,
               {
-                left: defenderFeedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
+                left: feedbackAnchorX - (FEEDBACK_IMG_SIZE - 80) / 2,
                 top: endY - fx(68),
                 opacity: feedbackOp,
                 transform: [{ scale: splatScale }],
@@ -367,7 +369,7 @@ export default function BattleProjectileLayer({
               styles.feedbackImage,
               {
                 left: defenderFeedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
-                top: endY - fx(78),
+                top: endY - fx(52),
                 opacity: feedbackOp,
                 transform: [{ scale: 1.08 }],
               },

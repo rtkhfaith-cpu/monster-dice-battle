@@ -9,16 +9,16 @@ export const MAIN_MINI_BOSS_CHANCE = 0.2;
 /** Mini boss stats = same template at level × this multiplier (vs normal CPU 0.9×). */
 export const MAIN_MINI_BOSS_STAT_MULT = 1.5;
 
-/** Battles before another main-game mini boss can appear after a loss. */
-export const MAIN_MINI_BOSS_BATTLES_AFTER_LOSS = 12;
-
 export function normalizeMainBattleState(profile) {
   if (!profile) return;
   if (!profile.mainBattle || typeof profile.mainBattle !== 'object') {
-    profile.mainBattle = { blockMiniBossUntilBattle: 0 };
+    profile.mainBattle = {};
   }
-  if (typeof profile.mainBattle.blockMiniBossUntilBattle !== 'number') {
-    profile.mainBattle.blockMiniBossUntilBattle = 0;
+  if (typeof profile.mainBattle.skipNextMiniBoss !== 'boolean') {
+    profile.mainBattle.skipNextMiniBoss = false;
+  }
+  if ('blockMiniBossUntilBattle' in profile.mainBattle) {
+    delete profile.mainBattle.blockMiniBossUntilBattle;
   }
 }
 
@@ -26,22 +26,32 @@ export function normalizeMainBattleState(profile) {
 export function canSpawnMainMiniBoss(profile) {
   if (!profile) return true;
   normalizeMainBattleState(profile);
-  const total = profile.battleProgress?.totalBattles ?? 0;
-  return total >= profile.mainBattle.blockMiniBossUntilBattle;
+  return !profile.mainBattle.skipNextMiniBoss;
 }
 
-/** Call after the player loses or flees a main-game mini boss battle. */
-export function recordMainMiniBossLoss(profile) {
+/** After lose or flee vs a main mini boss — skip mini boss on the next CPU battle only. */
+export function recordMainMiniBossSkipNext(profile) {
   if (!profile) return;
   normalizeMainBattleState(profile);
-  const total = profile.battleProgress?.totalBattles ?? 0;
-  profile.mainBattle.blockMiniBossUntilBattle = total + MAIN_MINI_BOSS_BATTLES_AFTER_LOSS;
+  profile.mainBattle.skipNextMiniBoss = true;
 }
 
-export function clearMainMiniBossBlock(profile) {
+export function clearMainMiniBossSkipNext(profile) {
   if (!profile) return;
   normalizeMainBattleState(profile);
-  profile.mainBattle.blockMiniBossUntilBattle = 0;
+  profile.mainBattle.skipNextMiniBoss = false;
+}
+
+/**
+ * Consume a pending skip when starting the next main CPU battle.
+ * @returns {boolean} true if a skip was pending (caller must not roll mini boss this battle)
+ */
+export function consumeMainMiniBossSkipNext(profile) {
+  if (!profile) return false;
+  normalizeMainBattleState(profile);
+  if (!profile.mainBattle.skipNextMiniBoss) return false;
+  profile.mainBattle.skipNextMiniBoss = false;
+  return true;
 }
 
 const CHEST_GEAR_STANDARD = GEAR_CATALOG.filter(

@@ -1,40 +1,34 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
+import React, { useEffect, useId, useRef } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 import MonsterPreview from './MonsterPreview';
 import { getMonsterIdleProfile } from '../utils/monsterIdleMotion';
 import { getMonsterImageAsset } from '../utils/monsterImageAssets';
 
 /** Soft oval contact shadow — sits under the sprite, outside the animated core (battle only). */
 function BattleGroundShadow({ size }) {
-  const outerW = Math.round(size * 0.76);
-  const outerH = Math.max(7, Math.round(size * 0.09));
-  const coreW = Math.round(size * 0.52);
-  const coreH = Math.max(5, Math.round(size * 0.058));
-  const webBlur =
-    Platform.OS === 'web'
-      ? { boxShadow: '0 3px 14px rgba(0, 0, 0, 0.45)' }
-      : null;
+  const gradId = useId().replace(/:/g, '');
+  const rx = Math.round(size * 0.4);
+  const ry = Math.max(10, Math.round(size * 0.1));
+  const w = rx * 2 + Math.round(size * 0.12);
+  const h = ry * 2 + Math.round(size * 0.08);
+  const cx = w / 2;
+  const cy = h - Math.round(ry * 0.75);
 
   return (
-    <View pointerEvents="none" style={styles.battleShadowWrap}>
-      <View
-        style={[
-          styles.battleShadowOuter,
-          webBlur,
-          { width: outerW, height: outerH, borderRadius: outerH / 2 },
-        ]}
-      />
-      <View
-        style={[
-          styles.battleShadowCore,
-          {
-            width: coreW,
-            height: coreH,
-            borderRadius: coreH / 2,
-            marginTop: -Math.round(coreH * 0.55),
-          },
-        ]}
-      />
+    <View pointerEvents="none" style={[styles.battleShadowWrap, { width: w, height: h }]}>
+      <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        <Defs>
+          <RadialGradient id={gradId} cx="50%" cy="50%" rx="50%" ry="50%">
+            <Stop offset="0" stopColor="#0f172a" stopOpacity="0.48" />
+            <Stop offset="0.55" stopColor="#1a203a" stopOpacity="0.3" />
+            <Stop offset="1" stopColor="#1a203a" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Ellipse cx={cx} cy={cy} rx={Math.round(rx * 1.12)} ry={Math.round(ry * 1.18)} fill="#1a203a" opacity={0.22} />
+        <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill={`url(#${gradId})`} />
+        <Ellipse cx={cx} cy={cy} rx={Math.round(rx * 0.58)} ry={Math.round(ry * 0.72)} fill="#000000" opacity={0.2} />
+      </Svg>
     </View>
   );
 }
@@ -374,9 +368,9 @@ export default function AnimatedMonster({
           style={[
             styles.groundShadow,
             {
-              width: scaledSize * 0.48,
-              height: Math.max(5, scaledSize * 0.065),
-              borderRadius: Math.max(5, scaledSize * 0.065),
+              width: scaledSize * 0.62,
+              height: Math.max(10, scaledSize * 0.1),
+              borderRadius: Math.max(10, scaledSize * 0.1) / 2,
               marginBottom: 2,
             },
           ]}
@@ -431,22 +425,13 @@ const styles = StyleSheet.create({
     bottom: 2,
     alignSelf: 'center',
     zIndex: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    backgroundColor: 'rgba(15, 23, 42, 0.32)',
   },
   battleShadowWrap: {
     position: 'absolute',
     bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    alignSelf: 'center',
     zIndex: 0,
-  },
-  battleShadowOuter: {
-    backgroundColor: 'rgba(8, 14, 28, 0.22)',
-  },
-  battleShadowCore: {
-    backgroundColor: 'rgba(0, 0, 0, 0.36)',
   },
   core: {
     alignItems: 'center',
