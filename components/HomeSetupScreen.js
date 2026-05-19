@@ -475,7 +475,7 @@ export default function HomeSetupScreen({
 
   function renderMonsterTray() {
     return (
-      <View style={styles.tray} pointerEvents="box-none">
+      <View style={[styles.tray, styles.trayRaised]} pointerEvents="box-none">
         <View style={styles.trayHeader}>
           <View>
             <Text style={styles.trayTitle}>Monsters</Text>
@@ -567,7 +567,7 @@ export default function HomeSetupScreen({
 
   function renderCloudTray() {
     return (
-      <View style={styles.tray} pointerEvents="box-none">
+      <View style={[styles.tray, styles.trayRaised]} pointerEvents="box-none">
         <View style={styles.trayHeader}>
           <Text style={styles.trayTitle}>Cloud Archive</Text>
           <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
@@ -648,7 +648,10 @@ export default function HomeSetupScreen({
             {tray === 'monsters' ? renderMonsterTray() : null}
             {tray === 'cloud' ? renderCloudTray() : null}
 
-            <View style={styles.menuLayer} pointerEvents="box-none">
+            <View
+              style={[styles.menuLayer, tray ? styles.menuLayerUnderTray : null]}
+              pointerEvents="box-none"
+            >
               <FantasyButton
                 label="Start Battle"
                 icon="▶"
@@ -784,6 +787,9 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 30,
   },
+  menuLayerUnderTray: {
+    zIndex: 12,
+  },
   fantasyButton: {
     position: 'absolute',
     left: '26.25%',
@@ -874,7 +880,7 @@ const styles = StyleSheet.create({
   menuButtonSix: { top: '73%' },
   bottomNavButton: {
     position: 'absolute',
-    zIndex: 30,
+    zIndex: 40,
     top: '90%',
     width: '17%',
     height: '6.4%',
@@ -1198,6 +1204,9 @@ const styles = StyleSheet.create({
     padding: 10,
     zIndex: 20,
     ...webShadow,
+  },
+  trayRaised: {
+    zIndex: 35,
   },
   trayHeader: {
     flexDirection: 'row',
