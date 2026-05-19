@@ -33,6 +33,7 @@ const ACTION_IMAGE_KEYS = {
   comment: 'action_comment',
   critical: 'feedback_critical',
   dodge: 'feedback_dodge',
+  miss: 'feedback_miss',
   guard: 'feedback_guard',
   ko: 'feedback_ko',
   hit: 'feedback_hit',
@@ -206,6 +207,12 @@ export default class BattleAnimationController {
     await wait(this.scene, 90);
     defender.dodge();
     await miss;
+    this.spawnActionPicture(attacker.x, attacker.y - 118, ACTION_IMAGE_KEYS.miss, {
+      depth: attacker.depth + 18,
+      startScale: 0.9,
+      endScale: 1.12,
+      duration: 980,
+    });
     this.spawnActionPicture(defender.x, defender.y - 118, ACTION_IMAGE_KEYS.dodge, {
       depth: defender.depth + 18,
       startScale: 0.9,

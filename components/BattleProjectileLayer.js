@@ -81,14 +81,16 @@ export default function BattleProjectileLayer({
   const actionHalf = ACTION_IMG_SIZE / 2;
   const leftMonsterX = arenaW * 0.24;
   const rightMonsterX = arenaW * 0.76;
+  const attackerX = fromLeft ? leftMonsterX : rightMonsterX;
   const defenderX = fromLeft ? rightMonsterX : leftMonsterX;
   const monsterY = arenaH * 0.64;
-  const startX = (fromLeft ? leftMonsterX : rightMonsterX) - actionHalf;
-  const endX = (fromLeft ? rightMonsterX : leftMonsterX) - actionHalf;
+  const startX = attackerX - actionHalf;
+  const endX = defenderX - actionHalf;
   const startY = monsterY - actionHalf;
   const endY = monsterY - actionHalf;
   const impactX = defenderX - fx(40);
-  const feedbackX = defenderX - fx(40);
+  const defenderFeedbackX = defenderX - fx(40);
+  const attackerFeedbackX = attackerX - fx(40);
   const isLunge = animKind === 'fly_lunge' || animKind === 'bite_lunge';
   const arcLift = fx(animKind === 'egg_bomb' ? 28 : isLunge ? 10 : 14);
 
@@ -336,7 +338,7 @@ export default function BattleProjectileLayer({
             style={[
               styles.feedbackImage,
               {
-                left: feedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
+                left: defenderFeedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
                 top: endY - fx(68),
                 opacity: feedbackOp,
                 transform: [{ scale: splatScale }],
@@ -346,18 +348,33 @@ export default function BattleProjectileLayer({
           />
         </>
       ) : (
-        <Animated.Image
-          source={{ uri: GAME_ASSETS.battleActions.feedback.miss }}
-          style={[
-            styles.feedbackImage,
-            {
-              left: feedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
-              top: endY - fx(44),
-              opacity: feedbackOp,
-            },
-          ]}
-          resizeMode="contain"
-        />
+        <>
+          <Animated.Image
+            source={{ uri: GAME_ASSETS.battleActions.feedback.miss }}
+            style={[
+              styles.feedbackImage,
+              {
+                left: attackerFeedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
+                top: startY - fx(52),
+                opacity: feedbackOp,
+              },
+            ]}
+            resizeMode="contain"
+          />
+          <Animated.Image
+            source={{ uri: GAME_ASSETS.battleActions.feedback.dodge }}
+            style={[
+              styles.feedbackImage,
+              {
+                left: defenderFeedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
+                top: endY - fx(78),
+                opacity: feedbackOp,
+                transform: [{ scale: 1.08 }],
+              },
+            ]}
+            resizeMode="contain"
+          />
+        </>
       )}
 
       {showDmg ? (
@@ -377,21 +394,6 @@ export default function BattleProjectileLayer({
         </Animated.Text>
       ) : null}
 
-      {effect.dodged ? (
-        <Animated.Image
-          source={{ uri: GAME_ASSETS.battleActions.feedback.dodge }}
-          style={[
-            styles.feedbackImage,
-            {
-              left: feedbackX - (FEEDBACK_IMG_SIZE - 80) / 2,
-              top: endY - fx(78),
-              opacity: feedbackOp,
-              transform: [{ scale: 1.08 }],
-            },
-          ]}
-          resizeMode="contain"
-        />
-      ) : null}
     </View>
   );
 }
