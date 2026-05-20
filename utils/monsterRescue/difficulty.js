@@ -1,57 +1,58 @@
-import { RESCUE_GAME_TIME_SEC } from './constants';
-
 const MAX_LEVEL = 60;
 
-/** Shots between ceiling row pushes at level 1. */
-export const ROW_PUSH_MOVES_BASE = 20;
-/** Hardest interval (more frequent pushes) — still gentler than old min of 4. */
+/** Normalized progress 0 (level 1) → 1 (level 60). */
+export function rescueLevelProgress(levelId) {
+  const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
+  if (MAX_LEVEL <= 1) return 0;
+  return (id - 1) / (MAX_LEVEL - 1);
+}
+
+function lerp(t, from, to) {
+  return from + (to - from) * t;
+}
+
+function lerpInt(t, from, to) {
+  return Math.round(lerp(t, from, to));
+}
+
+/** Shots between ceiling row pushes — eases from 30 (Lv1) down to 7 (Lv60). */
+export const ROW_PUSH_MOVES_BASE = 30;
 export const ROW_PUSH_MOVES_MIN = 7;
-/** Levels per step when row-push interval tightens. */
-const ROW_PUSH_TIER_SPAN = 8;
-/** Shots removed from the interval each tier (20 → 18 → … → 7). */
-const ROW_PUSH_TIER_STEP = 2;
 
 /**
  * Shots before a new top row pushes the stack down (lower = harder).
- * Level 1–8: 20 shots · … · level 57–60: 7 shots.
  * @param {number} levelId 1–60
  */
 export function rowPushEveryForLevel(levelId) {
-  const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
-  if (id === 1) return 30;
-  const tier = Math.floor((id - 1) / ROW_PUSH_TIER_SPAN);
-  return Math.max(ROW_PUSH_MOVES_MIN, ROW_PUSH_MOVES_BASE - tier * ROW_PUSH_TIER_STEP);
+  const t = rescueLevelProgress(levelId);
+  return Math.max(ROW_PUSH_MOVES_MIN, lerpInt(t, 30, ROW_PUSH_MOVES_MIN));
 }
 
 /**
- * Stage time limit in seconds (level 1 = 5 minutes; shorter on higher levels).
+ * Stage time limit in seconds — 5:00 at Lv1, eases down to 90s by Lv60.
  * @param {number} levelId
  */
 export function gameTimeSecForLevel(levelId) {
-  const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
-  if (id === 1) return 300;
-  return Math.max(90, RESCUE_GAME_TIME_SEC - Math.floor((id - 1) / 5));
+  const t = rescueLevelProgress(levelId);
+  return Math.max(90, lerpInt(t, 300, 90));
 }
 
 /**
- * Seconds before auto-fire when the player does not shoot.
+ * Seconds before auto-fire — 20s at Lv1, eases down to 10s by Lv60.
  * @param {number} levelId
  */
 export function moveTimeSecForLevel(levelId) {
-  const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
-  if (id === 1) return 20;
-  return Math.max(10, 15 - Math.floor((id - 1) / 12));
+  const t = rescueLevelProgress(levelId);
+  return Math.max(10, lerpInt(t, 20, 10));
 }
 
 /**
- * Lowest occupied row index that triggers a loss (bubbles too close to shooter).
+ * Lowest occupied row index that triggers a loss — eases from 11 (lenient) to 9 (strict).
  * @param {number} levelId
  */
 export function dangerRowForLevel(levelId) {
-  const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
-  if (id >= 45) return 9;
-  if (id >= 25) return 10;
-  return 11;
+  const t = rescueLevelProgress(levelId);
+  return Math.max(9, lerpInt(t, 11, 9));
 }
 
 /** @param {number} levelId */

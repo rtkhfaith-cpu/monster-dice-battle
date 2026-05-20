@@ -2,6 +2,7 @@ import {
   dangerRowForLevel,
   gameTimeSecForLevel,
   moveTimeSecForLevel,
+  rescueLevelProgress,
   rowPushEveryForLevel,
 } from './difficulty';
 import { shapeLetterForLevel } from './openingShapes';
@@ -74,10 +75,12 @@ export function formatRescueLabel(themeId, subLevel) {
   return `${themeId}-${subLevel}`;
 }
 
-function fillRowsForLevel(themeId, subLevel) {
-  const base = 3 + Math.ceil(subLevel / 2);
-  const themeBump = Math.floor((themeId - 1) / 2);
-  return Math.min(9, base + themeBump);
+function fillRowsForLevel(themeId, subLevel, levelId) {
+  const t = rescueLevelProgress(levelId);
+  const fromTheme = 3 + Math.floor((themeId - 1) * 0.35);
+  const fromSub = Math.ceil(subLevel / 2);
+  const blended = 3 + Math.round((fromTheme + fromSub) * 0.5 + t * 2.5);
+  return Math.min(9, Math.max(3, blended));
 }
 
 /** @param {number} levelId Flat level 1–60 */
@@ -92,7 +95,7 @@ export function getRescueStage(levelId) {
     label: `${theme.label} · ${formatRescueLabel(themeId, subLevel)}`,
     themeLabel: theme.label,
     colorCount: theme.colorCount,
-    fillRows: fillRowsForLevel(themeId, subLevel),
+    fillRows: fillRowsForLevel(themeId, subLevel, id),
     rowPushEvery: rowPushEveryForLevel(id),
     gameTimeSec: gameTimeSecForLevel(id),
     moveTimeSec: moveTimeSecForLevel(id),

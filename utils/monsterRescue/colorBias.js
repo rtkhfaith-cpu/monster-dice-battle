@@ -1,26 +1,25 @@
+import { rescueLevelProgress } from './difficulty';
+
 const MAX_LEVEL = 60;
 
 function clampLevel(levelId) {
   return Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
 }
 
-/** 0–1 chance that a new bubble uses a color already on the board (easier early levels). */
-export function onScreenColorBiasForLevel(levelId) {
-  const id = clampLevel(levelId);
-  if (id <= 12) return 0.88;
-  if (id <= 24) return 0.7;
-  if (id <= 36) return 0.48;
-  if (id <= 48) return 0.28;
-  return 0.1;
+function lerp(t, from, to) {
+  return from + (to - from) * t;
 }
 
-/** Early levels: prefer colors on the board; later levels: prefer colors not on the board for push rows. */
+/** 0–1 chance that a new bubble uses a color already on the board (eases off over 60 levels). */
+export function onScreenColorBiasForLevel(levelId) {
+  const t = rescueLevelProgress(clampLevel(levelId));
+  return lerp(t, 0.88, 0.1);
+}
+
+/** Chance push-row colors are off-screen / harder to match (ramps up gradually). */
 export function pushRowOffScreenBiasForLevel(levelId) {
-  const id = clampLevel(levelId);
-  if (id <= 16) return 0;
-  if (id <= 32) return 0.35;
-  if (id <= 48) return 0.55;
-  return 0.72;
+  const t = rescueLevelProgress(clampLevel(levelId));
+  return lerp(t, 0, 0.72);
 }
 
 function pickRandom(arr) {
