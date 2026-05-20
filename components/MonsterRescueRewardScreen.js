@@ -9,6 +9,7 @@ export default function MonsterRescueRewardScreen({
   timeUp = false,
   stageLabel,
   rewards,
+  saveMessage,
   onContinue,
   onRetry,
 }) {
@@ -42,6 +43,10 @@ export default function MonsterRescueRewardScreen({
           <Text style={rescueUiStyles.statReward}>+{r.coins ?? 0} coins</Text>
           <Text style={rescueUiStyles.statReward}>+{r.exp ?? 0} monster EXP</Text>
         </View>
+
+        {saveMessage ? (
+          <Text style={rescueUiStyles.saveStatus}>{saveMessage}</Text>
+        ) : null}
 
         <Pressable
           style={({ pressed }) => [rescueUiStyles.primaryBtn, pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] }]}

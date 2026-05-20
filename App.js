@@ -1691,6 +1691,7 @@ export default function App() {
             timeUp={rescueRewardPayload.timeUp}
             stageLabel={getRescueStage(rescueRewardPayload.stageId).label}
             rewards={rescueRewardPayload.rewards}
+            saveMessage={rescueRewardPayload.saveMessage}
             onContinue={() => setPhase('monsterRescueHub')}
             onRetry={() => startMonsterRescueStage(rescueRewardPayload.stageId)}
           />
