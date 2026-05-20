@@ -1101,8 +1101,17 @@ export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
 
   const ml = getMonsterLadderState(profile);
   const refs = [];
-  for (const m of wallet.ownedMonsters || []) refs.push({ monster: m, list: 'main' });
-  for (const m of ml.ownedMonsters || []) refs.push({ monster: m, list: 'ladder' });
+  const seenIds = new Set();
+  for (const m of wallet.ownedMonsters || []) {
+    if (seenIds.has(m.id)) continue;
+    seenIds.add(m.id);
+    refs.push({ monster: m, list: 'main' });
+  }
+  for (const m of ml.ownedMonsters || []) {
+    if (seenIds.has(m.id)) continue;
+    seenIds.add(m.id);
+    refs.push({ monster: m, list: 'ladder' });
+  }
 
   const primaryRef = refs.find((r) => r.monster.id === primaryOwnedId);
   if (!primaryRef) return { gameData: gd, error: 'Monster not found.' };

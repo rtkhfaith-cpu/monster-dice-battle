@@ -154,8 +154,8 @@ export default function HomeSetupScreen({
   const monsterGroups = useMemo(() => {
     return groupOwnedMonsters(monsters, ladderOwnedMonsters)
       .map((group) => {
-        const mainInstances = group.instances.filter((i) => i._source === 'main');
-        const ladderInstances = group.instances.filter((i) => i._source === 'ladder');
+        const mainInstances = group.instances.filter((i) => i._inMain || i._source === 'main');
+        const ladderInstances = group.instances.filter((i) => i._inLadder || i._source === 'ladder');
         const battlePrimary =
           pickPrimaryInstance(mainInstances) ?? pickPrimaryInstance(ladderInstances);
         return {
@@ -371,7 +371,7 @@ export default function HomeSetupScreen({
                 onBlur={loginModalInputBlur}
                 placeholder="Player ID"
                 placeholderTextColor="rgba(255,255,255,0.58)"
-                style={[styles.loginInput, styles.loginIdInputModal, styles.loginInputNoZoom]}
+                style={[styles.loginInput, styles.loginGridCol, styles.loginInputNoZoom]}
                 maxLength={10}
                 autoCapitalize="none"
               />
@@ -381,17 +381,23 @@ export default function HomeSetupScreen({
                 onBlur={loginModalInputBlur}
                 placeholder="PIN"
                 placeholderTextColor="rgba(255,255,255,0.58)"
-                style={[styles.loginInput, styles.loginPinInputModal, styles.loginInputNoZoom]}
+                style={[styles.loginInput, styles.loginGridCol, styles.loginPinInputModal, styles.loginInputNoZoom]}
                 maxLength={4}
                 keyboardType="number-pad"
                 secureTextEntry
               />
             </View>
             <View style={styles.loginRow}>
-              <Pressable style={[styles.loginModalBtn, styles.loginModalBtnPrimary]} onPress={pressWithSound(handleInlineLogin)}>
+              <Pressable
+                style={[styles.loginModalBtn, styles.loginModalBtnPrimary, styles.loginGridCol]}
+                onPress={pressWithSound(handleInlineLogin)}
+              >
                 <Text style={styles.loginModalBtnTxt}>Login</Text>
               </Pressable>
-              <Pressable style={[styles.loginModalBtn, styles.loginModalBtnAlt]} onPress={pressWithSound(handleInlineCreate)}>
+              <Pressable
+                style={[styles.loginModalBtn, styles.loginModalBtnAlt, styles.loginGridCol]}
+                onPress={pressWithSound(handleInlineCreate)}
+              >
                 <Text style={styles.loginModalBtnTxt}>Create ID</Text>
               </Pressable>
             </View>
@@ -432,20 +438,21 @@ export default function HomeSetupScreen({
             {activeProfile ? (
               <>
                 <Text style={styles.loginSectionLbl}>Change display name</Text>
-                <View style={[styles.inputRow, styles.loginModalInputRow]}>
-                  <TextInput
-                    value={nameDraft}
-                    onChangeText={setNameDraft}
-                    onBlur={loginModalInputBlur}
-                    placeholder="Trainer name"
-                    placeholderTextColor="rgba(255,255,255,0.58)"
-                    style={[styles.textInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
-                    maxLength={24}
-                  />
-                  <Pressable onPress={pressWithSound(handleSaveName)} style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}>
-                    <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>Save name</Text>
-                  </Pressable>
-                </View>
+                <TextInput
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                  onBlur={loginModalInputBlur}
+                  placeholder="Trainer name"
+                  placeholderTextColor="rgba(255,255,255,0.58)"
+                  style={[styles.loginInput, styles.loginModalFullField, styles.loginInputNoZoom]}
+                  maxLength={24}
+                />
+                <Pressable
+                  onPress={pressWithSound(handleSaveName)}
+                  style={[styles.loginModalBtn, styles.loginModalBtnPrimary, styles.loginModalFullField]}
+                >
+                  <Text style={styles.loginModalBtnTxt}>Save name</Text>
+                </Pressable>
               </>
             ) : null}
 
@@ -495,9 +502,9 @@ export default function HomeSetupScreen({
                   setCreateOpen(true);
                   setCreateName(`Player ${profiles.length + 1}`);
                 })}
-                style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}
+                style={[styles.loginModalBtn, styles.loginModalBtnAlt, styles.loginModalFullField]}
               >
-                <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>New save</Text>
+                <Text style={styles.loginModalBtnTxt}>New save</Text>
               </Pressable>
             )}
 
@@ -1175,8 +1182,18 @@ const styles = StyleSheet.create({
     gap: 4,
     width: '100%',
   },
+  loginGridCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  loginModalFullField: {
+    width: '100%',
+    alignSelf: 'stretch',
+    marginBottom: 4,
+  },
   loginInput: {
     height: 28,
+    minHeight: 28,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
@@ -1187,20 +1204,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 0,
   },
-  loginIdInputModal: {
-    flex: 1,
-    minWidth: 0,
-    maxWidth: 108,
-  },
   loginPinInputModal: {
-    width: 78,
-    flexGrow: 0,
-    flexShrink: 0,
     textAlign: 'center',
     letterSpacing: 2,
   },
   loginModalBtn: {
-    flex: 1,
     minHeight: 28,
     borderRadius: 8,
     borderWidth: 1,

@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
+function hostDimensions(el, fallbackHeight) {
+  const w = Math.max(320, el?.clientWidth || el?.offsetWidth || 320);
+  const h = Math.max(280, el?.clientHeight || el?.offsetHeight || fallbackHeight || 520);
+  return { w, h };
+}
+
 export default function MonsterRescueView({
   stageId = 1,
   height = 520,
@@ -50,8 +56,9 @@ export default function MonsterRescueView({
     if (Platform.OS !== 'web') return undefined;
     let disposed = false;
     let readyTimer = null;
+    let waitPollId = null;
+    let scenePollId = null;
     let ready = false;
-    /** @type {ResizeObserver|null} */
     let resizeObserver = null;
 
     async function mountPhaser() {
@@ -61,20 +68,44 @@ export default function MonsterRescueView({
         const { createMonsterRescueScene } = await import('../src/phaser/monsterRescue/MonsterRescueScene');
         const { setRescueBootStageId } = await import('../src/phaser/monsterRescue/bootConfig');
 
-        const tryStart = () => {
+        const markReady = (scene) => {
+          if (disposed || ready) return;
+          ready = true;
+          if (readyTimer) clearTimeout(readyTimer);
+          if (waitPollId != null) cancelAnimationFrame(waitPollId);
+          if (scenePollId != null) cancelAnimationFrame(scenePollId);
+          setLoading(false);
+          setError('');
+          onReadyRef.current?.(scene);
+        };
+
+        const markError = (msg) => {
+          if (disposed || ready) return;
+          ready = true;
+          if (readyTimer) clearTimeout(readyTimer);
+          if (waitPollId != null) cancelAnimationFrame(waitPollId);
+          if (scenePollId != null) cancelAnimationFrame(scenePollId);
+          setLoading(false);
+          setError(msg);
+          onErrorRef.current?.(msg);
+        };
+
+        const startGame = () => {
           if (disposed || !hostRef.current || gameRef.current) return false;
           const el = hostRef.current;
-          if (!el.clientWidth || !el.clientHeight) return false;
+          const { w, h } = hostDimensions(el, height);
 
           setRescueBootStageId(stageId);
           const SceneClass = createMonsterRescueScene(Phaser);
+
           const game = new Phaser.Game({
             type: Phaser.AUTO,
             parent: el,
-            width: Math.max(320, el.clientWidth),
-            height: Math.max(280, el.clientHeight),
+            width: w,
+            height: h,
             backgroundColor: '#1a1a2e',
             scene: SceneClass,
+            banner: false,
             scale: {
               mode: Phaser.Scale.FIT,
               autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -86,53 +117,65 @@ export default function MonsterRescueView({
           });
 
           gameRef.current = game;
-          setLoading(false);
 
-          readyTimer = setTimeout(() => {
-            if (disposed || ready) return;
-            const msg = 'Monster Rescue did not start in time.';
-            setError(msg);
-            onErrorRef.current?.(msg);
-          }, 15000);
-
-          const handleReady = (scene) => {
-            ready = true;
-            if (readyTimer) clearTimeout(readyTimer);
-            onReadyRef.current?.(scene);
-          };
+          const handleReady = (scene) => markReady(scene);
           const handleFinish = (payload) => onFinishRef.current?.(payload);
-          const handlePop = () => onPopRef.current?.();
-          const handleCombo = (combo) => onComboRef.current?.(combo);
-          const handleShoot = () => onShootRef.current?.();
-          const handleRescued = () => onRescuedRef.current?.();
+          const handleBootError = (err) => {
+            markError(err?.message || 'Monster Rescue failed to start.');
+          };
 
           game.events.once('monster-rescue-ready', handleReady);
+          game.events.once('monster-rescue-error', handleBootError);
           game.events.on('monster-rescue-finish', handleFinish);
-          game.events.on('rescue:pop', handlePop);
-          game.events.on('rescue:combo', handleCombo);
-          game.events.on('rescue:shoot', handleShoot);
-          game.events.on('rescue:rescued', handleRescued);
+          game.events.on('rescue:pop', () => onPopRef.current?.());
+          game.events.on('rescue:combo', (combo) => onComboRef.current?.(combo));
+          game.events.on('rescue:shoot', () => onShootRef.current?.());
+          game.events.on('rescue:rescued', () => onRescuedRef.current?.());
 
           game._rescueCleanup = () => {
             if (readyTimer) clearTimeout(readyTimer);
+            if (waitPollId != null) cancelAnimationFrame(waitPollId);
+            if (scenePollId != null) cancelAnimationFrame(scenePollId);
             game.events.off('monster-rescue-finish', handleFinish);
-            game.events.off('rescue:pop', handlePop);
-            game.events.off('rescue:combo', handleCombo);
-            game.events.off('rescue:shoot', handleShoot);
-            game.events.off('rescue:rescued', handleRescued);
+            game.events.off('rescue:pop');
+            game.events.off('rescue:combo');
+            game.events.off('rescue:shoot');
+            game.events.off('rescue:rescued');
           };
+
+          const pollSceneReady = () => {
+            if (disposed || ready) return;
+            const scene = game.scene.getScene('MonsterRescueScene');
+            if (scene?.sys?.isActive?.()) {
+              markReady(scene);
+              return;
+            }
+            scenePollId = requestAnimationFrame(pollSceneReady);
+          };
+          scenePollId = requestAnimationFrame(pollSceneReady);
+
+          readyTimer = setTimeout(() => {
+            if (disposed || ready) return;
+            const scene = game.scene.getScene('MonsterRescueScene');
+            if (scene?.sys?.isActive?.()) {
+              markReady(scene);
+              return;
+            }
+            markError('Monster Rescue did not start in time. Try refreshing the page.');
+          }, 12000);
+
           return true;
         };
 
-        if (!tryStart()) {
-          const waitForSize = () => {
-            if (disposed || tryStart()) return;
-            requestAnimationFrame(waitForSize);
+        if (!startGame()) {
+          const waitForHost = () => {
+            if (disposed || startGame()) return;
+            waitPollId = requestAnimationFrame(waitForHost);
           };
-          requestAnimationFrame(waitForSize);
+          waitPollId = requestAnimationFrame(waitForHost);
           if (typeof ResizeObserver !== 'undefined' && hostRef.current) {
             resizeObserver = new ResizeObserver(() => {
-              if (!disposed) tryStart();
+              if (!disposed) startGame();
             });
             resizeObserver.observe(hostRef.current);
           }
@@ -153,6 +196,8 @@ export default function MonsterRescueView({
       disposed = true;
       resizeObserver?.disconnect();
       if (readyTimer) clearTimeout(readyTimer);
+      if (waitPollId != null) cancelAnimationFrame(waitPollId);
+      if (scenePollId != null) cancelAnimationFrame(scenePollId);
       if (gameRef.current) {
         gameRef.current._rescueCleanup?.();
         gameRef.current.destroy(true);

@@ -48,7 +48,19 @@ export function groupOwnedMonsters(mainMonsters = [], ladderMonsters = []) {
     if (!groups.has(key)) {
       groups.set(key, { templateId: key, instances: [] });
     }
-    groups.get(key).instances.push({ ...monster, _source: source });
+    const list = groups.get(key).instances;
+    const existing = list.find((row) => row.id === monster.id);
+    if (existing) {
+      if (source === 'main') existing._inMain = true;
+      if (source === 'ladder') existing._inLadder = true;
+      return;
+    }
+    list.push({
+      ...monster,
+      _source: source,
+      _inMain: source === 'main',
+      _inLadder: source === 'ladder',
+    });
   }
 
   for (const m of mainMonsters) add(m, 'main');

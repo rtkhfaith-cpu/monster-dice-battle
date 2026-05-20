@@ -27,13 +27,19 @@ export function createMonsterRescueScene(Phaser) {
     }
 
     preload() {
-      const stageId = this.stageId ?? getRescueBootStageId();
-      const bgPath = rescueBackgroundForStage(stageId);
-      this.load.image(RESCUE_SCENE_ASSETS.bg.key, bgPath);
-      preloadRescueAssets(this);
+      // No blocking asset loads — create() runs immediately (gradient + emoji fallbacks).
     }
 
     create() {
+      try {
+        this._bootScene();
+      } catch (err) {
+        console.error('[MonsterRescue] create failed', err);
+        this.game.events.emit('monster-rescue-error', err);
+      }
+    }
+
+    _bootScene() {
       const w = this.scale.width;
       const h = this.scale.height;
       this.stageDef = getRescueStage(this.stageId);
@@ -75,7 +81,34 @@ export function createMonsterRescueScene(Phaser) {
       this.input.on('pointerup', () => this._onPointerUp());
 
       this.events.on('rescue:pop', () => this.game.events.emit('rescue:pop'));
-      this.game.events.emit('monster-rescue-ready', this);
+      this.time.delayedCall(0, () => {
+        this.game.events.emit('monster-rescue-ready', this);
+      });
+      this._queueOptionalTextures();
+    }
+
+    /** Load PNG art after gameplay is live so preload cannot hang startup. */
+    _queueOptionalTextures() {
+      if (this._optionalTexturesQueued) return;
+      this._optionalTexturesQueued = true;
+      const stageId = this.stageId ?? getRescueBootStageId();
+      const bgPath = rescueBackgroundForStage(stageId);
+      if (bgPath && !this.textures.exists(RESCUE_SCENE_ASSETS.bg.key)) {
+        this.load.image(RESCUE_SCENE_ASSETS.bg.key, bgPath);
+      }
+      preloadRescueAssets(this, { skipBg: true });
+      this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+        if (!this.scene.isActive()) return;
+        const w = this.scale.width;
+        const h = this.scale.height;
+        if (this.textures.exists(RESCUE_SCENE_ASSETS.bg.key) && !this._bgImage) {
+          this._bgImage = this.add.image(w / 2, h / 2, RESCUE_SCENE_ASSETS.bg.key).setDepth(0);
+          const scale = Math.max(w / this._bgImage.width, h / this._bgImage.height) * 1.05;
+          this._bgImage.setScale(scale).setAlpha(0.92);
+        }
+        this.bubbleSystem?.rebuildSprites?.();
+      });
+      if (this.load.totalToLoad > 0) this.load.start();
     }
 
     _drawBackdrop(w, h) {
