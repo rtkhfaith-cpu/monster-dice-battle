@@ -447,7 +447,7 @@ export default function MonsterLadderHubScreen({
     ? "Today's level complete. Next level unlocks after 6PM Singapore time."
     : canFight
       ? `Ready for Level ${formatStageLabel(stage.mainLevel, stage.subLevel)}`
-      : 'Select one of your own monsters first.';
+      : 'Pick a monster on the home screen or in Collection.';
 
   return (
     <View style={[styles.root, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>

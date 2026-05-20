@@ -21,6 +21,7 @@ import { decodeStage, encodeStage, getStageKind } from './stages';
  * @property {import('./ladderProfile').LadderOwnedMonster[]} ownedMonsters
  * @property {string[]} ownedGear repeated ids are intentional for future forge/material systems
  * @property {string|null} activeMonsterId
+ * @property {boolean} activeBattlerPinned set via Collection — overrides home pick
  * @property {object} stats
  * @property {object} assist
  */
@@ -44,6 +45,7 @@ export function defaultMonsterLadderState() {
     ownedMonsters: [],
     ownedGear: [],
     activeMonsterId: null,
+    activeBattlerPinned: false,
     stats: {
       totalBattles: 0,
       wins: 0,
@@ -103,13 +105,7 @@ export function normalizeMonsterLadder(raw, legacyLadderProgress) {
   base.ownedMonsters = Array.isArray(r.ownedMonsters) ? r.ownedMonsters.map(normalizeOwnedRow).filter(Boolean) : [];
   base.ownedGear = Array.isArray(r.ownedGear) ? r.ownedGear.filter((x) => typeof x === 'string') : [];
   base.activeMonsterId = typeof r.activeMonsterId === 'string' ? r.activeMonsterId : null;
-
-  if (base.activeMonsterId && !base.ownedMonsters.some((m) => m.id === base.activeMonsterId)) {
-    base.activeMonsterId = base.ownedMonsters[0]?.id ?? null;
-  }
-  if (!base.activeMonsterId && base.ownedMonsters[0]) {
-    base.activeMonsterId = base.ownedMonsters[0].id;
-  }
+  base.activeBattlerPinned = !!r.activeBattlerPinned;
 
   const st = r.stats && typeof r.stats === 'object' ? r.stats : {};
   base.stats = {

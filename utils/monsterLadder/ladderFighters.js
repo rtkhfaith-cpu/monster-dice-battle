@@ -5,7 +5,8 @@ import { getLadderMonsterSkillSet } from './ladderMonsterSkills';
 import { getLadderMonsterTemplate, getLadderMonstersByRarity } from './ladderMonsterCatalog';
 import { getLadderTheme } from './ladderLevelThemes';
 import { computeLadderBattleStats } from './ladderStatsCalc';
-import { mergeLadderMonsterParts } from './ladderProfile';
+import { getActiveLadderBattler, getMonsterLadderState, mergeLadderMonsterParts } from './ladderProfile';
+import { fighterFromOwned } from '../fighterFromOwned';
 import { getStageKind, cpuPowerForStage, decodeStage } from './stages';
 import { getLadderGear } from './ladderGearCatalog';
 
@@ -110,6 +111,20 @@ function scaleStatsBundle(stats, ratio) {
     dodgePct: stats.dodgePct,
     speed: Math.max(1, Math.round((stats.speed ?? 10) * ratio)),
   };
+}
+
+/** Build battle fighter from any owned row (main roster or ladder-only). */
+export function fighterForLadderBattle(owned, profile) {
+  if (!owned || !profile) return null;
+  const ml = getMonsterLadderState(profile);
+  const onLadderRoster = ml.ownedMonsters?.some((m) => m.id === owned.id);
+  return onLadderRoster ? fighterFromLadderOwned(owned) : fighterFromOwned(owned);
+}
+
+/** @param {object} profile @param {string|null} [setupP1Id] */
+export function fighterFromActiveLadder(profile, setupP1Id = null) {
+  const owned = getActiveLadderBattler(profile, setupP1Id);
+  return owned ? fighterForLadderBattle(owned, profile) : null;
 }
 
 /**

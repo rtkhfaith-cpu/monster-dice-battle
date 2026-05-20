@@ -35,6 +35,68 @@ export function getMonsterLadderState(profile) {
   return normalizeMonsterLadder(profile?.monsterLadder, profile?.ladderProgress);
 }
 
+/** Find an owned row by id in main inventory or ladder collection. */
+export function findOwnedMonsterForLadder(profile, ownedId) {
+  if (!ownedId || !profile) return null;
+  const ml = getMonsterLadderState(profile);
+  return (
+    profile.ownedMonsters?.find((m) => m.id === ownedId)
+    ?? ml.ownedMonsters?.find((m) => m.id === ownedId)
+    ?? null
+  );
+}
+
+/** All monsters selectable for ladder battles (home roster + ladder exclusives). */
+export function getAllLadderSelectableMonsters(profile) {
+  const ml = getMonsterLadderState(profile);
+  const seen = new Set();
+  const out = [];
+  for (const m of [...(profile.ownedMonsters ?? []), ...(ml.ownedMonsters ?? [])]) {
+    if (!m?.id || seen.has(m.id)) continue;
+    seen.add(m.id);
+    out.push(m);
+  }
+  return out;
+}
+
+/**
+ * Monster row used for the next ladder battle.
+ * Home-screen pick is default; Collection "Set active" pins a specific monster.
+ * @param {object} profile
+ * @param {string|null} [setupP1Id] home-screen owned monster id
+ */
+export function getActiveLadderBattler(profile, setupP1Id = null) {
+  if (!profile) return null;
+  const ml = getMonsterLadderState(profile);
+  const main = profile.ownedMonsters ?? [];
+  const ladder = ml.ownedMonsters ?? [];
+
+  const activeRow = ml.activeMonsterId
+    ? findOwnedMonsterForLadder(profile, ml.activeMonsterId)
+    : null;
+  const activeIsLadderOnly =
+    !!activeRow && !main.some((m) => m.id === activeRow.id);
+
+  if (activeIsLadderOnly) return activeRow;
+  if (ml.activeBattlerPinned && activeRow) return activeRow;
+
+  if (setupP1Id) {
+    const fromSetup = main.find((m) => m.id === setupP1Id);
+    if (fromSetup) return fromSetup;
+  }
+  if (activeRow) return activeRow;
+  if (profile.selectedMonsterId) {
+    const selected = main.find((m) => m.id === profile.selectedMonsterId);
+    if (selected) return selected;
+  }
+  return main[0] ?? ladder[0] ?? null;
+}
+
+/** @deprecated use getActiveLadderBattler */
+export function getActiveLadderOwnedMonster(profile, setupP1Id = null) {
+  return getActiveLadderBattler(profile, setupP1Id);
+}
+
 /** @param {object} profile */
 export function setMonsterLadderState(profile, ml) {
   profile.monsterLadder = ml;

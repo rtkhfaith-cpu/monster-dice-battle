@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import MonsterStatCardOverlay from './MonsterStatCardOverlay';
-import { RARITY_UI } from '../utils/monsterTemplates';
+import { RARITY_UI, getMonsterTemplate } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
-import { fighterFromLadderOwned } from '../utils/monsterLadder/ladderFighters';
+import { fighterForLadderBattle } from '../utils/monsterLadder/ladderFighters';
 
 function formatStats(stats) {
   if (!stats) return '';
@@ -13,27 +13,31 @@ function formatStats(stats) {
 
 export default function MonsterLadderCollectionScreen({
   visible,
+  profile,
   ownedMonsters,
   activeMonsterId,
   onClose,
   onSelectActive,
 }) {
   const [cardMonster, setCardMonster] = useState(null);
-  const cardFighter = cardMonster ? fighterFromLadderOwned(cardMonster) : null;
-  const cardTemplate = cardMonster ? getLadderMonsterTemplate(cardMonster.templateId) : null;
+  const cardFighter = cardMonster && profile ? fighterForLadderBattle(cardMonster, profile) : null;
+  const cardTemplate =
+    cardMonster
+      ? getLadderMonsterTemplate(cardMonster.templateId) ?? getMonsterTemplate(cardMonster.templateId)
+      : null;
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.title}>Ladder collection</Text>
-          <Text style={styles.sub}>Normal shop monsters cannot fight here.</Text>
+          <Text style={styles.sub}>Pick any monster you own — home roster or ladder exclusives.</Text>
           <ScrollView style={styles.list} contentContainerStyle={styles.listInner}>
             {ownedMonsters.length === 0 ? (
-              <Text style={styles.empty}>No ladder monsters yet. Win chests on the climb!</Text>
+              <Text style={styles.empty}>No monsters yet. Buy or earn monsters on the home screen, or win ladder chests.</Text>
             ) : (
               ownedMonsters.map((om) => {
-                const f = fighterFromLadderOwned(om);
-                const t = getLadderMonsterTemplate(om.templateId);
+                const f = profile ? fighterForLadderBattle(om, profile) : null;
+                const t = getLadderMonsterTemplate(om.templateId) ?? getMonsterTemplate(om.templateId);
                 const active = om.id === activeMonsterId;
                 return (
                   <TouchableOpacity

@@ -42,7 +42,16 @@ import {
 import RewardScreen from './components/RewardScreen';
 import { buildAiFighter, fighterFromOwned } from './utils/fighterFromOwned';
 import { mergeLadderMonsterParts } from './utils/monsterLadder/ladderProfile';
-import { buildLadderEnemyFighter, fighterFromLadderOwned } from './utils/monsterLadder/ladderFighters';
+import {
+  buildLadderEnemyFighter,
+  fighterForLadderBattle,
+  fighterFromActiveLadder,
+} from './utils/monsterLadder/ladderFighters';
+import {
+  findOwnedMonsterForLadder,
+  getActiveLadderBattler,
+  getAllLadderSelectableMonsters,
+} from './utils/monsterLadder/ladderProfile';
 import {
   applyMonsterLadderBattleRewards,
   buyMonsterLadderChest,
@@ -1093,14 +1102,27 @@ export default function App() {
     }
   }
 
+  function clearLadderBattlerPin() {
+    if (!gameData || !setupP1ProfileId) return;
+    const gd = cloneGameData(gameData);
+    const profile = getPlayerProfile(gd, setupP1ProfileId);
+    if (!profile) return;
+    const ml = getMonsterLadderState(profile);
+    ml.activeBattlerPinned = false;
+    profile.monsterLadder = ml;
+    persistSave(gd, 'ladder_active_monster', setupP1ProfileId);
+    setGameData(gd);
+  }
+
   function setActiveLadderMonster(ownedId) {
     if (!gameData || !setupP1ProfileId) return;
     const gd = cloneGameData(gameData);
     const profile = getPlayerProfile(gd, setupP1ProfileId);
     if (!profile) return;
     const ml = getMonsterLadderState(profile);
-    if (!ml.ownedMonsters.some((m) => m.id === ownedId)) return;
+    if (!findOwnedMonsterForLadder(profile, ownedId)) return;
     ml.activeMonsterId = ownedId;
+    ml.activeBattlerPinned = true;
     profile.monsterLadder = ml;
     persistSave(gd, 'ladder_active_monster', setupP1ProfileId);
     setGameData(gd);
@@ -1189,20 +1211,12 @@ export default function App() {
       setPhase('ladder');
       return;
     }
-    const ladderActive = ml.activeMonsterId
-      ? ml.ownedMonsters.find((m) => m.id === ml.activeMonsterId)
-      : null;
-    const owned = ladderActive
-      ?? profile?.ownedMonsters?.find((m) => m.id === setupP1Id)
-      ?? profile?.ownedMonsters?.find((m) => m.id === profile?.selectedMonsterId)
-      ?? profile?.ownedMonsters?.[0];
+    const owned = getActiveLadderBattler(profile, setupP1Id);
     if (!owned) {
-      showNotice('Monster Ladder', 'Open Monster Ladder → Collection and pick a ladder monster.');
+      showNotice('Monster Ladder', 'Own at least one monster on the home screen or in Collection.');
       return;
     }
-    const f1 = ladderActive
-      ? fighterFromLadderOwned(ladderActive)
-      : fighterFromOwned(owned);
+    const f1 = fighterForLadderBattle(owned, profile);
     if (!f1) {
       showNotice('Monster Ladder', 'Could not build your ladder fighter.');
       return;
@@ -1564,6 +1578,7 @@ export default function App() {
             onSelectMonster={(ownedId) => {
               if (gameMode === 'onePlayer') {
                 setSetupP1Id(ownedId);
+                clearLadderBattlerPin();
                 if (setupP1ProfileId && gameData) {
                   persistSave(
                     setProfileSelectedMonster(gameData, setupP1ProfileId, ownedId),
@@ -1705,7 +1720,11 @@ export default function App() {
           <MonsterLadderHubScreen
             profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
             monsterLadder={getMonsterLadderState(getPlayerProfile(gameData, setupP1ProfileId))}
-            activeFighter={fighterFromSetupId(setupP1Id, setupP1ProfileId)}
+            activeFighter={
+              setupP1ProfileId
+                ? fighterFromActiveLadder(getPlayerProfile(gameData, setupP1ProfileId), setupP1Id)
+                : null
+            }
             onBack={returnToQuestPicker}
             onStartBattle={startMonsterLadderBattle}
             onOpenCollection={() => setLadderCollectionOpen(true)}
@@ -1843,8 +1862,11 @@ export default function App() {
 
       <MonsterLadderCollectionScreen
         visible={ladderCollectionOpen}
+        profile={setupP1ProfileId ? getPlayerProfile(gameData, setupP1ProfileId) : null}
         ownedMonsters={
-          getMonsterLadderState(getPlayerProfile(gameData, setupP1ProfileId))?.ownedMonsters ?? []
+          setupP1ProfileId
+            ? getAllLadderSelectableMonsters(getPlayerProfile(gameData, setupP1ProfileId))
+            : []
         }
         activeMonsterId={
           getMonsterLadderState(getPlayerProfile(gameData, setupP1ProfileId))?.activeMonsterId
