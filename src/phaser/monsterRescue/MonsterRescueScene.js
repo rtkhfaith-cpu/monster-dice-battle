@@ -14,10 +14,13 @@ import { playRescueShoot } from '../../../src/utils/audioManager';
 
 /** Physics solve step speed (px/s) — not the on-screen tween. */
 const SHOOT_SPEED = 520;
-/** Visible bubble flight speed after trajectory is solved. */
-const SHOOT_VISUAL_SPEED = 380;
-const SHOOT_TWEEN_MIN_MS = 200;
-const SHOOT_TWEEN_MAX_MS = 780;
+/** Visible bubble flight speed (px/s) along each path segment. */
+const SHOOT_VISUAL_SPEED = 460;
+const SHOOT_VISUAL_SPEED_FINAL = 620;
+const SHOOT_TWEEN_MIN_MS = 70;
+const SHOOT_TWEEN_MAX_MS = 520;
+const SHOOT_FINAL_MIN_MS = 55;
+const SHOOT_FINAL_MAX_MS = 280;
 /** Upward arc only — steep enough to bank off left/right frame walls. */
 const MIN_AIM_ANGLE = -Math.PI + 0.12;
 const MAX_AIM_ANGLE = -0.12;
@@ -455,22 +458,45 @@ export function createMonsterRescueScene(Phaser) {
       let nvx = vx;
       let nvy = vy;
 
+      let wall = null;
       if (nx - r < left) {
         nx = left + r;
         nvx = Math.abs(vx) > 1 ? Math.abs(vx) : Math.abs(vy) * 0.35 + 120;
+        wall = 'left';
       } else if (nx + r > right) {
         nx = right - r;
-        nvx = Math.abs(vx) > 1 ? -Math.abs(vx) : -(Math.abs(vy) * 0.35 + 120);
+        nvx = Math.abs(vx) > 1 ? -Math.abs(vx) : -(Math.abs(vy) * 0.35 + 120;
+        wall = 'right';
       }
 
-      return { x: nx, y: ny, vx: nvx, vy: nvy };
+      return { x: nx, y: ny, vx: nvx, vy: nvy, wall };
     }
 
-    /** Instant physics solve — no per-frame delayedCall queue (was causing multi-second lag). */
-    _solveProjectileHit() {
+    _projectileSegmentDuration(distPx, isFinal) {
+      const speed = isFinal ? SHOOT_VISUAL_SPEED_FINAL : SHOOT_VISUAL_SPEED;
+      const minMs = isFinal ? SHOOT_FINAL_MIN_MS : SHOOT_TWEEN_MIN_MS;
+      const maxMs = isFinal ? SHOOT_FINAL_MAX_MS : SHOOT_TWEEN_MAX_MS;
+      return Phaser.Math.Clamp((distPx / speed) * 1000, minMs, maxMs);
+    }
+
+    _pushPathPoint(path, x, y, minDist) {
+      const last = path[path.length - 1];
+      if (!last) {
+        path.push({ x, y });
+        return;
+      }
+      if (Phaser.Math.Distance.Between(last.x, last.y, x, y) >= minDist) {
+        path.push({ x, y });
+      }
+    }
+
+    /** Instant physics solve — records wall bounces for segmented flight tweens. */
+    _solveProjectilePath() {
       const h = this.scale.height;
       const r = this.layout.bubbleRadius;
       const start = this.shooter.getMuzzleWorld();
+      const path = [{ x: start.x, y: start.y }];
+      const minPointDist = Math.max(6, r * 0.35);
       let x = start.x;
       let y = start.y;
       let vx = this.projectile.vx;
@@ -481,6 +507,7 @@ export function createMonsterRescueScene(Phaser) {
       const ceilingY = this.layout.originY - r;
       /** Only reject shots that fall back into the cannon — not shallow horizontal wall approaches. */
       const floorY = (this.layout.shooterY ?? h - 48) + r * 0.35;
+      let lastBounceWall = null;
 
       while (steps++ < maxSteps) {
         const speed = Math.hypot(vx, vy);
@@ -498,9 +525,19 @@ export function createMonsterRescueScene(Phaser) {
           vx = bounced.vx;
           vy = bounced.vy;
 
+          if (bounced.wall && bounced.wall !== lastBounceWall) {
+            this._pushPathPoint(path, x, y, minPointDist);
+            lastBounceWall = bounced.wall;
+          } else if (!bounced.wall) {
+            lastBounceWall = null;
+          }
+
           if (y < ceilingY) {
             const col = Math.floor((x - this.layout.originX) / this.layout.cellW);
-            return { row: 0, col: Phaser.Math.Clamp(col, 0, 10), x, y };
+            const attachCol = Phaser.Math.Clamp(col, 0, 10);
+            const pos = this.bubbleSystem.toWorld(0, attachCol);
+            this._pushPathPoint(path, pos.x, pos.y, minPointDist);
+            return { row: 0, col: attachCol, path };
           }
 
           if (y > floorY && vy > 0) return null;
@@ -516,43 +553,66 @@ export function createMonsterRescueScene(Phaser) {
             );
             const attach = slot ?? hit;
             const pos = this.bubbleSystem.toWorld(attach.row, attach.col);
-            return { ...attach, x: pos.x, y: pos.y };
+            this._pushPathPoint(path, pos.x, pos.y, minPointDist);
+            return { row: attach.row, col: attach.col, path };
           }
         }
       }
       return null;
     }
 
+    _animateProjectilePath(container, solved) {
+      const { path, row, col } = solved;
+      if (!path?.length || path.length < 2) {
+        return Promise.resolve(null);
+      }
+
+      return new Promise((resolve) => {
+        let seg = 0;
+        const runSegment = () => {
+          if (!container?.active) {
+            resolve(null);
+            return;
+          }
+          if (seg >= path.length - 1) {
+            container.destroy();
+            resolve({ row, col });
+            return;
+          }
+
+          const from = path[seg];
+          const to = path[seg + 1];
+          const isFinal = seg === path.length - 2;
+          const dist = Phaser.Math.Distance.Between(from.x, from.y, to.x, to.y);
+          const duration = this._projectileSegmentDuration(dist, isFinal);
+
+          container.setPosition(from.x, from.y);
+          seg += 1;
+
+          this.tweens.add({
+            targets: container,
+            x: to.x,
+            y: to.y,
+            duration,
+            ease: isFinal ? 'Cubic.easeIn' : 'Linear',
+            onComplete: runSegment,
+          });
+        };
+        runSegment();
+      });
+    }
+
     _simulateProjectile() {
       const container = this.projectile?.container;
       if (!container?.active) return Promise.resolve(null);
 
-      const hit = this._solveProjectileHit();
-      if (!hit) {
+      const solved = this._solveProjectilePath();
+      if (!solved?.path?.length) {
         container.destroy();
         return Promise.resolve(null);
       }
 
-      const dist = Phaser.Math.Distance.Between(container.x, container.y, hit.x, hit.y);
-      const duration = Phaser.Math.Clamp(
-        (dist / SHOOT_VISUAL_SPEED) * 1000,
-        SHOOT_TWEEN_MIN_MS,
-        SHOOT_TWEEN_MAX_MS,
-      );
-
-      return new Promise((resolve) => {
-        this.tweens.add({
-          targets: container,
-          x: hit.x,
-          y: hit.y,
-          duration,
-          ease: 'Sine.easeOut',
-          onComplete: () => {
-            container.destroy();
-            resolve({ row: hit.row, col: hit.col });
-          },
-        });
-      });
+      return this._animateProjectilePath(container, solved);
     }
 
     _findGridHit(x, y) {
