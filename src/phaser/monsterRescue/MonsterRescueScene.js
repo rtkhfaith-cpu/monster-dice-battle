@@ -12,9 +12,12 @@ import { computeRescueLayout } from './rescueLayout';
 import { drawGridVignette, drawProceduralArena } from './rescueBackdrop';
 import { playRescueShoot } from '../../../src/utils/audioManager';
 
-const SHOOT_SPEED = 720;
-/** Short flight tween after instant trajectory solve. */
-const PROJECTILE_TWEEN_MS = 95;
+/** Physics solve step speed (px/s) — not the on-screen tween. */
+const SHOOT_SPEED = 520;
+/** Visible bubble flight speed after trajectory is solved. */
+const SHOOT_VISUAL_SPEED = 380;
+const SHOOT_TWEEN_MIN_MS = 200;
+const SHOOT_TWEEN_MAX_MS = 780;
 /** Allow steep bank shots off left/right frame walls. */
 const MIN_AIM_ANGLE = -3.05;
 const MAX_AIM_ANGLE = -0.1;
@@ -487,13 +490,20 @@ export function createMonsterRescueScene(Phaser) {
         return Promise.resolve(null);
       }
 
+      const dist = Phaser.Math.Distance.Between(container.x, container.y, hit.x, hit.y);
+      const duration = Phaser.Math.Clamp(
+        (dist / SHOOT_VISUAL_SPEED) * 1000,
+        SHOOT_TWEEN_MIN_MS,
+        SHOOT_TWEEN_MAX_MS,
+      );
+
       return new Promise((resolve) => {
         this.tweens.add({
           targets: container,
           x: hit.x,
           y: hit.y,
-          duration: PROJECTILE_TWEEN_MS,
-          ease: 'Cubic.easeIn',
+          duration,
+          ease: 'Sine.easeOut',
           onComplete: () => {
             container.destroy();
             resolve({ row: hit.row, col: hit.col });

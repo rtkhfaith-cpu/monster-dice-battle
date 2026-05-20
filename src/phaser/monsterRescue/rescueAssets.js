@@ -9,7 +9,6 @@ export const RESCUE_SCENE_ASSETS = {
   bomb: { key: 'rescue_bomb', path: GAME_ASSETS.battleActions.feedback.critical },
   exp: { key: 'rescue_exp', path: GAME_ASSETS.battleActions.magic },
   gear: { key: 'rescue_gear', path: GAME_ASSETS.battleActions.defend },
-  popFx: { key: 'rescue_pop_fx', path: GAME_ASSETS.battleActions.feedback.hit },
 };
 
 export function preloadRescueAssets(scene, { skipBg = true } = {}) {

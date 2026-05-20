@@ -2,7 +2,6 @@ import { BUBBLE_COLORS, GRID_COLS, GRID_ROWS } from '../../../utils/monsterRescu
 import { playRescueCombo, playRescuePopBurst } from '../../../src/utils/audioManager';
 import BubbleGrid from './BubbleGrid';
 import { createShinyBubble } from './bubbleVisuals';
-import { RESCUE_SCENE_ASSETS } from './rescueAssets';
 
 const MAX_RESOLVE_CHAIN = 48;
 
@@ -99,30 +98,27 @@ export default class BubbleSystem {
 
   _spawnPopSpark(x, y, cell) {
     const color = BUBBLE_COLORS[cell.color % BUBBLE_COLORS.length] ?? 0xffffff;
-    if (this.scene.textures.exists(RESCUE_SCENE_ASSETS.popFx.key)) {
-      const fx = this.scene.add.image(x, y, RESCUE_SCENE_ASSETS.popFx.key).setDepth(20).setAlpha(0.85);
-      const popSize = (this.bubbleRadius ?? 22) * 1.25;
-      fx.setDisplaySize(popSize, popSize);
-      fx.setScale(0.65).setAlpha(0.95);
-      this.scene.tweens.add({
-        targets: fx,
-        scaleX: 1.45,
-        scaleY: 1.45,
-        alpha: 0,
-        duration: 520,
-        ease: 'Cubic.easeOut',
-        onComplete: () => fx.destroy(),
-      });
-    }
-    for (let i = 0; i < 4; i++) {
-      const p = this.scene.add.circle(x, y, 3, color, 0.9).setDepth(20);
-      const ang = (Math.PI * 2 * i) / 4;
+    const r = this.bubbleRadius ?? 22;
+    const burst = this.scene.add.circle(x, y, r * 0.35, color, 0.55).setDepth(20);
+    this.scene.tweens.add({
+      targets: burst,
+      scaleX: 1.8,
+      scaleY: 1.8,
+      alpha: 0,
+      duration: 220,
+      ease: 'Quad.easeOut',
+      onComplete: () => burst.destroy(),
+    });
+    const spread = Math.max(12, r * 0.85);
+    for (let i = 0; i < 3; i++) {
+      const p = this.scene.add.circle(x, y, Math.max(2, r * 0.12), color, 0.85).setDepth(20);
+      const ang = (Math.PI * 2 * i) / 3;
       this.scene.tweens.add({
         targets: p,
-        x: x + Math.cos(ang) * 20,
-        y: y + Math.sin(ang) * 20,
+        x: x + Math.cos(ang) * spread,
+        y: y + Math.sin(ang) * spread,
         alpha: 0,
-        duration: 420,
+        duration: 260,
         ease: 'Quad.easeOut',
         onComplete: () => p.destroy(),
       });
