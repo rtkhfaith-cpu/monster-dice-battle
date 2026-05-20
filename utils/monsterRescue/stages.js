@@ -1,3 +1,8 @@
+import {
+  dangerRowForLevel,
+  gameTimeSecForLevel,
+  rowPushEveryForLevel,
+} from './difficulty';
 import { shapeLetterForLevel } from './openingShapes';
 
 /** @typedef {'normal'|'miniBoss'|'bigBoss'} RescueSubKind */
@@ -34,7 +39,9 @@ export const RESCUE_TOTAL_LEVELS = RESCUE_THEME_COUNT * RESCUE_SUB_LEVELS;
  *   themeLabel: string,
  *   colorCount: number,
  *   fillRows: number,
- *   shotLimit: number,
+ *   rowPushEvery: number,
+ *   gameTimeSec: number,
+ *   dangerRow: number,
  *   bgIndex: number,
  *   subKind: RescueSubKind,
  *   openingShape: string,
@@ -71,10 +78,6 @@ function fillRowsForLevel(themeId, subLevel) {
   return Math.min(9, base + themeBump);
 }
 
-function shotLimitForLevel(themeId, subLevel) {
-  return Math.max(16, 38 - subLevel - Math.floor((themeId - 1) * 1.5));
-}
-
 /** @param {number} levelId Flat level 1–60 */
 export function getRescueStage(levelId) {
   const { themeId, subLevel, levelId: id } = decodeRescueLevel(levelId);
@@ -88,7 +91,9 @@ export function getRescueStage(levelId) {
     themeLabel: theme.label,
     colorCount: theme.colorCount,
     fillRows: fillRowsForLevel(themeId, subLevel),
-    shotLimit: shotLimitForLevel(themeId, subLevel),
+    rowPushEvery: rowPushEveryForLevel(id),
+    gameTimeSec: gameTimeSecForLevel(id),
+    dangerRow: dangerRowForLevel(id),
     bgIndex: theme.bgIndex,
     subKind,
     openingShape: shapeLetterForLevel(id),

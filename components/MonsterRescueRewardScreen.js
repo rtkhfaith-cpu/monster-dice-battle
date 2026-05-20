@@ -6,6 +6,7 @@ import { rescueUiStyles } from './monsterRescue/rescueUiTheme';
 
 export default function MonsterRescueRewardScreen({
   won,
+  timeUp = false,
   stageLabel,
   rewards,
   onContinue,
@@ -29,7 +30,7 @@ export default function MonsterRescueRewardScreen({
           resizeMode="contain"
         />
         <Text style={[rescueUiStyles.banner, won ? rescueUiStyles.bannerWin : rescueUiStyles.bannerLose]}>
-          {won ? 'Stage Cleared!' : 'Try Again!'}
+          {won ? 'Stage Cleared!' : timeUp ? "Time's Up!" : 'Try Again!'}
         </Text>
         <Text style={rescueUiStyles.sub}>{stageLabel}</Text>
 

@@ -88,4 +88,20 @@ export default class StageGenerator {
     const color = Math.floor(Math.random() * this.stageDef.colorCount);
     return createBubbleCell(color, BUBBLE_TYPES.NORMAL);
   }
+
+  /** Reduce accidental match-3 on the ceiling row after a push. */
+  polishGrid(gridModel) {
+    this._removeInitialMatches(gridModel.grid);
+  }
+
+  buildPushRowCells() {
+    const { colorCount } = this.stageDef;
+    const row = this._colsInRow(0);
+    const cells = [];
+    for (let col = 0; col < row; col++) {
+      const color = Math.floor(Math.random() * colorCount);
+      cells.push(createBubbleCell(color, BUBBLE_TYPES.NORMAL));
+    }
+    return cells;
+  }
 }

@@ -204,4 +204,31 @@ export default class BubbleGrid {
     }
     return -1;
   }
+
+  /**
+   * Shift all bubbles down one row; bottom row is discarded.
+   * @returns {{ row: number, col: number, cell: import('./bubbleTypes').BubbleCell }[]}
+   */
+  pushRowsDown() {
+    const bottom = GRID_ROWS - 1;
+    const lost = [];
+    for (let col = 0; col < this.colsInRow(bottom); col++) {
+      const cell = this.get(bottom, col);
+      if (cell) lost.push({ row: bottom, col, cell });
+    }
+
+    for (let row = bottom; row >= 1; row--) {
+      for (let col = 0; col < GRID_COLS; col++) this.grid[row][col] = null;
+      const colsAbove = this.colsInRow(row - 1);
+      for (let col = 0; col < colsAbove; col++) {
+        this.grid[row][col] = this.grid[row - 1][col];
+      }
+    }
+
+    for (let col = 0; col < this.colsInRow(0); col++) {
+      this.grid[0][col] = null;
+    }
+
+    return lost;
+  }
 }

@@ -2,13 +2,9 @@ export const GAME_ASSETS = {
   homeMainMenu: '/assets/Homepage/main-menu.jpeg',
   monsterLadderBackground: '/assets/Quest/Monster_Ladder.jpeg',
   questHubBackground: '/assets/Quest/Monster_Ladder.jpeg',
-  /** Calm underwater-style arenas for bubble rescue stages */
-  monsterRescueBackground: '/assets/BattleGround/Battleground_2.png',
-  monsterRescueBackgrounds: [
-    '/assets/BattleGround/Battleground_2.png',
-    '/assets/BattleGround/Battleground_3.png',
-    '/assets/BattleGround/BattleGround.png',
-  ],
+  /** Volcanic ruins arena for Monster Rescue (Phaser + hub frame) */
+  monsterRescueBackground: '/assets/BattleGround/MonsterRescue_Arena.png',
+  monsterRescueBackgrounds: ['/assets/BattleGround/MonsterRescue_Arena.png'],
   battleGrounds: [
     '/assets/BattleGround/BattleGround.png',
     '/assets/BattleGround/Battleground_2.png',

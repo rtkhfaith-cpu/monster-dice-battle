@@ -11,7 +11,7 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
     unlockAudio();
   }, []);
   const { height: winH, width: winW } = useWindowDimensions();
-  const canvasH = Math.min(Math.max(winH - 130, 340), 580);
+  const canvasH = Math.min(Math.max(winH - 96, 400), 640);
   const canvasW = Math.min(winW - 24, 520);
 
   const handlePop = useCallback(() => {
@@ -65,10 +65,6 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
             <Text style={rescueUiStyles.noticeText}>Open in a web browser to play Monster Rescue.</Text>
           </View>
         )}
-      </View>
-
-      <View style={rescueUiStyles.noticeBar}>
-        <Text style={rescueUiStyles.noticeText}>Drag to aim the bubble gun · release to shoot · clear the board!</Text>
       </View>
     </RescueGameFrame>
   );

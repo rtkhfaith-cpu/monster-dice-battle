@@ -100,12 +100,14 @@ export default class BubbleSystem {
       const fx = this.scene.add.image(x, y, RESCUE_SCENE_ASSETS.popFx.key).setDepth(20).setAlpha(0.85);
       const popSize = (this.bubbleRadius ?? 22) * 1.25;
       fx.setDisplaySize(popSize, popSize);
+      fx.setScale(0.65).setAlpha(0.95);
       this.scene.tweens.add({
         targets: fx,
-        scaleX: 1.4,
-        scaleY: 1.4,
+        scaleX: 1.45,
+        scaleY: 1.45,
         alpha: 0,
-        duration: 220,
+        duration: 520,
+        ease: 'Cubic.easeOut',
         onComplete: () => fx.destroy(),
       });
     }
@@ -114,10 +116,11 @@ export default class BubbleSystem {
       const ang = (Math.PI * 2 * i) / 4;
       this.scene.tweens.add({
         targets: p,
-        x: x + Math.cos(ang) * 16,
-        y: y + Math.sin(ang) * 16,
+        x: x + Math.cos(ang) * 20,
+        y: y + Math.sin(ang) * 20,
         alpha: 0,
-        duration: 260,
+        duration: 420,
+        ease: 'Quad.easeOut',
         onComplete: () => p.destroy(),
       });
     }
@@ -176,5 +179,25 @@ export default class BubbleSystem {
 
   getModel() {
     return this.gridModel;
+  }
+
+  /**
+   * Push stack down and spawn a new top row.
+   * @param {import('./bubbleTypes').BubbleCell[]} topRowCells
+   */
+  /**
+   * @param {import('./bubbleTypes').BubbleCell[]} topRowCells
+   * @param {import('./StageGenerator')|null} [stageGenerator]
+   */
+  pushTopRow(topRowCells, stageGenerator = null) {
+    const lost = this.gridModel.pushRowsDown();
+    const cols = this.gridModel.colsInRow(0);
+    for (let col = 0; col < cols; col++) {
+      const cell = topRowCells[col];
+      if (cell) this.gridModel.set(0, col, cell);
+    }
+    if (stageGenerator?.polishGrid) stageGenerator.polishGrid(this.gridModel);
+    this.rebuildSprites();
+    return { lostCount: lost.length };
   }
 }

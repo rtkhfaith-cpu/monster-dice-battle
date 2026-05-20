@@ -26,3 +26,9 @@ export const COMBO_COIN_BASE = 8;
 export const COMBO_EXP_BASE = 12;
 export const RESCUE_COIN_BONUS = 25;
 export const RESCUE_EXP_BONUS = 18;
+
+/** Seconds allowed per shot before auto-fire (no on-screen timer). */
+export const RESCUE_MOVE_TIME_SEC = 15;
+
+/** Overall stage time limit — lose when this reaches zero. */
+export const RESCUE_GAME_TIME_SEC = 120;

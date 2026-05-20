@@ -12,8 +12,11 @@ const MONSTER_SIZE = 22;
 const PREVIEW_COUNT = 3;
 const PREVIEW_SCALE = 0.3;
 const PREVIEW_SLOT_X = -58;
-const MONSTER_OFFSET_X = 24;
-const MONSTER_FOOT_Y = 4;
+const GUN_BASE_HALF_W = 18;
+/** Total guide length ≈ three bubble diameters */
+const AIM_LINE_BUBBLE_COUNT = 3;
+const AIM_DASH = 5;
+const AIM_GAP = 4;
 
 /** Silver pipe palette */
 const SILVER = {
@@ -49,7 +52,8 @@ export default class RescueShooter {
     this.root = scene.add.container(x, y).setDepth(32);
 
     this.platformGfx = scene.add.graphics();
-    drawSummoningPlatform(this.platformGfx, Math.max(34, bubbleRadius * 1.55));
+    this.platformRadius = Math.max(34, bubbleRadius * 1.55);
+    drawSummoningPlatform(this.platformGfx, this.platformRadius);
 
     this.nextBubbleSlot = scene.add.container(PREVIEW_SLOT_X, 2);
     this.nextPreviewLabel = scene.add
@@ -64,19 +68,21 @@ export default class RescueShooter {
     this.nextPreviewBubbles = [];
 
     this.monsterImg = scene.add
-      .image(MONSTER_OFFSET_X, MONSTER_FOOT_Y, RESCUE_SHOOTER_MONSTER_KEY)
-      .setOrigin(0.5, 1);
+      .image(0, 0, RESCUE_SHOOTER_MONSTER_KEY)
+      .setOrigin(0, 1);
     this.monsterImg.setDisplaySize(MONSTER_SIZE, MONSTER_SIZE);
     this.monsterImg.setVisible(false);
     this.monsterFallback = scene.add
-      .text(MONSTER_OFFSET_X, 2, '🐾', { fontSize: '14px' })
-      .setOrigin(0.5, 1);
+      .text(0, 0, '🐾', { fontSize: '14px' })
+      .setOrigin(0, 1);
 
     this.aimPivot = scene.add.container(0, CANNON_PIVOT_Y);
+    this.aimLineGfx = scene.add.graphics();
     this.cannonGfx = scene.add.graphics();
     this.bubbleSlot = scene.add.container(0, 0);
+    this.aimLineVisible = true;
 
-    this.aimPivot.add([this.cannonGfx, this.bubbleSlot]);
+    this.aimPivot.add([this.aimLineGfx, this.cannonGfx, this.bubbleSlot]);
     this.root.add([
       this.platformGfx,
       this.nextPreviewLabel,
@@ -88,6 +94,28 @@ export default class RescueShooter {
 
     this._drawCannon();
     this._tryLoadMonsterTexture();
+  }
+
+  /**
+   * Place monster to the right of the gun base, feet on the inner frame line.
+   * @param {{ canvasWidth: number, frameLineLocalY: number, gunBaseRight?: number }} layout
+   */
+  configureLayout(layout) {
+    const footY = layout.frameLineLocalY ?? this.platformRadius + 18;
+    const gunRight = layout.gunBaseRight ?? GUN_BASE_HALF_W;
+    const gap = layout.canvasWidth * 0.01;
+    const monsterX = gunRight + gap;
+
+    this.monsterImg.setPosition(monsterX, footY);
+    this.monsterFallback.setPosition(monsterX, footY);
+  }
+
+  setBubbleRadius(radius) {
+    this.bubbleRadius = radius;
+    this.platformRadius = Math.max(34, radius * 1.55);
+    drawSummoningPlatform(this.platformGfx, this.platformRadius);
+    this._drawCannon();
+    this.setAimAngle(this.aimAngle);
   }
 
   _tryLoadMonsterTexture() {
@@ -199,12 +227,62 @@ export default class RescueShooter {
     this._drawSilverBarrel(g);
   }
 
+  _muzzleLocalY() {
+    const mountTop = -4;
+    return mountTop - BARREL_LENGTH - this.bubbleRadius * 0.32;
+  }
+
+  _strokeDottedLine(g, x0, y0, x1, y1) {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1) return;
+    const ux = dx / dist;
+    const uy = dy / dist;
+    let t = 0;
+    let drawing = true;
+    while (t < dist) {
+      const seg = drawing ? AIM_DASH : AIM_GAP;
+      const t2 = Math.min(t + seg, dist);
+      if (drawing) {
+        g.beginPath();
+        g.moveTo(x0 + ux * t, y0 + uy * t);
+        g.lineTo(x0 + ux * t2, y0 + uy * t2);
+        g.strokePath();
+      }
+      t = t2;
+      drawing = !drawing;
+    }
+  }
+
+  _drawAimLine() {
+    const g = this.aimLineGfx;
+    g.clear();
+    if (!this.aimLineVisible) return;
+
+    const tipY = this._muzzleLocalY();
+    const len = this.bubbleRadius * 2 * AIM_LINE_BUBBLE_COUNT;
+    const x0 = 0;
+    const y0 = tipY;
+    const y1 = tipY - len;
+
+    g.lineStyle(2, 0xffe6a3, 0.5);
+    this._strokeDottedLine(g, x0, y0, x0, y1);
+    g.lineStyle(1, 0xffffff, 0.25);
+    this._strokeDottedLine(g, x0, y0, x0, y1);
+  }
+
+  setAimLineVisible(visible) {
+    this.aimLineVisible = visible !== false;
+    this._drawAimLine();
+  }
+
   setAimAngle(rad) {
     this.aimAngle = rad;
     this.aimPivot.rotation = rad + Math.PI / 2;
-    const mountTop = -4;
-    const tipY = mountTop - BARREL_LENGTH - this.bubbleRadius * 0.32;
+    const tipY = this._muzzleLocalY();
     this.bubbleSlot.setPosition(0, tipY);
+    this._drawAimLine();
   }
 
   setLoadedBubble(cell) {

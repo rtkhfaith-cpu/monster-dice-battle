@@ -6,9 +6,11 @@ import {
   RESCUE_TOTAL_LEVELS,
   encodeRescueLevel,
   formatRescueLabel,
+  getRescueStage,
   getRescueSubKind,
   rescueSubBanner,
 } from '../utils/monsterRescue/stages';
+import { describeRescueDifficulty } from '../utils/monsterRescue/difficulty';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import RescueGameFrame from './monsterRescue/RescueGameFrame';
 import { rescueUiStyles } from './monsterRescue/rescueUiTheme';
@@ -37,7 +39,7 @@ export default function MonsterRescueHubScreen({
           </View>
         </View>
         <Text style={rescueUiStyles.blurb}>
-          Clear every bubble to win. Match colors only. Sub-levels 5 and 10 award Monster Ladder chests.
+          Clear every bubble before time runs out. Drag the cannon left/right to aim, then release to shoot. Sub-levels 5 and 10 award Monster Ladder chests.
         </Text>
       </View>
 
@@ -62,7 +64,8 @@ export default function MonsterRescueHubScreen({
               const cleared = levelId <= highestCleared;
               const subKind = getRescueSubKind(subLevel);
               const banner = rescueSubBanner(subKind);
-              const stage = { colorCount: theme.colorCount };
+              const stage = getRescueStage(levelId);
+              const diff = describeRescueDifficulty(levelId);
               return (
                 <TouchableOpacity
                   key={levelId}
@@ -85,7 +88,7 @@ export default function MonsterRescueHubScreen({
                       {banner ? ` · ${banner}` : ''}
                     </Text>
                     <Text style={rescueUiStyles.stageMeta}>
-                      {stage.colorCount} colors · clear all bubbles
+                      {stage.colorCount} colors · {diff.timeLabel} · push every {diff.rowPushEvery} shots
                     </Text>
                   </View>
                   <Text style={rescueUiStyles.stageAction}>{locked ? '🔒' : cleared ? '★' : '›'}</Text>

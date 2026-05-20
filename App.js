@@ -1036,6 +1036,7 @@ export default function App() {
     setGameData(gd);
     setRescueRewardPayload({
       won,
+      timeUp: !!payload?.timeUp,
       stageId: payload?.stageId ?? rescueStageId,
       rewards,
       summary: payload?.summary,
@@ -1668,6 +1669,7 @@ export default function App() {
         {phase === 'monsterRescueReward' && rescueRewardPayload ? (
           <MonsterRescueRewardScreen
             won={rescueRewardPayload.won}
+            timeUp={rescueRewardPayload.timeUp}
             stageLabel={getRescueStage(rescueRewardPayload.stageId).label}
             rewards={rescueRewardPayload.rewards}
             onContinue={() => setPhase('monsterRescueHub')}

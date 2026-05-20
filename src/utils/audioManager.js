@@ -6,10 +6,15 @@ import { Platform } from 'react-native';
 
 const MENU_BGM = ['/audio/bgm/Main1.mp3', '/audio/bgm/Main 2.mp3'];
 const LADDER_BGM = ['/audio/bgm/Monster_ladder1.mp3', '/audio/bgm/Monster_ladder.mp3'];
-/** Relaxed fantasy arcade — reuses main menu tracks */
-const RESCUE_BGM = ['/audio/bgm/Main 2.mp3', '/audio/bgm/Main1.mp3'];
+/** Relaxed fantasy arcade — main menu tracks with ladder fallbacks if missing */
+const RESCUE_BGM = [
+  '/audio/bgm/Main 2.mp3',
+  '/audio/bgm/Main1.mp3',
+  '/audio/bgm/Monster_ladder1.mp3',
+  '/audio/bgm/Monster_ladder.mp3',
+];
 const BATTLE_BGM = ['/audio/bgm/Main_Battle_1.mp3', '/audio/bgm/Main_Battle_2.mp3'];
-const MINI_BOSS_BGM = ['/audio/bgm/Mini_boss.mp3'];
+const MINI_BOSS_BGM = ['/audio/bgm/Mini_Boss.mp3'];
 const BOSS_BGM = ['/audio/bgm/Boss.mp3'];
 
 const SFX = {
@@ -132,8 +137,8 @@ export function saveAudioSettings(patch) {
 
 function bgmVolumeNow() {
   let v = settings.bgmVolume;
-  if (menuMusicKind === 'rescue' && bgmMode === 'menu') v *= 0.52;
-  if (Date.now() < duckUntil) v *= 0.38;
+  if (menuMusicKind === 'rescue' && bgmMode === 'menu') v *= 0.72;
+  if (Date.now() < duckUntil) v *= menuMusicKind === 'rescue' ? 0.65 : 0.38;
   return clamp01(v);
 }
 
@@ -225,7 +230,7 @@ function fadeOutBgm(onDone, { preserveTarget = false } = {}) {
  * @param {string} path
  * @param {'menu'|'battle'} mode
  */
-function startBgm(path, mode, fallbackPath = '') {
+function startBgm(path, mode, fallbackPath = '', moreFallbacks = []) {
   if (!path || !isWeb() || settings.muted || !isAppAudioActive()) return false;
 
   if (isBgmFadingTo(path, mode) || isBgmTrackActive(path, mode)) {
@@ -263,8 +268,16 @@ function startBgm(path, mode, fallbackPath = '') {
       else battlePick = path;
 
       void a.play().catch(() => {
-        if (bgmAudio === a) stopBgmElement();
-        if (fallbackPath && fallbackPath !== path) startBgm(fallbackPath, mode);
+        if (bgmAudio === a) stopBgmElement({ clearTarget: false });
+        if (fallbackPath && fallbackPath !== path) {
+          startBgm(fallbackPath, mode, moreFallbacks[0] ?? '', moreFallbacks.slice(1));
+          return;
+        }
+        if (moreFallbacks.length) {
+          startBgm(moreFallbacks[0], mode, moreFallbacks[1] ?? '', moreFallbacks.slice(1));
+        } else {
+          stopBgmElement();
+        }
       });
     } catch {
       stopBgmElement();
@@ -402,19 +415,19 @@ export function playLose() {
 
 /** Light bubble pop — dodge SFX reads well as a soft pop */
 export function playBubblePop() {
-  duckBgm(160);
+  duckBgm(90);
   return playOneShot(SFX.dodge, 0.92);
 }
 
 /** Combo chain accent */
 export function playRescueCombo() {
-  duckBgm(280);
+  duckBgm(140);
   return playOneShot(SFX.critical, 0.88);
 }
 
 /** Bubble launcher whoosh */
 export function playBubbleShoot() {
-  duckBgm(340);
+  duckBgm(120);
   return playOneShot(SFX.attack, 1.05);
 }
 
@@ -453,7 +466,8 @@ function playMenuTrack(kind = menuMusicKind) {
   const tracks =
     kind === 'ladder' ? LADDER_BGM : kind === 'rescue' ? RESCUE_BGM : MENU_BGM;
   const path = menuPick && tracks.includes(menuPick) ? menuPick : pickRandom(tracks);
-  startBgm(path, 'menu');
+  const fallbacks = tracks.filter((t) => t !== path);
+  startBgm(path, 'menu', fallbacks[0] ?? '', fallbacks.slice(1));
 }
 
 export function stopMenuMusic() {
