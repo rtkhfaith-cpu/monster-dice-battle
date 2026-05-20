@@ -14,7 +14,7 @@ const MONSTER_SIZE_MAX = 94;
 const MONSTER_SIZE_PER_RADIUS = 2.82;
 const MONSTER_DISPLAY_SCALE = 1.2;
 const AIM_LINE_SCROLL_MS = 48;
-const AIM_PHASE_STEP = 4;
+const AIM_PHASE_STEP = 6;
 /** Feet sit on the stone platform ring, not the outer glow. */
 const MONSTER_FOOT_ON_PLATFORM = 0.38;
 
@@ -29,8 +29,10 @@ const PREVIEW_SLOT_X = -58;
 const GUN_BASE_HALF_W = 18;
 /** Total guide length ≈ three bubble diameters */
 const AIM_LINE_BUBBLE_COUNT = 3;
-const AIM_DASH = 5;
-const AIM_GAP = 4;
+const AIM_DASH = 14;
+const AIM_GAP = 7;
+const AIM_LINE_WIDTH = 5;
+const AIM_LINE_WIDTH_HI = 2;
 
 /** Silver pipe palette */
 const SILVER = {
@@ -312,9 +314,9 @@ export default class RescueShooter {
     const y1 = tipY - len;
 
     const phase = this.aimDashPhase ?? 0;
-    g.lineStyle(2, 0xffe6a3, 0.5);
+    g.lineStyle(AIM_LINE_WIDTH, 0xffe6a3, 0.82);
     this._strokeDottedLine(g, x0, y0, x0, y1, phase);
-    g.lineStyle(1, 0xffffff, 0.25);
+    g.lineStyle(AIM_LINE_WIDTH_HI, 0xffffff, 0.45);
     this._strokeDottedLine(g, x0, y0, x0, y1, phase);
   }
 

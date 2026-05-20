@@ -5,22 +5,15 @@ function bubbleColor(cell) {
   return BUBBLE_COLORS[idx] ?? 0xffffff;
 }
 
-const BUBBLE_GLOW_COLORS = [
-  0xff9aad,
-  0x7ff5e8,
-  0xfff08a,
-  0xddbfff,
-  0x9ed4ff,
-  0xffb8dc,
-];
-
-function glowColor(cell) {
-  const idx = cell.color % BUBBLE_GLOW_COLORS.length;
-  return BUBBLE_GLOW_COLORS[idx] ?? 0xffffff;
+function darkenColor(hex, amount = 0.22) {
+  const r = ((hex >> 16) & 0xff) * (1 - amount);
+  const g = ((hex >> 8) & 0xff) * (1 - amount);
+  const b = (hex & 0xff) * (1 - amount);
+  return (Math.floor(r) << 16) | (Math.floor(g) << 8) | Math.floor(b);
 }
 
 /**
- * Glossy arcade bubble (shared by grid + shooter).
+ * Crisp arcade bubble (minimal soft layers — avoids blurry overlap halos).
  * @param {Phaser.Scene} scene
  * @param {{ color: number }} cell
  * @param {number} depth
@@ -29,19 +22,29 @@ function glowColor(cell) {
  */
 export function createShinyBubble(scene, cell, depth = 5, radius = DEFAULT_BUBBLE_RADIUS) {
   const fill = bubbleColor(cell);
-  const glow = glowColor(cell);
-  const r = radius;
+  const r = Math.round(radius);
   const container = scene.add.container(0, 0).setDepth(depth);
 
-  const outerGlow = scene.add.circle(0, 0, r + 8, glow, 0.22);
-  const midGlow = scene.add.circle(0, 1, r + 3, glow, 0.35);
-  const body = scene.add.circle(0, 0, r, fill, 0.92);
-  const inner = scene.add.circle(0, 2, r * 0.72, 0xffffff, 0.14);
-  const rim = scene.add.circle(0, 0, r, 0xffffff, 0).setStrokeStyle(2.5, 0xffffff, 0.55);
-  const specLarge = scene.add.circle(-r * 0.32, -r * 0.38, r * 0.38, 0xffffff, 0.42);
-  const specSmall = scene.add.circle(-r * 0.12, -r * 0.52, r * 0.14, 0xffffff, 0.88);
+  const shadow = scene.add.circle(0, Math.max(1, Math.round(r * 0.08)), r, 0x000000, 0.28);
+  const body = scene.add.circle(0, 0, r, fill, 1);
+  const shade = scene.add.circle(0, Math.round(r * 0.12), r * 0.88, darkenColor(fill, 0.18), 0.35);
+  const rim = scene.add.circle(0, 0, r, 0x000000, 0).setStrokeStyle(2, darkenColor(fill, 0.35), 1);
+  const spec = scene.add.circle(
+    Math.round(-r * 0.28),
+    Math.round(-r * 0.34),
+    Math.max(3, Math.round(r * 0.28)),
+    0xffffff,
+    0.72
+  );
+  const specDot = scene.add.circle(
+    Math.round(-r * 0.1),
+    Math.round(-r * 0.48),
+    Math.max(2, Math.round(r * 0.1)),
+    0xffffff,
+    1
+  );
 
-  container.add([outerGlow, midGlow, body, inner, rim, specLarge, specSmall]);
+  container.add([shadow, body, shade, rim, spec, specDot]);
   container.setData('bubbleColor', fill);
   return container;
 }

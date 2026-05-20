@@ -49,7 +49,7 @@ export default class BubbleSystem {
 
   spawnBubbleSprite(row, col, cell, depth = 5) {
     const { x, y } = this.toWorld(row, col);
-    const container = this._makeBubbleVisual(cell, x, y, depth);
+    const container = this._makeBubbleVisual(cell, Math.round(x), Math.round(y), depth);
     this.sprites.set(this.key(row, col), container);
     return container;
   }

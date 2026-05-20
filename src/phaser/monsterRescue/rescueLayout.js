@@ -15,9 +15,10 @@ const SHOOTER_ZONE_H = 58;
 export const AIM_ZONE_PAD_X = 44;
 export const AIM_ZONE_EXTRA_TOP = 40;
 const EVEN_ROW_SPAN = GRID_COLS - 1;
-/** ~45% larger bubbles vs old 11-col / 0.46 layout, tuned to fill frame width. */
-const RADIUS_RATIO = 0.58;
-const CELL_H_RATIO = 0.84;
+/** Max ~0.48 — larger values overlap (centers are cellW apart on a row). */
+const RADIUS_RATIO = 0.47;
+/** Hex row pitch (√3/2) so staggered neighbors do not overlap. */
+const CELL_H_RATIO = 0.866;
 
 export function platformRadiusFor(bubbleRadius) {
   return Math.max(34, bubbleRadius * 1.55);
