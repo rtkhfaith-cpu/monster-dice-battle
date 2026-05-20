@@ -131,27 +131,25 @@ export default class BubbleGrid {
     return [];
   }
 
-  /** Cells connected to the topmost occupied row (ceiling anchor for floating checks). */
+  /** Distinct bubble color indices currently on the board. */
+  collectOccupiedColors() {
+    const colors = new Set();
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < this.colsInRow(row); col++) {
+        const cell = this.get(row, col);
+        if (cell) colors.add(cell.color);
+      }
+    }
+    return [...colors];
+  }
+
+  /** Cells connected to ceiling row 0 (classic bubble-shooter anchor). */
   findAnchored() {
     const anchored = new Set();
     const key = (r, c) => `${r},${c}`;
     const queue = [];
-    let seedRow = 0;
-    while (seedRow < GRID_ROWS) {
-      let hasBubble = false;
-      for (let col = 0; col < this.colsInRow(seedRow); col++) {
-        if (this.get(seedRow, col)) {
-          hasBubble = true;
-          break;
-        }
-      }
-      if (hasBubble) break;
-      seedRow += 1;
-    }
-    if (seedRow >= GRID_ROWS) return anchored;
-
-    for (let col = 0; col < this.colsInRow(seedRow); col++) {
-      if (this.get(seedRow, col)) queue.push([seedRow, col]);
+    for (let col = 0; col < this.colsInRow(0); col++) {
+      if (this.get(0, col)) queue.push([0, col]);
     }
     while (queue.length) {
       const [r, c] = queue.shift();

@@ -23,12 +23,23 @@ export function rowPushEveryForLevel(levelId) {
 }
 
 /**
- * Stage time limit in seconds (slightly shorter on higher levels).
+ * Stage time limit in seconds (level 1 = 5 minutes; shorter on higher levels).
  * @param {number} levelId
  */
 export function gameTimeSecForLevel(levelId) {
   const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
+  if (id === 1) return 300;
   return Math.max(90, RESCUE_GAME_TIME_SEC - Math.floor((id - 1) / 5));
+}
+
+/**
+ * Seconds before auto-fire when the player does not shoot.
+ * @param {number} levelId
+ */
+export function moveTimeSecForLevel(levelId) {
+  const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
+  if (id === 1) return 20;
+  return Math.max(10, 15 - Math.floor((id - 1) / 12));
 }
 
 /**
@@ -46,8 +57,9 @@ export function dangerRowForLevel(levelId) {
 export function describeRescueDifficulty(levelId) {
   const push = rowPushEveryForLevel(levelId);
   const time = gameTimeSecForLevel(levelId);
+  const move = moveTimeSecForLevel(levelId);
   const m = Math.floor(time / 60);
   const s = time % 60;
   const timeLabel = m > 0 ? `${m}:${s < 10 ? `0${s}` : s}` : `${s}s`;
-  return { rowPushEvery: push, gameTimeSec: time, timeLabel };
+  return { rowPushEvery: push, gameTimeSec: time, moveTimeSec: move, timeLabel };
 }

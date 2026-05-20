@@ -146,8 +146,12 @@ export default class BubbleSystem {
       searchNear = matches.map((m) => ({ row: m.row, col: m.col }));
     }
 
-    const floating = this.gridModel.findFloatingClusters();
-    if (floating.length) {
+    let floatChain = 0;
+    while (floatChain < MAX_RESOLVE_CHAIN) {
+      const floating = this.gridModel.findFloatingClusters();
+      if (!floating.length) break;
+
+      floatChain += 1;
       comboManager.onPop(floating.length);
       const cells = await this.popPositions(floating);
       rewardManager.addPopScore(cells, comboManager.getMultiplier());

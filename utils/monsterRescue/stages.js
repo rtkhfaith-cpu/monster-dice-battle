@@ -1,6 +1,7 @@
 import {
   dangerRowForLevel,
   gameTimeSecForLevel,
+  moveTimeSecForLevel,
   rowPushEveryForLevel,
 } from './difficulty';
 import { shapeLetterForLevel } from './openingShapes';
@@ -41,6 +42,7 @@ export const RESCUE_TOTAL_LEVELS = RESCUE_THEME_COUNT * RESCUE_SUB_LEVELS;
  *   fillRows: number,
  *   rowPushEvery: number,
  *   gameTimeSec: number,
+ *   moveTimeSec: number,
  *   dangerRow: number,
  *   bgIndex: number,
  *   subKind: RescueSubKind,
@@ -93,6 +95,7 @@ export function getRescueStage(levelId) {
     fillRows: fillRowsForLevel(themeId, subLevel),
     rowPushEvery: rowPushEveryForLevel(id),
     gameTimeSec: gameTimeSecForLevel(id),
+    moveTimeSec: moveTimeSecForLevel(id),
     dangerRow: dangerRowForLevel(id),
     bgIndex: theme.bgIndex,
     subKind,
