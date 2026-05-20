@@ -45,8 +45,6 @@ export function createMonsterRescueScene(Phaser) {
       this.stageDef = getRescueStage(this.stageId);
       this.shotsLeft = this.stageDef.shotLimit;
 
-      this._drawBackdrop(w, h);
-
       const cellW = BUBBLE_RADIUS * 2 + 2;
       const cellH = BUBBLE_RADIUS * 1.82;
       this.layout = {
@@ -55,6 +53,8 @@ export function createMonsterRescueScene(Phaser) {
         cellW,
         cellH,
       };
+
+      this._drawBackdrop(w, h);
 
       this.comboManager = new ComboManager(this);
       this.rewardManager = new RewardManager(this);

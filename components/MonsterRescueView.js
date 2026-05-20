@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import { RESCUE_COLORS } from './monsterRescue/rescueUiTheme';
 
 function hostDimensions(el, fallbackHeight) {
   const w = Math.max(320, el?.clientWidth || el?.offsetWidth || 320);
@@ -245,26 +246,31 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 280,
     overflow: 'hidden',
-    borderRadius: 12,
-    backgroundColor: '#1a1a2e',
-    borderWidth: 2,
-    borderColor: '#4a5568',
+    borderRadius: 10,
+    backgroundColor: 'rgba(8, 12, 28, 0.35)',
   },
-  fallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a1a2e' },
-  fallbackText: { color: '#ffe6a3', fontWeight: '700' },
+  fallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(8, 12, 28, 0.55)',
+  },
+  fallbackText: { color: RESCUE_COLORS.title, fontWeight: '800' },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    backgroundColor: 'rgba(15, 22, 42, 0.72)',
   },
-  loadingText: { color: '#ffe6a3', fontWeight: '800', fontSize: 14 },
+  loadingText: { color: RESCUE_COLORS.title, fontWeight: '900', fontSize: 14, letterSpacing: 0.3 },
   errorOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    backgroundColor: 'rgba(15, 22, 42, 0.94)',
     padding: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,143,0.45)',
   },
-  errorText: { color: '#fecaca', fontWeight: '800', textAlign: 'center' },
+  errorText: { color: RESCUE_COLORS.lose, fontWeight: '800', textAlign: 'center' },
 });

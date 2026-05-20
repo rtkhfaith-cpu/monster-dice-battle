@@ -1515,9 +1515,9 @@ export default function App() {
               ? styles.cardShellOnline
             : phase === 'gameOver'
               ? styles.cardShellReward
-            : phase === 'monsterRescue'
-              ? styles.cardShellBattle
-            : phase === 'menu' || phase === 'ladder' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward'
+            : phase === 'monsterRescue' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward'
+              ? [styles.cardShellRescue, lobbyMobile && styles.cardShellRescueMobile]
+            : phase === 'menu' || phase === 'ladder'
               ? [styles.cardShellMenu, lobbyMobile && styles.cardShellMenuMobile]
               : styles.cardShell
         }
@@ -1998,6 +1998,27 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 4,
     overflow: 'hidden',
+  },
+  cardShellRescue: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+    backgroundColor: '#09051a',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(244,114,182,0.45)',
+    padding: 0,
+    ...(Platform.OS === 'web'
+      ? {
+          display: 'flex',
+          flexDirection: 'column',
+        }
+      : {}),
+  },
+  cardShellRescueMobile: {
+    borderRadius: 12,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
   },
   cardShellReward: {
     flex: 1,
