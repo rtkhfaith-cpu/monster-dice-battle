@@ -69,6 +69,7 @@ import {
 } from './utils/monsterLadder';
 import { initAudio } from './utils/audioManager';
 import { loadGameFonts } from './utils/gameFonts';
+import { findTrainerNameConflict } from './utils/profileIntegrity';
 import { pickFunnyWinTitle, winTitleForRarity } from './utils/rewards';
 import {
   activeWallet,
@@ -756,6 +757,17 @@ export default function App() {
       return;
     }
 
+    const nameConflict = findTrainerNameConflict(trimmed, { gameData, cloudPlayers });
+    if (nameConflict) {
+      showNotice(
+        'Create Player',
+        nameConflict.source === 'cloud'
+          ? `Trainer name "${trimmed}" is already taken. Log in or pick a different name.`
+          : `Trainer name "${trimmed}" is already on this device. Log in instead.`,
+      );
+      return;
+    }
+
     const pin = normalizePlayerKey(playerKey);
     const res = createPlayerProfile(gameData, trimmed, pin);
     const newId = res.playerId;
@@ -805,6 +817,18 @@ export default function App() {
     const trimmed = String(name || '').trim().slice(0, 24);
     const pin = normalizePlayerKey(playerKey);
     if (!trimmed || pin.length !== 4) return { ok: false, error: 'Enter name/ID and 4-digit PIN.' };
+
+    const nameConflict = findTrainerNameConflict(trimmed, { gameData, cloudPlayers });
+    if (nameConflict) {
+      return {
+        ok: false,
+        error:
+          nameConflict.source === 'cloud'
+            ? `Trainer name "${trimmed}" is already taken. Log in or pick a different name.`
+            : `Trainer name "${trimmed}" is already on this device. Log in instead.`,
+      };
+    }
+
     const res = createPlayerProfile(gameData, trimmed, pin);
     const newId = res.playerId;
     markProfileUnlocked(newId);

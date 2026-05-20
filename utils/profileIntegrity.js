@@ -14,6 +14,46 @@ export const PROFILE_MONSTER_CAP = 80;
 export const PROFILE_NICKNAME_MAX = 24;
 export const PROFILE_NAME_MAX = 24;
 
+/** Case-insensitive key for trainer display names / login lookup. */
+export function normalizeTrainerNameKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+/**
+ * Find an existing account using this trainer name (not case-sensitive).
+ * @param {string} name
+ * @param {{ gameData?: object, cloudPlayers?: object[], excludeProfileId?: string|null }} [ctx]
+ * @returns {{ source: 'local'|'cloud', profileId: string, displayName: string }|null}
+ */
+export function findTrainerNameConflict(name, ctx = {}) {
+  const key = normalizeTrainerNameKey(name);
+  if (!key) return null;
+
+  for (const p of ctx.gameData?.players || []) {
+    if (ctx.excludeProfileId && p.id === ctx.excludeProfileId) continue;
+    if (normalizeTrainerNameKey(p.name) === key || normalizeTrainerNameKey(p.id) === key) {
+      return { source: 'local', profileId: p.id, displayName: p.name || p.id };
+    }
+  }
+
+  for (const cp of ctx.cloudPlayers || []) {
+    if (ctx.excludeProfileId && cp.profileID === ctx.excludeProfileId) continue;
+    const display = cp.playerName || cp.profileID || 'Player';
+    if (
+      normalizeTrainerNameKey(display) === key
+      || normalizeTrainerNameKey(cp.profileID) === key
+    ) {
+      return { source: 'cloud', profileId: cp.profileID, displayName: display };
+    }
+  }
+
+  return null;
+}
+
+export function isTrainerNameTaken(name, ctx) {
+  return !!findTrainerNameConflict(name, ctx);
+}
+
 export function isKnownMonsterTemplateId(templateId) {
   if (!templateId || typeof templateId !== 'string') return false;
   return !!(getMonsterTemplate(templateId) || getLadderMonsterTemplate(templateId));
