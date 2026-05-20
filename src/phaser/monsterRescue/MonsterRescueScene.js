@@ -49,6 +49,8 @@ export function createMonsterRescueScene(Phaser) {
       this._pendingTimeUp = false;
       this.gameTimeLimitMs = RESCUE_GAME_TIME_SEC * 1000;
       this.timeRemainingMs = this.gameTimeLimitMs;
+      this.moveTimeLimitMs = 15000;
+      this.moveDeadlineMs = 0;
       this.isAiming = false;
       this.aimDragMoved = false;
       this.aimAngleTarget = -Math.PI / 2;
@@ -79,6 +81,8 @@ export function createMonsterRescueScene(Phaser) {
       this.movesSinceRowPush = 0;
       this.gameTimeLimitMs = (this.stageDef.gameTimeSec ?? RESCUE_GAME_TIME_SEC) * 1000;
       this.timeRemainingMs = this.gameTimeLimitMs;
+      this.moveTimeLimitMs = (this.stageDef.moveTimeSec ?? 15) * 1000;
+      this.moveDeadlineMs = 0;
 
       const { displayFillRows, ...layout } = computeRescueLayout(w, h, this.stageDef.fillRows);
       this.layout = layout;
@@ -193,7 +197,10 @@ export function createMonsterRescueScene(Phaser) {
       this._clearMoveTimer();
       if (this.gameOver || this.isShooting || this.timeRemainingMs <= 0) return;
       const moveSec = this.stageDef?.moveTimeSec ?? 15;
-      this._moveTimerEvent = this.time.delayedCall(moveSec * 1000, () => {
+      this.moveTimeLimitMs = moveSec * 1000;
+      this.moveDeadlineMs = this.time.now + this.moveTimeLimitMs;
+      this._refreshHud();
+      this._moveTimerEvent = this.time.delayedCall(this.moveTimeLimitMs, () => {
         this._moveTimerEvent = null;
         if (this.gameOver || this.isShooting) return;
         void this._fire();
@@ -205,6 +212,12 @@ export function createMonsterRescueScene(Phaser) {
         this._moveTimerEvent.remove(false);
         this._moveTimerEvent = null;
       }
+      this.moveDeadlineMs = 0;
+    }
+
+    _shotTimeRemainingMs() {
+      if (this.gameOver || this.isShooting || !this.moveDeadlineMs) return null;
+      return Math.max(0, this.moveDeadlineMs - this.time.now);
     }
 
     /** Load PNG art after gameplay is live so preload cannot hang startup. */
@@ -309,6 +322,8 @@ export function createMonsterRescueScene(Phaser) {
         stageLabel: `${this.stageDef.label}`,
         timeRemainingMs: this.timeRemainingMs,
         gameTimeLimitMs: this.gameTimeLimitMs,
+        shotRemainingMs: this._shotTimeRemainingMs(),
+        shotTimeLimitMs: this.moveTimeLimitMs,
         movesUntilPush: untilPush,
         rowPushEvery: interval,
       });

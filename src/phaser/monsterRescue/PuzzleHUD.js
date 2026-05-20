@@ -1,3 +1,5 @@
+import { formatRescueTimeLabel } from '../../../utils/monsterRescue/difficulty';
+
 export default class PuzzleHUD {
   constructor(scene) {
     this.scene = scene;
@@ -10,7 +12,7 @@ export default class PuzzleHUD {
       strokeThickness: 3,
     }).setDepth(100);
 
-    this.timerText = scene.add.text(w / 2, 10, '2:00', {
+    this.timerText = scene.add.text(w / 2, 10, '5:00', {
       fontFamily: 'Arial',
       fontSize: '26px',
       color: '#c4f0ff',
@@ -47,6 +49,8 @@ export default class PuzzleHUD {
     stageLabel,
     timeRemainingMs,
     gameTimeLimitMs,
+    shotRemainingMs,
+    shotTimeLimitMs,
     movesUntilPush,
     rowPushEvery,
   }) {
@@ -54,21 +58,31 @@ export default class PuzzleHUD {
     this.comboText.setText(combo > 1 ? `Combo x${combo}!` : '');
     this.stageText.setText(stageLabel);
 
-    const secs = Math.max(0, Math.ceil((timeRemainingMs ?? 0) / 1000));
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    const pad = s < 10 ? `0${s}` : `${s}`;
-    const lowTime =
+    const stageSecs = Math.max(0, Math.ceil((timeRemainingMs ?? 0) / 1000));
+    const stageLabelText = formatRescueTimeLabel(stageSecs);
+
+    const lowStage =
       typeof gameTimeLimitMs === 'number' &&
       timeRemainingMs <= gameTimeLimitMs * 0.15;
     const lowPush =
       typeof movesUntilPush === 'number' &&
       typeof rowPushEvery === 'number' &&
       movesUntilPush <= Math.max(2, Math.floor(rowPushEvery * 0.25));
-    this.timerText.setColor(lowTime || lowPush ? '#ff6b6b' : '#c4f0ff');
+    const lowShot =
+      typeof shotRemainingMs === 'number' &&
+      typeof shotTimeLimitMs === 'number' &&
+      shotRemainingMs <= shotTimeLimitMs * 0.25;
+
+    this.timerText.setColor(lowStage || lowPush || lowShot ? '#ff6b6b' : '#c4f0ff');
+
     const pushPart =
       typeof movesUntilPush === 'number' ? ` · ↑${movesUntilPush}` : '';
-    this.timerText.setText(`${m}:${pad}${pushPart}`);
+    const shotPart =
+      typeof shotRemainingMs === 'number'
+        ? ` · ${Math.ceil(shotRemainingMs / 1000)}s`
+        : '';
+
+    this.timerText.setText(`${stageLabelText}${shotPart}${pushPart}`);
   }
 
   destroy() {

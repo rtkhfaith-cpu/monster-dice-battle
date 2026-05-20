@@ -94,7 +94,7 @@ export default function MonsterRescueHubScreen({
                       {banner ? ` · ${banner}` : ''}
                     </Text>
                     <Text style={rescueUiStyles.stageMeta}>
-                      {stage.colorCount} colors · {diff.timeLabel} · push every {diff.rowPushEvery} shots
+                      {stage.colorCount} colors · {diff.timeLabel} limit · {diff.moveLabel} · push every {diff.rowPushEvery} shots
                     </Text>
                   </View>
                   <Text style={rescueUiStyles.stageAction}>{locked ? '🔒' : cleared ? '★' : '›'}</Text>

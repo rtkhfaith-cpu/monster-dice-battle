@@ -55,13 +55,26 @@ export function dangerRowForLevel(levelId) {
   return Math.max(9, lerpInt(t, 11, 9));
 }
 
+/** Format seconds as m:ss for hub labels and HUD. */
+export function formatRescueTimeLabel(totalSec) {
+  const secs = Math.max(0, Math.floor(totalSec || 0));
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  const pad = s < 10 ? `0${s}` : `${s}`;
+  return m > 0 ? `${m}:${pad}` : `${s}s`;
+}
+
 /** @param {number} levelId */
 export function describeRescueDifficulty(levelId) {
   const push = rowPushEveryForLevel(levelId);
   const time = gameTimeSecForLevel(levelId);
   const move = moveTimeSecForLevel(levelId);
-  const m = Math.floor(time / 60);
-  const s = time % 60;
-  const timeLabel = m > 0 ? `${m}:${s < 10 ? `0${s}` : s}` : `${s}s`;
-  return { rowPushEvery: push, gameTimeSec: time, moveTimeSec: move, timeLabel };
+  const timeLabel = formatRescueTimeLabel(time);
+  return {
+    rowPushEvery: push,
+    gameTimeSec: time,
+    moveTimeSec: move,
+    timeLabel,
+    moveLabel: `${move}s auto-shoot`,
+  };
 }
