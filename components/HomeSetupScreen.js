@@ -14,7 +14,7 @@ import MonsterPreview from './MonsterPreview';
 import MonsterStatCardOverlay from './MonsterStatCardOverlay';
 import OnlineRoomBanner from './OnlineRoomBanner';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
-import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
+import { normalizePlayerKey } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
 import { groupOwnedMonsters, MAX_MERGE_TIER } from '../utils/mergeSystem';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
@@ -114,7 +114,6 @@ export default function HomeSetupScreen({
   onOpenGearMart,
   onOpenMonsterMart,
   onSelectProfile,
-  onCreateProfile,
   onRequestDeleteProfile,
   onRequestDeleteCloudProfile,
   deleteBusyProfileId,
@@ -137,11 +136,6 @@ export default function HomeSetupScreen({
   const [cardMonster, setCardMonster] = useState(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createName, setCreateName] = useState('');
-  const [createKey, setCreateKey] = useState('');
-  const [createConfirm, setCreateConfirm] = useState('');
-  const [createError, setCreateError] = useState('');
   const [loginId, setLoginId] = useState('');
   const [loginPin, setLoginPin] = useState('');
   const [loginMsg, setLoginMsg] = useState('');
@@ -232,8 +226,6 @@ export default function HomeSetupScreen({
   function closeLoginModal() {
     resetLoginModalLayout();
     setLoginOpen(false);
-    setCreateError('');
-    setCreateOpen(false);
   }
 
   const loginModalInputBlur = resetLoginModalLayout;
@@ -250,8 +242,6 @@ export default function HomeSetupScreen({
     setLoginOpen(false);
     setCardMonster(null);
     setTray((current) => (current === next ? null : next));
-    setCreateError('');
-    setCreateOpen(false);
   }
 
   function handleSaveName() {
@@ -259,25 +249,6 @@ export default function HomeSetupScreen({
     if (activeProfile && trimmed && trimmed !== activeProfile.name) {
       onUpdateProfileName?.(activeProfile.id, trimmed);
     }
-  }
-
-  function handleCreateProfile() {
-    const trimmed = createName.trim().slice(0, 24);
-    if (!trimmed) {
-      setCreateError('Player name cannot be empty.');
-      return;
-    }
-    const keyError = validatePlayerKeyPair(createKey, createConfirm);
-    if (keyError) {
-      setCreateError(keyError);
-      return;
-    }
-    onCreateProfile?.(trimmed, normalizePlayerKey(createKey), normalizePlayerKey(createConfirm));
-    setCreateOpen(false);
-    setCreateName('');
-    setCreateKey('');
-    setCreateConfirm('');
-    setCreateError('');
   }
 
   async function handleInlineLogin() {
@@ -451,58 +422,6 @@ export default function HomeSetupScreen({
                 </Pressable>
               </>
             ) : null}
-
-            {createOpen ? (
-              <View style={[styles.createBox, styles.loginModalCreateBox]}>
-                <TextInput
-                  value={createName}
-                  onChangeText={setCreateName}
-                  onBlur={loginModalInputBlur}
-                  placeholder="Name"
-                  placeholderTextColor="rgba(255,255,255,0.58)"
-                  style={[styles.textInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
-                  maxLength={24}
-                />
-                <View style={[styles.keyRow, styles.loginModalKeyRow]}>
-                  <TextInput
-                    value={createKey}
-                    onChangeText={setCreateKey}
-                    onBlur={loginModalInputBlur}
-                    placeholder="PIN"
-                    placeholderTextColor="rgba(255,255,255,0.58)"
-                    style={[styles.textInput, styles.keyInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
-                    maxLength={4}
-                    keyboardType="number-pad"
-                    secureTextEntry
-                  />
-                  <TextInput
-                    value={createConfirm}
-                    onChangeText={setCreateConfirm}
-                    onBlur={loginModalInputBlur}
-                    placeholder="OK"
-                    placeholderTextColor="rgba(255,255,255,0.58)"
-                    style={[styles.textInput, styles.keyInput, styles.loginModalTextInput, styles.loginInputNoZoom]}
-                    maxLength={4}
-                    keyboardType="number-pad"
-                    secureTextEntry
-                  />
-                </View>
-                {createError ? <Text style={[styles.errorText, styles.loginModalErrorText]}>{createError}</Text> : null}
-                <Pressable onPress={pressWithSound(handleCreateProfile)} style={[styles.smallGoldBtn, styles.loginModalSmallBtn]}>
-                  <Text style={[styles.smallGoldText, styles.loginModalSmallGoldText]}>Create</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable
-                onPress={pressWithSound(() => {
-                  setCreateOpen(true);
-                  setCreateName(`Player ${profiles.length + 1}`);
-                })}
-                style={[styles.loginModalBtn, styles.loginModalBtnAlt, styles.loginModalFullField]}
-              >
-                <Text style={styles.loginModalBtnTxt}>New save</Text>
-              </Pressable>
-            )}
 
           </ScrollView>
         </View>
@@ -1162,28 +1081,6 @@ const styles = StyleSheet.create({
     gap: 4,
     marginBottom: 4,
   },
-  loginModalTextInput: {
-    minHeight: 30,
-    borderRadius: 9,
-    paddingHorizontal: 8,
-    fontSize: 10,
-  },
-  loginModalSmallBtn: {
-    minHeight: 30,
-    borderRadius: 9,
-    paddingHorizontal: 8,
-    marginBottom: 4,
-  },
-  loginModalSmallGoldText: {
-    fontSize: 9,
-  },
-  loginModalCreateBox: {
-    gap: 4,
-    marginBottom: 4,
-  },
-  loginModalKeyRow: {
-    gap: 4,
-  },
   loginModalModeRow: {
     marginTop: 2,
     marginBottom: 2,
@@ -1195,10 +1092,6 @@ const styles = StyleSheet.create({
   },
   loginModalModeText: {
     fontSize: 9,
-  },
-  loginModalErrorText: {
-    fontSize: 8,
-    marginBottom: 2,
   },
   loginRow: {
     flexDirection: 'row',
@@ -1386,17 +1279,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  textInput: {
-    flex: 1,
-    minHeight: 44,
-    color: '#fff8e5',
-    fontWeight: '800',
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: 'rgba(255,224,143,0.55)',
-    backgroundColor: 'rgba(0,0,0,0.26)',
-    paddingHorizontal: 12,
-  },
   smallGoldBtn: {
     minHeight: 44,
     alignItems: 'center',
@@ -1528,17 +1410,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 9,
     textAlign: 'center',
-  },
-  createBox: {
-    gap: 7,
-    marginBottom: 8,
-  },
-  keyRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  keyInput: {
-    minWidth: 0,
   },
   errorText: {
     color: '#fecaca',

@@ -750,42 +750,6 @@ export default function App() {
     });
   }
 
-  function handleCreateProfile(name, playerKey, confirmKey) {
-    if (!gameData) return;
-    const trimmed = String(name || '').trim().slice(0, 24);
-    if (!trimmed) {
-      showNotice('Create Player', 'Player name cannot be empty.');
-      return;
-    }
-    const keyErr = validatePlayerKeyPair(playerKey, confirmKey);
-    if (keyErr) {
-      showNotice('Create Player', keyErr);
-      return;
-    }
-
-    const nameConflict = findTrainerNameConflict(trimmed, { gameData, cloudPlayers });
-    if (nameConflict) {
-      showNotice(
-        'Create Player',
-        nameConflict.source === 'cloud'
-          ? `Trainer name "${trimmed}" is already taken. Log in or pick a different name.`
-          : `Trainer name "${trimmed}" is already on this device. Log in instead.`,
-      );
-      return;
-    }
-
-    const pin = normalizePlayerKey(playerKey);
-    const res = createPlayerProfile(gameData, trimmed, pin);
-    const newId = res.playerId;
-    markProfileUnlocked(newId);
-    const next = enforceSingleActiveProfile(res.gameData, newId);
-    setSetupP1ProfileId(newId);
-    setSetupP2ProfileId(null);
-    syncSetupMonstersFromProfiles(next, newId, null, 'onePlayer');
-    persistSave(next, 'profile_created', newId);
-    applyProfileSelection(newId, next);
-  }
-
   async function handleMainMenuLogin(profileId, playerKey) {
     const id = String(profileId || '').trim();
     const pin = normalizePlayerKey(playerKey);
@@ -1660,7 +1624,6 @@ export default function App() {
               }
             }}
             onSelectProfile={handleRequestSelectProfile}
-            onCreateProfile={handleCreateProfile}
             onRequestDeleteProfile={handleRequestDeleteProfile}
             onRequestDeleteCloudProfile={handleRequestDeleteCloudProfile}
             deleteBusyProfileId={deleteBusyProfileId}
