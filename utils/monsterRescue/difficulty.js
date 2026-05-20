@@ -3,18 +3,23 @@ import { RESCUE_GAME_TIME_SEC } from './constants';
 const MAX_LEVEL = 60;
 
 /** Shots between ceiling row pushes at level 1. */
-export const ROW_PUSH_MOVES_BASE = 10;
-/** Hardest interval (more frequent pushes). */
-export const ROW_PUSH_MOVES_MIN = 4;
+export const ROW_PUSH_MOVES_BASE = 20;
+/** Hardest interval (more frequent pushes) — still gentler than old min of 4. */
+export const ROW_PUSH_MOVES_MIN = 7;
+/** Levels per step when row-push interval tightens. */
+const ROW_PUSH_TIER_SPAN = 8;
+/** Shots removed from the interval each tier (20 → 18 → … → 7). */
+const ROW_PUSH_TIER_STEP = 2;
 
 /**
  * Shots before a new top row pushes the stack down (lower = harder).
+ * Level 1–8: 20 shots · … · level 57–60: 7 shots.
  * @param {number} levelId 1–60
  */
 export function rowPushEveryForLevel(levelId) {
   const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
-  const tier = Math.floor((id - 1) / 8);
-  return Math.max(ROW_PUSH_MOVES_MIN, ROW_PUSH_MOVES_BASE - tier);
+  const tier = Math.floor((id - 1) / ROW_PUSH_TIER_SPAN);
+  return Math.max(ROW_PUSH_MOVES_MIN, ROW_PUSH_MOVES_BASE - tier * ROW_PUSH_TIER_STEP);
 }
 
 /**

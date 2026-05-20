@@ -1,4 +1,5 @@
 import { GRID_COLS, GRID_ROWS, RESCUE_GAME_TIME_SEC, RESCUE_MOVE_TIME_SEC } from '../../../utils/monsterRescue/constants';
+import { ROW_PUSH_MOVES_BASE } from '../../../utils/monsterRescue/difficulty';
 import { getRescueStage } from '../../../utils/monsterRescue/stages';
 import StageGenerator from './StageGenerator';
 import BubbleSystem from './BubbleSystem';
@@ -274,7 +275,7 @@ export function createMonsterRescueScene(Phaser) {
 
     async _maybePushTopRow() {
       this.movesSinceRowPush += 1;
-      const interval = this.stageDef.rowPushEvery ?? 10;
+      const interval = this.stageDef.rowPushEvery ?? ROW_PUSH_MOVES_BASE;
       if (this.movesSinceRowPush < interval) return false;
 
       this.movesSinceRowPush = 0;
@@ -293,7 +294,7 @@ export function createMonsterRescueScene(Phaser) {
 
     _refreshHud() {
       const summary = this.rewardManager.getSummary();
-      const interval = this.stageDef.rowPushEvery ?? 10;
+      const interval = this.stageDef.rowPushEvery ?? ROW_PUSH_MOVES_BASE;
       const untilPush = Math.max(0, interval - this.movesSinceRowPush);
       this.puzzleHud.update({
         score: summary.bubblesCleared,
