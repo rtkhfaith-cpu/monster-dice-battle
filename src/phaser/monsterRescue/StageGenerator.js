@@ -1,6 +1,7 @@
 import { GRID_COLS, GRID_ROWS, BUBBLE_TYPES } from '../../../utils/monsterRescue/constants';
 import { getRescueStage } from '../../../utils/monsterRescue/stages';
 import { createBubbleCell } from './bubbleTypes';
+import { shapeHasBubble, shapeLetterForLevel } from '../../../utils/monsterRescue/openingShapes';
 
 export default class StageGenerator {
   /**
@@ -14,10 +15,15 @@ export default class StageGenerator {
         : null;
   }
 
+  _openingShape() {
+    return this.stageDef.openingShape ?? shapeLetterForLevel(this.stageDef.levelId ?? 1);
+  }
+
   /** @returns {(import('./bubbleTypes').BubbleCell|null)[][]} */
   buildInitialGrid() {
     const { colorCount } = this.stageDef;
     const fillRows = this.fillRowsOverride ?? this.stageDef.fillRows;
+    const shape = this._openingShape();
     const grid = Array.from({ length: GRID_ROWS }, () =>
       Array.from({ length: GRID_COLS }, () => null)
     );
@@ -25,6 +31,7 @@ export default class StageGenerator {
     for (let row = 0; row < Math.min(fillRows, GRID_ROWS); row++) {
       const cols = this._colsInRow(row);
       for (let col = 0; col < cols; col++) {
+        if (!shapeHasBubble(shape, row, col, cols)) continue;
         const color = Math.floor(Math.random() * colorCount);
         grid[row][col] = createBubbleCell(color, BUBBLE_TYPES.NORMAL);
       }

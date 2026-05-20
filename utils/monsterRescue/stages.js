@@ -1,3 +1,5 @@
+import { shapeLetterForLevel } from './openingShapes';
+
 /** @typedef {'normal'|'miniBoss'|'bigBoss'} RescueSubKind */
 
 /**
@@ -35,6 +37,7 @@ export const RESCUE_TOTAL_LEVELS = RESCUE_THEME_COUNT * RESCUE_SUB_LEVELS;
  *   shotLimit: number,
  *   bgIndex: number,
  *   subKind: RescueSubKind,
+ *   openingShape: string,
  * }} RescueStageDef
  */
 
@@ -88,6 +91,7 @@ export function getRescueStage(levelId) {
     shotLimit: shotLimitForLevel(themeId, subLevel),
     bgIndex: theme.bgIndex,
     subKind,
+    openingShape: shapeLetterForLevel(id),
   };
 }
 

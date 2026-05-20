@@ -2,7 +2,11 @@ import { GRID_COLS, GRID_ROWS } from '../../../utils/monsterRescue/constants';
 
 const PAD_X = 10;
 const HUD_TOP = 44;
-const SHOOTER_RESERVE = 90;
+const FRAME_INSET = 4;
+/** Root Y → lowest pixel (shadow pad) in RescueShooter */
+const SHOOTER_FOOT_OFFSET = 16;
+/** Clearance above shooter for cannon + loaded bubble */
+const SHOOTER_ZONE_H = 54;
 /** Even row (11 cols): span from center col 0 to col 10 */
 const EVEN_ROW_SPAN = GRID_COLS - 1;
 /** bubbleRadius = cellW * RADIUS_RATIO keeps full circles inside the hex pitch */
@@ -21,6 +25,7 @@ export function gridPixelWidth(originX, cellW, bubbleRadius) {
 
 /**
  * Fit the bubble grid inside the Phaser canvas with full bubbles visible edge-to-edge.
+ * Shooter sits on the inner bottom line of the play frame (visible above the finger).
  * @param {number} w canvas width
  * @param {number} h canvas height
  * @param {number} fillRows stage config rows to fill
@@ -29,8 +34,14 @@ export function computeRescueLayout(w, h, fillRows) {
   const playLeft = PAD_X;
   const playWidth = Math.max(200, w - PAD_X * 2);
   const playTop = HUD_TOP;
-  const playHeight = Math.max(160, h - HUD_TOP - SHOOTER_RESERVE);
-  const clusterZoneH = playHeight * 0.52;
+  const playHeight = Math.max(200, h - playTop - 6);
+
+  const innerFrameBottom = playTop + playHeight - FRAME_INSET;
+  const shooterY = innerFrameBottom - SHOOTER_FOOT_OFFSET;
+  const shooterZoneTop = shooterY - SHOOTER_ZONE_H;
+
+  const clusterTop = playTop + FRAME_INSET;
+  const clusterZoneH = Math.max(72, shooterZoneTop - clusterTop);
 
   const horizUnits = EVEN_ROW_SPAN + RADIUS_RATIO * 2;
   const cellW = playWidth / horizUnits;
@@ -39,7 +50,7 @@ export function computeRescueLayout(w, h, fillRows) {
 
   const spanX = 2 * bubbleRadius + EVEN_ROW_SPAN * cellW;
   const originX = (w - spanX) / 2 + bubbleRadius;
-  const originY = playTop + bubbleRadius;
+  const originY = clusterTop + bubbleRadius;
 
   const rowsFit = Math.max(
     3,
@@ -64,6 +75,8 @@ export function computeRescueLayout(w, h, fillRows) {
     playWidth,
     playHeight,
     clusterBottom,
-    shooterY: h - SHOOTER_RESERVE * 0.55,
+    shooterY,
+    innerFrameBottom,
+    shooterZoneTop,
   };
 }

@@ -64,7 +64,11 @@ export function createMonsterRescueScene(Phaser) {
       this.shooterY = layout.shooterY;
       this.aimAngle = -Math.PI / 2;
       this.currentCell = this.stageGenerator.rollShooterBubble();
-      this.nextCell = this.stageGenerator.rollShooterBubble();
+      this.previewQueue = [
+        this.stageGenerator.rollShooterBubble(),
+        this.stageGenerator.rollShooterBubble(),
+        this.stageGenerator.rollShooterBubble(),
+      ];
 
       this.shooter = new RescueShooter(
         this,
@@ -75,7 +79,7 @@ export function createMonsterRescueScene(Phaser) {
       );
       this.shooter.setAimAngle(this.aimAngle);
       this.shooter.setLoadedBubble(this.currentCell);
-      this.shooter.setNextPreview(this.nextCell);
+      this.shooter.setNextPreview(this.previewQueue);
 
       this.projectile = null;
       this.puzzleHud = new PuzzleHUD(this);
@@ -149,6 +153,20 @@ export function createMonsterRescueScene(Phaser) {
       return container;
     }
 
+    _advanceShooterQueue() {
+      if (!this.previewQueue?.length) {
+        this.currentCell = this.stageGenerator.rollShooterBubble();
+        this.previewQueue = [
+          this.stageGenerator.rollShooterBubble(),
+          this.stageGenerator.rollShooterBubble(),
+          this.stageGenerator.rollShooterBubble(),
+        ];
+        return;
+      }
+      this.currentCell = this.previewQueue.shift();
+      this.previewQueue.push(this.stageGenerator.rollShooterBubble());
+    }
+
     _refreshHud() {
       const summary = this.rewardManager.getSummary();
       const left = this.bubbleSystem.getModel().countBubbles();
@@ -174,8 +192,9 @@ export function createMonsterRescueScene(Phaser) {
     }
 
     _updateAim(p) {
+      const aimY = Math.min(p.y, (this.layout.shooterZoneTop ?? this.shooterY) - 12);
       const dx = p.x - this.shooterX;
-      const dy = p.y - this.shooterY - 8;
+      const dy = aimY - this.shooterY - 8;
       let ang = Math.atan2(dy, dx);
       ang = Phaser.Math.Clamp(ang, MIN_AIM_ANGLE, MAX_AIM_ANGLE);
       this.aimAngle = ang;
@@ -218,10 +237,9 @@ export function createMonsterRescueScene(Phaser) {
 
         await this.bubbleSystem.resolveAfterAttach(row, col, this.comboManager, this.rewardManager);
 
-        this.currentCell = this.nextCell;
-        this.nextCell = this.stageGenerator.rollShooterBubble();
+        this._advanceShooterQueue();
         this.shooter.setLoadedBubble(this.currentCell);
-        this.shooter.setNextPreview(this.nextCell);
+        this.shooter.setNextPreview(this.previewQueue);
 
         this._refreshHud();
         this._checkEnd();
@@ -279,7 +297,8 @@ export function createMonsterRescueScene(Phaser) {
             return;
           }
 
-          if (y > h - pad) {
+          const floorY = this.layout.shooterZoneTop ?? h - pad;
+          if (y > floorY) {
             finish(null);
             return;
           }
@@ -361,7 +380,7 @@ export function createMonsterRescueScene(Phaser) {
         this.shooter.root.setPosition(this.shooterX, this.shooterY);
         this.shooter.setAimAngle(this.aimAngle);
         if (this.currentCell) this.shooter.setLoadedBubble(this.currentCell);
-        if (this.nextCell) this.shooter.setNextPreview(this.nextCell);
+        if (this.previewQueue?.length) this.shooter.setNextPreview(this.previewQueue);
       }
       this.puzzleHud?.relayout?.(w);
     }

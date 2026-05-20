@@ -6,9 +6,15 @@ import { createShinyBubble } from './bubbleVisuals';
 export const RESCUE_SHOOTER_MONSTER_KEY = 'rescue_shooter_monster';
 
 const CANNON_LENGTH = 46;
-/** Gun footprint ~22×50px — monster ≈ 2× that visual scale */
+/** Gun footprint ~22×50px — monster matches cannon width */
 const CANNON_VISUAL_W = 22;
-const MONSTER_SIZE = CANNON_VISUAL_W * 2;
+const MONSTER_SIZE = CANNON_VISUAL_W;
+const PREVIEW_COUNT = 3;
+const PREVIEW_SCALE = 0.3;
+const PREVIEW_SLOT_X = -58;
+/** Monster stands to the right of the cannon (previews are on the left). */
+const MONSTER_OFFSET_X = 22;
+const MONSTER_FOOT_Y = 6;
 
 /**
  * Puzzle Bobble–style shooter: player's monster + rotating bubble cannon (no aim line).
@@ -31,32 +37,44 @@ export default class RescueShooter {
 
     this.root = scene.add.container(x, y).setDepth(32);
 
-    const pad = scene.add.ellipse(0, 10, 62, 22, 0x0f172a, 0.45);
+    const pad = scene.add.ellipse(10, 10, 48, 16, 0x0f172a, 0.45);
     pad.setStrokeStyle(2, 0xffe6a3, 0.35);
 
-    this.nextBubbleSlot = scene.add.container(-36, 0);
+    this.nextBubbleSlot = scene.add.container(PREVIEW_SLOT_X, 2);
     this.nextPreviewLabel = scene.add
-      .text(-36, -16, 'NEXT', {
+      .text(PREVIEW_SLOT_X, -14, 'NEXT', {
         fontFamily: 'Arial',
-        fontSize: '9px',
+        fontSize: '8px',
         color: '#ffe6a3',
         stroke: '#000',
         strokeThickness: 2,
       })
       .setOrigin(0.5);
-    this.nextPreviewBubble = null;
+    /** @type {Phaser.GameObjects.Container[]} */
+    this.nextPreviewBubbles = [];
 
-    this.aimPivot = scene.add.container(0, 0);
-    this.monsterImg = scene.add.image(0, 6, RESCUE_SHOOTER_MONSTER_KEY).setOrigin(0.5, 1);
+    this.monsterImg = scene.add
+      .image(MONSTER_OFFSET_X, MONSTER_FOOT_Y, RESCUE_SHOOTER_MONSTER_KEY)
+      .setOrigin(0.5, 1);
     this.monsterImg.setDisplaySize(MONSTER_SIZE, MONSTER_SIZE);
     this.monsterImg.setVisible(false);
-    this.monsterFallback = scene.add.text(0, 2, '🐾', { fontSize: '20px' }).setOrigin(0.5, 1);
+    this.monsterFallback = scene.add
+      .text(MONSTER_OFFSET_X, 2, '🐾', { fontSize: '14px' })
+      .setOrigin(0.5, 1);
 
+    this.aimPivot = scene.add.container(0, 0);
     this.cannonGfx = scene.add.graphics();
     this.bubbleSlot = scene.add.container(0, 0);
 
-    this.aimPivot.add([this.monsterFallback, this.monsterImg, this.cannonGfx, this.bubbleSlot]);
-    this.root.add([pad, this.nextPreviewLabel, this.nextBubbleSlot, this.aimPivot]);
+    this.aimPivot.add([this.cannonGfx, this.bubbleSlot]);
+    this.root.add([
+      pad,
+      this.nextPreviewLabel,
+      this.nextBubbleSlot,
+      this.monsterFallback,
+      this.monsterImg,
+      this.aimPivot,
+    ]);
 
     this._drawCannon();
     this._tryLoadMonsterTexture();
@@ -141,15 +159,31 @@ export default class RescueShooter {
     }
   }
 
-  setNextPreview(cell) {
-    if (this.nextPreviewBubble) {
-      this.nextPreviewBubble.destroy();
-      this.nextPreviewBubble = null;
-    }
-    if (!cell) return;
-    this.nextPreviewBubble = createShinyBubble(this.scene, cell, 33, this.bubbleRadius);
-    this.nextPreviewBubble.setScale(0.55);
-    this.nextBubbleSlot.add(this.nextPreviewBubble);
+  _clearPreviewBubbles() {
+    for (const b of this.nextPreviewBubbles) b?.destroy();
+    this.nextPreviewBubbles = [];
+  }
+
+  /**
+   * Up to 3 upcoming bubbles (smaller than the loaded shot).
+   * @param {import('./bubbleTypes').BubbleCell|import('./bubbleTypes').BubbleCell[]|null} cells
+   */
+  setNextPreview(cells) {
+    this._clearPreviewBubbles();
+    const list = Array.isArray(cells) ? cells.filter(Boolean) : cells ? [cells] : [];
+    if (!list.length) return;
+
+    const shown = list.slice(0, PREVIEW_COUNT);
+    const gap = this.bubbleRadius * PREVIEW_SCALE * 2.15;
+
+    shown.forEach((cell, i) => {
+      const bubble = createShinyBubble(this.scene, cell, 33, this.bubbleRadius);
+      bubble.setScale(PREVIEW_SCALE);
+      const xOff = (i - (shown.length - 1) / 2) * gap;
+      bubble.setPosition(xOff, 0);
+      this.nextBubbleSlot.add(bubble);
+      this.nextPreviewBubbles.push(bubble);
+    });
   }
 
   /** World position of muzzle / loaded bubble. */
@@ -164,10 +198,7 @@ export default class RescueShooter {
 
   destroy() {
     this.clearLoadedBubble();
-    if (this.nextPreviewBubble) {
-      this.nextPreviewBubble.destroy();
-      this.nextPreviewBubble = null;
-    }
+    this._clearPreviewBubbles();
     this.root?.destroy();
     this.root = null;
   }
