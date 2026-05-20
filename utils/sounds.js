@@ -8,6 +8,10 @@ import {
   playShop,
   playWin,
   playLose,
+  playBubblePop,
+  playRescueCombo,
+  playBubbleShoot,
+  playMonsterRescued,
 } from './audioManager';
 
 /**
@@ -17,6 +21,30 @@ export function playSound(name, opts = {}) {
   if (name === 'button' || name === 'ui' || name === 'dice') {
     unlockAudio();
     playButton();
+    return;
+  }
+
+  if (name === 'bubblePop' || name === 'pop') {
+    unlockAudio();
+    playBubblePop();
+    return;
+  }
+
+  if (name === 'rescueCombo' || name === 'combo') {
+    unlockAudio();
+    playRescueCombo();
+    return;
+  }
+
+  if (name === 'bubbleShoot' || name === 'shoot') {
+    unlockAudio();
+    playBubbleShoot();
+    return;
+  }
+
+  if (name === 'rescued' || name === 'monsterRescued') {
+    unlockAudio();
+    playMonsterRescued();
     return;
   }
 

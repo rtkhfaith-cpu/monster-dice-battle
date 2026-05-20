@@ -6,6 +6,8 @@ import { Platform } from 'react-native';
 
 const MENU_BGM = ['/audio/bgm/Main1.mp3', '/audio/bgm/Main 2.mp3'];
 const LADDER_BGM = ['/audio/bgm/Monster_ladder1.mp3', '/audio/bgm/Monster_ladder.mp3'];
+/** Relaxed fantasy arcade — reuses main menu tracks */
+const RESCUE_BGM = ['/audio/bgm/Main 2.mp3', '/audio/bgm/Main1.mp3'];
 const BATTLE_BGM = ['/audio/bgm/Main_Battle_1.mp3', '/audio/bgm/Main_Battle_2.mp3'];
 const MINI_BOSS_BGM = ['/audio/bgm/Mini_boss.mp3'];
 const BOSS_BGM = ['/audio/bgm/Boss.mp3'];
@@ -397,9 +399,32 @@ export function playLose() {
   return playOneShot(SFX.lose, 0.9);
 }
 
+/** Light bubble pop — dodge SFX reads well as a soft pop */
+export function playBubblePop() {
+  return playOneShot(SFX.dodge, 0.42);
+}
+
+/** Combo chain accent */
+export function playRescueCombo() {
+  duckBgm(220);
+  return playOneShot(SFX.critical, 0.72);
+}
+
+/** Bubble launcher whoosh */
+export function playBubbleShoot() {
+  return playOneShot(SFX.attack, 0.48);
+}
+
+/** Monster freed from bubble */
+export function playMonsterRescued() {
+  return playOneShot(SFX.levelUp, 0.68);
+}
+
 function normalizeMenuMusicKind(input) {
   const raw = typeof input === 'string' ? input : input?.kind ?? input?.phase;
-  return raw === 'ladder' ? 'ladder' : 'menu';
+  if (raw === 'ladder') return 'ladder';
+  if (raw === 'rescue') return 'rescue';
+  return 'menu';
 }
 
 export function startMenuMusic(options) {
@@ -416,8 +441,13 @@ export function startLadderMusic() {
   startMenuMusic({ kind: 'ladder' });
 }
 
+export function startRescueMusic() {
+  startMenuMusic({ kind: 'rescue' });
+}
+
 function playMenuTrack(kind = menuMusicKind) {
-  const tracks = kind === 'ladder' ? LADDER_BGM : MENU_BGM;
+  const tracks =
+    kind === 'ladder' ? LADDER_BGM : kind === 'rescue' ? RESCUE_BGM : MENU_BGM;
   const path = menuPick && tracks.includes(menuPick) ? menuPick : pickRandom(tracks);
   startBgm(path, 'menu');
 }

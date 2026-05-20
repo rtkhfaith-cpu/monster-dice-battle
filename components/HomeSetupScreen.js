@@ -100,6 +100,7 @@ export default function HomeSetupScreen({
   selectedP2Id,
   onSelectMonster,
   onStartGame,
+  onOpenQuests,
   onOpenMonsterLadder,
   onOpenMonsterGear,
   onEnterMultiplayer,
@@ -662,7 +663,7 @@ export default function HomeSetupScreen({
               icon="★"
               style={styles.bottomQuest}
               highlight={ladderAvailable}
-              onPress={pressWithSound(onOpenMonsterLadder)}
+              onPress={pressWithSound(onOpenQuests || onOpenMonsterLadder)}
             />
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />

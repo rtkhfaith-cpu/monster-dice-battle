@@ -19,6 +19,8 @@ import {
 import { expMultiplierFromGear } from './gearStats';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
+import { applyStageClear, normalizeMonsterRescue } from './monsterRescue/progress';
+import { computeStageRewards } from './monsterRescue/rewards';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import { getMonsterLadderState, mergeLadderMonsterParts, setMonsterLadderState } from './monsterLadder/ladderProfile';
 import { clampMergeTier, mergeCostForNextTier } from './mergeSystem';
@@ -268,8 +270,52 @@ function normalizePlayerProfile(p) {
   if (!p.meta) p.meta = defaultProfileMeta();
   normalizeMainBattleState(p);
   p.monsterLadder = normalizeMonsterLadder(p.monsterLadder, p.ladderProgress);
+  p.monsterRescue = normalizeMonsterRescue(p.monsterRescue);
   syncLadderRewardsToMainInventory(p);
   delete p.ladderProgress;
+}
+
+/**
+ * Apply Monster Rescue stage results (coins, EXP, progress).
+ * @param {object} runSummary Phaser run summary (score, rescued, comboPeak, chests, …)
+ */
+export function applyMonsterRescueStageResult(gameData, profileId, stageId, runSummary, won) {
+  const gd = cloneGameData(gameData);
+  const profile = gd.players.find((p) => p.id === profileId);
+  if (!profile) return { gameData: gd, rewards: null };
+
+  const rewards = computeStageRewards({
+    combo: runSummary?.comboPeak ?? 1,
+    rescued: runSummary?.rescued ?? 0,
+    score: runSummary?.score ?? 0,
+    chests: runSummary?.chests ?? 0,
+  });
+
+  if (won) {
+    let next = applyStageClear(profile, stageId, runSummary?.rescued ?? 0, rewards.coins);
+    next.coins += rewards.coins;
+    const ownedId = next.selectedMonsterId || next.ownedMonsters?.[0]?.id;
+    const expPack = grantExpInWallet(next, ownedId, rewards.exp);
+    const idx = gd.players.findIndex((p) => p.id === profileId);
+    gd.players[idx] = next;
+    return { gameData: gd, rewards: { ...rewards, expPack, won: true } };
+  }
+
+  const partialCoins = Math.floor((runSummary?.score ?? 0) / 25);
+  profile.coins += partialCoins;
+  const ownedId = profile.selectedMonsterId || profile.ownedMonsters?.[0]?.id;
+  const partialExp = Math.floor((rewards.exp || 0) * 0.35);
+  const expPack = grantExpInWallet(profile, ownedId, partialExp);
+  return {
+    gameData: gd,
+    rewards: {
+      ...rewards,
+      coins: partialCoins,
+      exp: partialExp,
+      expPack,
+      won: false,
+    },
+  };
 }
 
 function ensureStarterMonsters(wallet) {

@@ -18,6 +18,10 @@ import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
 import HomeSetupScreen from './components/HomeSetupScreen';
 import MonsterLadderHubScreen from './components/MonsterLadderHubScreen';
+import QuestHubScreen from './components/QuestHubScreen';
+import MonsterRescueHubScreen from './components/MonsterRescueHubScreen';
+import MonsterRescueScreen from './components/MonsterRescueScreen';
+import MonsterRescueRewardScreen from './components/MonsterRescueRewardScreen';
 import MonsterLadderCollectionScreen from './components/MonsterLadderCollectionScreen';
 import MonsterLadderGearScreen from './components/MonsterLadderGearScreen';
 import MonsterLadderChestRevealModal from './components/MonsterLadderChestRevealModal';
@@ -44,6 +48,8 @@ import {
   buyMonsterLadderChest,
   openMonsterLadderChest,
 } from './utils/monsterLadder/ladderRewards';
+import { getMonsterRescueState } from './utils/monsterRescue/progress';
+import { getRescueStage } from './utils/monsterRescue/stages';
 import {
   formatStageLabel,
   getCurrentStage,
@@ -58,6 +64,7 @@ import { pickFunnyWinTitle, winTitleForRarity } from './utils/rewards';
 import {
   activeWallet,
   awardBattleRewards,
+  applyMonsterRescueStageResult,
   claimMainBattleMiniBossChest,
   buyGearForMonster,
   buyGearItem,
@@ -96,10 +103,17 @@ import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTempl
 import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
 import { LADDER_CHEST_SHARD_COST } from './utils/monsterLadder/ladderConstants';
-import { startBattleMusic, startLadderMusic, startMenuMusic, stopMenuMusic, unlockAudio } from './utils/audioManager';
+import {
+  startBattleMusic,
+  startLadderMusic,
+  startMenuMusic,
+  startRescueMusic,
+  stopMenuMusic,
+  unlockAudio,
+} from './utils/audioManager';
 import { consumeMainMiniBossSkipNext } from './utils/mainBattleChest';
 
-const LOBBY_PHASES = new Set(['menu', 'ladder', 'online', 'gameOver', 'audioSettings']);
+const LOBBY_PHASES = new Set(['menu', 'ladder', 'quests', 'monsterRescueHub', 'online', 'gameOver', 'audioSettings']);
 
 const BG = '#dceaf8';
 
@@ -170,6 +184,8 @@ export default function App() {
   const cloudFetchSeqRef = useRef(0);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [noticeDialog, setNoticeDialog] = useState(null);
+  const [rescueStageId, setRescueStageId] = useState(1);
+  const [rescueRewardPayload, setRescueRewardPayload] = useState(null);
 
   function showNotice(title, message) {
     setNoticeDialog({ title, message });
@@ -317,7 +333,7 @@ export default function App() {
     const html = document.documentElement;
     const body = document.body;
     const root = document.getElementById('root');
-    const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'audioSettings';
+    const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'audioSettings' || phase === 'quests' || phase === 'monsterRescueHub';
     if (scrollableLobby) {
       // Lobby scrolls inside the app (ScrollView), not the document — fixed viewport + inner overflow.
       html.style.overflow = 'hidden';
@@ -369,6 +385,8 @@ export default function App() {
     }
     if (phase === 'ladder') {
       startLadderMusic();
+    } else if (phase === 'monsterRescue' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward') {
+      startRescueMusic();
     } else if (LOBBY_PHASES.has(phase)) {
       startMenuMusic();
     } else if (phase === 'battle') {
@@ -934,6 +952,16 @@ export default function App() {
     beginBattle(f1, ai, 'onePlayer');
   }
 
+  function openQuests() {
+    if (!setupP1ProfileId) {
+      showNotice('Quests', 'Select or create a player profile first.');
+      return;
+    }
+    unlockAudio();
+    startMenuMusic();
+    setPhase('quests');
+  }
+
   function openMonsterLadder() {
     if (!setupP1ProfileId) {
       showNotice('Monster Ladder', 'Select or create a player profile first.');
@@ -942,6 +970,46 @@ export default function App() {
     unlockAudio();
     startLadderMusic();
     setPhase('ladder');
+  }
+
+  function openMonsterRescueHub() {
+    if (!setupP1ProfileId) {
+      showNotice('Monster Rescue', 'Select or create a player profile first.');
+      return;
+    }
+    unlockAudio();
+    startRescueMusic();
+    setPhase('monsterRescueHub');
+  }
+
+  function startMonsterRescueStage(stageId) {
+    unlockAudio();
+    startRescueMusic();
+    setRescueStageId(stageId);
+    setRescueRewardPayload(null);
+    setPhase('monsterRescue');
+  }
+
+  function handleMonsterRescueFinish(payload) {
+    if (!gameData || !setupP1ProfileId) return;
+    const won = !!payload?.won;
+    const { gameData: gd, rewards } = applyMonsterRescueStageResult(
+      gameData,
+      setupP1ProfileId,
+      payload?.stageId ?? rescueStageId,
+      payload?.summary ?? {},
+      won,
+    );
+    persistSave(gd, 'monster_rescue_stage', setupP1ProfileId);
+    setGameData(gd);
+    setRescueRewardPayload({
+      won,
+      stageId: payload?.stageId ?? rescueStageId,
+      rewards,
+      summary: payload?.summary,
+    });
+    setPhase('monsterRescueReward');
+    if (rewards?.expPack?.levelsGained > 0) playSound('levelUp');
   }
 
   function returnToLadder() {
@@ -1398,7 +1466,7 @@ export default function App() {
               ? styles.cardShellOnline
             : phase === 'gameOver'
               ? styles.cardShellReward
-            : phase === 'menu' || phase === 'ladder'
+            : phase === 'menu' || phase === 'ladder' || phase === 'quests' || phase === 'monsterRescueHub' || phase === 'monsterRescue' || phase === 'monsterRescueReward'
               ? [styles.cardShellMenu, lobbyMobile && styles.cardShellMenuMobile]
               : styles.cardShell
         }
@@ -1453,6 +1521,7 @@ export default function App() {
             onLoginWithId={handleMainMenuLogin}
             onCreateWithId={handleMainMenuCreate}
             onStartGame={startGameFromSetup}
+            onOpenQuests={openQuests}
             onOpenMonsterLadder={openMonsterLadder}
             ladderAvailable={ladderAvailable}
             onOpenMonsterGear={openMonsterGear}
@@ -1509,12 +1578,51 @@ export default function App() {
           />
         ) : null}
 
+        {phase === 'quests' ? (
+          <QuestHubScreen
+            profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
+            rescueHighest={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).highestCleared}
+            onBack={resetToMenu}
+            onOpenMonsterLadder={openMonsterLadder}
+            onOpenMonsterRescue={openMonsterRescueHub}
+          />
+        ) : null}
+
+        {phase === 'monsterRescueHub' ? (
+          <MonsterRescueHubScreen
+            profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
+            highestCleared={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).highestCleared}
+            totalRescued={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).totalRescued}
+            onBack={() => setPhase('quests')}
+            onStartStage={startMonsterRescueStage}
+          />
+        ) : null}
+
+        {phase === 'monsterRescue' ? (
+          <MonsterRescueScreen
+            stageId={rescueStageId}
+            stageLabel={getRescueStage(rescueStageId).label}
+            onBack={() => setPhase('monsterRescueHub')}
+            onFinish={handleMonsterRescueFinish}
+          />
+        ) : null}
+
+        {phase === 'monsterRescueReward' && rescueRewardPayload ? (
+          <MonsterRescueRewardScreen
+            won={rescueRewardPayload.won}
+            stageLabel={getRescueStage(rescueRewardPayload.stageId).label}
+            rewards={rescueRewardPayload.rewards}
+            onContinue={() => setPhase('monsterRescueHub')}
+            onRetry={() => startMonsterRescueStage(rescueRewardPayload.stageId)}
+          />
+        ) : null}
+
         {phase === 'ladder' ? (
           <MonsterLadderHubScreen
             profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
             monsterLadder={getMonsterLadderState(getPlayerProfile(gameData, setupP1ProfileId))}
             activeFighter={fighterFromSetupId(setupP1Id, setupP1ProfileId)}
-            onBack={resetToMenu}
+            onBack={() => setPhase('quests')}
             onStartBattle={startMonsterLadderBattle}
             onOpenCollection={() => setLadderCollectionOpen(true)}
             onOpenGear={() => {
