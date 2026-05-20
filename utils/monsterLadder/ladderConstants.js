@@ -11,8 +11,8 @@ export const LADDER_RARITY_WEIGHTS = LADDER_BALANCE.chestRates;
 
 export const LADDER_PITY = LADDER_BALANCE.pity;
 
-/** Duplicate → ladder shards */
-export const LADDER_SHARDS_BY_RARITY = LADDER_BALANCE.duplicateShards;
+/** Duplicate → ladder shards (gear + ladder chest dupes) */
+export { GEAR_DUPLICATE_SHARDS_BY_RARITY as LADDER_SHARDS_BY_RARITY } from '../../src/gameBalance/gearShards';
 
 export const LADDER_EXP_MULTIPLIER = LADDER_BALANCE.expMultiplier;
 export const LADDER_GOLD_MULTIPLIER = LADDER_BALANCE.coinMultiplier;

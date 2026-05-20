@@ -42,7 +42,7 @@ import {
 import RewardScreen from './components/RewardScreen';
 import { buildAiFighter, fighterFromOwned } from './utils/fighterFromOwned';
 import { mergeLadderMonsterParts } from './utils/monsterLadder/ladderProfile';
-import { buildLadderEnemyFighter } from './utils/monsterLadder/ladderFighters';
+import { buildLadderEnemyFighter, fighterFromLadderOwned } from './utils/monsterLadder/ladderFighters';
 import {
   applyMonsterLadderBattleRewards,
   buyMonsterLadderChest,
@@ -76,6 +76,7 @@ import {
   getPlayerProfile,
   mergeMonsterParts,
   mergeOwnedMonsters,
+  ensureLadderMonstersInMainInventory,
   setActiveProfile,
   setPlayerKeyForProfile,
   setProfileSelectedMonster,
@@ -113,7 +114,7 @@ import {
 } from './utils/audioManager';
 import { consumeMainMiniBossSkipNext } from './utils/mainBattleChest';
 
-const LOBBY_PHASES = new Set(['menu', 'ladder', 'quests', 'monsterRescueHub', 'online', 'gameOver', 'audioSettings']);
+const LOBBY_PHASES = new Set(['menu', 'ladder', 'monsterRescueHub', 'online', 'gameOver', 'audioSettings']);
 
 const BG = '#dceaf8';
 
@@ -186,6 +187,7 @@ export default function App() {
   const [noticeDialog, setNoticeDialog] = useState(null);
   const [rescueStageId, setRescueStageId] = useState(1);
   const [rescueRewardPayload, setRescueRewardPayload] = useState(null);
+  const [questHubOpen, setQuestHubOpen] = useState(false);
 
   function showNotice(title, message) {
     setNoticeDialog({ title, message });
@@ -333,7 +335,7 @@ export default function App() {
     const html = document.documentElement;
     const body = document.body;
     const root = document.getElementById('root');
-    const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'audioSettings' || phase === 'quests' || phase === 'monsterRescueHub';
+    const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'audioSettings' || phase === 'monsterRescueHub';
     if (scrollableLobby) {
       // Lobby scrolls inside the app (ScrollView), not the document — fixed viewport + inner overflow.
       html.style.overflow = 'hidden';
@@ -402,12 +404,25 @@ export default function App() {
     loadGameSave().then((gd) => {
       const activeId = gd.session?.activeProfileId ?? gd.players?.[0]?.id ?? null;
       const normalized = activeId ? enforceSingleActiveProfile(gd, activeId) : gd;
+      if (activeId) {
+        const profile = getPlayerProfile(normalized, activeId);
+        if (profile) ensureLadderMonstersInMainInventory(profile);
+      }
       setGameData(normalized);
       setSetupP1ProfileId(activeId);
       setSetupP2ProfileId(null);
       syncSetupMonstersFromProfiles(normalized, activeId, null, 'onePlayer');
     });
   }, []);
+
+  useEffect(() => {
+    if (!gameData || !setupP1ProfileId) return;
+    const gd = cloneGameData(gameData);
+    const profile = getPlayerProfile(gd, setupP1ProfileId);
+    if (!profile) return;
+    ensureLadderMonstersInMainInventory(profile);
+    persistSave(gd, 'ladder_inventory_repair', setupP1ProfileId);
+  }, [setupP1ProfileId]);
 
   const activeProfileId = gameData?.session?.activeProfileId ?? null;
 
@@ -914,6 +929,16 @@ export default function App() {
     showNotice('Merge complete', `Now +${res.mergeTier} merge (used ${res.consumed} duplicate${res.consumed === 1 ? '' : 's'}).`);
   }
 
+  function handleEnsureLadderMonstersSync() {
+    if (!gameData || !setupP1ProfileId) return;
+    const gd = cloneGameData(gameData);
+    const profile = getPlayerProfile(gd, setupP1ProfileId);
+    if (!profile) return;
+    ensureLadderMonstersInMainInventory(profile);
+    persistSave(gd, 'ladder_main_sync', setupP1ProfileId);
+    setGameData(gd);
+  }
+
   function handleClaimMainMiniBossChest(payload) {
     if (!gameData || !setupP1ProfileId) return Promise.resolve(null);
     const res = claimMainBattleMiniBossChest(gameData, setupP1ProfileId, payload);
@@ -959,7 +984,7 @@ export default function App() {
     }
     unlockAudio();
     startMenuMusic();
-    setPhase('quests');
+    setQuestHubOpen(true);
   }
 
   function openMonsterLadder() {
@@ -968,6 +993,7 @@ export default function App() {
       return;
     }
     unlockAudio();
+    setQuestHubOpen(false);
     startLadderMusic();
     setPhase('ladder');
   }
@@ -978,8 +1004,14 @@ export default function App() {
       return;
     }
     unlockAudio();
+    setQuestHubOpen(false);
     startRescueMusic();
     setPhase('monsterRescueHub');
+  }
+
+  function returnToQuestPicker() {
+    setPhase('menu');
+    setQuestHubOpen(true);
   }
 
   function startMonsterRescueStage(stageId) {
@@ -1115,6 +1147,12 @@ export default function App() {
     setGameData(res.gameData);
     setLadderChestDrop(res.drop);
     playSound('reward');
+    if (res.drop?.exchangedForShards && res.drop.shardsGained > 0) {
+      showNotice(
+        'Duplicate gear',
+        `${res.drop.name ?? 'Gear'} → +${res.drop.shardsGained} ladder shards (${getMonsterLadderState(getPlayerProfile(res.gameData, setupP1ProfileId))?.ladderShards ?? 0} total)`,
+      );
+    }
   }
 
   function startMonsterLadderBattle() {
@@ -1129,14 +1167,20 @@ export default function App() {
       setPhase('ladder');
       return;
     }
-    const owned = profile?.ownedMonsters?.find((m) => m.id === setupP1Id)
+    const ladderActive = ml.activeMonsterId
+      ? ml.ownedMonsters.find((m) => m.id === ml.activeMonsterId)
+      : null;
+    const owned = ladderActive
+      ?? profile?.ownedMonsters?.find((m) => m.id === setupP1Id)
       ?? profile?.ownedMonsters?.find((m) => m.id === profile?.selectedMonsterId)
       ?? profile?.ownedMonsters?.[0];
     if (!owned) {
-      showNotice('Monster Ladder', 'Pick one of your monsters before entering the ladder.');
+      showNotice('Monster Ladder', 'Open Monster Ladder → Collection and pick a ladder monster.');
       return;
     }
-    const f1 = fighterFromOwned(owned);
+    const f1 = ladderActive
+      ? fighterFromLadderOwned(ladderActive)
+      : fighterFromOwned(owned);
     if (!f1) {
       showNotice('Monster Ladder', 'Could not build your ladder fighter.');
       return;
@@ -1337,6 +1381,7 @@ export default function App() {
     setCurrentBattleMode(null);
     if (gameMode === 'monsterLadder') setGameMode('onePlayer');
     setBattleKey((k) => k + 1);
+    setQuestHubOpen(false);
     setPhase('menu');
   }, [gameMode]);
 
@@ -1466,7 +1511,9 @@ export default function App() {
               ? styles.cardShellOnline
             : phase === 'gameOver'
               ? styles.cardShellReward
-            : phase === 'menu' || phase === 'ladder' || phase === 'quests' || phase === 'monsterRescueHub' || phase === 'monsterRescue' || phase === 'monsterRescueReward'
+            : phase === 'monsterRescue'
+              ? styles.cardShellBattle
+            : phase === 'menu' || phase === 'ladder' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward'
               ? [styles.cardShellMenu, lobbyMobile && styles.cardShellMenuMobile]
               : styles.cardShell
         }
@@ -1568,8 +1615,20 @@ export default function App() {
                 : []
             }
             onMergeMonster={handleMergeMonster}
+            onEnsureLadderMonstersSync={handleEnsureLadderMonstersSync}
           />
         )}
+
+        {phase === 'menu' && questHubOpen ? (
+          <QuestHubScreen
+            visible
+            profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
+            rescueHighest={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).highestCleared}
+            onClose={() => setQuestHubOpen(false)}
+            onOpenMonsterLadder={openMonsterLadder}
+            onOpenMonsterRescue={openMonsterRescueHub}
+          />
+        ) : null}
 
         {phase === 'audioSettings' ? (
           <AudioSettingsScreen
@@ -1578,22 +1637,12 @@ export default function App() {
           />
         ) : null}
 
-        {phase === 'quests' ? (
-          <QuestHubScreen
-            profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
-            rescueHighest={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).highestCleared}
-            onBack={resetToMenu}
-            onOpenMonsterLadder={openMonsterLadder}
-            onOpenMonsterRescue={openMonsterRescueHub}
-          />
-        ) : null}
-
         {phase === 'monsterRescueHub' ? (
           <MonsterRescueHubScreen
             profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
             highestCleared={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).highestCleared}
             totalRescued={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).totalRescued}
-            onBack={() => setPhase('quests')}
+            onBack={returnToQuestPicker}
             onStartStage={startMonsterRescueStage}
           />
         ) : null}
@@ -1622,7 +1671,7 @@ export default function App() {
             profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
             monsterLadder={getMonsterLadderState(getPlayerProfile(gameData, setupP1ProfileId))}
             activeFighter={fighterFromSetupId(setupP1Id, setupP1ProfileId)}
-            onBack={() => setPhase('quests')}
+            onBack={returnToQuestPicker}
             onStartBattle={startMonsterLadderBattle}
             onOpenCollection={() => setLadderCollectionOpen(true)}
             onOpenGear={() => {
@@ -1910,6 +1959,7 @@ const styles = StyleSheet.create({
     borderColor: '#8eb8dc',
     padding: 6,
     overflow: 'hidden',
+    position: 'relative',
     ...(Platform.OS === 'web'
       ? {
           display: 'flex',

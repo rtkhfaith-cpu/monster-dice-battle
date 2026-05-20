@@ -169,7 +169,10 @@ export function chestDropSubtitle(drop) {
   if (drop.kind === 'gold') return 'Gold from the chest';
   if (drop.kind === 'exp') return 'Experience for your fighter';
   if (drop.kind === 'gear') {
-    if (drop.duplicate) return 'Already owned — converted to bonus coins';
+    if (drop.duplicate && drop.exchangedForShards) {
+      return `Duplicate gear → +${drop.shardsGained ?? 0} ladder shards`;
+    }
+    if (drop.duplicate) return 'Already owned';
     return 'Added to your gear inventory';
   }
   if (drop.duplicate) return 'Another copy joins your roster';

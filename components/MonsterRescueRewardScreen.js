@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, ImageBackground, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 
 export default function MonsterRescueRewardScreen({
@@ -11,7 +11,6 @@ export default function MonsterRescueRewardScreen({
 }) {
   const r = rewards ?? {};
   return (
-    <ImageBackground source={{ uri: GAME_ASSETS.monsterRescueBackground }} style={styles.bg} resizeMode="cover">
     <View style={styles.root}>
       <Image
         source={{ uri: won ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
@@ -31,8 +30,6 @@ export default function MonsterRescueRewardScreen({
         <Text style={styles.reward}>+{r.coins ?? 0} coins</Text>
         <Text style={styles.reward}>+{r.exp ?? 0} monster EXP</Text>
         {r.shards ? <Text style={styles.reward}>+{r.shards} shards</Text> : null}
-        {r.chests ? <Text style={styles.reward}>Treasure chests: {r.chests}</Text> : null}
-        {r.gearDrops ? <Text style={styles.reward}>Gear found: {r.gearDrops}</Text> : null}
       </View>
 
       <TouchableOpacity
@@ -48,52 +45,53 @@ export default function MonsterRescueRewardScreen({
         </TouchableOpacity>
       ) : null}
     </View>
-    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1 },
   root: {
     flex: 1,
-    padding: 20,
-    gap: 12,
+    padding: 16,
+    gap: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.78)',
   },
-  chestImg: { width: 72, height: 72, marginBottom: 4 },
-  banner: { fontSize: 28, fontWeight: '900' },
-  bannerWin: { color: '#15803d' },
-  bannerLose: { color: '#b91c1c' },
-  stage: { color: '#64748b', fontWeight: '700' },
+  chestImg: { width: 64, height: 64 },
+  banner: { fontSize: 22, fontWeight: '900' },
+  bannerWin: { color: '#86efac' },
+  bannerLose: { color: '#fca5a5' },
+  stage: { color: '#93c5fd', fontWeight: '700' },
   panel: {
     width: '100%',
-    maxWidth: 360,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 16,
-    padding: 16,
-    gap: 6,
-    borderWidth: 2,
-    borderColor: '#fbcfe8',
-  },
-  row: { color: '#334155', fontWeight: '600' },
-  divider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 6 },
-  reward: { color: '#0f766e', fontWeight: '800', fontSize: 16 },
-  primaryBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 28,
+    maxWidth: 320,
+    backgroundColor: 'rgba(15, 22, 42, 0.92)',
     borderRadius: 14,
-    backgroundColor: '#f472b6',
-    minWidth: 200,
+    padding: 14,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,143,0.45)',
+  },
+  row: { color: '#e2e8f0', fontWeight: '600', fontSize: 13 },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 6 },
+  reward: { color: '#fde68a', fontWeight: '800', fontSize: 15 },
+  primaryBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(48, 129, 66, 0.96)',
+    borderWidth: 1,
+    borderColor: '#efd17a',
+    minWidth: 180,
     alignItems: 'center',
   },
-  primaryBtnText: { color: '#fff', fontWeight: '900', fontSize: 16 },
+  primaryBtnText: { color: '#f4fce8', fontWeight: '900', fontSize: 15 },
   secondaryBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 22,
-    borderRadius: 12,
-    backgroundColor: '#e2e8f0',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
-  secondaryBtnText: { color: '#475569', fontWeight: '700' },
+  secondaryBtnText: { color: '#cbd5e1', fontWeight: '700' },
 });

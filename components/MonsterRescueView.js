@@ -22,6 +22,7 @@ export default function MonsterRescueView({
   const onRescuedRef = useRef(onRescued);
   const onErrorRef = useRef(onError);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -48,66 +49,103 @@ export default function MonsterRescueView({
   useEffect(() => {
     if (Platform.OS !== 'web') return undefined;
     let disposed = false;
+    let readyTimer = null;
+    let ready = false;
 
-    async function mount() {
+    async function mountPhaser() {
       try {
         const PhaserModule = await import('phaser');
         const Phaser = PhaserModule.default ?? PhaserModule;
         const { createMonsterRescueScene } = await import('../src/phaser/monsterRescue/MonsterRescueScene');
         const { setRescueBootStageId } = await import('../src/phaser/monsterRescue/bootConfig');
-        if (disposed || !hostRef.current || gameRef.current) return;
 
-        setRescueBootStageId(stageId);
-        const SceneClass = createMonsterRescueScene(Phaser);
-        const game = new Phaser.Game({
-          type: Phaser.AUTO,
-          parent: hostRef.current,
-          width: 390,
-          height,
-          backgroundColor: '#5ec8ff',
-          scene: SceneClass,
-          scale: {
-            mode: Phaser.Scale.FIT,
-            autoCenter: Phaser.Scale.CENTER_BOTH,
-          },
-        });
+        const tryStart = () => {
+          if (disposed || !hostRef.current || gameRef.current) return false;
+          const el = hostRef.current;
+          if (!el.clientWidth || !el.clientHeight) return false;
 
-        gameRef.current = game;
+          setRescueBootStageId(stageId);
+          const SceneClass = createMonsterRescueScene(Phaser);
+          const game = new Phaser.Game({
+            type: Phaser.AUTO,
+            parent: el,
+            width: Math.max(320, el.clientWidth),
+            height: Math.max(280, el.clientHeight),
+            backgroundColor: '#1a1a2e',
+            scene: SceneClass,
+            scale: {
+              mode: Phaser.Scale.FIT,
+              autoCenter: Phaser.Scale.CENTER_BOTH,
+            },
+            render: {
+              antialias: true,
+              pixelArt: false,
+            },
+          });
 
-        const handleReady = (scene) => onReadyRef.current?.(scene);
-        const handleFinish = (payload) => onFinishRef.current?.(payload);
-        const handlePop = () => onPopRef.current?.();
-        const handleCombo = (combo) => onComboRef.current?.(combo);
-        const handleShoot = () => onShootRef.current?.();
-        const handleRescued = () => onRescuedRef.current?.();
+          gameRef.current = game;
+          setLoading(false);
 
-        game.events.on('monster-rescue-ready', handleReady);
-        game.events.on('monster-rescue-finish', handleFinish);
-        game.events.on('rescue:pop', handlePop);
-        game.events.on('rescue:combo', handleCombo);
-        game.events.on('rescue:shoot', handleShoot);
-        game.events.on('rescue:rescued', handleRescued);
+          readyTimer = setTimeout(() => {
+            if (disposed || ready) return;
+            const msg = 'Monster Rescue did not start in time.';
+            setError(msg);
+            onErrorRef.current?.(msg);
+          }, 4000);
 
-        return () => {
-          game.events.off('monster-rescue-ready', handleReady);
-          game.events.off('monster-rescue-finish', handleFinish);
-          game.events.off('rescue:pop', handlePop);
-          game.events.off('rescue:combo', handleCombo);
-          game.events.off('rescue:shoot', handleShoot);
-          game.events.off('rescue:rescued', handleRescued);
+          const handleReady = (scene) => {
+            ready = true;
+            if (readyTimer) clearTimeout(readyTimer);
+            onReadyRef.current?.(scene);
+          };
+          const handleFinish = (payload) => onFinishRef.current?.(payload);
+          const handlePop = () => onPopRef.current?.();
+          const handleCombo = (combo) => onComboRef.current?.(combo);
+          const handleShoot = () => onShootRef.current?.();
+          const handleRescued = () => onRescuedRef.current?.();
+
+          game.events.once('monster-rescue-ready', handleReady);
+          game.events.on('monster-rescue-finish', handleFinish);
+          game.events.on('rescue:pop', handlePop);
+          game.events.on('rescue:combo', handleCombo);
+          game.events.on('rescue:shoot', handleShoot);
+          game.events.on('rescue:rescued', handleRescued);
+
+          game._rescueCleanup = () => {
+            if (readyTimer) clearTimeout(readyTimer);
+            game.events.off('monster-rescue-finish', handleFinish);
+            game.events.off('rescue:pop', handlePop);
+            game.events.off('rescue:combo', handleCombo);
+            game.events.off('rescue:shoot', handleShoot);
+            game.events.off('rescue:rescued', handleRescued);
+          };
+          return true;
         };
+
+        if (!tryStart()) {
+          requestAnimationFrame(() => {
+            if (!tryStart()) {
+              setTimeout(() => tryStart(), 50);
+            }
+          });
+        }
       } catch (err) {
         const msg = err?.message || 'Monster Rescue failed to load.';
         setError(msg);
+        setLoading(false);
         onErrorRef.current?.(err);
       }
     }
 
-    const cleanupPromise = mount();
+    setLoading(true);
+    setError('');
+    mountPhaser();
+
     return () => {
       disposed = true;
-      cleanupPromise?.then?.((cleanup) => cleanup?.());
+      if (readyTimer) clearTimeout(readyTimer);
       if (gameRef.current) {
+        gameRef.current._rescueCleanup?.();
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
@@ -124,16 +162,55 @@ export default function MonsterRescueView({
 
   return (
     <View style={[styles.wrap, { height }]}>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View ref={hostRef} style={styles.canvasHost} />
+      {React.createElement('div', {
+        ref: hostRef,
+        style: {
+          width: '100%',
+          height: '100%',
+          minHeight: height,
+          overflow: 'hidden',
+        },
+      })}
+      {loading && !error ? (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <Text style={styles.loadingText}>Loading Bubble Bay…</Text>
+        </View>
+      ) : null}
+      {error ? (
+        <View style={styles.errorOverlay}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { width: '100%', overflow: 'hidden', borderRadius: 16 },
-  canvasHost: { width: '100%', height: '100%' },
-  fallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#5ec8ff' },
-  fallbackText: { color: '#0f172a', fontWeight: '700' },
-  error: { position: 'absolute', zIndex: 2, color: '#b91c1c', padding: 8 },
+  wrap: {
+    width: '100%',
+    flex: 1,
+    minHeight: 280,
+    overflow: 'hidden',
+    borderRadius: 12,
+    backgroundColor: '#1a1a2e',
+    borderWidth: 2,
+    borderColor: '#4a5568',
+  },
+  fallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a1a2e' },
+  fallbackText: { color: '#ffe6a3', fontWeight: '700' },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+  },
+  loadingText: { color: '#ffe6a3', fontWeight: '800', fontSize: 14 },
+  errorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    padding: 16,
+  },
+  errorText: { color: '#fecaca', fontWeight: '800', textAlign: 'center' },
 });

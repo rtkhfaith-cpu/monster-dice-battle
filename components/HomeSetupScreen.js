@@ -130,6 +130,7 @@ export default function HomeSetupScreen({
   coins,
   ladderOwnedMonsters = [],
   onMergeMonster,
+  onEnsureLadderMonstersSync,
 }) {
   const [tray, setTray] = useState(null);
   const [cardMonster, setCardMonster] = useState(null);
@@ -153,14 +154,18 @@ export default function HomeSetupScreen({
     return groupOwnedMonsters(monsters, ladderOwnedMonsters)
       .map((group) => {
         const mainInstances = group.instances.filter((i) => i._source === 'main');
-        const battlePrimary = pickPrimaryInstance(mainInstances);
+        const ladderInstances = group.instances.filter((i) => i._source === 'ladder');
+        const battlePrimary =
+          pickPrimaryInstance(mainInstances) ?? pickPrimaryInstance(ladderInstances);
         return {
           ...group,
           battlePrimary,
           mainCount: mainInstances.length,
+          ladderCount: ladderInstances.length,
+          ladderOnly: mainInstances.length === 0 && ladderInstances.length > 0,
         };
       })
-      .filter((g) => g.mainCount > 0);
+      .filter((g) => g.mainCount > 0 || g.ladderCount > 0);
   }, [monsters, ladderOwnedMonsters]);
   const effectiveP1Id =
     selectedP1Id && monsters.some((m) => m.id === selectedP1Id)
@@ -182,6 +187,10 @@ export default function HomeSetupScreen({
   useEffect(() => {
     if (tray !== 'monsters') setCardMonster(null);
   }, [tray]);
+
+  useEffect(() => {
+    if (tray === 'monsters') onEnsureLadderMonstersSync?.();
+  }, [tray, onEnsureLadderMonstersSync]);
 
   useEffect(() => {
     if (!effectiveP1Id || effectiveP1Id === selectedP1Id) {
@@ -480,7 +489,7 @@ export default function HomeSetupScreen({
         <View style={styles.trayHeader}>
           <View>
             <Text style={styles.trayTitle}>Monsters</Text>
-            <Text style={styles.traySub}>Tap to equip · portrait for stats card</Text>
+            <Text style={styles.traySub}>Tap to equip · ladder monsters marked ★ Ladder</Text>
           </View>
           <Pressable onPress={pressWithSound(() => setTray(null))} style={styles.trayClose}>
             <Text style={styles.trayCloseText}>Close</Text>
@@ -518,13 +527,19 @@ export default function HomeSetupScreen({
                   </Pressable>
                   <Pressable
                     style={styles.monsterSelectMeta}
-                    onPress={pressWithSound(() => onSelectMonster?.(primary.id))}
+                    onPress={pressWithSound(() => {
+                      if (group.ladderOnly) return;
+                      onSelectMonster?.(primary.id);
+                    })}
                   >
                     <Text style={styles.monsterChipText} numberOfLines={1}>
                       {group.displayName}{countLabel}
+                      {group.ladderOnly ? ' ★ Ladder' : ''}
                     </Text>
                     <Text style={styles.monsterChipSub}>
-                      Lv {primary.level ?? 1}{mergeLabel}{picked ? ' · Selected' : ''}
+                      {group.ladderOnly
+                        ? 'Monster Ladder roster · open Ladder → Collection'
+                        : `Lv ${primary.level ?? 1}${mergeLabel}${picked ? ' · Selected' : ''}`}
                     </Text>
                   </Pressable>
                 </View>

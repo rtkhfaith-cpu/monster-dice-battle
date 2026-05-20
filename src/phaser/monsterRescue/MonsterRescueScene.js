@@ -35,7 +35,7 @@ export function createMonsterRescueScene(Phaser) {
 
       const pool = [
         ...Object.entries(NORMAL_MONSTER_IMAGE_ASSETS),
-        ...Object.entries(LADDER_MONSTER_IMAGE_ASSETS),
+        ...Object.entries(LADDER_MONSTER_IMAGE_ASSETS).slice(0, 20),
       ];
       for (const [templateId, asset] of pool) {
         this.load.image(`rescue_monster_${templateId}`, asset.path);

@@ -1,10 +1,7 @@
 import { addExperience, subtractExperience, expToAdvanceFrom, expWinForEnemyLevel, expLossPenalty } from '../expLevel';
 import { ladderCoinsForEnemyLevel } from '../../src/gameBalance/rewards';
-import {
-  LADDER_CHEST_SHARD_COST,
-  LADDER_EXP_MULTIPLIER,
-  LADDER_SHARDS_BY_RARITY,
-} from './ladderConstants';
+import { LADDER_CHEST_SHARD_COST, LADDER_EXP_MULTIPLIER } from './ladderConstants';
+import { grantGearToProfile } from '../gearDuplicateReward';
 import { rollChestDrop } from './ladderChestTables';
 import {
   advanceMonsterLadderStage,
@@ -16,15 +13,27 @@ import {
   getMonsterLadderState,
   setMonsterLadderState,
 } from './ladderProfile';
+import { resolveLadderTemplateId } from './ladderMonsterMigrate';
 import { cloneGameData, getPlayerProfile } from '../gameStorage';
 
-function profileOwnsTemplate(profile, templateId) {
-  return profile.ownedMonsters?.some((m) => m.templateId === templateId);
+function profileOwnsLadderTemplate(profile, ml, templateId) {
+  const canonical = resolveLadderTemplateId(templateId) ?? templateId;
+  const inMain = profile.ownedMonsters?.some(
+    (m) => (resolveLadderTemplateId(m.templateId) ?? m.templateId) === canonical,
+  );
+  const inLadder = ml.ownedMonsters?.some(
+    (m) => (resolveLadderTemplateId(m.templateId) ?? m.templateId) === canonical,
+  );
+  return inMain || inLadder;
 }
 
 function addLadderMonsterToMainInventory(profile, row) {
   if (!Array.isArray(profile.ownedMonsters)) profile.ownedMonsters = [];
-  if (profileOwnsTemplate(profile, row.templateId)) return null;
+  const canonical = resolveLadderTemplateId(row.templateId) ?? row.templateId;
+  const inMain = profile.ownedMonsters?.some(
+    (m) => (resolveLadderTemplateId(m.templateId) ?? m.templateId) === canonical,
+  );
+  if (inMain) return null;
   const mainRow = {
     ...row,
     id: row.id,
@@ -35,15 +44,6 @@ function addLadderMonsterToMainInventory(profile, row) {
   profile.ownedMonsters.push(mainRow);
   if (!profile.selectedMonsterId) profile.selectedMonsterId = mainRow.id;
   return mainRow;
-}
-
-function addLadderGearToMainInventory(profile, gearId) {
-  if (!Array.isArray(profile.cosmeticsOwned)) profile.cosmeticsOwned = [];
-  profile.cosmeticsOwned = [...new Set([...profile.cosmeticsOwned, gearId])];
-}
-
-function countOwnedGear(ml, gearId) {
-  return (ml.ownedGear || []).filter((id) => id === gearId).length;
 }
 
 function ensureChestInventory(ml) {
@@ -190,25 +190,26 @@ function resolveChestOpen(profile, ml, type) {
   if (!roll) return null;
 
   if (roll.kind === 'monster') {
-    if (ml.ownedMonsters.some((m) => m.templateId === roll.id) || profileOwnsTemplate(profile, roll.id)) {
-      const row = generateLadderOwnedMonster(roll.id);
+    const templateId = resolveLadderTemplateId(roll.id) ?? roll.id;
+    if (profileOwnsLadderTemplate(profile, ml, templateId)) {
+      const row = generateLadderOwnedMonster(templateId);
       ml.ownedMonsters.push(row);
+      addLadderMonsterToMainInventory(profile, row);
       return { ...roll, duplicate: true, ownedId: row.id, shardsGained: 0, futureCombine: true };
     }
-    const row = generateLadderOwnedMonster(roll.id);
+    const row = generateLadderOwnedMonster(templateId);
     ml.ownedMonsters.push(row);
     const mainRow = addLadderMonsterToMainInventory(profile, row);
     if (!ml.activeMonsterId) ml.activeMonsterId = row.id;
     return { ...roll, duplicate: false, ownedId: row.id, mainOwnedId: mainRow?.id ?? row.id };
   }
 
-  if (countOwnedGear(ml, roll.id) > 0) {
-    const shards = LADDER_SHARDS_BY_RARITY[roll.rarity] ?? 8;
-    ml.ladderShards += shards;
-    return { ...roll, duplicate: true, shardsGained: shards, exchangedForShards: true, quantity: countOwnedGear(ml, roll.id) };
-  }
-
-  ml.ownedGear.push(roll.id);
-  addLadderGearToMainInventory(profile, roll.id);
-  return { ...roll, duplicate: false, quantity: countOwnedGear(ml, roll.id) };
+  const gearGrant = grantGearToProfile(profile, roll.id);
+  return {
+    ...roll,
+    duplicate: gearGrant.duplicate,
+    shardsGained: gearGrant.shardsGained ?? 0,
+    exchangedForShards: !!gearGrant.exchangedForShards,
+    quantity: gearGrant.quantity ?? 1,
+  };
 }

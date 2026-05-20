@@ -1,6 +1,7 @@
 import { DEFAULT_GEAR_SLOTS } from '../gearSlots';
 import { applyMonsterTheme } from '../monsterThemes';
 import { getLadderMonsterTemplate } from './ladderMonsterCatalog';
+import { resolveLadderTemplateId } from './ladderMonsterMigrate';
 import { normalizeMonsterLadder } from './ladderProgress';
 
 function uid(prefix) {
@@ -49,5 +50,8 @@ export function getLadderOwnedMonster(profile, ownedId) {
 /** @param {object} profile @param {string} templateId */
 export function profileOwnsLadderTemplate(profile, templateId) {
   const ml = getMonsterLadderState(profile);
-  return ml.ownedMonsters.some((m) => m.templateId === templateId);
+  const canonical = resolveLadderTemplateId(templateId) ?? templateId;
+  return ml.ownedMonsters.some(
+    (m) => (resolveLadderTemplateId(m.templateId) ?? m.templateId) === canonical,
+  );
 }

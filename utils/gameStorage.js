@@ -22,16 +22,25 @@ import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { applyStageClear, normalizeMonsterRescue } from './monsterRescue/progress';
 import { computeStageRewards } from './monsterRescue/rewards';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
-import { getMonsterLadderState, mergeLadderMonsterParts, setMonsterLadderState } from './monsterLadder/ladderProfile';
+import {
+  migrateLadderMonsterTemplateIds,
+  resolveLadderTemplateId,
+} from './monsterLadder/ladderMonsterMigrate';
+import {
+  generateLadderOwnedMonster,
+  getMonsterLadderState,
+  mergeLadderMonsterParts,
+  setMonsterLadderState,
+} from './monsterLadder/ladderProfile';
 import { clampMergeTier, mergeCostForNextTier } from './mergeSystem';
 import { assertShopGearPurchase, assertShopMonsterPurchase } from './shopGuards';
 import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
+import { grantGearToProfile } from './gearDuplicateReward';
 import {
   clearMainMiniBossSkipNext,
-  mainBattleChestDuplicateGold,
   normalizeMainBattleState,
   recordMainMiniBossSkipNext,
   rollMainBattleChestDrop,
@@ -227,8 +236,14 @@ function normalizeWalletMonsters(wallet) {
   migrateLegacyWalletGear(wallet);
 }
 
+/** Copy ladder-exclusive monsters into main inventory so they appear in the home roster. */
+export function ensureLadderMonstersInMainInventory(profile) {
+  syncLadderRewardsToMainInventory(profile);
+}
+
 function syncLadderRewardsToMainInventory(profile) {
-  const ml = profile.monsterLadder;
+  migrateLadderMonsterTemplateIds(profile);
+  const ml = getMonsterLadderState(profile);
   if (!ml) return;
 
   const ownedGear = new Set(profile.cosmeticsOwned || []);
@@ -238,19 +253,47 @@ function syncLadderRewardsToMainInventory(profile) {
   profile.cosmeticsOwned = [...ownedGear];
 
   if (!Array.isArray(profile.ownedMonsters)) profile.ownedMonsters = [];
-  const mainTemplateIds = new Set(profile.ownedMonsters.map((m) => m.templateId));
+  const mainTemplateIds = new Set(
+    profile.ownedMonsters.map((m) => resolveLadderTemplateId(m.templateId) ?? m.templateId),
+  );
+
+  // Ladder roster → main inventory (home Monsters tray).
   for (const lm of ml.ownedMonsters || []) {
-    if (!getLadderMonsterTemplate(lm.templateId) || mainTemplateIds.has(lm.templateId)) continue;
+    const canonical = resolveLadderTemplateId(lm.templateId);
+    if (!canonical || mainTemplateIds.has(canonical)) continue;
     const row = {
       ...lm,
+      templateId: canonical,
       equippedGear: Array.isArray(lm.equippedGear) ? lm.equippedGear : [],
       unlockedVisualTags: Array.isArray(lm.unlockedVisualTags) ? lm.unlockedVisualTags : [],
     };
     delete row.equippedLadderGear;
     normalizeOwnedMonster(row);
     profile.ownedMonsters.push(row);
-    mainTemplateIds.add(row.templateId);
+    mainTemplateIds.add(canonical);
   }
+
+  // Main inventory → ladder roster (Collection / ladder battles) — repairs split saves.
+  if (!Array.isArray(ml.ownedMonsters)) ml.ownedMonsters = [];
+  const ladderTemplateIds = new Set(
+    ml.ownedMonsters.map((m) => resolveLadderTemplateId(m.templateId) ?? m.templateId),
+  );
+  for (const om of profile.ownedMonsters || []) {
+    const canonical = resolveLadderTemplateId(om.templateId);
+    if (!canonical || ladderTemplateIds.has(canonical)) continue;
+    const row = generateLadderOwnedMonster(canonical, om.nickname || '');
+    row.id = om.id;
+    row.level = om.level ?? 1;
+    row.exp = om.exp ?? 0;
+    row.mergeTier = om.mergeTier ?? 0;
+    row.monsterParts = om.monsterParts
+      ? mergeLadderMonsterParts(canonical, om.monsterParts)
+      : mergeLadderMonsterParts(canonical);
+    ml.ownedMonsters.push(row);
+    ladderTemplateIds.add(canonical);
+    if (!ml.activeMonsterId) ml.activeMonsterId = row.id;
+  }
+  setMonsterLadderState(profile, ml);
 }
 
 function normalizePlayerProfile(p) {
@@ -1001,16 +1044,16 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
   } else if (drop.kind === 'exp') {
     applied.expPack = grantExpInWallet(wallet, payload.p1OwnedId ?? null, drop.amount);
   } else if (drop.kind === 'gear') {
-    const owned = wallet.cosmeticsOwned || [];
-    if (owned.includes(drop.id)) {
-      const alt = mainBattleChestDuplicateGold(payload.enemyLevel ?? 1);
-      wallet.coins += alt;
-      applied.kind = 'gold';
-      applied.amount = alt;
-      applied.duplicate = true;
-      applied.label = `${alt} coins`;
+    const gearGrant = grantGearToProfile(profile, drop.id);
+    applied.duplicate = gearGrant.duplicate;
+    applied.shardsGained = gearGrant.shardsGained ?? 0;
+    applied.exchangedForShards = !!gearGrant.exchangedForShards;
+    applied.gearName = gearGrant.gearName;
+    if (gearGrant.duplicate && gearGrant.exchangedForShards) {
+      const ml = getMonsterLadderState(profile);
+      applied.ladderShardsTotal = ml.ladderShards;
+      applied.label = `+${gearGrant.shardsGained} ladder shards`;
     } else {
-      wallet.cosmeticsOwned = [...owned, drop.id];
       applied.duplicate = false;
     }
   } else if (drop.kind === 'monster') {

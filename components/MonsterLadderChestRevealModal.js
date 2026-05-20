@@ -54,11 +54,15 @@ export default function MonsterLadderChestRevealModal({ visible, drop, onClose }
                 {drop.kind === 'gear' ? 'Ladder gear' : 'Ladder monster'}
               </Text>
               {duplicate ? (
-                drop.kind === 'gear' ? (
-                  <Text style={styles.duplicate}>Extra copy stored for forging later. Owned x{drop.quantity ?? 2}.</Text>
+                drop.exchangedForShards || drop.shardsGained > 0 ? (
+                  <Text style={styles.duplicate}>
+                    Duplicate converted into +{drop.shardsGained ?? 0} ladder shards.
+                  </Text>
+                ) : drop.kind === 'gear' ? (
+                  <Text style={styles.duplicate}>Extra copy stored. Owned x{drop.quantity ?? 2}.</Text>
                 ) : (
                   <Text style={styles.duplicate}>
-                    Duplicate converted into {drop.shardsGained ?? 0} ladder shards.
+                    Duplicate stored for merging later.
                   </Text>
                 )
               ) : (
