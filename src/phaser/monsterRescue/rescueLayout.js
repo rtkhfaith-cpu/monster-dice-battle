@@ -1,20 +1,19 @@
 import { GRID_COLS, GRID_ROWS } from '../../../utils/monsterRescue/constants';
 
 const PAD_X = 10;
-const HUD_TOP = 44;
-const FRAME_INSET = 4;
-/** Root Y → lowest pixel (shadow pad) in RescueShooter */
-const SHOOTER_FOOT_OFFSET = 16;
+const HUD_TOP = 48;
+const FRAME_INSET = 3;
+/** Top portion of canvas reserved for bubble grid (matches background art). */
+export const GRID_ZONE_RATIO = 0.6;
+/** Lift shooter upward from frame bottom (~10%). */
+export const SHOOTER_LIFT_RATIO = 0.1;
+/** Root Y → platform center in RescueShooter */
+const SHOOTER_PLATFORM_OFFSET = 6;
 /** Clearance above shooter for cannon + loaded bubble */
-const SHOOTER_ZONE_H = 54;
-/** Even row (11 cols): span from center col 0 to col 10 */
+const SHOOTER_ZONE_H = 58;
 const EVEN_ROW_SPAN = GRID_COLS - 1;
-/** bubbleRadius = cellW * RADIUS_RATIO keeps full circles inside the hex pitch */
 const RADIUS_RATIO = 0.46;
 
-/**
- * Pixel width of the hex grid including bubble radius on both sides.
- */
 export function gridPixelWidth(originX, cellW, bubbleRadius) {
   const r = bubbleRadius;
   const evenRight = originX + EVEN_ROW_SPAN * cellW + r;
@@ -24,8 +23,6 @@ export function gridPixelWidth(originX, cellW, bubbleRadius) {
 }
 
 /**
- * Fit the bubble grid inside the Phaser canvas with full bubbles visible edge-to-edge.
- * Shooter sits on the inner bottom line of the play frame (visible above the finger).
  * @param {number} w canvas width
  * @param {number} h canvas height
  * @param {number} fillRows stage config rows to fill
@@ -36,12 +33,18 @@ export function computeRescueLayout(w, h, fillRows) {
   const playTop = HUD_TOP;
   const playHeight = Math.max(200, h - playTop - 6);
 
+  const gridZoneBottom = playTop + h * GRID_ZONE_RATIO;
   const innerFrameBottom = playTop + playHeight - FRAME_INSET;
-  const shooterY = innerFrameBottom - SHOOTER_FOOT_OFFSET;
+  const platformY = innerFrameBottom - SHOOTER_PLATFORM_OFFSET - h * SHOOTER_LIFT_RATIO;
+  const shooterY = platformY;
   const shooterZoneTop = shooterY - SHOOTER_ZONE_H;
 
-  const clusterTop = playTop + FRAME_INSET;
-  const clusterZoneH = Math.max(72, shooterZoneTop - clusterTop);
+  const clusterTop = playTop + FRAME_INSET + 4;
+  const clusterMaxBottom = gridZoneBottom - 6;
+  const clusterZoneH = Math.max(
+    72,
+    Math.min(clusterMaxBottom - clusterTop, shooterZoneTop - clusterTop)
+  );
 
   const horizUnits = EVEN_ROW_SPAN + RADIUS_RATIO * 2;
   const cellW = playWidth / horizUnits;
@@ -75,7 +78,9 @@ export function computeRescueLayout(w, h, fillRows) {
     playWidth,
     playHeight,
     clusterBottom,
+    gridZoneBottom,
     shooterY,
+    platformY,
     innerFrameBottom,
     shooterZoneTop,
   };
