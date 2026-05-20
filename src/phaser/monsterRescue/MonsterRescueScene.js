@@ -1,16 +1,40 @@
-import { BUBBLE_RADIUS, BUBBLE_TYPES } from '../../../utils/monsterRescue/constants';
+import { BUBBLE_RADIUS, GRID_ROWS } from '../../../utils/monsterRescue/constants';
 import { getRescueStage } from '../../../utils/monsterRescue/stages';
 import StageGenerator from './StageGenerator';
 import BubbleSystem from './BubbleSystem';
 import ComboManager from './ComboManager';
 import RewardManager from './RewardManager';
 import PuzzleHUD from './PuzzleHUD';
-import { getRescueBootStageId } from './bootConfig';
+import { getRescueBootShooterTemplateId, getRescueBootStageId } from './bootConfig';
 import { preloadRescueAssets, rescueBackgroundForStage, RESCUE_SCENE_ASSETS } from './rescueAssets';
+import RescueShooter from './RescueShooter';
 
 const SHOOT_SPEED = 680;
 const MIN_AIM_ANGLE = -2.75;
 const MAX_AIM_ANGLE = -0.35;
+const HUD_TOP = 56;
+
+/** Keep the starting cluster in the upper half of the playfield. */
+function computeRescueLayout(w, h, fillRows) {
+  const cellW = BUBBLE_RADIUS * 2 + 2;
+  const cellH = BUBBLE_RADIUS * 1.82;
+  const upperHalfBottom = h * 0.5;
+  const maxRows = Math.max(
+    3,
+    Math.min(
+      GRID_ROWS,
+      Math.floor((upperHalfBottom - HUD_TOP - BUBBLE_RADIUS) / cellH) + 1
+    )
+  );
+  const displayFillRows = Math.min(fillRows, maxRows);
+  return {
+    originX: w * 0.5 - ((11 - 1) * cellW) / 2,
+    originY: HUD_TOP,
+    cellW,
+    cellH,
+    displayFillRows,
+  };
+}
 
 export function createMonsterRescueScene(Phaser) {
   return class MonsterRescueScene extends Phaser.Scene {
@@ -23,7 +47,7 @@ export function createMonsterRescueScene(Phaser) {
     }
 
     init(data) {
-      this.stageId = data?.stageId ?? getRescueBootStageId();
+      this.stageId = data?.stageId ?? data?.levelId ?? getRescueBootStageId();
     }
 
     preload() {
@@ -45,31 +69,26 @@ export function createMonsterRescueScene(Phaser) {
       this.stageDef = getRescueStage(this.stageId);
       this.shotsLeft = this.stageDef.shotLimit;
 
-      const cellW = BUBBLE_RADIUS * 2 + 2;
-      const cellH = BUBBLE_RADIUS * 1.82;
-      this.layout = {
-        originX: w * 0.5 - ((11 - 1) * cellW) / 2,
-        originY: 72,
-        cellW,
-        cellH,
-      };
+      const { displayFillRows, ...layout } = computeRescueLayout(w, h, this.stageDef.fillRows);
+      this.layout = layout;
 
       this._drawBackdrop(w, h);
 
       this.comboManager = new ComboManager(this);
       this.rewardManager = new RewardManager(this);
-      this.stageGenerator = new StageGenerator(this.stageDef);
+      this.stageGenerator = new StageGenerator(this.stageDef, displayFillRows);
       this.bubbleSystem = new BubbleSystem(this, this.layout);
       this.bubbleSystem.loadGrid(this.stageGenerator.buildInitialGrid());
 
       this.shooterX = w / 2;
-      this.shooterY = h - 58;
+      this.shooterY = h - 78;
       this.aimAngle = -Math.PI / 2;
       this.currentCell = this.stageGenerator.rollShooterBubble();
       this.nextCell = this.stageGenerator.rollShooterBubble();
 
-      this.aimGfx = this.add.graphics().setDepth(30);
-      this.currentBubbleGfx = this._spawnFloatingBubble(this.currentCell, this.shooterX, this.shooterY - 28, 40);
+      this.shooter = new RescueShooter(this, this.shooterX, this.shooterY, getRescueBootShooterTemplateId());
+      this.shooter.setAimAngle(this.aimAngle);
+      this.shooter.setLoadedBubble(this.currentCell);
       this.nextBubbleGfx = this._spawnFloatingBubble(this.nextCell, w - 52, h - 52, 20, 0.75);
 
       this.projectile = null;
@@ -96,6 +115,7 @@ export function createMonsterRescueScene(Phaser) {
       if (bgPath && !this.textures.exists(RESCUE_SCENE_ASSETS.bg.key)) {
         this.load.image(RESCUE_SCENE_ASSETS.bg.key, bgPath);
       }
+      this.shooter?.preloadMonster?.(this);
       preloadRescueAssets(this, { skipBg: true });
       this.load.once(Phaser.Loader.Events.COMPLETE, () => {
         if (!this.scene.isActive()) return;
@@ -106,6 +126,7 @@ export function createMonsterRescueScene(Phaser) {
           const scale = Math.max(w / this._bgImage.width, h / this._bgImage.height) * 1.05;
           this._bgImage.setScale(scale).setAlpha(0.92);
         }
+        this.shooter?._tryLoadMonsterTexture?.();
         this.bubbleSystem?.rebuildSprites?.();
       });
       if (this.load.totalToLoad > 0) this.load.start();
@@ -135,12 +156,14 @@ export function createMonsterRescueScene(Phaser) {
 
     _refreshHud() {
       const summary = this.rewardManager.getSummary();
+      const left = this.bubbleSystem.getModel().countBubbles();
       this.puzzleHud.update({
-        score: summary.score,
+        score: summary.bubblesCleared,
         combo: this.comboManager.combo,
         stageLabel: `${this.stageDef.label}`,
         shotsLeft: this.shotsLeft,
         shotLimit: this.stageDef.shotLimit,
+        bubblesLeft: left,
       });
     }
 
@@ -157,32 +180,11 @@ export function createMonsterRescueScene(Phaser) {
 
     _updateAim(p) {
       const dx = p.x - this.shooterX;
-      const dy = p.y - this.shooterY;
+      const dy = p.y - this.shooterY - 8;
       let ang = Math.atan2(dy, dx);
       ang = Phaser.Math.Clamp(ang, MIN_AIM_ANGLE, MAX_AIM_ANGLE);
       this.aimAngle = ang;
-      this._drawAimLine();
-      if (this.currentBubbleGfx) {
-        this.currentBubbleGfx.x = this.shooterX + Math.cos(ang) * 18;
-        this.currentBubbleGfx.y = this.shooterY - 28 + Math.sin(ang) * 18;
-      }
-    }
-
-    _drawAimLine() {
-      const g = this.aimGfx;
-      g.clear();
-      g.lineStyle(2, 0xffffff, 0.55);
-      const len = 140;
-      const x0 = this.shooterX;
-      const y0 = this.shooterY - 32;
-      const x1 = x0 + Math.cos(this.aimAngle) * len;
-      const y1 = y0 + Math.sin(this.aimAngle) * len;
-      g.strokeLineShape(new Phaser.Geom.Line(x0, y0, x1, y1));
-      g.fillStyle(0xffffff, 0.25);
-      for (let i = 1; i <= 5; i++) {
-        const t = i / 5;
-        g.fillCircle(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 3);
-      }
+      this.shooter?.setAimAngle(ang);
     }
 
     async _onPointerUp() {
@@ -193,12 +195,11 @@ export function createMonsterRescueScene(Phaser) {
     async _fire() {
       this.isShooting = true;
       this.game.events.emit('rescue:shoot');
-      this.aimGfx.clear();
       const cell = this.currentCell;
-      this.currentBubbleGfx?.destroy();
-      this.currentBubbleGfx = null;
+      this.shooter.clearLoadedBubble();
 
-      const proj = this.bubbleSystem._makeBubbleVisual(cell, this.shooterX, this.shooterY - 40, 45);
+      const muzzle = this.shooter.getMuzzleWorld();
+      const proj = this.bubbleSystem._makeBubbleVisual(cell, muzzle.x, muzzle.y, 45);
       this.projectile = { container: proj, cell, vx: Math.cos(this.aimAngle) * SHOOT_SPEED, vy: Math.sin(this.aimAngle) * SHOOT_SPEED };
 
       const result = await this._simulateProjectile();
@@ -206,7 +207,7 @@ export function createMonsterRescueScene(Phaser) {
       if (!result) {
         this.isShooting = false;
         this.currentCell = cell;
-        this.currentBubbleGfx = this._spawnFloatingBubble(cell, this.shooterX, this.shooterY - 28, 40);
+        this.shooter.setLoadedBubble(cell);
         return;
       }
 
@@ -214,16 +215,11 @@ export function createMonsterRescueScene(Phaser) {
       this.bubbleSystem.attachBubble(row, col, cell);
       this.shotsLeft -= 1;
 
-      const attached = cell;
-      if (attached.type === BUBBLE_TYPES.BOMB) {
-        await this.bubbleSystem.triggerBomb(row, col, this.comboManager, this.rewardManager);
-      } else {
-        await this.bubbleSystem.resolveAfterAttach(row, col, this.comboManager, this.rewardManager);
-      }
+      await this.bubbleSystem.resolveAfterAttach(row, col, this.comboManager, this.rewardManager);
 
       this.currentCell = this.nextCell;
       this.nextCell = this.stageGenerator.rollShooterBubble();
-      this.currentBubbleGfx = this._spawnFloatingBubble(this.currentCell, this.shooterX, this.shooterY - 28, 40);
+      this.shooter.setLoadedBubble(this.currentCell);
       this.nextBubbleGfx?.destroy();
       this.nextBubbleGfx = this._spawnFloatingBubble(
         this.nextCell,
@@ -242,8 +238,9 @@ export function createMonsterRescueScene(Phaser) {
       return new Promise((resolve) => {
         const w = this.scale.width;
         const pad = BUBBLE_RADIUS + 8;
-        let x = this.shooterX;
-        let y = this.shooterY - 40;
+        const start = this.shooter.getMuzzleWorld();
+        let x = start.x;
+        let y = start.y;
         let { vx, vy, cell } = this.projectile;
         const step = () => {
           const dt = 1 / 60;
@@ -305,13 +302,13 @@ export function createMonsterRescueScene(Phaser) {
     _checkEnd() {
       const summary = this.rewardManager.getSummary();
       const cleared = this.bubbleSystem.getModel().isCleared();
-      const won = cleared || summary.score >= this.stageDef.targetScore;
+      const won = cleared;
       const lost = this.shotsLeft <= 0 && !won;
       const danger = this.bubbleSystem.getModel().lowestOccupiedRow() >= 10;
       if (won || lost || danger) {
         this.gameOver = true;
         this.game.events.emit('monster-rescue-finish', {
-          won: won && !danger,
+          won,
           stageId: this.stageId,
           summary: {
             ...summary,
@@ -323,6 +320,7 @@ export function createMonsterRescueScene(Phaser) {
     }
 
     shutdown() {
+      this.shooter?.destroy();
       this.puzzleHud?.destroy();
     }
   };

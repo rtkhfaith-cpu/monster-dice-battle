@@ -1,6 +1,5 @@
 import { GRID_COLS, GRID_ROWS, ROW_STAGGER } from '../../../utils/monsterRescue/constants';
 import { BUBBLE_TYPES } from '../../../utils/monsterRescue/constants';
-import { isMatchableType } from './bubbleTypes';
 
 export default class BubbleGrid {
   /** @param {(import('./bubbleTypes').BubbleCell|null)[][]} grid */
@@ -47,7 +46,7 @@ export default class BubbleGrid {
   /** BFS match group (same color, matchable types) */
   findCluster(row, col) {
     const start = this.get(row, col);
-    if (!start || !isMatchableType(start.type)) return [];
+    if (!start) return [];
     const key = (r, c) => `${r},${c}`;
     const visited = new Set();
     const out = [];
@@ -58,7 +57,7 @@ export default class BubbleGrid {
       if (visited.has(k)) continue;
       visited.add(k);
       const cell = this.get(r, c);
-      if (!cell || cell.color !== start.color || !isMatchableType(cell.type)) continue;
+      if (!cell || cell.color !== start.color) continue;
       out.push({ row: r, col: c, cell });
       for (const [dr, dc] of this.neighborDirs(r)) {
         const nr = r + dr;
@@ -168,13 +167,18 @@ export default class BubbleGrid {
     });
   }
 
-  isCleared() {
+  countBubbles() {
+    let n = 0;
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < this.colsInRow(row); col++) {
-        if (this.get(row, col)) return false;
+        if (this.get(row, col)) n++;
       }
     }
-    return true;
+    return n;
+  }
+
+  isCleared() {
+    return this.countBubbles() === 0;
   }
 
   lowestOccupiedRow() {

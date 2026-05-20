@@ -20,7 +20,10 @@ import { expMultiplierFromGear } from './gearStats';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { applyStageClear, normalizeMonsterRescue } from './monsterRescue/progress';
-import { computeStageRewards } from './monsterRescue/rewards';
+import { computeStageRewardsFromLevel } from './monsterRescue/rewards';
+import { awardRescueSubChest } from './monsterRescue/rescueChestRewards';
+import { decodeRescueLevel } from './monsterRescue/stages';
+import { openMonsterLadderChest } from './monsterLadder/ladderRewards';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import {
   migrateLadderMonsterTemplateIds,
@@ -348,21 +351,48 @@ export function applyMonsterRescueStageResult(gameData, profileId, stageId, runS
   const profile = gd.players.find((p) => p.id === profileId);
   if (!profile) return { gameData: gd, rewards: null };
 
-  const rewards = computeStageRewards({
-    combo: runSummary?.comboPeak ?? 1,
-    rescued: runSummary?.rescued ?? 0,
-    score: runSummary?.score ?? 0,
-    chests: runSummary?.chests ?? 0,
-  });
+  const rewards = computeStageRewardsFromLevel(stageId, runSummary);
+  const { subLevel } = decodeRescueLevel(stageId);
 
   if (won) {
-    let next = applyStageClear(profile, stageId, runSummary?.rescued ?? 0, rewards.coins);
+    let next = applyStageClear(
+      profile,
+      stageId,
+      runSummary?.bubblesCleared ?? 0,
+      rewards.coins,
+    );
     next.coins += rewards.coins;
+
+    const chest = awardRescueSubChest(next, subLevel);
+    let chestDrop = null;
+    let outGd = gd;
+    if (chest.chestAwarded) {
+      const opened = openMonsterLadderChest(outGd, profileId, chest.chestAwarded);
+      if (!opened.error && opened.drop) {
+        chestDrop = opened.drop;
+        outGd = opened.gameData;
+        next = outGd.players.find((p) => p.id === profileId) ?? next;
+      } else if (!opened.error) {
+        outGd = opened.gameData;
+        next = outGd.players.find((p) => p.id === profileId) ?? next;
+      }
+    }
+
     const ownedId = next.selectedMonsterId || next.ownedMonsters?.[0]?.id;
     const expPack = grantExpInWallet(next, ownedId, rewards.exp);
-    const idx = gd.players.findIndex((p) => p.id === profileId);
-    gd.players[idx] = next;
-    return { gameData: gd, rewards: { ...rewards, expPack, won: true } };
+    const idx = outGd.players.findIndex((p) => p.id === profileId);
+    outGd.players[idx] = next;
+    return {
+      gameData: outGd,
+      rewards: {
+        ...rewards,
+        expPack,
+        won: true,
+        chestAwarded: chest.chestAwarded,
+        chestBlocked: chest.chestBlocked,
+        chestDrop,
+      },
+    };
   }
 
   const partialCoins = Math.floor((runSummary?.score ?? 0) / 25);

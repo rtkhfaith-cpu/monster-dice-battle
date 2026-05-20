@@ -1,4 +1,5 @@
 import { GAME_ASSETS } from '../../../utils/gameAssetPaths';
+import { getRescueStage } from '../../../utils/monsterRescue/stages';
 
 /** Phaser texture keys + paths for Monster Rescue (existing public assets). */
 export const RESCUE_SCENE_ASSETS = {
@@ -18,8 +19,9 @@ export function preloadRescueAssets(scene, { skipBg = true } = {}) {
   });
 }
 
-export function rescueBackgroundForStage(stageId) {
+export function rescueBackgroundForStage(levelId) {
   const list = GAME_ASSETS.monsterRescueBackgrounds;
   if (!list?.length) return GAME_ASSETS.monsterRescueBackground;
-  return list[(Math.max(1, stageId) - 1) % list.length];
+  const stage = getRescueStage(levelId);
+  return list[stage.bgIndex % list.length] ?? GAME_ASSETS.monsterRescueBackground;
 }

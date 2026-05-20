@@ -1,11 +1,15 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import MonsterRescueView from './MonsterRescueView';
 import RescueGameFrame from './monsterRescue/RescueGameFrame';
 import { rescueUiStyles } from './monsterRescue/rescueUiTheme';
 import { playSound } from '../utils/sounds';
+import { unlockAudio } from '../src/utils/audioManager';
 
-export default function MonsterRescueScreen({ stageId, stageLabel, onBack, onFinish }) {
+export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonsterTemplateId, onBack, onFinish }) {
+  useEffect(() => {
+    unlockAudio();
+  }, []);
   const { height: winH } = useWindowDimensions();
   const canvasH = Math.min(Math.max(winH - 140, 320), 560);
 
@@ -19,10 +23,6 @@ export default function MonsterRescueScreen({ stageId, stageLabel, onBack, onFin
 
   const handleShoot = useCallback(() => {
     playSound('bubbleShoot');
-  }, []);
-
-  const handleRescued = useCallback(() => {
-    playSound('rescued');
   }, []);
 
   const handleFinish = useCallback(
@@ -51,11 +51,11 @@ export default function MonsterRescueScreen({ stageId, stageLabel, onBack, onFin
           <MonsterRescueView
             key={`rescue-stage-${stageId}`}
             stageId={stageId}
+            shooterMonsterTemplateId={shooterMonsterTemplateId}
             height={canvasH}
             onPop={handlePop}
             onCombo={handleCombo}
             onShoot={handleShoot}
-            onRescued={handleRescued}
             onFinish={handleFinish}
           />
         ) : (
@@ -66,7 +66,7 @@ export default function MonsterRescueScreen({ stageId, stageLabel, onBack, onFin
       </View>
 
       <View style={rescueUiStyles.noticeBar}>
-        <Text style={rescueUiStyles.noticeText}>Drag to aim · release to shoot · match 3+ to rescue!</Text>
+        <Text style={rescueUiStyles.noticeText}>Drag to aim the bubble gun · release to shoot · clear the board!</Text>
       </View>
     </RescueGameFrame>
   );

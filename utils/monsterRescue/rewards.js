@@ -1,19 +1,32 @@
-import { COMBO_COIN_BASE, COMBO_EXP_BASE, RESCUE_COIN_BONUS, RESCUE_EXP_BONUS } from './constants';
+import { decodeRescueLevel } from './stages';
+
+const COINS_PER_BUBBLE = 3;
+const EXP_PER_BUBBLE = 4;
 
 /**
- * @param {{ combo: number, rescued: number, score: number, chests: number }} params
+ * @param {{ comboPeak: number, bubblesCleared: number, themeId: number, subLevel: number }} params
  */
-export function computeStageRewards({ combo, rescued, score, chests = 0 }) {
-  const comboBonus = Math.max(0, combo - 1) * COMBO_COIN_BASE;
-  const coins = Math.floor(score / 10) + rescued * RESCUE_COIN_BONUS + comboBonus + chests * 40;
-  const exp = Math.floor(score / 15) + rescued * RESCUE_EXP_BONUS + Math.max(0, combo - 1) * COMBO_EXP_BASE;
-  const shards = rescued >= 3 ? 2 : rescued >= 1 ? 1 : 0;
+export function computeStageRewards({ comboPeak = 1, bubblesCleared = 0, themeId = 1, subLevel = 1 }) {
+  const comboBonus = Math.max(0, comboPeak - 1) * 5;
+  const tierBonus = (themeId - 1) * 8 + subLevel * 2;
+  const coins = bubblesCleared * COINS_PER_BUBBLE + comboBonus + tierBonus;
+  const exp = bubblesCleared * EXP_PER_BUBBLE + Math.floor(comboBonus * 1.2) + tierBonus;
   return {
     coins,
     exp,
-    shards,
-    rescued,
-    comboPeak: combo,
-    chests,
+    shards: 0,
+    comboPeak,
+    bubblesCleared,
+    score: bubblesCleared * 10 + comboBonus * 5,
   };
+}
+
+export function computeStageRewardsFromLevel(levelId, runSummary = {}) {
+  const { themeId, subLevel } = decodeRescueLevel(levelId);
+  return computeStageRewards({
+    comboPeak: runSummary?.comboPeak ?? 1,
+    bubblesCleared: runSummary?.bubblesCleared ?? 0,
+    themeId,
+    subLevel,
+  });
 }

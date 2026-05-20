@@ -12,6 +12,14 @@ export default function MonsterRescueRewardScreen({
   onRetry,
 }) {
   const r = rewards ?? {};
+  const chestLine = r.chestAwarded
+    ? r.chestDrop
+      ? `Chest opened — check your reward!`
+      : `+1 ${r.chestAwarded === 'gear' ? 'Gear' : 'Monster'} chest (Monster Ladder)`
+    : r.chestBlocked
+      ? 'Daily ladder chest already claimed today'
+      : null;
+
   return (
     <RescueGameFrame contentStyle={{ paddingHorizontal: 12 }}>
       <ScrollView style={rescueUiStyles.rewardScroll} contentContainerStyle={rescueUiStyles.rewardBody}>
@@ -21,18 +29,17 @@ export default function MonsterRescueRewardScreen({
           resizeMode="contain"
         />
         <Text style={[rescueUiStyles.banner, won ? rescueUiStyles.bannerWin : rescueUiStyles.bannerLose]}>
-          {won ? 'Rescue Complete!' : 'Try Again!'}
+          {won ? 'Stage Cleared!' : 'Try Again!'}
         </Text>
         <Text style={rescueUiStyles.sub}>{stageLabel}</Text>
 
         <View style={rescueUiStyles.statsPanel}>
-          <Text style={rescueUiStyles.statRow}>Score: {r.score ?? 0}</Text>
-          <Text style={rescueUiStyles.statRow}>Monsters rescued: {r.rescued ?? 0}</Text>
+          <Text style={rescueUiStyles.statRow}>Bubbles cleared: {r.bubblesCleared ?? 0}</Text>
           <Text style={rescueUiStyles.statRow}>Peak combo: x{r.comboPeak ?? 1}</Text>
+          {chestLine ? <Text style={rescueUiStyles.statReward}>{chestLine}</Text> : null}
           <View style={rescueUiStyles.statDivider} />
           <Text style={rescueUiStyles.statReward}>+{r.coins ?? 0} coins</Text>
           <Text style={rescueUiStyles.statReward}>+{r.exp ?? 0} monster EXP</Text>
-          {r.shards ? <Text style={rescueUiStyles.statReward}>+{r.shards} shards</Text> : null}
         </View>
 
         <Pressable

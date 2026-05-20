@@ -1,11 +1,11 @@
-/** Bubble color indices — arcade palette */
+/** Bubble color indices — glossy jewel palette */
 export const BUBBLE_COLORS = [
-  0xff6b6b, // red
-  0x4ecdc4, // teal
-  0xffe066, // yellow
-  0xa78bfa, // purple
-  0x74c0fc, // blue
-  0xff9ece, // pink
+  0xff5c7a, // ruby
+  0x2eecc8, // mint
+  0xffdd57, // gold
+  0xbf8cff, // violet
+  0x5eb8ff, // sapphire
+  0xff8ec8, // rose
 ];
 
 export const BUBBLE_TYPES = {

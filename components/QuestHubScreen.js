@@ -43,7 +43,7 @@ export default function QuestHubScreen({
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>Monster Rescue</Text>
             <Text style={styles.rowDesc}>
-              Pop bubbles & rescue monsters. Cleared: stage {rescueHighest}.
+              Pop color bubbles — 6 themes × 10 levels. Cleared: {rescueHighest}/60.
             </Text>
           </View>
           <Text style={styles.chevron}>›</Text>

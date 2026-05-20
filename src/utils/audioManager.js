@@ -132,7 +132,8 @@ export function saveAudioSettings(patch) {
 
 function bgmVolumeNow() {
   let v = settings.bgmVolume;
-  if (Date.now() < duckUntil) v *= 0.58;
+  if (menuMusicKind === 'rescue' && bgmMode === 'menu') v *= 0.52;
+  if (Date.now() < duckUntil) v *= 0.38;
   return clamp01(v);
 }
 
@@ -401,23 +402,26 @@ export function playLose() {
 
 /** Light bubble pop — dodge SFX reads well as a soft pop */
 export function playBubblePop() {
-  return playOneShot(SFX.dodge, 0.42);
+  duckBgm(160);
+  return playOneShot(SFX.dodge, 0.92);
 }
 
 /** Combo chain accent */
 export function playRescueCombo() {
-  duckBgm(220);
-  return playOneShot(SFX.critical, 0.72);
+  duckBgm(280);
+  return playOneShot(SFX.critical, 0.88);
 }
 
 /** Bubble launcher whoosh */
 export function playBubbleShoot() {
-  return playOneShot(SFX.attack, 0.48);
+  duckBgm(340);
+  return playOneShot(SFX.attack, 1.05);
 }
 
 /** Monster freed from bubble */
 export function playMonsterRescued() {
-  return playOneShot(SFX.levelUp, 0.68);
+  duckBgm(260);
+  return playOneShot(SFX.levelUp, 0.88);
 }
 
 function normalizeMenuMusicKind(input) {

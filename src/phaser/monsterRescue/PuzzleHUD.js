@@ -2,7 +2,7 @@ export default class PuzzleHUD {
   constructor(scene) {
     this.scene = scene;
     const w = scene.scale.width;
-    this.scoreText = scene.add.text(16, 12, 'Score 0', {
+    this.scoreText = scene.add.text(16, 12, 'Popped 0', {
       fontFamily: 'Arial',
       fontSize: '16px',
       color: '#fff',
@@ -35,13 +35,14 @@ export default class PuzzleHUD {
     }).setOrigin(0.5, 0).setDepth(100);
   }
 
-  update({ score, combo, stageLabel, shotsLeft, shotLimit }) {
-    this.scoreText.setText(`Score ${score}`);
+  update({ score, combo, stageLabel, shotsLeft, shotLimit, bubblesLeft }) {
+    const left = typeof bubblesLeft === 'number' ? bubblesLeft : null;
+    this.scoreText.setText(left != null ? `Left ${left}` : `Popped ${score}`);
     this.comboText.setText(combo > 1 ? `Combo x${combo}!` : '');
     this.stageText.setText(stageLabel);
     const danger = shotsLeft <= Math.max(3, Math.floor(shotLimit * 0.15));
     this.shotsText.setColor(danger ? '#ff6b6b' : '#c4f0ff');
-    this.shotsText.setText(`Shots ${shotsLeft}/${shotLimit}`);
+    this.shotsText.setText(`Shots ${shotsLeft}/${shotLimit} · clear all`);
   }
 
   destroy() {

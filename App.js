@@ -1041,7 +1041,10 @@ export default function App() {
       summary: payload?.summary,
     });
     setPhase('monsterRescueReward');
+    if (rewards?.chestDrop) setLadderChestDrop(rewards.chestDrop);
     if (rewards?.expPack?.levelsGained > 0) playSound('levelUp');
+    if (won) playSound('win');
+    else playSound('lose');
   }
 
   function returnToLadder() {
@@ -1645,7 +1648,6 @@ export default function App() {
           <MonsterRescueHubScreen
             profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
             highestCleared={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).highestCleared}
-            totalRescued={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).totalRescued}
             onBack={returnToQuestPicker}
             onStartStage={startMonsterRescueStage}
           />
@@ -1655,6 +1657,9 @@ export default function App() {
           <MonsterRescueScreen
             stageId={rescueStageId}
             stageLabel={getRescueStage(rescueStageId).label}
+            shooterMonsterTemplateId={
+              fighterFromSetupId(setupP1Id, setupP1ProfileId)?.monsterTemplateId ?? 'cockroachsaurus'
+            }
             onBack={() => setPhase('monsterRescueHub')}
             onFinish={handleMonsterRescueFinish}
           />

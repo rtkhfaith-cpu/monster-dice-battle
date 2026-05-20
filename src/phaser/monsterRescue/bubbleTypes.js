@@ -15,8 +15,9 @@ export function getBubbleTypeMeta(type) {
   return TYPE_META[type] ?? TYPE_META[BUBBLE_TYPES.NORMAL];
 }
 
-export function isMatchableType(type) {
-  return type === BUBBLE_TYPES.NORMAL || type === BUBBLE_TYPES.MONSTER;
+/** All bubbles match by color only (no special blocking). */
+export function isMatchableType(_type) {
+  return true;
 }
 
 export function createBubbleCell(color, type, monsterTemplateId) {

@@ -1,24 +1,23 @@
 import { GRID_COLS, GRID_ROWS, BUBBLE_TYPES } from '../../../utils/monsterRescue/constants';
-import { getRescueStage, pickSpecialType } from '../../../utils/monsterRescue/stages';
+import { getRescueStage } from '../../../utils/monsterRescue/stages';
 import { createBubbleCell } from './bubbleTypes';
-import { NORMAL_MONSTER_IMAGE_ASSETS, LADDER_MONSTER_IMAGE_ASSETS } from '../../../utils/monsterImageAssets';
-
-const MONSTER_TEMPLATE_POOL = [
-  ...Object.keys(NORMAL_MONSTER_IMAGE_ASSETS),
-  ...Object.keys(LADDER_MONSTER_IMAGE_ASSETS).slice(0, 12),
-];
 
 export default class StageGenerator {
   /**
    * @param {import('../../../utils/monsterRescue/stages').RescueStageDef} stageDef
    */
-  constructor(stageDef) {
+  constructor(stageDef, fillRowsOverride) {
     this.stageDef = stageDef ?? getRescueStage(1);
+    this.fillRowsOverride =
+      typeof fillRowsOverride === 'number' && fillRowsOverride > 0
+        ? Math.floor(fillRowsOverride)
+        : null;
   }
 
   /** @returns {(import('./bubbleTypes').BubbleCell|null)[][]} */
   buildInitialGrid() {
-    const { fillRows, colorCount } = this.stageDef;
+    const { colorCount } = this.stageDef;
+    const fillRows = this.fillRowsOverride ?? this.stageDef.fillRows;
     const grid = Array.from({ length: GRID_ROWS }, () =>
       Array.from({ length: GRID_COLS }, () => null)
     );
@@ -27,17 +26,7 @@ export default class StageGenerator {
       const cols = this._colsInRow(row);
       for (let col = 0; col < cols; col++) {
         const color = Math.floor(Math.random() * colorCount);
-        const special = pickSpecialType(this.stageDef);
-        let cell = createBubbleCell(color, special);
-        if (special === BUBBLE_TYPES.MONSTER) {
-          cell.monsterTemplateId = MONSTER_TEMPLATE_POOL[
-            Math.floor(Math.random() * MONSTER_TEMPLATE_POOL.length)
-          ];
-        }
-        if (special !== BUBBLE_TYPES.NORMAL && special !== BUBBLE_TYPES.MONSTER) {
-          cell = createBubbleCell(color, special);
-        }
-        grid[row][col] = cell;
+        grid[row][col] = createBubbleCell(color, BUBBLE_TYPES.NORMAL);
       }
     }
     this._removeInitialMatches(grid);
@@ -60,8 +49,7 @@ export default class StageGenerator {
           if (neighbors >= 2) {
             grid[row][col] = createBubbleCell(
               Math.floor(Math.random() * this.stageDef.colorCount),
-              cell.type,
-              cell.monsterTemplateId
+              BUBBLE_TYPES.NORMAL
             );
             changed = true;
           }
@@ -91,13 +79,6 @@ export default class StageGenerator {
 
   rollShooterBubble() {
     const color = Math.floor(Math.random() * this.stageDef.colorCount);
-    const special = pickSpecialType(this.stageDef);
-    const cell = createBubbleCell(color, special);
-    if (special === BUBBLE_TYPES.MONSTER) {
-      cell.monsterTemplateId = MONSTER_TEMPLATE_POOL[
-        Math.floor(Math.random() * MONSTER_TEMPLATE_POOL.length)
-      ];
-    }
-    return cell;
+    return createBubbleCell(color, BUBBLE_TYPES.NORMAL);
   }
 }

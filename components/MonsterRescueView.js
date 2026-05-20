@@ -10,6 +10,7 @@ function hostDimensions(el, fallbackHeight) {
 
 export default function MonsterRescueView({
   stageId = 1,
+  shooterMonsterTemplateId,
   height = 520,
   onReady,
   onFinish,
@@ -67,7 +68,6 @@ export default function MonsterRescueView({
         const PhaserModule = await import('phaser');
         const Phaser = PhaserModule.default ?? PhaserModule;
         const { createMonsterRescueScene } = await import('../src/phaser/monsterRescue/MonsterRescueScene');
-        const { setRescueBootStageId } = await import('../src/phaser/monsterRescue/bootConfig');
 
         const markReady = (scene) => {
           if (disposed || ready) return;
@@ -91,12 +91,16 @@ export default function MonsterRescueView({
           onErrorRef.current?.(msg);
         };
 
-        const startGame = () => {
+        const startGame = async () => {
           if (disposed || !hostRef.current || gameRef.current) return false;
           const el = hostRef.current;
           const { w, h } = hostDimensions(el, height);
 
+          const { setRescueBootStageId, setRescueBootShooterTemplateId } = await import(
+            '../src/phaser/monsterRescue/bootConfig'
+          );
           setRescueBootStageId(stageId);
+          if (shooterMonsterTemplateId) setRescueBootShooterTemplateId(shooterMonsterTemplateId);
           const SceneClass = createMonsterRescueScene(Phaser);
 
           const game = new Phaser.Game({
@@ -168,15 +172,18 @@ export default function MonsterRescueView({
           return true;
         };
 
-        if (!startGame()) {
+        if (!(await startGame())) {
           const waitForHost = () => {
-            if (disposed || startGame()) return;
-            waitPollId = requestAnimationFrame(waitForHost);
+            if (disposed) return;
+            void startGame().then((ok) => {
+              if (ok || disposed) return;
+              waitPollId = requestAnimationFrame(waitForHost);
+            });
           };
           waitPollId = requestAnimationFrame(waitForHost);
           if (typeof ResizeObserver !== 'undefined' && hostRef.current) {
             resizeObserver = new ResizeObserver(() => {
-              if (!disposed) startGame();
+              if (!disposed) void startGame();
             });
             resizeObserver.observe(hostRef.current);
           }
@@ -205,7 +212,7 @@ export default function MonsterRescueView({
         gameRef.current = null;
       }
     };
-  }, [height, stageId]);
+  }, [height, stageId, shooterMonsterTemplateId]);
 
   if (Platform.OS !== 'web') {
     return (

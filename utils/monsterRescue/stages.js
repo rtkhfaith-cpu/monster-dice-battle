@@ -1,46 +1,103 @@
-import { BUBBLE_TYPES } from './constants';
+/** @typedef {'normal'|'miniBoss'|'bigBoss'} RescueSubKind */
 
 /**
  * @typedef {{
  *   id: number,
  *   label: string,
  *   colorCount: number,
- *   shotLimit: number,
+ *   bgIndex: number,
+ * }} RescueThemeDef
+ */
+
+/** Six arena themes — each has 10 sub-levels. */
+export const RESCUE_THEMES = [
+  { id: 1, label: 'Bubble Bay', colorCount: 4, bgIndex: 0 },
+  { id: 2, label: 'Coral Cave', colorCount: 4, bgIndex: 1 },
+  { id: 3, label: 'Misty Marsh', colorCount: 5, bgIndex: 2 },
+  { id: 4, label: 'Crystal Cliffs', colorCount: 5, bgIndex: 0 },
+  { id: 5, label: 'Starfall Shrine', colorCount: 6, bgIndex: 1 },
+  { id: 6, label: 'Neon Nest', colorCount: 6, bgIndex: 2 },
+];
+
+export const RESCUE_SUB_LEVELS = 10;
+export const RESCUE_THEME_COUNT = RESCUE_THEMES.length;
+export const RESCUE_TOTAL_LEVELS = RESCUE_THEME_COUNT * RESCUE_SUB_LEVELS;
+
+/**
+ * @typedef {{
+ *   levelId: number,
+ *   themeId: number,
+ *   subLevel: number,
+ *   label: string,
+ *   themeLabel: string,
+ *   colorCount: number,
  *   fillRows: number,
- *   monsterChance: number,
- *   chestChance: number,
- *   bombChance: number,
- *   expChance: number,
- *   gearChance: number,
- *   targetScore: number,
+ *   shotLimit: number,
+ *   bgIndex: number,
+ *   subKind: RescueSubKind,
  * }} RescueStageDef
  */
 
-/** @type {RescueStageDef[]} */
-export const RESCUE_STAGES = [
-  { id: 1, label: 'Bubble Bay', colorCount: 4, shotLimit: 35, fillRows: 8, monsterChance: 0.12, chestChance: 0.04, bombChance: 0.03, expChance: 0.05, gearChance: 0.02, targetScore: 400 },
-  { id: 2, label: 'Coral Cave', colorCount: 4, shotLimit: 32, fillRows: 9, monsterChance: 0.14, chestChance: 0.05, bombChance: 0.04, expChance: 0.05, gearChance: 0.03, targetScore: 550 },
-  { id: 3, label: 'Misty Marsh', colorCount: 5, shotLimit: 30, fillRows: 9, monsterChance: 0.15, chestChance: 0.05, bombChance: 0.05, expChance: 0.06, gearChance: 0.03, targetScore: 700 },
-  { id: 4, label: 'Crystal Cliffs', colorCount: 5, shotLimit: 28, fillRows: 10, monsterChance: 0.16, chestChance: 0.06, bombChance: 0.05, expChance: 0.06, gearChance: 0.04, targetScore: 900 },
-  { id: 5, label: 'Starfall Shrine', colorCount: 6, shotLimit: 26, fillRows: 10, monsterChance: 0.18, chestChance: 0.07, bombChance: 0.06, expChance: 0.07, gearChance: 0.05, targetScore: 1200 },
-  { id: 6, label: 'Neon Nest', colorCount: 6, shotLimit: 24, fillRows: 11, monsterChance: 0.2, chestChance: 0.08, bombChance: 0.07, expChance: 0.08, gearChance: 0.06, targetScore: 1500 },
-];
-
-export function getRescueStage(id) {
-  return RESCUE_STAGES.find((s) => s.id === id) ?? RESCUE_STAGES[0];
+export function encodeRescueLevel(themeId, subLevel) {
+  const t = Math.max(1, Math.min(RESCUE_THEME_COUNT, Math.floor(themeId || 1)));
+  const s = Math.max(1, Math.min(RESCUE_SUB_LEVELS, Math.floor(subLevel || 1)));
+  return (t - 1) * RESCUE_SUB_LEVELS + s;
 }
 
-export function pickSpecialType(stage, roll) {
-  const r = roll ?? Math.random();
-  let acc = stage.monsterChance;
-  if (r < acc) return BUBBLE_TYPES.MONSTER;
-  acc += stage.chestChance;
-  if (r < acc) return BUBBLE_TYPES.CHEST;
-  acc += stage.bombChance;
-  if (r < acc) return BUBBLE_TYPES.BOMB;
-  acc += stage.expChance;
-  if (r < acc) return BUBBLE_TYPES.EXP;
-  acc += stage.gearChance;
-  if (r < acc) return BUBBLE_TYPES.GEAR;
-  return BUBBLE_TYPES.NORMAL;
+export function decodeRescueLevel(levelId) {
+  const idx = Math.max(1, Math.min(RESCUE_TOTAL_LEVELS, Math.floor(levelId || 1)));
+  const themeId = Math.floor((idx - 1) / RESCUE_SUB_LEVELS) + 1;
+  const subLevel = ((idx - 1) % RESCUE_SUB_LEVELS) + 1;
+  return { themeId, subLevel, levelId: idx };
+}
+
+export function getRescueSubKind(subLevel) {
+  const s = Math.floor(subLevel || 1);
+  if (s === 5) return 'miniBoss';
+  if (s === 10) return 'bigBoss';
+  return 'normal';
+}
+
+export function formatRescueLabel(themeId, subLevel) {
+  return `${themeId}-${subLevel}`;
+}
+
+function fillRowsForLevel(themeId, subLevel) {
+  const base = 3 + Math.ceil(subLevel / 2);
+  const themeBump = Math.floor((themeId - 1) / 2);
+  return Math.min(9, base + themeBump);
+}
+
+function shotLimitForLevel(themeId, subLevel) {
+  return Math.max(16, 38 - subLevel - Math.floor((themeId - 1) * 1.5));
+}
+
+/** @param {number} levelId Flat level 1–60 */
+export function getRescueStage(levelId) {
+  const { themeId, subLevel, levelId: id } = decodeRescueLevel(levelId);
+  const theme = RESCUE_THEMES.find((t) => t.id === themeId) ?? RESCUE_THEMES[0];
+  const subKind = getRescueSubKind(subLevel);
+  return {
+    levelId: id,
+    themeId,
+    subLevel,
+    label: `${theme.label} · ${formatRescueLabel(themeId, subLevel)}`,
+    themeLabel: theme.label,
+    colorCount: theme.colorCount,
+    fillRows: fillRowsForLevel(themeId, subLevel),
+    shotLimit: shotLimitForLevel(themeId, subLevel),
+    bgIndex: theme.bgIndex,
+    subKind,
+  };
+}
+
+/** @deprecated Use getRescueStage — kept for flat stage list in hub */
+export const RESCUE_STAGES = Array.from({ length: RESCUE_TOTAL_LEVELS }, (_, i) =>
+  getRescueStage(i + 1)
+);
+
+export function rescueSubBanner(subKind) {
+  if (subKind === 'miniBoss') return 'Gear chest stage';
+  if (subKind === 'bigBoss') return 'Monster chest stage';
+  return '';
 }

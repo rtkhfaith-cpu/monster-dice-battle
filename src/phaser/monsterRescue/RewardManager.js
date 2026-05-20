@@ -1,32 +1,17 @@
-import { BUBBLE_TYPES } from '../../../utils/monsterRescue/constants';
-import { getBubbleTypeMeta } from './bubbleTypes';
-
 export default class RewardManager {
   constructor(scene) {
     this.scene = scene;
-    this.score = 0;
-    this.rescued = 0;
-    this.chests = 0;
-    this.expOrbs = 0;
-    this.gearDrops = 0;
+    this.bubblesCleared = 0;
     this.floatingTexts = [];
   }
 
   addPopScore(cells, comboMult = 1) {
-    let gained = 0;
-    for (const cell of cells) {
-      const meta = getBubbleTypeMeta(cell.type);
-      gained += meta.score;
-      if (cell.type === BUBBLE_TYPES.MONSTER) {
-        this.rescued += 1;
-        this._floatText('Rescued!', 0xffd93d);
-      }
-      if (cell.type === BUBBLE_TYPES.CHEST) this.chests += 1;
-      if (cell.type === BUBBLE_TYPES.EXP) this.expOrbs += 1;
-      if (cell.type === BUBBLE_TYPES.GEAR) this.gearDrops += 1;
+    const count = cells?.length ?? 0;
+    this.bubblesCleared += count;
+    if (count >= 5 && comboMult > 1) {
+      this._floatText(`Combo x${comboMult}!`, 0xffe066);
     }
-    this.score += Math.floor(gained * comboMult);
-    return gained;
+    return count * 10;
   }
 
   _floatText(msg, color = 0xffffff) {
@@ -52,11 +37,8 @@ export default class RewardManager {
 
   getSummary() {
     return {
-      score: this.score,
-      rescued: this.rescued,
-      chests: this.chests,
-      expOrbs: this.expOrbs,
-      gearDrops: this.gearDrops,
+      bubblesCleared: this.bubblesCleared,
+      score: this.bubblesCleared * 10,
     };
   }
 }

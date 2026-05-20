@@ -1,8 +1,6 @@
-import { BUBBLE_COLORS, BUBBLE_RADIUS, GRID_COLS, GRID_ROWS } from '../../../utils/monsterRescue/constants';
-import { BUBBLE_TYPES } from '../../../utils/monsterRescue/constants';
+import { BUBBLE_COLORS, GRID_COLS, GRID_ROWS } from '../../../utils/monsterRescue/constants';
 import BubbleGrid from './BubbleGrid';
-import { getBubbleTypeMeta } from './bubbleTypes';
-import { RESCUE_SCENE_ASSETS } from './rescueAssets';
+import { createShinyBubble } from './bubbleVisuals';
 
 export default class BubbleSystem {
   /**
@@ -54,45 +52,9 @@ export default class BubbleSystem {
   }
 
   _makeBubbleVisual(cell, x, y, depth) {
-    const color = BUBBLE_COLORS[cell.color % BUBBLE_COLORS.length] ?? 0xffffff;
-    const meta = getBubbleTypeMeta(cell.type);
-    const container = this.scene.add.container(x, y).setDepth(depth);
-    const glow = this.scene.add.circle(0, 0, BUBBLE_RADIUS + 4, meta.glow, 0.22);
-    const shell = this.scene.add.circle(0, 0, BUBBLE_RADIUS, color, 0.55);
-    const rim = this.scene.add.circle(0, 0, BUBBLE_RADIUS, 0xffffff, 0).setStrokeStyle(2, 0xffffff, 0.35);
-    const shine = this.scene.add.circle(-7, -8, 6, 0xffffff, 0.35);
-    container.add([glow, shell, rim, shine]);
-
-    const icon = this._specialIcon(cell);
-    if (icon) {
-      container.add(icon);
-    } else if (cell.type === BUBBLE_TYPES.MONSTER && cell.monsterTemplateId) {
-      const texKey = `rescue_monster_${cell.monsterTemplateId}`;
-      if (this.scene.textures.exists(texKey)) {
-        const img = this.scene.add.image(0, 2, texKey).setDisplaySize(28, 28);
-        container.add(img);
-      } else if (meta.emoji) {
-        const t = this.scene.add.text(0, 0, meta.emoji, { fontSize: '16px' }).setOrigin(0.5);
-        container.add(t);
-      }
-    } else if (meta.emoji) {
-      const t = this.scene.add.text(0, 0, meta.emoji, { fontSize: '14px' }).setOrigin(0.5);
-      container.add(t);
-    }
+    const container = createShinyBubble(this.scene, cell, depth);
+    container.setPosition(x, y);
     return container;
-  }
-
-  _specialIcon(cell) {
-    const map = {
-      [BUBBLE_TYPES.CHEST]: RESCUE_SCENE_ASSETS.chest.key,
-      [BUBBLE_TYPES.BOMB]: RESCUE_SCENE_ASSETS.bomb.key,
-      [BUBBLE_TYPES.EXP]: RESCUE_SCENE_ASSETS.exp.key,
-      [BUBBLE_TYPES.GEAR]: RESCUE_SCENE_ASSETS.gear.key,
-    };
-    const texKey = map[cell.type];
-    if (!texKey || !this.scene.textures.exists(texKey)) return null;
-    const size = cell.type === BUBBLE_TYPES.CHEST ? 26 : 22;
-    return this.scene.add.image(0, 0, texKey).setDisplaySize(size, size);
   }
 
   popPositions(positions, onCell) {
@@ -171,11 +133,8 @@ export default class BubbleSystem {
         totalCombo = Math.max(totalCombo, combo);
         const cells = await this.popPositions(
           matches.map((m) => ({ row: m.row, col: m.col })),
-          (cell) => {
+          () => {
             this.scene.events.emit('rescue:pop');
-            if (cell.type === BUBBLE_TYPES.MONSTER) {
-              this.scene.game.events.emit('rescue:rescued');
-            }
           }
         );
         rewardManager.addPopScore(
@@ -192,29 +151,14 @@ export default class BubbleSystem {
       const floating = this.gridModel.findFloatingClusters();
       if (floating.length) {
         comboManager.onPop(floating.length);
-        const cells = await this.popPositions(floating);
+        const cells = await this.popPositions(floating, () => {
+          this.scene.events.emit('rescue:pop');
+        });
         rewardManager.addPopScore(cells, comboManager.getMultiplier());
         loop = true;
       }
     }
     return totalCombo;
-  }
-
-  async triggerBomb(row, col, comboManager, rewardManager) {
-    const positions = this.gridModel.expandBomb(row, col);
-    comboManager.onPop(positions.length);
-    const cells = await this.popPositions(positions, (cell) => {
-      this.scene.events.emit('rescue:pop');
-      if (cell.type === BUBBLE_TYPES.MONSTER) {
-        this.scene.game.events.emit('rescue:rescued');
-      }
-    });
-    rewardManager.addPopScore(cells, comboManager.getMultiplier());
-    const floating = this.gridModel.findFloatingClusters();
-    if (floating.length) {
-      const extra = await this.popPositions(floating);
-      rewardManager.addPopScore(extra, comboManager.getMultiplier());
-    }
   }
 
   attachBubble(row, col, cell) {
