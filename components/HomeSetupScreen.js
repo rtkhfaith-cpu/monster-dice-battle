@@ -144,6 +144,7 @@ export default function HomeSetupScreen({
   const [loginId, setLoginId] = useState('');
   const [loginPin, setLoginPin] = useState('');
   const [loginMsg, setLoginMsg] = useState('');
+  const [loginMsgKind, setLoginMsgKind] = useState(/** @type {'success'|'error'|''} */ (''));
   const loginScrollRef = useRef(null);
   const syncedMonsterIdRef = useRef(null);
 
@@ -246,6 +247,7 @@ export default function HomeSetupScreen({
     setLoginOpen(true);
     setNameDraft(activeProfile?.name ?? '');
     setLoginMsg('');
+    setLoginMsgKind('');
   }
 
   function toggleTray(next) {
@@ -286,14 +288,19 @@ export default function HomeSetupScreen({
     const id = loginId.trim();
     const pin = normalizePlayerKey(loginPin);
     if (!id || pin.length !== 4) {
+      setLoginMsgKind('error');
       setLoginMsg('Enter ID and 4-digit PIN.');
       return;
     }
     const res = await onLoginWithId?.(id, pin);
-    setLoginMsg(res?.error || (res?.ok ? 'Logged in.' : 'Login unavailable.'));
     if (res?.ok) {
+      setLoginMsgKind('success');
+      setLoginMsg('Login successful');
       setLoginId('');
       setLoginPin('');
+    } else {
+      setLoginMsgKind('error');
+      setLoginMsg(res?.error || 'Login unavailable.');
     }
   }
 
@@ -301,11 +308,18 @@ export default function HomeSetupScreen({
     const id = loginId.trim();
     const pin = normalizePlayerKey(loginPin);
     if (!id || pin.length !== 4) {
+      setLoginMsgKind('error');
       setLoginMsg('Enter name/ID and 4-digit PIN.');
       return;
     }
     const res = await onCreateWithId?.(id, pin);
-    setLoginMsg(res?.error || (res?.ok ? `Created. ID: ${res.profileId}` : 'Create unavailable.'));
+    if (res?.ok) {
+      setLoginMsgKind('success');
+      setLoginMsg(`Created. ID: ${res.profileId}`);
+    } else {
+      setLoginMsgKind('error');
+      setLoginMsg(res?.error || 'Create unavailable.');
+    }
     if (res?.ok) {
       setLoginPin('');
     }
@@ -381,7 +395,17 @@ export default function HomeSetupScreen({
                 <Text style={styles.loginModalBtnTxt}>Create ID</Text>
               </Pressable>
             </View>
-            {loginMsg ? <Text style={styles.loginMsg}>{loginMsg}</Text> : null}
+            {loginMsg ? (
+              <Text
+                style={[
+                  styles.loginMsg,
+                  loginMsgKind === 'success' && styles.loginMsgSuccess,
+                  loginMsgKind === 'error' && styles.loginMsgError,
+                ]}
+              >
+                {loginMsg}
+              </Text>
+            ) : null}
 
             <Text style={styles.loginSectionLbl}>Save slots</Text>
             {profiles.slice(0, MAX_VISIBLE_PROFILES).map((profile) => {
@@ -1166,13 +1190,14 @@ const styles = StyleSheet.create({
   loginIdInputModal: {
     flex: 1,
     minWidth: 0,
+    maxWidth: 108,
   },
   loginPinInputModal: {
-    width: 52,
+    width: 78,
     flexGrow: 0,
     flexShrink: 0,
     textAlign: 'center',
-    letterSpacing: 1.5,
+    letterSpacing: 2,
   },
   loginModalBtn: {
     flex: 1,
@@ -1204,6 +1229,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 3,
     marginBottom: 2,
+  },
+  loginMsgSuccess: {
+    color: '#86efac',
+  },
+  loginMsgError: {
+    color: '#fecaca',
   },
   rowMiniBtnDanger: {
     backgroundColor: 'rgba(185,28,28,0.88)',
