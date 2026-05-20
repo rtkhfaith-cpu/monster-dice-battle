@@ -13,8 +13,8 @@ const MONSTER_SIZE_MIN = 48;
 const MONSTER_SIZE_MAX = 94;
 const MONSTER_SIZE_PER_RADIUS = 2.82;
 const MONSTER_DISPLAY_SCALE = 1.2;
-const AIM_LINE_SCROLL_MS = 48;
-const AIM_PHASE_STEP = 6;
+const AIM_LINE_SCROLL_MS = 88;
+const AIM_PHASE_STEP = 4;
 /** Feet sit on the stone platform ring, not the outer glow. */
 const MONSTER_FOOT_ON_PLATFORM = 0.38;
 
@@ -27,8 +27,8 @@ const PREVIEW_COUNT = 3;
 const PREVIEW_SCALE = 0.3;
 const PREVIEW_SLOT_X = -58;
 const GUN_BASE_HALF_W = 18;
-/** Total guide length ≈ three bubble diameters */
-const AIM_LINE_BUBBLE_COUNT = 3;
+/** Total guide length ≈ bubble diameters along the aim line */
+const AIM_LINE_BUBBLE_COUNT = 4;
 const AIM_DASH = 14;
 const AIM_GAP = 7;
 const AIM_LINE_WIDTH = 5;

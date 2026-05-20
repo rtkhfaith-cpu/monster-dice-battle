@@ -45,11 +45,17 @@ export default class StageGenerator {
     return odd ? GRID_COLS - 1 : GRID_COLS;
   }
 
-  _removeInitialMatches(grid) {
+  /**
+   * Break accidental match-3 setups by rerolling colors.
+   * @param {number} [maxRow] highest row index to modify (inclusive); lower rows are read-only for neighbor checks
+   */
+  _removeInitialMatches(grid, maxRow = GRID_ROWS - 1) {
+    const top = Math.max(0, Math.min(maxRow, GRID_ROWS - 1));
     for (let pass = 0; pass < 6; pass++) {
       let changed = false;
-      for (let row = 0; row < GRID_ROWS; row++) {
-        for (let col = 0; col < GRID_COLS; col++) {
+      for (let row = 0; row <= top; row++) {
+        const cols = this._colsInRow(row);
+        for (let col = 0; col < cols; col++) {
           const cell = grid[row]?.[col];
           if (!cell) continue;
           const neighbors = this._neighborColors(grid, row, col, cell.color);
@@ -89,19 +95,25 @@ export default class StageGenerator {
     return createBubbleCell(color, BUBBLE_TYPES.NORMAL);
   }
 
-  /** Reduce accidental match-3 on the ceiling row after a push. */
+  /** Only the new ceiling row — never recolor bubbles that were already on the board. */
   polishGrid(gridModel) {
-    this._removeInitialMatches(gridModel.grid);
+    this._removeInitialMatches(gridModel.grid, 0);
   }
 
   buildPushRowCells() {
     const { colorCount } = this.stageDef;
     const row = this._colsInRow(0);
+    const scratch = Array.from({ length: GRID_ROWS }, () =>
+      Array.from({ length: GRID_COLS }, () => null)
+    );
     const cells = [];
     for (let col = 0; col < row; col++) {
       const color = Math.floor(Math.random() * colorCount);
-      cells.push(createBubbleCell(color, BUBBLE_TYPES.NORMAL));
+      const cell = createBubbleCell(color, BUBBLE_TYPES.NORMAL);
+      cells.push(cell);
+      scratch[0][col] = cell;
     }
+    this._removeInitialMatches(scratch, 0);
     return cells;
   }
 }
