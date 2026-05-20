@@ -3,20 +3,10 @@ frontend:
   phases:
     preBuild:
       commands:
-        - nvm install 20
-        - nvm use 20
-        - node -v
-        - npm ci --cache .npm --prefer-offline
+        - npm ci
     build:
       commands:
-        - node scripts/write-socket-config.js
-        - node scripts/write-save-config.js
         - npm run build
-        # Ensure runtime API URL file is in the web bundle (Expo may omit public/ on some setups)
-        - cp public/save-config.json dist/save-config.json 2>/dev/null || true
-        - cp public/socket-config.json dist/socket-config.json 2>/dev/null || true
-        # SPA refresh: Amplify serves 404.html for unknown paths (same as index)
-        - cp dist/index.html dist/404.html
   artifacts:
     baseDirectory: dist
     files:
@@ -24,4 +14,3 @@ frontend:
   cache:
     paths:
       - node_modules/**/*
-      - .npm/**/*
