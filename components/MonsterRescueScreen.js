@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import MonsterRescueView from './MonsterRescueView';
 import RescueGameFrame from './monsterRescue/RescueGameFrame';
@@ -10,9 +10,22 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
   useEffect(() => {
     unlockAudio();
   }, []);
+
   const { height: winH, width: winW } = useWindowDimensions();
-  const canvasH = Math.min(Math.max(winH - 96, 400), 640);
-  const canvasW = Math.min(winW - 24, 520);
+  const [playSize, setPlaySize] = useState(null);
+
+  const fallbackW = Math.min(Math.max(winW - 24, 280), 520);
+  const fallbackH = Math.min(Math.max(winH - 120, 360), 640);
+  const canvasW = playSize?.w ?? fallbackW;
+  const canvasH = playSize?.h ?? fallbackH;
+
+  const onPlayAreaLayout = useCallback((e) => {
+    const { width, height } = e.nativeEvent.layout;
+    const w = Math.floor(width);
+    const h = Math.floor(height);
+    if (w < 200 || h < 280) return;
+    setPlaySize((prev) => (prev?.w === w && prev?.h === h ? prev : { w, h }));
+  }, []);
 
   const handleFinish = useCallback(
     (payload) => {
@@ -20,7 +33,7 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
       else playSound('lose');
       onFinish?.(payload);
     },
-    [onFinish]
+    [onFinish],
   );
 
   return (
@@ -35,18 +48,23 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
         <View style={rescueUiStyles.topBarSpacer} />
       </View>
 
-      <View style={[rescueUiStyles.canvasFrame, { width: '100%', maxWidth: canvasW, alignSelf: 'center' }]}>
-        {Platform.OS === 'web' ? (
+      <View
+        style={[rescueUiStyles.canvasFrame, { width: '100%', maxWidth: fallbackW, alignSelf: 'center' }]}
+        onLayout={onPlayAreaLayout}
+      >
+        {Platform.OS === 'web' && playSize ? (
           <MonsterRescueView
-            key={`rescue-stage-${stageId}`}
+            key={`rescue-stage-${stageId}-${playSize.w}x${playSize.h}`}
             stageId={stageId}
             shooterMonsterTemplateId={shooterMonsterTemplateId}
             width={canvasW}
             height={canvasH}
             onFinish={handleFinish}
           />
+        ) : Platform.OS === 'web' ? (
+          <View style={rescueUiStyles.canvasPlaceholder} />
         ) : (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <View style={rescueUiStyles.canvasPlaceholder}>
             <Text style={rescueUiStyles.noticeText}>Open in a web browser to play Monster Rescue.</Text>
           </View>
         )}

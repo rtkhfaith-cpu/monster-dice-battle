@@ -26,6 +26,7 @@ import { decodeRescueLevel } from './monsterRescue/stages';
 import { sanitizePlayerProfile } from './profileIntegrity';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import {
+  canonicalMonsterKey,
   migrateLadderMonsterTemplateIds,
   resolveLadderTemplateId,
 } from './monsterLadder/ladderMonsterMigrate';
@@ -208,6 +209,7 @@ function normalizeOwnedMonster(om) {
       ? mergeLadderMonsterParts(om.templateId)
       : mergeMonsterParts(om.templateId);
   }
+  if (!Array.isArray(om.equippedLadderGear)) om.equippedLadderGear = [];
   om.mergeTier = clampMergeTier(om.mergeTier);
 }
 
@@ -239,19 +241,97 @@ function normalizeWalletMonsters(wallet) {
   migrateLegacyWalletGear(wallet);
 }
 
-/** Copy ladder-exclusive monsters into main inventory so they appear in the home roster. */
-export function ensureLadderMonstersInMainInventory(profile) {
-  return syncLadderRewardsToMainInventory(profile);
+/** Merge one legacy ladder-owned row into profile.ownedMonsters. */
+function absorbLadderOwnedRow(profile, lm) {
+  const canon = canonicalMonsterKey(lm.templateId);
+  const canonicalTpl = resolveLadderTemplateId(lm.templateId) ?? lm.templateId;
+  let target = profile.ownedMonsters.find((m) => m.id === lm.id)
+    ?? (canon
+      ? profile.ownedMonsters.find((m) => canonicalMonsterKey(m.templateId) === canon)
+      : null);
+
+  if (target) {
+    const best = pickPrimaryInstance([target, lm]);
+    target.level = best.level ?? target.level;
+    target.exp = best.exp ?? target.exp;
+    target.mergeTier = clampMergeTier(best.mergeTier ?? target.mergeTier);
+    if (canonicalTpl && target.templateId !== canonicalTpl) target.templateId = canonicalTpl;
+    if (!Array.isArray(target.equippedLadderGear)) target.equippedLadderGear = [];
+    for (const g of lm.equippedLadderGear || []) {
+      if (!target.equippedLadderGear.includes(g)) target.equippedLadderGear.push(g);
+    }
+    normalizeOwnedMonster(target);
+    return target;
+  }
+
+  const row = {
+    ...lm,
+    templateId: canonicalTpl,
+    equippedGear: Array.isArray(lm.equippedGear) ? lm.equippedGear : [],
+    equippedLadderGear: Array.isArray(lm.equippedLadderGear) ? [...lm.equippedLadderGear] : [],
+    unlockedVisualTags: Array.isArray(lm.unlockedVisualTags) ? lm.unlockedVisualTags : [],
+  };
+  normalizeOwnedMonster(row);
+  profile.ownedMonsters.push(row);
+  return row;
 }
 
-/** Normalize ladder + merge inventories after cloud load or local repair. */
-export function repairPlayerProfileInventory(profile) {
-  if (!profile) return false;
-  profile.monsterLadder = normalizeMonsterLadder(profile.monsterLadder, profile.ladderProgress);
-  return syncLadderRewardsToMainInventory(profile);
+/** Collapse duplicate species rows on the single main roster. */
+function collapseMainRosterDuplicates(profile) {
+  const ml = getMonsterLadderState(profile);
+  const groups = new Map();
+  const noKey = [];
+  for (const om of profile.ownedMonsters || []) {
+    const canon = canonicalMonsterKey(om.templateId);
+    if (!canon) {
+      noKey.push(om);
+      continue;
+    }
+    if (!groups.has(canon)) groups.set(canon, []);
+    groups.get(canon).push(om);
+  }
+
+  let changed = false;
+  const next = [...noKey];
+  for (const [canon, instances] of groups) {
+    if (instances.length === 1) {
+      next.push(instances[0]);
+      continue;
+    }
+    changed = true;
+    const survivor = pickPrimaryInstance(instances);
+    const resolved = resolveLadderTemplateId(canon);
+    if (resolved && survivor.templateId !== resolved) survivor.templateId = resolved;
+    survivor.level = Math.max(...instances.map((m) => m.level ?? 1));
+    survivor.exp = Math.max(...instances.map((m) => m.exp ?? 0));
+    survivor.mergeTier = clampMergeTier(
+      Math.max(...instances.map((m) => clampMergeTier(m.mergeTier))),
+    );
+    if (!Array.isArray(survivor.equippedLadderGear)) survivor.equippedLadderGear = [];
+    for (const m of instances) {
+      for (const g of m.equippedLadderGear || []) {
+        if (!survivor.equippedLadderGear.includes(g)) survivor.equippedLadderGear.push(g);
+      }
+    }
+    const removeIds = instances.filter((m) => m.id !== survivor.id).map((m) => m.id);
+    if (profile.selectedMonsterId && removeIds.includes(profile.selectedMonsterId)) {
+      profile.selectedMonsterId = survivor.id;
+    }
+    if (ml.activeMonsterId && removeIds.includes(ml.activeMonsterId)) {
+      ml.activeMonsterId = survivor.id;
+      setMonsterLadderState(profile, ml);
+    }
+    next.push(survivor);
+  }
+  if (changed) profile.ownedMonsters = next;
+  return changed;
 }
 
-function syncLadderRewardsToMainInventory(profile) {
+/**
+ * Single monster registry: profile.ownedMonsters only.
+ * Migrates legacy monsterLadder.ownedMonsters, merges ladder gear into cosmeticsOwned.
+ */
+function consolidatePlayerMonstersToMain(profile) {
   let changed = migrateLadderMonsterTemplateIds(profile);
   const ml = getMonsterLadderState(profile);
   if (!ml) return changed;
@@ -274,50 +354,39 @@ function syncLadderRewardsToMainInventory(profile) {
     profile.ownedMonsters = [];
     changed = true;
   }
-  const mainTemplateIds = new Set(
-    profile.ownedMonsters.map((m) => resolveLadderTemplateId(m.templateId) ?? m.templateId),
-  );
 
-  // Ladder roster → main inventory (home Monsters tray).
-  for (const lm of ml.ownedMonsters || []) {
-    const canonical = resolveLadderTemplateId(lm.templateId);
-    if (!canonical || mainTemplateIds.has(canonical)) continue;
+  const ladderRows = [...(ml.ownedMonsters || [])];
+  if (ladderRows.length) {
+    for (const lm of ladderRows) {
+      const target = absorbLadderOwnedRow(profile, lm);
+      if (ml.activeMonsterId === lm.id) ml.activeMonsterId = target.id;
+    }
+    ml.ownedMonsters = [];
     changed = true;
-    const row = {
-      ...lm,
-      templateId: canonical,
-      equippedGear: Array.isArray(lm.equippedGear) ? lm.equippedGear : [],
-      unlockedVisualTags: Array.isArray(lm.unlockedVisualTags) ? lm.unlockedVisualTags : [],
-    };
-    delete row.equippedLadderGear;
-    normalizeOwnedMonster(row);
-    profile.ownedMonsters.push(row);
-    mainTemplateIds.add(canonical);
+    setMonsterLadderState(profile, ml);
   }
 
-  // Main inventory → ladder roster (Collection / ladder battles) — repairs split saves.
-  if (!Array.isArray(ml.ownedMonsters)) ml.ownedMonsters = [];
-  const ladderTemplateIds = new Set(
-    ml.ownedMonsters.map((m) => resolveLadderTemplateId(m.templateId) ?? m.templateId),
-  );
-  for (const om of profile.ownedMonsters || []) {
-    const canonical = resolveLadderTemplateId(om.templateId);
-    if (!canonical || ladderTemplateIds.has(canonical)) continue;
+  changed = collapseMainRosterDuplicates(profile) || changed;
+
+  if (ml.activeMonsterId && !profile.ownedMonsters.some((m) => m.id === ml.activeMonsterId)) {
+    ml.activeMonsterId = profile.ownedMonsters[0]?.id ?? null;
+    setMonsterLadderState(profile, ml);
     changed = true;
-    const row = generateLadderOwnedMonster(canonical, om.nickname || '');
-    row.id = om.id;
-    row.level = om.level ?? 1;
-    row.exp = om.exp ?? 0;
-    row.mergeTier = om.mergeTier ?? 0;
-    row.monsterParts = om.monsterParts
-      ? mergeLadderMonsterParts(canonical, om.monsterParts)
-      : mergeLadderMonsterParts(canonical);
-    ml.ownedMonsters.push(row);
-    ladderTemplateIds.add(canonical);
-    if (!ml.activeMonsterId) ml.activeMonsterId = row.id;
   }
-  setMonsterLadderState(profile, ml);
+
   return changed;
+}
+
+/** Migrate legacy ladder roster rows into main inventory (home Monsters tray). */
+export function ensureLadderMonstersInMainInventory(profile) {
+  return consolidatePlayerMonstersToMain(profile);
+}
+
+/** Normalize ladder progress + single monster registry after cloud load or local repair. */
+export function repairPlayerProfileInventory(profile) {
+  if (!profile) return false;
+  profile.monsterLadder = normalizeMonsterLadder(profile.monsterLadder, profile.ladderProgress);
+  return consolidatePlayerMonstersToMain(profile);
 }
 
 function normalizePlayerProfile(p) {
@@ -338,7 +407,7 @@ function normalizePlayerProfile(p) {
   normalizeMainBattleState(p);
   p.monsterLadder = normalizeMonsterLadder(p.monsterLadder, p.ladderProgress);
   p.monsterRescue = normalizeMonsterRescue(p.monsterRescue);
-  syncLadderRewardsToMainInventory(p);
+  consolidatePlayerMonstersToMain(p);
   delete p.ladderProgress;
   sanitizePlayerProfile(p);
 }
@@ -1107,7 +1176,7 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
 }
 
 /**
- * Merge duplicate monsters (main + ladder inventory) into one primary instance.
+ * Merge duplicate monsters on the main roster into one primary instance.
  * @param {object} gameData
  * @param {string|null} profileId
  * @param {string} primaryOwnedId
@@ -1118,25 +1187,17 @@ export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
   const wallet = walletForProfile(gd, profileId);
   if (!profile || !wallet) return { gameData: gd, error: 'Profile not found.' };
 
+  consolidatePlayerMonstersToMain(profile);
   const ml = getMonsterLadderState(profile);
-  const refs = [];
-  const seenIds = new Set();
-  for (const m of wallet.ownedMonsters || []) {
-    if (seenIds.has(m.id)) continue;
-    seenIds.add(m.id);
-    refs.push({ monster: m, list: 'main' });
-  }
-  for (const m of ml.ownedMonsters || []) {
-    if (seenIds.has(m.id)) continue;
-    seenIds.add(m.id);
-    refs.push({ monster: m, list: 'ladder' });
-  }
+  const refs = (wallet.ownedMonsters || []).map((m) => ({ monster: m, list: 'main' }));
 
   const clickedRef = refs.find((r) => r.monster.id === primaryOwnedId);
   if (!clickedRef) return { gameData: gd, error: 'Monster not found.' };
 
-  const templateId = clickedRef.monster.templateId;
-  const sameTemplateRefs = refs.filter((r) => r.monster.templateId === templateId);
+  const templateKey = canonicalMonsterKey(clickedRef.monster.templateId) ?? clickedRef.monster.templateId;
+  const sameTemplateRefs = refs.filter(
+    (r) => (canonicalMonsterKey(r.monster.templateId) ?? r.monster.templateId) === templateKey,
+  );
   const survivorMonster = pickPrimaryInstance(sameTemplateRefs.map((r) => r.monster));
   if (!survivorMonster) return { gameData: gd, error: 'Monster not found.' };
 
@@ -1168,12 +1229,10 @@ export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
   });
 
   if (removeIds.has(ml.activeMonsterId)) {
-    const primaryOnLadder = (ml.ownedMonsters || []).some((m) => m.id === survivorId);
-    ml.activeMonsterId = primaryOnLadder
+    ml.activeMonsterId = profile.ownedMonsters.some((m) => m.id === survivorId)
       ? survivorId
-      : (ml.ownedMonsters || []).find((m) => !removeIds.has(m.id))?.id ?? null;
+      : profile.ownedMonsters[0]?.id ?? null;
   }
-  ml.ownedMonsters = (ml.ownedMonsters || []).filter((m) => !removeIds.has(m.id));
 
   primaryRef.monster.mergeTier = tier + 1;
   setMonsterLadderState(profile, ml);
@@ -1182,6 +1241,6 @@ export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
     gameData: gd,
     mergeTier: tier + 1,
     consumed: cost,
-    templateId,
+    templateId: templateKey,
   };
 }

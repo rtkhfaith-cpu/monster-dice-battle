@@ -133,7 +133,8 @@ export default class RescueShooter {
     const gunRight = layout.gunBaseRight ?? GUN_BASE_HALF_W;
     const gap = layout.canvasWidth * 0.012;
     const nudge = layout.monsterRightNudgePx ?? 0;
-    const monsterX = gunRight + gap + nudge;
+    const maxX = layout.maxMonsterLocalX ?? layout.canvasWidth * 0.42;
+    const monsterX = Math.min(gunRight + gap + nudge, maxX);
     const footY = this._monsterFootY();
 
     this.monsterImg.setPosition(monsterX, footY);

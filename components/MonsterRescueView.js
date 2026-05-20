@@ -113,8 +113,9 @@ export default function MonsterRescueView({
               autoCenter: Phaser.Scale.CENTER_BOTH,
             },
             render: {
-              antialias: true,
+              antialias: false,
               pixelArt: false,
+              roundPixels: true,
             },
           });
 
@@ -244,7 +245,8 @@ export default function MonsterRescueView({
         style: {
           width: '100%',
           height: '100%',
-          minHeight: height,
+          minHeight: Math.min(height, 280),
+          maxHeight: '100%',
           overflow: 'hidden',
           ...WEB_GAME_TOUCH_STYLE,
         },

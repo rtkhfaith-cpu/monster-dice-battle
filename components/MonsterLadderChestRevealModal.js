@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderGear } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
@@ -24,10 +24,34 @@ export default function MonsterLadderChestRevealModal({
   kicker = 'Monster Ladder Chest',
 }) {
   const [opened, setOpened] = useState(false);
+  const chestDropY = useRef(new Animated.Value(-280)).current;
+  const revealOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (visible) setOpened(!!autoReveal);
-  }, [visible, drop?.id, drop?.kind, autoReveal]);
+    if (!visible || !drop) return;
+    setOpened(!!autoReveal);
+    chestDropY.setValue(-280);
+    revealOpacity.setValue(0);
+    Animated.spring(chestDropY, {
+      toValue: 0,
+      friction: 7,
+      tension: 42,
+      useNativeDriver: true,
+    }).start();
+  }, [visible, drop?.id, drop?.kind, autoReveal, chestDropY, revealOpacity]);
+
+  useEffect(() => {
+    if (!opened) {
+      revealOpacity.setValue(0);
+      return;
+    }
+    Animated.timing(revealOpacity, {
+      toValue: 1,
+      duration: 280,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [opened, revealOpacity]);
 
   if (!drop) return null;
   const ui = RARITY_UI[drop.rarity] ?? RARITY_UI.common;
@@ -38,22 +62,25 @@ export default function MonsterLadderChestRevealModal({
       <View style={styles.backdrop}>
         <View style={[styles.card, { borderColor: ui.border }]} {...gameSurfaceDataProps()}>
           <Text style={styles.kicker}>{kicker}</Text>
-          <TouchableOpacity
-            style={[styles.orb, { backgroundColor: ui.chipBg, borderColor: ui.border }]}
-            onPress={() => setOpened(true)}
-            activeOpacity={0.85}
-          >
-            <Image
-              source={{ uri: opened ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
-              style={styles.chestImg}
-              resizeMode="contain"
-              {...WEB_DECORATIVE_IMAGE_PROPS}
-            />
-          </TouchableOpacity>
+          <Animated.View style={[styles.chestDropWrap, { transform: [{ translateY: chestDropY }] }]}>
+            <TouchableOpacity
+              style={[styles.orb, { backgroundColor: ui.chipBg, borderColor: ui.border }]}
+              onPress={() => setOpened(true)}
+              activeOpacity={0.85}
+              disabled={opened}
+            >
+              <Image
+                source={{ uri: opened ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
+                style={styles.chestImg}
+                resizeMode="contain"
+                {...WEB_DECORATIVE_IMAGE_PROPS}
+              />
+            </TouchableOpacity>
+          </Animated.View>
           {!opened ? (
             <Text style={styles.tapHint}>Tap the chest to reveal your reward.</Text>
           ) : (
-            <>
+            <Animated.View style={{ opacity: revealOpacity, alignItems: 'center', width: '100%' }}>
               <Text style={[styles.rarity, { color: ui.border }]}>
                 {rarityLabel(drop.rarity)}
               </Text>
@@ -74,14 +101,14 @@ export default function MonsterLadderChestRevealModal({
                   </Text>
                 )
               ) : (
-                <Text style={styles.newItem}>Added to your ladder collection.</Text>
+                <Text style={styles.newItem}>Added to your collection.</Text>
               )}
               {(drop.rarity === 'legendary' || drop.rarity === 'mythic') ? (
                 <Text style={styles.dramatic}>
                   {drop.rarity === 'mythic' ? 'MYTHIC SIGNAL LOCKED.' : 'LEGENDARY SIGNAL FOUND.'}
                 </Text>
               ) : null}
-            </>
+            </Animated.View>
           )}
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: opened ? ui.border : '#636e72' }]}
@@ -117,6 +144,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1.6,
     marginBottom: 12,
   },
+  chestDropWrap: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   orb: {
     width: 96,
     height: 96,
@@ -124,7 +155,6 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
   chestImg: { width: 76, height: 76 },
   tapHint: {

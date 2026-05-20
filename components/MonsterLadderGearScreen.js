@@ -4,6 +4,7 @@ import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderGear, LADDER_GEAR_CATALOG } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { formatGearBonusLines } from '../utils/cosmetics';
+import { findOwnedMonsterForLadder } from '../utils/monsterLadder/ladderProfile';
 
 function GearChip({ gearId, ownedCount = 1, onPress, onRemove }) {
   const gear = getLadderGear(gearId);
@@ -45,13 +46,14 @@ function GearDetailOverlay({ gear, onClose }) {
 
 export default function MonsterLadderGearScreen({
   visible,
+  profile,
   monsterLadder,
   onClose,
   onEquip,
   onUnequip,
 }) {
   const [detailGear, setDetailGear] = useState(null);
-  const active = monsterLadder?.ownedMonsters?.find((m) => m.id === monsterLadder.activeMonsterId);
+  const active = findOwnedMonsterForLadder(profile, monsterLadder?.activeMonsterId);
   const ownedCounts = useMemo(() => {
     const counts = {};
     for (const id of monsterLadder?.ownedGear || []) counts[id] = (counts[id] ?? 0) + 1;

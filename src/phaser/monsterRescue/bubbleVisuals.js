@@ -13,7 +13,7 @@ function darkenColor(hex, amount = 0.22) {
 }
 
 /**
- * Crisp arcade bubble (minimal soft layers — avoids blurry overlap halos).
+ * Sharp arcade bubble — solid fills only (no translucent overlap halos).
  * @param {Phaser.Scene} scene
  * @param {{ color: number }} cell
  * @param {number} depth
@@ -22,29 +22,29 @@ function darkenColor(hex, amount = 0.22) {
  */
 export function createShinyBubble(scene, cell, depth = 5, radius = DEFAULT_BUBBLE_RADIUS) {
   const fill = bubbleColor(cell);
-  const r = Math.round(radius);
+  const r = Math.max(4, Math.round(radius));
   const container = scene.add.container(0, 0).setDepth(depth);
 
-  const shadow = scene.add.circle(0, Math.max(1, Math.round(r * 0.08)), r, 0x000000, 0.28);
   const body = scene.add.circle(0, 0, r, fill, 1);
-  const shade = scene.add.circle(0, Math.round(r * 0.12), r * 0.88, darkenColor(fill, 0.18), 0.35);
-  const rim = scene.add.circle(0, 0, r, 0x000000, 0).setStrokeStyle(2, darkenColor(fill, 0.35), 1);
+  const rim = scene.add
+    .circle(0, 0, r, 0x000000, 0)
+    .setStrokeStyle(Math.max(2, Math.round(r * 0.09)), darkenColor(fill, 0.42), 1);
   const spec = scene.add.circle(
-    Math.round(-r * 0.28),
-    Math.round(-r * 0.34),
-    Math.max(3, Math.round(r * 0.28)),
+    Math.round(-r * 0.3),
+    Math.round(-r * 0.32),
+    Math.max(3, Math.round(r * 0.22)),
     0xffffff,
-    0.72
+    1,
   );
   const specDot = scene.add.circle(
-    Math.round(-r * 0.1),
-    Math.round(-r * 0.48),
-    Math.max(2, Math.round(r * 0.1)),
+    Math.round(-r * 0.08),
+    Math.round(-r * 0.45),
+    Math.max(2, Math.round(r * 0.08)),
     0xffffff,
-    1
+    1,
   );
 
-  container.add([shadow, body, shade, rim, spec, specDot]);
+  container.add([body, rim, spec, specDot]);
   container.setData('bubbleColor', fill);
   return container;
 }

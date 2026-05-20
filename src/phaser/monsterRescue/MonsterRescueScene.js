@@ -317,7 +317,6 @@ export function createMonsterRescueScene(Phaser) {
       const interval = this.stageDef.rowPushEvery ?? ROW_PUSH_MOVES_BASE;
       const untilPush = Math.max(0, interval - this.movesSinceRowPush);
       this.puzzleHud.update({
-        score: summary.bubblesCleared,
         combo: this.comboManager.combo,
         stageLabel: `${this.stageDef.label}`,
         timeRemainingMs: this.timeRemainingMs,

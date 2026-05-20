@@ -1,9 +1,30 @@
+import { getMonsterTemplate } from '../monsterTemplates';
 import { getLadderMonsterTemplate } from './ladderMonsterCatalog';
 
 /** Legacy save IDs → current ladder template IDs. */
 export const LADDER_MONSTER_TEMPLATE_ALIASES = {
   toiletron: 'toiletron_titan',
 };
+
+/** Legacy main-roster IDs → current shop template IDs. */
+export const MAIN_MONSTER_TEMPLATE_ALIASES = {
+  toilet_paper: 'toilet_paper_ninja',
+};
+
+/**
+ * One key per monster species for grouping / dedupe (main + ladder inventories).
+ * @param {string|undefined|null} templateId
+ */
+export function canonicalMonsterKey(templateId) {
+  if (!templateId || typeof templateId !== 'string') return null;
+  const trimmed = templateId.trim();
+  const ladder = resolveLadderTemplateId(trimmed);
+  if (ladder) return ladder;
+  if (getMonsterTemplate(trimmed)) return trimmed;
+  const alias = MAIN_MONSTER_TEMPLATE_ALIASES[trimmed];
+  if (alias && getMonsterTemplate(alias)) return alias;
+  return trimmed;
+}
 
 /**
  * @param {string|undefined|null} templateId
@@ -28,16 +49,19 @@ export function migrateLadderMonsterTemplateIds(profile) {
 
   const fixRow = (row) => {
     if (!row?.templateId) return;
-    const canonical = resolveLadderTemplateId(row.templateId);
-    if (!canonical || canonical === row.templateId) return;
-    row.templateId = canonical;
-    changed = true;
+    const ladderCanon = resolveLadderTemplateId(row.templateId);
+    if (ladderCanon && ladderCanon !== row.templateId) {
+      row.templateId = ladderCanon;
+      changed = true;
+      return;
+    }
+    const mainCanon = MAIN_MONSTER_TEMPLATE_ALIASES[row.templateId];
+    if (mainCanon && getMonsterTemplate(mainCanon) && mainCanon !== row.templateId) {
+      row.templateId = mainCanon;
+      changed = true;
+    }
   };
 
   for (const om of profile.ownedMonsters || []) fixRow(om);
-  const ml = profile.monsterLadder;
-  if (ml?.ownedMonsters) {
-    for (const om of ml.ownedMonsters) fixRow(om);
-  }
   return changed;
 }

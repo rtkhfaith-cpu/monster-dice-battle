@@ -427,7 +427,7 @@ export default function BattleScreen({
       setMainChestDrop(result?.drop ?? null);
       setMainChestGameData(result?.gameData ?? null);
       setMainChestPhase('revealed');
-      if (drop?.kind === 'monster') playSound('levelUp');
+      if (result?.drop?.kind === 'monster') playSound('levelUp');
     } finally {
       setMainChestBusy(false);
     }

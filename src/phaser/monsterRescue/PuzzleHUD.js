@@ -4,21 +4,13 @@ export default class PuzzleHUD {
   constructor(scene) {
     this.scene = scene;
     const w = scene.scale.width;
-    this.scoreText = scene.add.text(16, 12, 'Popped 0', {
-      fontFamily: 'Arial',
-      fontSize: '16px',
-      color: '#fff',
-      stroke: '#000',
-      strokeThickness: 3,
-    }).setDepth(100);
-
-    this.timerText = scene.add.text(w / 2, 10, '5:00', {
+    this.timerText = scene.add.text(16, 12, '5:00', {
       fontFamily: 'Arial',
       fontSize: '26px',
       color: '#c4f0ff',
       stroke: '#000',
       strokeThickness: 4,
-    }).setOrigin(0.5, 0).setDepth(100);
+    }).setDepth(100);
 
     this.comboText = scene.add.text(w / 2, 42, '', {
       fontFamily: 'Arial',
@@ -39,12 +31,10 @@ export default class PuzzleHUD {
 
   relayout(w) {
     this.stageText?.setX(w - 16);
-    this.timerText?.setX(w / 2);
     this.comboText?.setX(w / 2);
   }
 
   update({
-    score,
     combo,
     stageLabel,
     timeRemainingMs,
@@ -86,7 +76,6 @@ export default class PuzzleHUD {
   }
 
   destroy() {
-    this.scoreText?.destroy();
     this.comboText?.destroy();
     this.stageText?.destroy();
     this.timerText?.destroy();

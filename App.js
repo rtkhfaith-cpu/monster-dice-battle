@@ -1136,7 +1136,7 @@ export default function App() {
     const profile = getPlayerProfile(gd, setupP1ProfileId);
     if (!profile) return;
     const ml = getMonsterLadderState(profile);
-    const monster = ml.ownedMonsters.find((m) => m.id === monsterId);
+    const monster = profile.ownedMonsters.find((m) => m.id === monsterId);
     if (!monster) return;
     if (!ml.ownedGear.includes(gearId)) {
       showNotice('Ladder Gear', 'This ladder gear is not owned.');
@@ -1162,7 +1162,7 @@ export default function App() {
     const profile = getPlayerProfile(gd, setupP1ProfileId);
     if (!profile) return;
     const ml = getMonsterLadderState(profile);
-    const monster = ml.ownedMonsters.find((m) => m.id === monsterId);
+    const monster = profile.ownedMonsters.find((m) => m.id === monsterId);
     if (!monster || !Array.isArray(monster.equippedLadderGear)) return;
     monster.equippedLadderGear = monster.equippedLadderGear.filter((id) => id !== gearId);
     profile.monsterLadder = ml;
@@ -1218,7 +1218,7 @@ export default function App() {
       showNotice('Monster Ladder', 'Own at least one monster on the home screen or in Collection.');
       return;
     }
-    const f1 = fighterForLadderBattle(owned, profile);
+    const f1 = fighterForLadderBattle(owned);
     if (!f1) {
       showNotice('Monster Ladder', 'Could not build your ladder fighter.');
       return;
@@ -1310,11 +1310,22 @@ export default function App() {
     const resolvedBattleMode = battleExtras?.mode ?? currentBattleMode ?? gameMode;
     const ladderMode = resolvedBattleMode === 'monsterLadder' || gameMode === 'monsterLadder';
     if (ladderMode) {
-      const { gameData: rewardedGd, summary } = applyMonsterLadderBattleRewards(baseGameData, setupP1ProfileId, {
-        outcome,
-        enemyLevel: player2Snapshot?.level ?? 1,
-        ownedMonsterId: player1Snapshot?.ownedMonsterId ?? null,
-      });
+      let rewardedGd = baseGameData;
+      let summary = null;
+      try {
+        const res = applyMonsterLadderBattleRewards(baseGameData, setupP1ProfileId, {
+          outcome,
+          enemyLevel: player2Snapshot?.level ?? 1,
+          ownedMonsterId: player1Snapshot?.ownedMonsterId ?? null,
+        });
+        rewardedGd = res.gameData;
+        summary = res.summary;
+      } catch (err) {
+        console.error('Monster Ladder rewards failed', err);
+        showNotice('Monster Ladder', 'Could not apply battle rewards. Returning to the ladder map.');
+        returnToLadder();
+        return;
+      }
 
       persistSave(rewardedGd, 'monster_ladder_battle_ended', [setupP1ProfileId]);
       setGameData(rewardedGd);
@@ -1657,11 +1668,6 @@ export default function App() {
               setMonsterMartOpen(true);
             }}
             onOpenAudioSettings={() => setPhase('audioSettings')}
-            ladderOwnedMonsters={
-              setupP1ProfileId
-                ? getMonsterLadderState(getPlayerProfile(gameData, setupP1ProfileId))?.ownedMonsters ?? []
-                : []
-            }
             onMergeMonster={handleMergeMonster}
             onEnsureLadderMonstersSync={handleEnsureLadderMonstersSync}
           />
@@ -1886,6 +1892,7 @@ export default function App() {
       />
       <MonsterLadderGearScreen
         visible={ladderGearOpen}
+        profile={setupP1ProfileId ? getPlayerProfile(gameData, setupP1ProfileId) : null}
         monsterLadder={getMonsterLadderState(getPlayerProfile(gameData, setupP1ProfileId))}
         onClose={() => setLadderGearOpen(false)}
         onEquip={equipLadderGear}

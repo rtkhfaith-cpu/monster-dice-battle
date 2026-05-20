@@ -20,7 +20,7 @@ export default function MonsterLadderCollectionScreen({
   onSelectActive,
 }) {
   const [cardMonster, setCardMonster] = useState(null);
-  const cardFighter = cardMonster && profile ? fighterForLadderBattle(cardMonster, profile) : null;
+  const cardFighter = cardMonster ? fighterForLadderBattle(cardMonster) : null;
   const cardTemplate =
     cardMonster
       ? getLadderMonsterTemplate(cardMonster.templateId) ?? getMonsterTemplate(cardMonster.templateId)
@@ -36,7 +36,7 @@ export default function MonsterLadderCollectionScreen({
               <Text style={styles.empty}>No monsters yet. Buy or earn monsters on the home screen, or win ladder chests.</Text>
             ) : (
               ownedMonsters.map((om) => {
-                const f = profile ? fighterForLadderBattle(om, profile) : null;
+                const f = fighterForLadderBattle(om);
                 const t = getLadderMonsterTemplate(om.templateId) ?? getMonsterTemplate(om.templateId);
                 const active = om.id === activeMonsterId;
                 return (

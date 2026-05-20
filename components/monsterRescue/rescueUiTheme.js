@@ -228,6 +228,13 @@ export const rescueUiStyles = StyleSheet.create({
     ...rescueWebShadow,
     ...WEB_GAME_TOUCH_STYLE,
   },
+  canvasPlaceholder: {
+    flex: 1,
+    width: '100%',
+    minHeight: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rewardScroll: {
     flex: 1,
     minHeight: 0,

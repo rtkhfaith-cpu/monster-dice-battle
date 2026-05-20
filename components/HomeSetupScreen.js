@@ -16,9 +16,10 @@ import OnlineRoomBanner from './OnlineRoomBanner';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
-import { groupOwnedMonsters, MAX_MERGE_TIER, pickPrimaryInstance } from '../utils/mergeSystem';
+import { groupOwnedMonsters, MAX_MERGE_TIER } from '../utils/mergeSystem';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { gameSurfaceDataProps, WEB_GAME_TOUCH_STYLE } from '../utils/webGameTouch';
+import TrainerRankingsModal from './TrainerRankingsModal';
 
 const MAX_VISIBLE_PROFILES = 4;
 
@@ -129,7 +130,6 @@ export default function HomeSetupScreen({
   onCreateWithId,
   ladderAvailable,
   coins,
-  ladderOwnedMonsters = [],
   onMergeMonster,
   onEnsureLadderMonstersSync,
 }) {
@@ -146,29 +146,20 @@ export default function HomeSetupScreen({
   const [loginPin, setLoginPin] = useState('');
   const [loginMsg, setLoginMsg] = useState('');
   const [loginMsgKind, setLoginMsgKind] = useState(/** @type {'success'|'error'|''} */ (''));
+  const [rankingsOpen, setRankingsOpen] = useState(false);
   const loginScrollRef = useRef(null);
   const syncedMonsterIdRef = useRef(null);
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
   const activeWallet = walletP1 || wallet;
   const monsters = activeWallet?.ownedMonsters ?? [];
-  const monsterGroups = useMemo(() => {
-    return groupOwnedMonsters(monsters, ladderOwnedMonsters)
-      .map((group) => {
-        const mainInstances = group.instances.filter((i) => i._inMain || i._source === 'main');
-        const ladderInstances = group.instances.filter((i) => i._inLadder || i._source === 'ladder');
-        const battlePrimary =
-          pickPrimaryInstance(mainInstances) ?? pickPrimaryInstance(ladderInstances);
-        return {
-          ...group,
-          battlePrimary,
-          mainCount: mainInstances.length,
-          ladderCount: ladderInstances.length,
-          ladderOnly: mainInstances.length === 0 && ladderInstances.length > 0,
-        };
-      })
-      .filter((g) => g.mainCount > 0 || g.ladderCount > 0);
-  }, [monsters, ladderOwnedMonsters]);
+  const monsterGroups = useMemo(
+    () => groupOwnedMonsters(monsters).map((group) => ({
+      ...group,
+      battlePrimary: group.primary,
+    })),
+    [monsters],
+  );
   const effectiveP1Id =
     selectedP1Id && monsters.some((m) => m.id === selectedP1Id)
       ? selectedP1Id
@@ -185,6 +176,10 @@ export default function HomeSetupScreen({
   useEffect(() => {
     if (tray === 'cloud') onFetchCloudPlayers?.();
   }, [tray, onFetchCloudPlayers]);
+
+  useEffect(() => {
+    if (rankingsOpen) onFetchCloudPlayers?.();
+  }, [rankingsOpen, onFetchCloudPlayers]);
 
   useEffect(() => {
     if (tray !== 'monsters') setCardMonster(null);
@@ -559,19 +554,13 @@ export default function HomeSetupScreen({
                   </Pressable>
                   <Pressable
                     style={styles.monsterSelectMeta}
-                    onPress={pressWithSound(() => {
-                      if (group.ladderOnly) return;
-                      onSelectMonster?.(primary.id);
-                    })}
+                    onPress={pressWithSound(() => onSelectMonster?.(primary.id))}
                   >
                     <Text style={styles.monsterChipText} numberOfLines={1}>
                       {group.displayName}{countLabel}
-                      {group.ladderOnly ? ' ★ Ladder' : ''}
                     </Text>
                     <Text style={styles.monsterChipSub}>
-                      {group.ladderOnly
-                        ? 'Monster Ladder roster · open Ladder → Collection'
-                        : `Lv ${primary.level ?? 1}${mergeLabel}${picked ? ' · Selected' : ''}`}
+                      {`Lv ${primary.level ?? 1}${mergeLabel}${picked ? ' · Selected' : ''}`}
                     </Text>
                   </Pressable>
                 </View>
@@ -670,9 +659,18 @@ export default function HomeSetupScreen({
               <Text style={styles.topCoinIcon}>◈</Text>
               <Text style={styles.topCoinText}>{coins ?? 0}</Text>
             </View>
-            <View style={styles.topPlayerNameWrap} pointerEvents="none">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Hall of Fame rankings"
+              style={({ pressed }) => [
+                styles.topPlayerNameWrap,
+                pressed && styles.topPlayerNamePressed,
+              ]}
+              onPress={pressWithSound(() => setRankingsOpen(true))}
+            >
               <Text style={styles.topPlayerName} numberOfLines={1}>{playerName}</Text>
-            </View>
+              <Text style={styles.topPlayerRankHint}>Hall of Fame ▾</Text>
+            </Pressable>
 
             {onlineBanner}
             {loginOpen ? renderLoginModal() : null}
@@ -715,6 +713,17 @@ export default function HomeSetupScreen({
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
+
+            <TrainerRankingsModal
+              visible={rankingsOpen}
+              onClose={() => setRankingsOpen(false)}
+              localProfile={activeProfile}
+              localProfileId={activeProfileId}
+              cloudPlayers={cloudPlayers}
+              cloudFetchLoading={cloudFetchLoading}
+              cloudFetchError={cloudFetchError}
+              onRefresh={onFetchCloudPlayers}
+            />
 
             {cardFighter && tray === 'monsters' ? (
               <MonsterStatCardOverlay
@@ -816,13 +825,19 @@ const styles = StyleSheet.create({
   },
   topPlayerNameWrap: {
     position: 'absolute',
-    top: '2.8%',
-    right: '5%',
-    maxWidth: '34%',
+    top: '2.4%',
+    right: '4%',
+    maxWidth: '38%',
     minHeight: 28,
     justifyContent: 'center',
     alignItems: 'flex-end',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    zIndex: 40,
+  },
+  topPlayerNamePressed: {
+    backgroundColor: 'rgba(219, 39, 119, 0.22)',
   },
   topPlayerName: {
     color: '#fff8df',
@@ -832,6 +847,14 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.68)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 2,
+  },
+  topPlayerRankHint: {
+    marginTop: 1,
+    color: '#fde68a',
+    fontSize: 10,
+    fontWeight: '800',
+    textAlign: 'right',
+    letterSpacing: 0.3,
   },
   menuLayer: {
     ...StyleSheet.absoluteFillObject,
