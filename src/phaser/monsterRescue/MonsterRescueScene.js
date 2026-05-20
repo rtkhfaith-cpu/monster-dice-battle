@@ -18,11 +18,13 @@ const SHOOT_SPEED = 520;
 const SHOOT_VISUAL_SPEED = 380;
 const SHOOT_TWEEN_MIN_MS = 200;
 const SHOOT_TWEEN_MAX_MS = 780;
-/** Allow steep bank shots off left/right frame walls. */
-const MIN_AIM_ANGLE = -3.05;
-const MAX_AIM_ANGLE = -0.1;
-/** Radians per horizontal pixel while dragging on the turret. */
-const AIM_DRAG_SENSITIVITY = 0.012;
+/** Upward arc only — steep enough to bank off left/right frame walls. */
+const MIN_AIM_ANGLE = -Math.PI + 0.12;
+const MAX_AIM_ANGLE = -0.12;
+/** Radians per horizontal pixel when fine-tuning from the bottom strip. */
+const AIM_DRAG_SENSITIVITY = 0.014;
+/** Width of left/right touch bands (full play height) for wall-bank aiming. */
+const SIDE_AIM_BAND_PX = 52;
 /** Finger movement or angle change required before release fires. */
 const MIN_AIM_DRAG_PX = 5;
 const MIN_AIM_ANGLE_DELTA = 0.028;
@@ -301,13 +303,55 @@ export function createMonsterRescueScene(Phaser) {
       });
     }
 
-    /** Bottom touch strip (wider than play frame) — not the bubble grid. */
+    _playFrameBounds() {
+      const playLeft = this.layout?.playLeft ?? 10;
+      const playWidth = this.layout?.playWidth ?? this.scale.width - 20;
+      return {
+        playLeft,
+        playRight: playLeft + playWidth,
+        playTop: this.layout?.playTop ?? 48,
+      };
+    }
+
+    /** Left/right strips along the frame — drag here to aim bank shots. */
+    _isSideAimBand(p) {
+      const { playLeft, playRight, playTop } = this._playFrameBounds();
+      const aimTop = this.layout?.aimZoneTop ?? (this.layout?.shooterZoneTop ?? this.shooterY - 58) - 40;
+      if (p.y < playTop || p.y >= aimTop) return false;
+      const band = Math.max(SIDE_AIM_BAND_PX, (this.layout?.bubbleRadius ?? 22) * 2.1);
+      return p.x <= playLeft + band || p.x >= playRight - band;
+    }
+
+    /** Bottom strip + side wall bands (not the center grid). */
     _isInAimZone(p) {
+      if (this._isSideAimBand(p)) return true;
       const top = this.layout?.aimZoneTop ?? (this.layout?.shooterZoneTop ?? this.shooterY - 58) - 40;
       if (p.y < top) return false;
       const left = this.layout?.aimZoneLeft ?? (this.layout?.playLeft ?? 10) - 44;
       const right = this.layout?.aimZoneRight ?? left + (this.layout?.playWidth ?? this.scale.width - 20) + 88;
       return p.x >= left && p.x <= right;
+    }
+
+    _updateAimFromPointer(p, { allowDragDelta = false } = {}) {
+      const muzzle = this.shooter?.getMuzzleWorld?.() ?? { x: this.shooterX, y: this.shooterY - 28 };
+      let ang = Math.atan2(p.y - muzzle.y, p.x - muzzle.x);
+      if (allowDragDelta && this.aimDragStartAngle != null) {
+        const dx = p.x - this.aimDragStartX;
+        ang = this.aimDragStartAngle + dx * AIM_DRAG_SENSITIVITY;
+      }
+      ang = Phaser.Math.Clamp(ang, MIN_AIM_ANGLE, MAX_AIM_ANGLE);
+      if (
+        allowDragDelta &&
+        (Math.hypot(p.x - this.aimDragStartX, p.y - (this.aimDragStartY ?? p.y)) >= MIN_AIM_DRAG_PX ||
+          Math.abs(ang - this.aimDragStartAngle) >= MIN_AIM_ANGLE_DELTA)
+      ) {
+        this.aimDragMoved = true;
+      }
+      if (Math.abs(ang - this.aimAngle) >= MIN_AIM_ANGLE_DELTA) {
+        this.aimDragMoved = true;
+      }
+      this.aimAngle = ang;
+      this.shooter?.setAimAngle(ang);
     }
 
     _onPointerDown(p) {
@@ -318,23 +362,21 @@ export function createMonsterRescueScene(Phaser) {
       this.aimDragStartX = p.x;
       this.aimDragStartY = p.y;
       this.aimDragStartAngle = this.aimAngle;
+      this.aimFromSideWall = this._isSideAimBand(p);
+      if (this.aimFromSideWall) {
+        this._updateAimFromPointer(p);
+        this.aimDragMoved = true;
+      }
     }
 
     _onPointerMove(p) {
       if (!this.isAiming || this.isShooting || this.gameOver) return;
       if (!this.input.activePointer.isDown) return;
-      const dx = p.x - this.aimDragStartX;
-      const dy = p.y - (this.aimDragStartY ?? p.y);
-      let ang = this.aimDragStartAngle + dx * AIM_DRAG_SENSITIVITY;
-      ang = Phaser.Math.Clamp(ang, MIN_AIM_ANGLE, MAX_AIM_ANGLE);
-      if (
-        Math.hypot(dx, dy) >= MIN_AIM_DRAG_PX ||
-        Math.abs(ang - this.aimDragStartAngle) >= MIN_AIM_ANGLE_DELTA
-      ) {
-        this.aimDragMoved = true;
+      if (this.aimFromSideWall) {
+        this._updateAimFromPointer(p);
+      } else {
+        this._updateAimFromPointer(p, { allowDragDelta: true });
       }
-      this.aimAngle = ang;
-      this.shooter?.setAimAngle(ang);
     }
 
     async _onPointerUp() {
@@ -415,10 +457,10 @@ export function createMonsterRescueScene(Phaser) {
 
       if (nx - r < left) {
         nx = left + r;
-        nvx = Math.abs(nvx) || 80;
+        nvx = Math.abs(vx) > 1 ? Math.abs(vx) : Math.abs(vy) * 0.35 + 120;
       } else if (nx + r > right) {
         nx = right - r;
-        nvx = -Math.abs(nvx) || -80;
+        nvx = Math.abs(vx) > 1 ? -Math.abs(vx) : -(Math.abs(vy) * 0.35 + 120);
       }
 
       return { x: nx, y: ny, vx: nvx, vy: nvy };
@@ -437,7 +479,8 @@ export function createMonsterRescueScene(Phaser) {
       const maxSteps = 900;
       const dt = 1 / 60;
       const ceilingY = this.layout.originY - r;
-      const floorY = this.layout.shooterZoneTop ?? h - r - 8;
+      /** Only reject shots that fall back into the cannon — not shallow horizontal wall approaches. */
+      const floorY = (this.layout.shooterY ?? h - 48) + r * 0.35;
 
       while (steps++ < maxSteps) {
         const speed = Math.hypot(vx, vy);
@@ -460,7 +503,7 @@ export function createMonsterRescueScene(Phaser) {
             return { row: 0, col: Phaser.Math.Clamp(col, 0, 10), x, y };
           }
 
-          if (y > floorY) return null;
+          if (y > floorY && vy > 0) return null;
 
           const hit = this._findGridHit(x, y);
           if (hit) {
