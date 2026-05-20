@@ -153,6 +153,7 @@ export default function App() {
   const [ladderCollectionOpen, setLadderCollectionOpen] = useState(false);
   const [ladderGearOpen, setLadderGearOpen] = useState(false);
   const [ladderChestDrop, setLadderChestDrop] = useState(null);
+  const [ladderChestAutoReveal, setLadderChestAutoReveal] = useState(false);
   const [onlineRoom, setOnlineRoom] = useState(null);
   const [onlineSlot, setOnlineSlot] = useState(() => loadOnlineSession()?.playerSlot ?? null);
   const [player1, setPlayer1] = useState(null);
@@ -1056,7 +1057,10 @@ export default function App() {
       saveMessage,
     });
     setPhase('monsterRescueReward');
-    if (rewards?.chestDrop) setLadderChestDrop(rewards.chestDrop);
+    if (rewards?.chestDrop) {
+      setLadderChestDrop(rewards.chestDrop);
+      setLadderChestAutoReveal(true);
+    }
     if (rewards?.expPack?.levelsGained > 0) playSound('levelUp');
     if (won) playSound('win');
     else playSound('lose');
@@ -1861,7 +1865,12 @@ export default function App() {
       <MonsterLadderChestRevealModal
         visible={!!ladderChestDrop}
         drop={ladderChestDrop}
-        onClose={() => setLadderChestDrop(null)}
+        autoReveal={ladderChestAutoReveal}
+        kicker={ladderChestAutoReveal ? 'Monster Rescue Chest' : 'Monster Ladder Chest'}
+        onClose={() => {
+          setLadderChestDrop(null);
+          setLadderChestAutoReveal(false);
+        }}
       />
 
       <MonsterGearScreen

@@ -46,7 +46,7 @@ export default function MonsterRescueHubScreen({
           </View>
         </View>
         <Text style={rescueUiStyles.blurb}>
-          Clear every bubble before time runs out. Drag the cannon left/right to aim, then release to shoot. Sub-levels 5 and 10 award Monster Ladder chests.
+          Clear every bubble before time runs out. Drag the cannon left/right to aim, then release to shoot. Sub-levels 5 and 10 drop a chest that opens right away with your reward.
         </Text>
         <Text style={rescueUiStyles.saveHint}>
           {hasPlayerKey

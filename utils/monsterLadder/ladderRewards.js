@@ -171,16 +171,28 @@ export function openMonsterLadderChest(gameData, profileId, type) {
   const gd = cloneGameData(gameData);
   const profile = getPlayerProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'Profile not found.' };
+  const opened = openLadderChestOnProfile(profile, type);
+  if (opened.error) return { gameData: gd, error: opened.error };
+  return { gameData: gd, drop: opened.drop, ladderShardsTotal: opened.ladderShardsTotal };
+}
+
+/**
+ * Roll and grant a ladder chest reward on a profile (consumes one chest from inventory).
+ * @param {object} profile
+ * @param {'gear'|'monster'} type
+ */
+export function openLadderChestOnProfile(profile, type) {
+  if (type !== 'gear' && type !== 'monster') return { error: 'Unknown chest type.' };
   const ml = getMonsterLadderState(profile);
   const inv = ensureChestInventory(ml);
-  if ((inv[type] || 0) <= 0) return { gameData: gd, error: 'No chest available.' };
+  if ((inv[type] || 0) <= 0) return { error: 'No chest available.' };
   inv[type] -= 1;
   const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
   const drop = resolveChestOpen(profile, ml, type);
   ml.pity[pityKey] += 1;
   ml.stats[pityKey] += 1;
   setMonsterLadderState(profile, ml);
-  return { gameData: gd, drop, ladderShardsTotal: ml.ladderShards };
+  return { drop, ladderShardsTotal: ml.ladderShards };
 }
 
 /** @param {object} profile @param {import('./ladderProgress').MonsterLadderState} ml @param {'gear'|'monster'} type */

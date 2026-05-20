@@ -21,10 +21,9 @@ import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { applyStageClear, normalizeMonsterRescue } from './monsterRescue/progress';
 import { computeStageRewardsFromLevel } from './monsterRescue/rewards';
-import { awardRescueSubChest } from './monsterRescue/rescueChestRewards';
+import { awardAndOpenRescueChest } from './monsterRescue/rescueChestRewards';
 import { decodeRescueLevel } from './monsterRescue/stages';
 import { sanitizePlayerProfile } from './profileIntegrity';
-import { openMonsterLadderChest } from './monsterLadder/ladderRewards';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import {
   migrateLadderMonsterTemplateIds,
@@ -357,35 +356,25 @@ export function applyMonsterRescueStageResult(gameData, profileId, stageId, runS
   const { subLevel } = decodeRescueLevel(stageId);
 
   if (won) {
+    const idx = gd.players.findIndex((p) => p.id === profileId);
     let next = applyStageClear(
-      profile,
+      gd.players[idx],
       stageId,
       runSummary?.bubblesCleared ?? 0,
       rewards.coins,
     );
     next.coins += rewards.coins;
+    gd.players[idx] = next;
 
-    const chest = awardRescueSubChest(next, subLevel);
-    let chestDrop = null;
-    let outGd = gd;
-    if (chest.chestAwarded) {
-      const opened = openMonsterLadderChest(outGd, profileId, chest.chestAwarded);
-      if (!opened.error && opened.drop) {
-        chestDrop = opened.drop;
-        outGd = opened.gameData;
-        next = outGd.players.find((p) => p.id === profileId) ?? next;
-      } else if (!opened.error) {
-        outGd = opened.gameData;
-        next = outGd.players.find((p) => p.id === profileId) ?? next;
-      }
-    }
+    const chest = awardAndOpenRescueChest(next, subLevel);
+    const chestDrop = chest.chestDrop ?? null;
+    gd.players[idx] = next;
 
     const ownedId = next.selectedMonsterId || next.ownedMonsters?.[0]?.id;
     const expPack = grantExpInWallet(next, ownedId, rewards.exp);
-    const idx = outGd.players.findIndex((p) => p.id === profileId);
-    outGd.players[idx] = next;
+    gd.players[idx] = next;
     return {
-      gameData: outGd,
+      gameData: gd,
       rewards: {
         ...rewards,
         expPack,

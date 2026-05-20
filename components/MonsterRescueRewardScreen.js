@@ -1,8 +1,16 @@
 import React from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
+import { getLadderGear } from '../utils/monsterLadder/ladderGearCatalog';
+import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import RescueGameFrame from './monsterRescue/RescueGameFrame';
 import { rescueUiStyles } from './monsterRescue/rescueUiTheme';
+
+function rescueChestRewardName(drop) {
+  if (!drop) return null;
+  if (drop.kind === 'gear') return getLadderGear(drop.id)?.name ?? drop.name ?? drop.id;
+  return getLadderMonsterTemplate(drop.id)?.name ?? drop.name ?? drop.id;
+}
 
 export default function MonsterRescueRewardScreen({
   won,
@@ -14,12 +22,11 @@ export default function MonsterRescueRewardScreen({
   onRetry,
 }) {
   const r = rewards ?? {};
-  const chestLine = r.chestAwarded
-    ? r.chestDrop
-      ? `Chest opened — check your reward!`
-      : `+1 ${r.chestAwarded === 'gear' ? 'Gear' : 'Monster'} chest (Monster Ladder)`
-    : r.chestBlocked
-      ? 'Daily ladder chest already claimed today'
+  const rewardName = rescueChestRewardName(r.chestDrop);
+  const chestLine = r.chestDrop && rewardName
+    ? `Chest opened: ${rewardName}`
+    : r.chestAwarded
+      ? `${r.chestAwarded === 'gear' ? 'Gear' : 'Monster'} chest dropped — opening now…`
       : null;
 
   return (

@@ -16,12 +16,18 @@ function rewardName(drop) {
   return getLadderMonsterTemplate(drop.id)?.name ?? drop.name ?? drop.id;
 }
 
-export default function MonsterLadderChestRevealModal({ visible, drop, onClose }) {
+export default function MonsterLadderChestRevealModal({
+  visible,
+  drop,
+  onClose,
+  autoReveal = false,
+  kicker = 'Monster Ladder Chest',
+}) {
   const [opened, setOpened] = useState(false);
 
   useEffect(() => {
-    if (visible) setOpened(false);
-  }, [visible, drop?.id, drop?.kind]);
+    if (visible) setOpened(!!autoReveal);
+  }, [visible, drop?.id, drop?.kind, autoReveal]);
 
   if (!drop) return null;
   const ui = RARITY_UI[drop.rarity] ?? RARITY_UI.common;
@@ -31,7 +37,7 @@ export default function MonsterLadderChestRevealModal({ visible, drop, onClose }
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={[styles.card, { borderColor: ui.border }]} {...gameSurfaceDataProps()}>
-          <Text style={styles.kicker}>Monster Ladder Chest</Text>
+          <Text style={styles.kicker}>{kicker}</Text>
           <TouchableOpacity
             style={[styles.orb, { backgroundColor: ui.chipBg, borderColor: ui.border }]}
             onPress={() => setOpened(true)}

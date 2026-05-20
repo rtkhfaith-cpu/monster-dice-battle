@@ -1,3 +1,4 @@
+import { openLadderChestOnProfile } from '../monsterLadder/ladderRewards';
 import { getMonsterLadderState, setMonsterLadderState } from '../monsterLadder/ladderProfile';
 import { getRescueSubKind } from './stages';
 
@@ -11,34 +12,24 @@ function ensureChestInventory(ml) {
 }
 
 /**
- * Award ladder chest inventory on rescue sub-level clear (same rules as Monster Ladder).
+ * Sub-levels 5 and 10 drop a ladder chest and open it immediately (no daily ladder limit).
  * @param {object} profile
  * @param {number} subLevel 1–10 within a theme
  */
-export function awardRescueSubChest(profile, subLevel) {
-  const ml = getMonsterLadderState(profile);
+export function awardAndOpenRescueChest(profile, subLevel) {
   const kind = getRescueSubKind(subLevel);
-  let chestAwarded = null;
-  let chestBlocked = false;
-
-  if (kind === 'miniBoss') {
-    if (!ml.gearChestClaimedToday) {
-      ensureChestInventory(ml).gear += 1;
-      ml.gearChestClaimedToday = true;
-      chestAwarded = 'gear';
-    } else {
-      chestBlocked = true;
-    }
-  } else if (kind === 'bigBoss') {
-    if (!ml.monsterChestClaimedToday) {
-      ensureChestInventory(ml).monster += 1;
-      ml.monsterChestClaimedToday = true;
-      chestAwarded = 'monster';
-    } else {
-      chestBlocked = true;
-    }
+  const chestAwarded = kind === 'miniBoss' ? 'gear' : kind === 'bigBoss' ? 'monster' : null;
+  if (!chestAwarded) {
+    return { chestAwarded: null, chestBlocked: false, chestDrop: null };
   }
 
+  const ml = getMonsterLadderState(profile);
+  ensureChestInventory(ml)[chestAwarded] += 1;
   setMonsterLadderState(profile, ml);
-  return { chestAwarded, chestBlocked };
+
+  const opened = openLadderChestOnProfile(profile, chestAwarded);
+  if (opened.error) {
+    return { chestAwarded, chestBlocked: false, chestDrop: null };
+  }
+  return { chestAwarded, chestBlocked: false, chestDrop: opened.drop ?? null };
 }
