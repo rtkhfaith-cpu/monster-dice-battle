@@ -258,6 +258,16 @@ export const rescueUiStyles = StyleSheet.create({
   statRow: { color: '#e2e8f0', fontWeight: '600', fontSize: 13 },
   statDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 6 },
   statReward: { color: RESCUE_COLORS.rewardGold, fontWeight: '800', fontSize: 15 },
+  saveStatus: {
+    color: RESCUE_COLORS.sub,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 4,
+    paddingHorizontal: 8,
+  },
   primaryBtn: {
     paddingVertical: 12,
     paddingHorizontal: 24,
