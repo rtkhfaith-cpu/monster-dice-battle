@@ -50,20 +50,9 @@ export default function MonsterRescueHubScreen({
         </Text>
         <Text style={rescueUiStyles.saveHint}>
           {hasPlayerKey
-            ? 'Progress auto-saves on this device. Tap Sync Cloud before closing the browser to keep monster levels and rescue progress.'
-            : 'Progress saves on this device only. Set a Player Key on the home screen and use Cloud sync there (or below) so levels survive after reopening the browser.'}
+            ? 'After each stage, progress saves automatically on this device and syncs to the cloud — no extra button needed.'
+            : 'After each stage, progress saves on this device. Set a 4-digit Player Key on the home screen for automatic cloud backup when you finish a stage.'}
         </Text>
-        {onCloudSync ? (
-          <TouchableOpacity
-            onPress={onCloudSync}
-            style={rescueUiStyles.cloudSyncBtn}
-            activeOpacity={0.88}
-          >
-            <Text style={rescueUiStyles.cloudSyncBtnText}>
-              {hasPlayerKey ? 'Sync to cloud' : 'Cloud sync (needs Player Key)'}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
       </View>
 
       <View style={rescueUiStyles.noticeBar}>
