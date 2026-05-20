@@ -17,6 +17,7 @@ import { ART } from '../utils/artDirection';
 import { FONT_BATTLE_COMBAT, FONT_BATTLE_COMMENT } from '../utils/gameFonts';
 import { BATTLE } from '../utils/gameTheme';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
+import { gameSurfaceDataProps, WEB_GAME_TOUCH_STYLE } from '../utils/webGameTouch';
 
 function MicroBar({ ratio, color, compact }) {
   const pct = Math.max(0, Math.min(1, ratio));
@@ -215,6 +216,7 @@ export default function RpgBattleArena({
       style={[
         styles.arenaOuter,
         battleDim && styles.arenaDim,
+        WEB_GAME_TOUCH_STYLE,
         {
           transform: [
             { translateX: shakeX ?? 0 },
@@ -222,6 +224,7 @@ export default function RpgBattleArena({
           ],
         },
       ]}
+      {...gameSurfaceDataProps()}
     >
       <ImageBackground
         source={{ uri: battleGroundUri }}

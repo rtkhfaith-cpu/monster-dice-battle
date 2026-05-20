@@ -18,6 +18,7 @@ import { normalizePlayerKey, validatePlayerKeyPair } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
 import { groupOwnedMonsters, MAX_MERGE_TIER, pickPrimaryInstance } from '../utils/mergeSystem';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
+import { gameSurfaceDataProps, WEB_GAME_TOUCH_STYLE } from '../utils/webGameTouch';
 
 const MAX_VISIBLE_PROFILES = 4;
 
@@ -656,8 +657,8 @@ export default function HomeSetupScreen({
     ) : null;
 
   return (
-    <View style={styles.root}>
-      <View style={styles.gameFrame}>
+    <View style={[styles.root, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
+      <View style={[styles.gameFrame, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
         <ImageBackground
           source={{ uri: GAME_ASSETS.homeMainMenu }}
           resizeMode="cover"

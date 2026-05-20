@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import {
+  applyWebCanvasTouchGuards,
+  attachWebTouchGuards,
+  gameSurfaceDataProps,
+  WEB_GAME_TOUCH_STYLE,
+} from '../utils/webGameTouch';
 
 export default function PhaserBattleView({
   battleState,
@@ -44,6 +50,7 @@ export default function PhaserBattleView({
     let disposed = false;
     let ready = false;
     let readyTimer = null;
+    let detachTouchGuards = null;
 
     async function mountPhaser() {
       try {
@@ -75,6 +82,11 @@ export default function PhaserBattleView({
         });
 
         gameRef.current = game;
+        if (hostRef.current) {
+          detachTouchGuards?.();
+          detachTouchGuards = attachWebTouchGuards(hostRef.current);
+        }
+        applyWebCanvasTouchGuards(game.canvas);
         readyTimer = setTimeout(() => {
           if (disposed || ready) return;
           const msg = 'Phaser battle renderer did not start in time.';
@@ -100,6 +112,8 @@ export default function PhaserBattleView({
     mountPhaser();
     return () => {
       disposed = true;
+      detachTouchGuards?.();
+      detachTouchGuards = null;
       if (readyTimer) clearTimeout(readyTimer);
       sceneRef.current = null;
       if (gameRef.current) {
@@ -127,14 +141,16 @@ export default function PhaserBattleView({
   }
 
   return (
-    <View style={[styles.wrap, { height }]}>
+    <View style={[styles.wrap, { height }, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
       {React.createElement('div', {
         ref: hostRef,
+        'data-game-surface': 'true',
         style: {
           width: '100%',
           height: '100%',
           overflow: 'hidden',
           borderRadius: 0,
+          ...WEB_GAME_TOUCH_STYLE,
         },
       })}
       {error ? (

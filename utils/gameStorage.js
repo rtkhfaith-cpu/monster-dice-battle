@@ -23,6 +23,7 @@ import { applyStageClear, normalizeMonsterRescue } from './monsterRescue/progres
 import { computeStageRewardsFromLevel } from './monsterRescue/rewards';
 import { awardRescueSubChest } from './monsterRescue/rescueChestRewards';
 import { decodeRescueLevel } from './monsterRescue/stages';
+import { sanitizePlayerProfile } from './profileIntegrity';
 import { openMonsterLadderChest } from './monsterLadder/ladderRewards';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import {
@@ -340,6 +341,7 @@ function normalizePlayerProfile(p) {
   p.monsterRescue = normalizeMonsterRescue(p.monsterRescue);
   syncLadderRewardsToMainInventory(p);
   delete p.ladderProgress;
+  sanitizePlayerProfile(p);
 }
 
 /**

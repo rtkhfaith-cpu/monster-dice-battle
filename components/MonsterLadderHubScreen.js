@@ -18,6 +18,11 @@ import {
 import { LADDER_PITY, LADDER_RARITY_ORDER, LADDER_RARITY_WEIGHTS, LADDER_SHARDS_BY_RARITY } from '../utils/monsterLadder/ladderConstants';
 import { getLadderRewardDayKey, isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
+import {
+  gameSurfaceDataProps,
+  WEB_DECORATIVE_IMAGE_PROPS,
+  WEB_GAME_TOUCH_STYLE,
+} from '../utils/webGameTouch';
 import { formatGearBonusLines } from '../utils/cosmetics';
 
 const RARITY_TONE = {
@@ -187,7 +192,12 @@ function ChestOddsCard({ title, sub, type }) {
   return (
     <View style={[styles.oddsCard, type === 'monster' && styles.oddsCardMonster]}>
       <View style={styles.oddsHeaderRow}>
-        <Image source={{ uri: GAME_ASSETS.chestClosed }} style={styles.oddsChestImg} resizeMode="contain" />
+        <Image
+          source={{ uri: GAME_ASSETS.chestClosed }}
+          style={styles.oddsChestImg}
+          resizeMode="contain"
+          {...WEB_DECORATIVE_IMAGE_PROPS}
+        />
         <View style={styles.oddsTitleWrap}>
           <Text style={styles.oddsTitle}>{title}</Text>
           <Text style={styles.oddsSub}>{sub}</Text>
@@ -311,7 +321,7 @@ function ChestCard({ title, state, type, onPress }) {
   const uri = claimed ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed;
   const body = (
     <>
-      <Image source={{ uri }} style={styles.chestImg} resizeMode="contain" />
+      <Image source={{ uri }} style={styles.chestImg} resizeMode="contain" {...WEB_DECORATIVE_IMAGE_PROPS} />
       <View style={styles.chestCopy}>
         <Text style={styles.chestTitle}>{title}</Text>
         <Text style={styles.chestState}>{exchange ? 'Open' : state}</Text>
@@ -440,8 +450,8 @@ export default function MonsterLadderHubScreen({
       : 'Select one of your own monsters first.';
 
   return (
-    <View style={styles.root}>
-      <View style={styles.gameFrame}>
+    <View style={[styles.root, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
+      <View style={[styles.gameFrame, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
         <ImageBackground
           source={{ uri: GAME_ASSETS.monsterLadderBackground }}
           style={styles.backgroundLayer}

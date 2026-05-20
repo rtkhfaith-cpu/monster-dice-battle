@@ -4,6 +4,7 @@ import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderGear } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
+import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
 
 function rarityLabel(rarity) {
   return RARITY_UI[rarity]?.label ?? rarity ?? 'Reward';
@@ -29,7 +30,7 @@ export default function MonsterLadderChestRevealModal({ visible, drop, onClose }
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={[styles.card, { borderColor: ui.border }]}>
+        <View style={[styles.card, { borderColor: ui.border }]} {...gameSurfaceDataProps()}>
           <Text style={styles.kicker}>Monster Ladder Chest</Text>
           <TouchableOpacity
             style={[styles.orb, { backgroundColor: ui.chipBg, borderColor: ui.border }]}
@@ -40,6 +41,7 @@ export default function MonsterLadderChestRevealModal({ visible, drop, onClose }
               source={{ uri: opened ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
               style={styles.chestImg}
               resizeMode="contain"
+              {...WEB_DECORATIVE_IMAGE_PROPS}
             />
           </TouchableOpacity>
           {!opened ? (

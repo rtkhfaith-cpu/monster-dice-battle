@@ -4,6 +4,8 @@
 import { getSaveApiBaseUrl, loadSaveApiConfig } from '../../utils/saveApiConfig';
 import { normalizePlayerKey } from '../../utils/playerKey';
 import { loadGameSave, saveGameSave } from './saveService';
+import { profileBlockedForCloudSync } from '../../utils/profileIntegrity';
+import { getPlayerProfile } from '../../utils/gameStorage';
 import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
 
 function apiHostLabel(base) {
@@ -437,6 +439,14 @@ export async function deleteCloudProfile(profileID, playerKey) {
  */
 export async function syncProfileToCloud(profileID, gameData = null) {
   const gd = gameData || (await loadGameSave());
+  const profile = getPlayerProfile(gd, profileID);
+  if (profile && profileBlockedForCloudSync(profile)) {
+    if (DEV) console.warn('[cloud-save] sync blocked — profile failed integrity checks', profileID);
+    return {
+      ok: false,
+      error: 'Save could not sync: profile data looks invalid. Play normally or contact support.',
+    };
+  }
   const cloud = toCloudProfile(gd, profileID);
   if (!cloud) return { ok: false, error: 'Profile not found locally' };
   if (!cloud.playerKey || normalizePlayerKey(cloud.playerKey).length !== 4) {

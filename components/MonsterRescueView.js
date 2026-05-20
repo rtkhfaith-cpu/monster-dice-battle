@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { RESCUE_COLORS } from './monsterRescue/rescueUiTheme';
+import {
+  applyWebCanvasTouchGuards,
+  attachWebTouchGuards,
+  gameSurfaceDataProps,
+  WEB_GAME_TOUCH_STYLE,
+} from '../utils/webGameTouch';
 
 function hostDimensions(el, fallbackHeight, fallbackWidth) {
   const w = Math.max(
@@ -52,6 +58,7 @@ export default function MonsterRescueView({
     let ready = false;
     let resizeObserver = null;
     let resizeTimer = null;
+    let detachTouchGuards = null;
 
     async function mountPhaser() {
       try {
@@ -112,6 +119,11 @@ export default function MonsterRescueView({
           });
 
           gameRef.current = game;
+          if (hostRef.current) {
+            detachTouchGuards?.();
+            detachTouchGuards = attachWebTouchGuards(hostRef.current);
+          }
+          applyWebCanvasTouchGuards(game.canvas);
 
           const handleReady = (scene) => markReady(scene);
           const handleFinish = (payload) => onFinishRef.current?.(payload);
@@ -201,6 +213,8 @@ export default function MonsterRescueView({
 
     return () => {
       disposed = true;
+      detachTouchGuards?.();
+      detachTouchGuards = null;
       resizeObserver?.disconnect();
       if (readyTimer) clearTimeout(readyTimer);
       if (resizeTimer) clearTimeout(resizeTimer);
@@ -223,14 +237,16 @@ export default function MonsterRescueView({
   }
 
   return (
-    <View style={[styles.wrap, { height }]}>
+    <View style={[styles.wrap, { height }, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
       {React.createElement('div', {
         ref: hostRef,
+        'data-game-surface': 'true',
         style: {
           width: '100%',
           height: '100%',
           minHeight: height,
           overflow: 'hidden',
+          ...WEB_GAME_TOUCH_STYLE,
         },
       })}
       {loading && !error ? (

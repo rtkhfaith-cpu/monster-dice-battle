@@ -1,4 +1,5 @@
 import { Platform, StyleSheet } from 'react-native';
+import { WEB_GAME_TOUCH_STYLE } from '../../utils/webGameTouch';
 
 /** Quest-board fantasy tokens (aligned with QuestHubScreen + Monster Ladder). */
 export const RESCUE_COLORS = {
@@ -203,6 +204,7 @@ export const rescueUiStyles = StyleSheet.create({
     backgroundColor: RESCUE_COLORS.canvasBg,
     overflow: 'hidden',
     ...rescueWebShadow,
+    ...WEB_GAME_TOUCH_STYLE,
   },
   rewardScroll: {
     flex: 1,

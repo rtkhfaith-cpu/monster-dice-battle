@@ -47,6 +47,11 @@ import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { chestDropSubtitle, chestDropTitle } from '../utils/mainBattleChest';
 import { RARITY_UI } from '../utils/monsterTemplates';
 import { getGear } from '../utils/cosmetics';
+import {
+  gameSurfaceDataProps,
+  WEB_DECORATIVE_IMAGE_PROPS,
+  WEB_GAME_TOUCH_STYLE,
+} from '../utils/webGameTouch';
 
 const RESULT_SFX_DELAY_MS = 450;
 const PLAYER_ID = 1;
@@ -951,9 +956,9 @@ export default function BattleScreen({
   }), [activeBattler, bannerMessage, labelCpu, labelP1, p1, p2, round]);
 
   return (
-    <View style={styles.root}>
-      <View style={styles.battleFrame}>
-        <View style={styles.arenaField} pointerEvents="box-none">
+    <View style={[styles.root, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
+      <View style={[styles.battleFrame, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
+        <View style={[styles.arenaField, WEB_GAME_TOUCH_STYLE]} pointerEvents="box-none" {...gameSurfaceDataProps()}>
           <View style={styles.arenaInner}>
           {usePhaserBattleRenderer && !phaserFailed ? (
             <>
@@ -1088,6 +1093,7 @@ export default function BattleScreen({
                         source={{ uri: magicIcon }}
                         style={styles.skillActionIcon}
                         resizeMode="contain"
+                        {...WEB_DECORATIVE_IMAGE_PROPS}
                       />
                       <View style={styles.skillTextCol}>
                         <Text style={styles.skillName} numberOfLines={1}>
@@ -1180,6 +1186,7 @@ export default function BattleScreen({
                   source={{ uri: GAME_ASSETS.chestClosed }}
                   style={styles.mainChestImg}
                   resizeMode="contain"
+                  {...WEB_DECORATIVE_IMAGE_PROPS}
                 />
                 {mainChestPhase === 'ready' ? (
                   <Text style={styles.mainChestTapHint}>Tap to open!</Text>
@@ -1198,6 +1205,7 @@ export default function BattleScreen({
                 source={{ uri: GAME_ASSETS.chestOpen }}
                 style={styles.mainChestImgOpen}
                 resizeMode="contain"
+                {...WEB_DECORATIVE_IMAGE_PROPS}
               />
               <Text style={styles.mainChestRevealKicker}>Mini Boss Chest</Text>
               <Text style={styles.mainChestRevealTitle}>{chestDropTitle(mainChestDrop)}</Text>

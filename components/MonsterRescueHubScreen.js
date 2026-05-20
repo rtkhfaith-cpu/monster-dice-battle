@@ -14,6 +14,7 @@ import { describeRescueDifficulty } from '../utils/monsterRescue/difficulty';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import RescueGameFrame from './monsterRescue/RescueGameFrame';
 import { rescueUiStyles } from './monsterRescue/rescueUiTheme';
+import { WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
 
 export default function MonsterRescueHubScreen({
   profileName,
@@ -29,7 +30,12 @@ export default function MonsterRescueHubScreen({
 
       <View style={rescueUiStyles.headerPanel}>
         <View style={rescueUiStyles.titleRow}>
-          <Image source={{ uri: GAME_ASSETS.chestClosed }} style={rescueUiStyles.titleIcon} resizeMode="contain" />
+          <Image
+            source={{ uri: GAME_ASSETS.chestClosed }}
+            style={rescueUiStyles.titleIcon}
+            resizeMode="contain"
+            {...WEB_DECORATIVE_IMAGE_PROPS}
+          />
           <View style={{ flex: 1 }}>
             <Text style={rescueUiStyles.kicker}>Quest 2</Text>
             <Text style={rescueUiStyles.title}>Monster Rescue</Text>
