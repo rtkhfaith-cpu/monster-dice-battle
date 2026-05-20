@@ -51,6 +51,8 @@ export default function MonsterRescueView({
     let disposed = false;
     let readyTimer = null;
     let ready = false;
+    /** @type {ResizeObserver|null} */
+    let resizeObserver = null;
 
     async function mountPhaser() {
       try {
@@ -91,7 +93,7 @@ export default function MonsterRescueView({
             const msg = 'Monster Rescue did not start in time.';
             setError(msg);
             onErrorRef.current?.(msg);
-          }, 4000);
+          }, 15000);
 
           const handleReady = (scene) => {
             ready = true;
@@ -123,11 +125,17 @@ export default function MonsterRescueView({
         };
 
         if (!tryStart()) {
-          requestAnimationFrame(() => {
-            if (!tryStart()) {
-              setTimeout(() => tryStart(), 50);
-            }
-          });
+          const waitForSize = () => {
+            if (disposed || tryStart()) return;
+            requestAnimationFrame(waitForSize);
+          };
+          requestAnimationFrame(waitForSize);
+          if (typeof ResizeObserver !== 'undefined' && hostRef.current) {
+            resizeObserver = new ResizeObserver(() => {
+              if (!disposed) tryStart();
+            });
+            resizeObserver.observe(hostRef.current);
+          }
         }
       } catch (err) {
         const msg = err?.message || 'Monster Rescue failed to load.';
@@ -143,6 +151,7 @@ export default function MonsterRescueView({
 
     return () => {
       disposed = true;
+      resizeObserver?.disconnect();
       if (readyTimer) clearTimeout(readyTimer);
       if (gameRef.current) {
         gameRef.current._rescueCleanup?.();

@@ -5,7 +5,6 @@ import BubbleSystem from './BubbleSystem';
 import ComboManager from './ComboManager';
 import RewardManager from './RewardManager';
 import PuzzleHUD from './PuzzleHUD';
-import { NORMAL_MONSTER_IMAGE_ASSETS, LADDER_MONSTER_IMAGE_ASSETS } from '../../../utils/monsterImageAssets';
 import { getRescueBootStageId } from './bootConfig';
 import { preloadRescueAssets, rescueBackgroundForStage, RESCUE_SCENE_ASSETS } from './rescueAssets';
 
@@ -32,14 +31,6 @@ export function createMonsterRescueScene(Phaser) {
       const bgPath = rescueBackgroundForStage(stageId);
       this.load.image(RESCUE_SCENE_ASSETS.bg.key, bgPath);
       preloadRescueAssets(this);
-
-      const pool = [
-        ...Object.entries(NORMAL_MONSTER_IMAGE_ASSETS),
-        ...Object.entries(LADDER_MONSTER_IMAGE_ASSETS).slice(0, 20),
-      ];
-      for (const [templateId, asset] of pool) {
-        this.load.image(`rescue_monster_${templateId}`, asset.path);
-      }
     }
 
     create() {

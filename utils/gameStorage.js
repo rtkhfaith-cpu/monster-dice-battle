@@ -238,21 +238,39 @@ function normalizeWalletMonsters(wallet) {
 
 /** Copy ladder-exclusive monsters into main inventory so they appear in the home roster. */
 export function ensureLadderMonstersInMainInventory(profile) {
-  syncLadderRewardsToMainInventory(profile);
+  return syncLadderRewardsToMainInventory(profile);
+}
+
+/** Normalize ladder + merge inventories after cloud load or local repair. */
+export function repairPlayerProfileInventory(profile) {
+  if (!profile) return false;
+  profile.monsterLadder = normalizeMonsterLadder(profile.monsterLadder, profile.ladderProgress);
+  return syncLadderRewardsToMainInventory(profile);
 }
 
 function syncLadderRewardsToMainInventory(profile) {
-  migrateLadderMonsterTemplateIds(profile);
+  let changed = migrateLadderMonsterTemplateIds(profile);
   const ml = getMonsterLadderState(profile);
-  if (!ml) return;
+  if (!ml) return changed;
 
   const ownedGear = new Set(profile.cosmeticsOwned || []);
   for (const gearId of ml.ownedGear || []) {
     if (getGear(gearId)) ownedGear.add(gearId);
   }
-  profile.cosmeticsOwned = [...ownedGear];
+  const prevGear = profile.cosmeticsOwned || [];
+  const nextGear = [...ownedGear];
+  if (
+    prevGear.length !== nextGear.length
+    || nextGear.some((id, i) => prevGear[i] !== id)
+  ) {
+    profile.cosmeticsOwned = nextGear;
+    changed = true;
+  }
 
-  if (!Array.isArray(profile.ownedMonsters)) profile.ownedMonsters = [];
+  if (!Array.isArray(profile.ownedMonsters)) {
+    profile.ownedMonsters = [];
+    changed = true;
+  }
   const mainTemplateIds = new Set(
     profile.ownedMonsters.map((m) => resolveLadderTemplateId(m.templateId) ?? m.templateId),
   );
@@ -261,6 +279,7 @@ function syncLadderRewardsToMainInventory(profile) {
   for (const lm of ml.ownedMonsters || []) {
     const canonical = resolveLadderTemplateId(lm.templateId);
     if (!canonical || mainTemplateIds.has(canonical)) continue;
+    changed = true;
     const row = {
       ...lm,
       templateId: canonical,
@@ -281,6 +300,7 @@ function syncLadderRewardsToMainInventory(profile) {
   for (const om of profile.ownedMonsters || []) {
     const canonical = resolveLadderTemplateId(om.templateId);
     if (!canonical || ladderTemplateIds.has(canonical)) continue;
+    changed = true;
     const row = generateLadderOwnedMonster(canonical, om.nickname || '');
     row.id = om.id;
     row.level = om.level ?? 1;
@@ -294,6 +314,7 @@ function syncLadderRewardsToMainInventory(profile) {
     if (!ml.activeMonsterId) ml.activeMonsterId = row.id;
   }
   setMonsterLadderState(profile, ml);
+  return changed;
 }
 
 function normalizePlayerProfile(p) {

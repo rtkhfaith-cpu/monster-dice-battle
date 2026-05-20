@@ -77,6 +77,7 @@ import {
   mergeMonsterParts,
   mergeOwnedMonsters,
   ensureLadderMonstersInMainInventory,
+  repairPlayerProfileInventory,
   setActiveProfile,
   setPlayerKeyForProfile,
   setProfileSelectedMonster,
@@ -406,7 +407,7 @@ export default function App() {
       const normalized = activeId ? enforceSingleActiveProfile(gd, activeId) : gd;
       if (activeId) {
         const profile = getPlayerProfile(normalized, activeId);
-        if (profile) ensureLadderMonstersInMainInventory(profile);
+        if (profile) repairPlayerProfileInventory(profile);
       }
       setGameData(normalized);
       setSetupP1ProfileId(activeId);
@@ -414,15 +415,6 @@ export default function App() {
       syncSetupMonstersFromProfiles(normalized, activeId, null, 'onePlayer');
     });
   }, []);
-
-  useEffect(() => {
-    if (!gameData || !setupP1ProfileId) return;
-    const gd = cloneGameData(gameData);
-    const profile = getPlayerProfile(gd, setupP1ProfileId);
-    if (!profile) return;
-    ensureLadderMonstersInMainInventory(profile);
-    persistSave(gd, 'ladder_inventory_repair', setupP1ProfileId);
-  }, [setupP1ProfileId]);
 
   const activeProfileId = gameData?.session?.activeProfileId ?? null;
 
@@ -656,6 +648,7 @@ export default function App() {
       const resolvedId = String(login.data?.profileID || login.data?.id || profileId).trim();
       let next = applyCloudProfile(baseGd, login.data);
       const applied = next.players?.find((p) => p.id === resolvedId || p.id === profileId);
+      if (applied) repairPlayerProfileInventory(applied);
       if (!applied) {
         setKeyModalError('Could not apply cloud save. Try again or redeploy the save API.');
         return { ok: false, error: 'Could not apply cloud save. Try again or redeploy the save API.' };
@@ -934,9 +927,16 @@ export default function App() {
     const gd = cloneGameData(gameData);
     const profile = getPlayerProfile(gd, setupP1ProfileId);
     if (!profile) return;
-    ensureLadderMonstersInMainInventory(profile);
-    persistSave(gd, 'ladder_main_sync', setupP1ProfileId);
+    const changed = repairPlayerProfileInventory(profile);
     setGameData(gd);
+    if (changed) {
+      void commitSave({
+        reason: 'ladder_main_sync',
+        gameData: gd,
+        profileIDs: setupP1ProfileId,
+        skipCloud: true,
+      });
+    }
   }
 
   function handleClaimMainMiniBossChest(payload) {
@@ -1471,7 +1471,11 @@ export default function App() {
       />
       {phase !== 'menu' && phase !== 'ladder' && phase !== 'battle' && phase !== 'online' ? (
         <>
-          <Text style={styles.gameTitle}>Monster Battle</Text>
+          <Text style={styles.gameTitle}>
+            {phase === 'monsterRescue' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward'
+              ? 'Monster Rescue'
+              : 'Monster Battle'}
+          </Text>
           <View style={styles.coinsRow}>
             <Text style={styles.coinsStripText}>
               Coins 🪙 <Text style={styles.coinsAmt}>{coins}</Text>

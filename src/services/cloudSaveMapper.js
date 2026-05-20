@@ -2,11 +2,10 @@
  * Map local player profile ↔ cloud DynamoDB document (profileID key).
  */
 import { loadAudioSettings, applyAudioSettings } from '../../utils/audioSettings';
-import { getPlayerProfile, cloneGameData } from '../../utils/gameStorage';
+import { getPlayerProfile, cloneGameData, repairPlayerProfileInventory } from '../../utils/gameStorage';
 import { DEFAULT_GEAR_SLOTS } from '../../utils/gearSlots';
 import { normalizePlayerKey } from '../../utils/playerKey';
 import { normalizeMonsterLadder } from '../../utils/monsterLadder/ladderProgress';
-
 /**
  * @param {object} gameData
  * @param {string} profileID
@@ -14,6 +13,8 @@ import { normalizeMonsterLadder } from '../../utils/monsterLadder/ladderProgress
 export function toCloudProfile(gameData, profileID) {
   const p = getPlayerProfile(gameData, profileID);
   if (!p) return null;
+
+  repairPlayerProfileInventory(p);
 
   const monsters = (p.ownedMonsters || []).map((om) => ({
     id: om.id,
@@ -143,6 +144,8 @@ export function applyCloudProfile(gameData, cloud) {
   if (normalized.audioSettings && typeof normalized.audioSettings === 'object') {
     applyAudioSettings(normalized.audioSettings);
   }
+
+  repairPlayerProfileInventory(p);
 
   return gd;
 }
