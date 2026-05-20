@@ -37,19 +37,32 @@ function awardAndOpenDailyBossChest(profile, type) {
   if (ml[claimedKey]) {
     return { chestBlocked: true, chestAwarded: null, chestDrop: null };
   }
-  ensureChestInventory(ml)[type] += 1;
   ml[claimedKey] = true;
-  setMonsterLadderState(profile, ml);
-  const opened = openLadderChestOnProfile(profile, type);
-  if (opened.error) {
-    return { chestBlocked: false, chestAwarded: type, chestDrop: null };
-  }
+  const drop = resolveChestOpen(profile, ml, type);
+  const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
+  ml.pity[pityKey] = (ml.pity[pityKey] || 0) + 1;
+  ml.stats[pityKey] = (ml.stats[pityKey] || 0) + 1;
+  syncLadderStateAfterChest(profile, ml);
   return {
     chestBlocked: false,
     chestAwarded: type,
-    chestDrop: opened.drop ?? null,
-    shardsGained: opened.drop?.shardsGained ?? 0,
+    chestDrop: drop ?? null,
+    shardsGained: drop?.shardsGained ?? 0,
   };
+}
+
+/** Merge chest-side ml fields onto the latest profile ladder state (grantGear may have updated shards/gear). */
+function syncLadderStateAfterChest(profile, ml) {
+  const latest = getMonsterLadderState(profile);
+  latest.pity = { ...latest.pity, ...ml.pity };
+  latest.stats = { ...latest.stats, ...ml.stats };
+  latest.gearChestClaimedToday = ml.gearChestClaimedToday;
+  latest.monsterChestClaimedToday = ml.monsterChestClaimedToday;
+  if (ml.chestInventory) {
+    latest.chestInventory = { ...ensureChestInventory(ml) };
+  }
+  if (ml.activeMonsterId) latest.activeMonsterId = ml.activeMonsterId;
+  setMonsterLadderState(profile, latest);
 }
 
 /**
@@ -182,10 +195,12 @@ export function openLadderChestOnProfile(profile, type) {
   inv[type] -= 1;
   const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
   const drop = resolveChestOpen(profile, ml, type);
-  ml.pity[pityKey] += 1;
-  ml.stats[pityKey] += 1;
-  setMonsterLadderState(profile, ml);
-  return { drop, ladderShardsTotal: ml.ladderShards };
+  ml.pity[pityKey] = (ml.pity[pityKey] || 0) + 1;
+  ml.stats[pityKey] = (ml.stats[pityKey] || 0) + 1;
+  ml.chestInventory = { ...ensureChestInventory(ml) };
+  syncLadderStateAfterChest(profile, ml);
+  const mlFinal = getMonsterLadderState(profile);
+  return { drop, ladderShardsTotal: mlFinal.ladderShards };
 }
 
 /** @param {object} profile @param {import('./ladderProgress').MonsterLadderState} ml @param {'gear'|'monster'} type */
@@ -208,7 +223,7 @@ function resolveChestOpen(profile, ml, type) {
     };
   }
 
-  const gearGrant = grantGearToProfile(profile, roll.id);
+  const gearGrant = grantGearToProfile(profile, roll.id, { ladderState: ml, deferLadderSave: true });
   return {
     ...roll,
     duplicate: gearGrant.duplicate,

@@ -44,7 +44,6 @@ export default class PuzzleHUD {
     movesUntilPush,
     rowPushEvery,
   }) {
-    this.scoreText.setText(`Popped ${score}`);
     this.comboText.setText(combo > 1 ? `Combo x${combo}!` : '');
     this.stageText.setText(stageLabel);
 

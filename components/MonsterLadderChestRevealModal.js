@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Easing, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderGear } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
@@ -26,6 +26,7 @@ export default function MonsterLadderChestRevealModal({
   const [opened, setOpened] = useState(false);
   const chestDropY = useRef(new Animated.Value(-280)).current;
   const revealOpacity = useRef(new Animated.Value(0)).current;
+  const useNativeDriver = Platform.OS !== 'web';
 
   useEffect(() => {
     if (!visible || !drop) return;
@@ -36,9 +37,9 @@ export default function MonsterLadderChestRevealModal({
       toValue: 0,
       friction: 7,
       tension: 42,
-      useNativeDriver: true,
+      useNativeDriver,
     }).start();
-  }, [visible, drop?.id, drop?.kind, autoReveal, chestDropY, revealOpacity]);
+  }, [visible, drop?.id, drop?.kind, autoReveal, chestDropY, revealOpacity, useNativeDriver]);
 
   useEffect(() => {
     if (!opened) {
@@ -49,9 +50,9 @@ export default function MonsterLadderChestRevealModal({
       toValue: 1,
       duration: 280,
       easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
+      useNativeDriver,
     }).start();
-  }, [opened, revealOpacity]);
+  }, [opened, revealOpacity, useNativeDriver]);
 
   if (!drop) return null;
   const ui = RARITY_UI[drop.rarity] ?? RARITY_UI.common;

@@ -1363,6 +1363,7 @@ export default function App() {
         ladderGoldGain: summary?.ladderGoldGain ?? 0,
         ladderGoldTotal: summary?.ladderGoldTotal ?? 0,
         chestDrop: summary?.chestDrop,
+        chestAwarded: summary?.chestAwarded,
         chestBlocked: summary?.chestBlocked,
         shardsGained: summary?.shardsGained ?? 0,
         ladderShardsTotal: summary?.ladderShardsTotal ?? 0,
@@ -1371,9 +1372,15 @@ export default function App() {
       });
       if (summary?.chestDrop) {
         setLadderChestDrop(summary.chestDrop);
-        setLadderChestKicker('Monster Ladder Chest');
+        setLadderChestKicker(
+          summary.chestDrop.kind === 'gear' ? 'Mini Boss Gear Chest' : 'Boss Monster Chest',
+        );
         setLadderChestAutoReveal(true);
         playSound('reward');
+      } else if (iWon && summary?.chestBlocked) {
+        showNotice('Monster Ladder', 'Daily chest already claimed today. Resets at 6:00 PM (Singapore time).');
+      } else if (iWon && summary?.chestAwarded && !summary?.chestDrop) {
+        showNotice('Monster Ladder', 'Chest reward could not be opened. Try again from the ladder hub inventory.');
       }
       const st = summary?.stage;
       const stKind = st ? getStageKind(st.subLevel) : 'normal';

@@ -24,7 +24,12 @@ function profileOwnsGearAnywhere(profile, ml, gearId) {
  *   exchangedForShards?: boolean,
  * }}
  */
-export function grantGearToProfile(profile, gearId) {
+/**
+ * @param {object} [options]
+ * @param {import('./monsterLadder/ladderProgress').MonsterLadderState} [options.ladderState] — mutate this ml instead of re-fetching
+ * @param {boolean} [options.deferLadderSave] — caller will call setMonsterLadderState once
+ */
+export function grantGearToProfile(profile, gearId, options = {}) {
   const gear = getGear(gearId);
   if (!gear || !profile) {
     return {
@@ -36,7 +41,10 @@ export function grantGearToProfile(profile, gearId) {
     };
   }
 
-  const ml = getMonsterLadderState(profile);
+  const ml = options.ladderState ?? getMonsterLadderState(profile);
+  const persistLadder = () => {
+    if (!options.deferLadderSave) setMonsterLadderState(profile, ml);
+  };
   const rarity = gear.rarity ?? (getLadderGear(gearId) ? 'common' : null);
   const shardValue = gearDuplicateShardsForRarity(rarity);
   const isLadderExclusive = !!getLadderGear(gearId);
@@ -64,7 +72,7 @@ export function grantGearToProfile(profile, gearId) {
   if (isLadderExclusive) {
     if (!Array.isArray(ml.ownedGear)) ml.ownedGear = [];
     ml.ownedGear.push(gearId);
-    setMonsterLadderState(profile, ml);
+    persistLadder();
   }
 
   return {

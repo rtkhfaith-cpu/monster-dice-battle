@@ -115,6 +115,7 @@ function seedFighter(p) {
     isAiOpponent: !!p.isAiOpponent,
     aiPowerRatio: p.aiPowerRatio ?? null,
     isMainMiniBoss: !!p.isMainMiniBoss,
+    isLadderMonster: !!p.isLadderMonster,
     ladderStageKind: p.ladderStageKind,
   };
 }
@@ -140,6 +141,7 @@ function snapshotFight(f) {
     status: f.status ?? null,
     isAiOpponent: f.isAiOpponent,
     aiPowerRatio: f.aiPowerRatio,
+    isLadderMonster: !!f.isLadderMonster,
   };
 }
 
