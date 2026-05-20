@@ -15,7 +15,9 @@ const SHOOTER_ZONE_H = 58;
 export const AIM_ZONE_PAD_X = 44;
 export const AIM_ZONE_EXTRA_TOP = 40;
 const EVEN_ROW_SPAN = GRID_COLS - 1;
-const RADIUS_RATIO = 0.46;
+/** ~45% larger bubbles vs old 11-col / 0.46 layout, tuned to fill frame width. */
+const RADIUS_RATIO = 0.58;
+const CELL_H_RATIO = 0.84;
 
 export function platformRadiusFor(bubbleRadius) {
   return Math.max(34, bubbleRadius * 1.55);
@@ -43,7 +45,7 @@ export function computeRescueLayout(w, h, fillRows) {
   const horizUnits = EVEN_ROW_SPAN + RADIUS_RATIO * 2;
   const cellW = playWidth / horizUnits;
   const bubbleRadius = cellW * RADIUS_RATIO;
-  const cellH = cellW * 0.86;
+  const cellH = cellW * CELL_H_RATIO;
   const platformRadius = platformRadiusFor(bubbleRadius);
 
   const innerFrameBottom = playTop + playHeight - FRAME_INSET;
@@ -102,6 +104,7 @@ export function computeRescueLayout(w, h, fillRows) {
     aimZoneLeft: playLeft - AIM_ZONE_PAD_X,
     aimZoneRight: playLeft + playWidth + AIM_ZONE_PAD_X,
     gunBaseRight: 18,
+    monsterRightNudgePx: Math.round(w * 0.028),
     wallLeft,
     wallRight,
   };

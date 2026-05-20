@@ -104,13 +104,54 @@ export default class BubbleGrid {
     return cells;
   }
 
-  /** Cells connected to top row (row 0) */
+  /**
+   * Match-3+ cluster touching the attach shot or cells removed in the previous pop.
+   * Avoids board-wide `findFirstMatchCluster` chains that pop unrelated groups.
+   */
+  findMatchClusterNear(positions) {
+    if (!positions?.length) return [];
+    const seeds = new Set();
+    const addSeed = (r, c) => {
+      if (this.inBounds(r, c) && this.get(r, c)) seeds.add(`${r},${c}`);
+    };
+    for (const { row, col } of positions) {
+      addSeed(row, col);
+      for (const [dr, dc] of this.neighborDirs(row)) {
+        addSeed(row + dr, col + dc);
+      }
+    }
+    const clusterVisited = new Set();
+    for (const k of seeds) {
+      if (clusterVisited.has(k)) continue;
+      const [row, col] = k.split(',').map(Number);
+      const cluster = this.findCluster(row, col);
+      for (const p of cluster) clusterVisited.add(`${p.row},${p.col}`);
+      if (cluster.length >= 3) return cluster;
+    }
+    return [];
+  }
+
+  /** Cells connected to the topmost occupied row (ceiling anchor for floating checks). */
   findAnchored() {
     const anchored = new Set();
     const key = (r, c) => `${r},${c}`;
     const queue = [];
-    for (let col = 0; col < this.colsInRow(0); col++) {
-      if (this.get(0, col)) queue.push([0, col]);
+    let seedRow = 0;
+    while (seedRow < GRID_ROWS) {
+      let hasBubble = false;
+      for (let col = 0; col < this.colsInRow(seedRow); col++) {
+        if (this.get(seedRow, col)) {
+          hasBubble = true;
+          break;
+        }
+      }
+      if (hasBubble) break;
+      seedRow += 1;
+    }
+    if (seedRow >= GRID_ROWS) return anchored;
+
+    for (let col = 0; col < this.colsInRow(seedRow); col++) {
+      if (this.get(seedRow, col)) queue.push([seedRow, col]);
     }
     while (queue.length) {
       const [r, c] = queue.shift();
@@ -218,10 +259,16 @@ export default class BubbleGrid {
     }
 
     for (let row = bottom; row >= 1; row--) {
+      const destCols = this.colsInRow(row);
+      const srcCols = this.colsInRow(row - 1);
       for (let col = 0; col < GRID_COLS; col++) this.grid[row][col] = null;
-      const colsAbove = this.colsInRow(row - 1);
-      for (let col = 0; col < colsAbove; col++) {
+      const copyCols = Math.min(destCols, srcCols);
+      for (let col = 0; col < copyCols; col++) {
         this.grid[row][col] = this.grid[row - 1][col];
+      }
+      for (let col = copyCols; col < srcCols; col++) {
+        const cell = this.grid[row - 1][col];
+        if (cell) lost.push({ row: row - 1, col, cell });
       }
     }
 

@@ -10,7 +10,15 @@ export default class PuzzleHUD {
       strokeThickness: 3,
     }).setDepth(100);
 
-    this.comboText = scene.add.text(w / 2, 12, '', {
+    this.timerText = scene.add.text(w / 2, 10, '2:00', {
+      fontFamily: 'Arial',
+      fontSize: '26px',
+      color: '#c4f0ff',
+      stroke: '#000',
+      strokeThickness: 4,
+    }).setOrigin(0.5, 0).setDepth(100);
+
+    this.comboText = scene.add.text(w / 2, 42, '', {
       fontFamily: 'Arial',
       fontSize: '18px',
       color: '#ffe066',
@@ -25,14 +33,6 @@ export default class PuzzleHUD {
       stroke: '#000',
       strokeThickness: 3,
     }).setOrigin(1, 0).setDepth(100);
-
-    this.timerText = scene.add.text(w / 2, 40, '2:00', {
-      fontFamily: 'Arial',
-      fontSize: '14px',
-      color: '#c4f0ff',
-      stroke: '#000',
-      strokeThickness: 3,
-    }).setOrigin(0.5, 0).setDepth(100);
   }
 
   relayout(w) {
@@ -47,12 +47,10 @@ export default class PuzzleHUD {
     stageLabel,
     timeRemainingMs,
     gameTimeLimitMs,
-    bubblesLeft,
     movesUntilPush,
     rowPushEvery,
   }) {
-    const left = typeof bubblesLeft === 'number' ? bubblesLeft : null;
-    this.scoreText.setText(left != null ? `Left ${left}` : `Popped ${score}`);
+    this.scoreText.setText(`Popped ${score}`);
     this.comboText.setText(combo > 1 ? `Combo x${combo}!` : '');
     this.stageText.setText(stageLabel);
 
@@ -69,8 +67,8 @@ export default class PuzzleHUD {
       movesUntilPush <= Math.max(2, Math.floor(rowPushEvery * 0.25));
     this.timerText.setColor(lowTime || lowPush ? '#ff6b6b' : '#c4f0ff');
     const pushPart =
-      typeof movesUntilPush === 'number' ? ` · push in ${movesUntilPush}` : '';
-    this.timerText.setText(`Time ${m}:${pad}${pushPart}`);
+      typeof movesUntilPush === 'number' ? ` · ↑${movesUntilPush}` : '';
+    this.timerText.setText(`${m}:${pad}${pushPart}`);
   }
 
   destroy() {

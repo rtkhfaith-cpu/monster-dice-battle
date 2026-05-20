@@ -9,15 +9,19 @@ export const RESCUE_SHOOTER_MONSTER_KEY = 'rescue_shooter_monster';
 const BARREL_LENGTH = 42;
 const CANNON_PIVOT_Y = -10;
 /** Shooter sprite scales with bubble size (fixed 24px looked tiny on larger layouts). */
-const MONSTER_SIZE_MIN = 40;
-const MONSTER_SIZE_MAX = 78;
-const MONSTER_SIZE_PER_RADIUS = 2.35;
+const MONSTER_SIZE_MIN = 48;
+const MONSTER_SIZE_MAX = 94;
+const MONSTER_SIZE_PER_RADIUS = 2.82;
+const MONSTER_DISPLAY_SCALE = 1.2;
+const AIM_LINE_SCROLL_MS = 48;
+const AIM_PHASE_STEP = 4;
 /** Feet sit on the stone platform ring, not the outer glow. */
 const MONSTER_FOOT_ON_PLATFORM = 0.38;
 
 export function shooterMonsterDisplaySize(bubbleRadius = DEFAULT_BUBBLE_RADIUS) {
   const raw = Math.round((bubbleRadius ?? DEFAULT_BUBBLE_RADIUS) * MONSTER_SIZE_PER_RADIUS);
-  return Math.max(MONSTER_SIZE_MIN, Math.min(MONSTER_SIZE_MAX, raw));
+  const sized = Math.max(MONSTER_SIZE_MIN, Math.min(MONSTER_SIZE_MAX, raw));
+  return Math.round(sized * MONSTER_DISPLAY_SCALE);
 }
 const PREVIEW_COUNT = 3;
 const PREVIEW_SCALE = 0.3;
@@ -91,6 +95,16 @@ export default class RescueShooter {
     this.cannonGfx = scene.add.graphics();
     this.bubbleSlot = scene.add.container(0, 0);
     this.aimLineVisible = true;
+    this.aimDashPhase = 0;
+    this._aimLineTicker = scene.time.addEvent({
+      delay: AIM_LINE_SCROLL_MS,
+      loop: true,
+      callback: () => {
+        const period = AIM_DASH + AIM_GAP;
+        this.aimDashPhase = (this.aimDashPhase + AIM_PHASE_STEP) % period;
+        if (this.aimLineVisible) this._drawAimLine();
+      },
+    });
 
     this.aimPivot.add([this.aimLineGfx, this.cannonGfx, this.bubbleSlot]);
     this.root.add([
@@ -113,8 +127,9 @@ export default class RescueShooter {
   configureLayout(layout) {
     this._layoutRef = layout;
     const gunRight = layout.gunBaseRight ?? GUN_BASE_HALF_W;
-    const gap = layout.canvasWidth * 0.01;
-    const monsterX = gunRight + gap;
+    const gap = layout.canvasWidth * 0.012;
+    const nudge = layout.monsterRightNudgePx ?? 0;
+    const monsterX = gunRight + gap + nudge;
     const footY = this._monsterFootY();
 
     this.monsterImg.setPosition(monsterX, footY);
@@ -261,14 +276,15 @@ export default class RescueShooter {
     return mountTop - BARREL_LENGTH - this.bubbleRadius * 0.32;
   }
 
-  _strokeDottedLine(g, x0, y0, x1, y1) {
+  _strokeDottedLine(g, x0, y0, x1, y1, phase = 0) {
     const dx = x1 - x0;
     const dy = y1 - y0;
     const dist = Math.hypot(dx, dy);
     if (dist < 1) return;
     const ux = dx / dist;
     const uy = dy / dist;
-    let t = 0;
+    const period = AIM_DASH + AIM_GAP;
+    let t = -((phase % period) + period) % period;
     let drawing = true;
     while (t < dist) {
       const seg = drawing ? AIM_DASH : AIM_GAP;
@@ -295,10 +311,11 @@ export default class RescueShooter {
     const y0 = tipY;
     const y1 = tipY - len;
 
+    const phase = this.aimDashPhase ?? 0;
     g.lineStyle(2, 0xffe6a3, 0.5);
-    this._strokeDottedLine(g, x0, y0, x0, y1);
+    this._strokeDottedLine(g, x0, y0, x0, y1, phase);
     g.lineStyle(1, 0xffffff, 0.25);
-    this._strokeDottedLine(g, x0, y0, x0, y1);
+    this._strokeDottedLine(g, x0, y0, x0, y1, phase);
   }
 
   setAimLineVisible(visible) {
@@ -362,6 +379,8 @@ export default class RescueShooter {
   }
 
   destroy() {
+    this._aimLineTicker?.remove?.();
+    this._aimLineTicker = null;
     this.clearLoadedBubble();
     this._clearPreviewBubbles();
     this.root?.destroy();

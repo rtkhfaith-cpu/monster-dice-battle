@@ -17,7 +17,8 @@ export const BUBBLE_TYPES = {
   GEAR: 'gear',
 };
 
-export const GRID_COLS = 11;
+/** Fewer columns = larger bubbles that still fit the play frame width. */
+export const GRID_COLS = 9;
 export const GRID_ROWS = 14;
 export const BUBBLE_RADIUS = 22;
 export const ROW_STAGGER = true;

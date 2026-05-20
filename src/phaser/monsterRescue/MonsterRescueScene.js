@@ -1,4 +1,4 @@
-import { GRID_ROWS, RESCUE_GAME_TIME_SEC, RESCUE_MOVE_TIME_SEC } from '../../../utils/monsterRescue/constants';
+import { GRID_COLS, GRID_ROWS, RESCUE_GAME_TIME_SEC, RESCUE_MOVE_TIME_SEC } from '../../../utils/monsterRescue/constants';
 import { getRescueStage } from '../../../utils/monsterRescue/stages';
 import StageGenerator from './StageGenerator';
 import BubbleSystem from './BubbleSystem';
@@ -110,6 +110,7 @@ export function createMonsterRescueScene(Phaser) {
         canvasWidth: w,
         frameLineLocalY: layout.frameLineLocalY,
         gunBaseRight: layout.gunBaseRight,
+        monsterRightNudgePx: layout.monsterRightNudgePx,
       });
       this.shooter.setAimAngle(this.aimAngle);
       this.shooter.setLoadedBubble(this.currentCell);
@@ -292,7 +293,6 @@ export function createMonsterRescueScene(Phaser) {
 
     _refreshHud() {
       const summary = this.rewardManager.getSummary();
-      const left = this.bubbleSystem.getModel().countBubbles();
       const interval = this.stageDef.rowPushEvery ?? 10;
       const untilPush = Math.max(0, interval - this.movesSinceRowPush);
       this.puzzleHud.update({
@@ -301,7 +301,6 @@ export function createMonsterRescueScene(Phaser) {
         stageLabel: `${this.stageDef.label}`,
         timeRemainingMs: this.timeRemainingMs,
         gameTimeLimitMs: this.gameTimeLimitMs,
-        bubblesLeft: left,
         movesUntilPush: untilPush,
         rowPushEvery: interval,
       });
@@ -535,7 +534,7 @@ export function createMonsterRescueScene(Phaser) {
 
           if (y < ceilingY) {
             const col = Math.floor((x - this.layout.originX) / this.layout.cellW);
-            const attachCol = Phaser.Math.Clamp(col, 0, 10);
+            const attachCol = Phaser.Math.Clamp(col, 0, GRID_COLS - 1);
             const pos = this.bubbleSystem.toWorld(0, attachCol);
             this._pushPathPoint(path, pos.x, pos.y, minPointDist);
             return { row: 0, col: attachCol, path };
@@ -552,7 +551,8 @@ export function createMonsterRescueScene(Phaser) {
               y,
               (row, col) => this.bubbleSystem.toWorld(row, col)
             );
-            const attach = slot ?? hit;
+            if (!slot) return null;
+            const attach = slot;
             const pos = this.bubbleSystem.toWorld(attach.row, attach.col);
             this._pushPathPoint(path, pos.x, pos.y, minPointDist);
             return { row: attach.row, col: attach.col, path };
@@ -680,6 +680,7 @@ export function createMonsterRescueScene(Phaser) {
           canvasWidth: w,
           frameLineLocalY: layout.frameLineLocalY,
           gunBaseRight: layout.gunBaseRight,
+          monsterRightNudgePx: layout.monsterRightNudgePx,
         });
         this.shooter.setAimAngle(this.aimAngle);
         if (this.currentCell) this.shooter.setLoadedBubble(this.currentCell);

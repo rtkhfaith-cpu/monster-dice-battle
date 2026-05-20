@@ -128,30 +128,26 @@ export default class BubbleSystem {
   async resolveAfterAttach(attachRow, attachCol, comboManager, rewardManager) {
     let totalCombo = 0;
     let chain = 0;
+    let searchNear = [{ row: attachRow, col: attachCol }];
 
     while (chain < MAX_RESOLVE_CHAIN) {
+      const matches = this.gridModel.findMatchClusterNear(searchNear);
+      if (matches.length < 3) break;
+
       chain += 1;
-
-      let matches = this.gridModel.findMatchesFrom(attachRow, attachCol);
-      if (matches.length < 3) {
-        matches = this.gridModel.findFirstMatchCluster();
+      const combo = comboManager.onPop(matches.length);
+      totalCombo = Math.max(totalCombo, combo);
+      const cells = await this.popPositions(matches.map((m) => ({ row: m.row, col: m.col })));
+      rewardManager.addPopScore(cells, comboManager.getMultiplier());
+      if (comboManager.combo > 1) {
+        playRescueCombo(comboManager.combo);
+        this.scene.game.events.emit('rescue:combo', comboManager.combo);
       }
+      searchNear = matches.map((m) => ({ row: m.row, col: m.col }));
+    }
 
-      if (matches.length >= 3) {
-        const combo = comboManager.onPop(matches.length);
-        totalCombo = Math.max(totalCombo, combo);
-        const cells = await this.popPositions(matches.map((m) => ({ row: m.row, col: m.col })));
-        rewardManager.addPopScore(cells, comboManager.getMultiplier());
-        if (comboManager.combo > 1) {
-          playRescueCombo(comboManager.combo);
-          this.scene.game.events.emit('rescue:combo', comboManager.combo);
-        }
-        continue;
-      }
-
-      const floating = this.gridModel.findFloatingClusters();
-      if (!floating.length) break;
-
+    const floating = this.gridModel.findFloatingClusters();
+    if (floating.length) {
       comboManager.onPop(floating.length);
       const cells = await this.popPositions(floating);
       rewardManager.addPopScore(cells, comboManager.getMultiplier());

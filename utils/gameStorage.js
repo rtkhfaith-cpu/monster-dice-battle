@@ -353,7 +353,7 @@ export function applyMonsterRescueStageResult(gameData, profileId, stageId, runS
   const profile = gd.players.find((p) => p.id === profileId);
   if (!profile) return { gameData: gd, rewards: null };
 
-  const rewards = computeStageRewardsFromLevel(stageId, runSummary);
+  const rewards = computeStageRewardsFromLevel(stageId, runSummary, won);
   const { subLevel } = decodeRescueLevel(stageId);
 
   if (won) {
@@ -397,17 +397,15 @@ export function applyMonsterRescueStageResult(gameData, profileId, stageId, runS
     };
   }
 
-  const partialCoins = Math.floor((runSummary?.score ?? 0) / 25);
-  profile.coins += partialCoins;
+  profile.coins += rewards.coins;
   const ownedId = profile.selectedMonsterId || profile.ownedMonsters?.[0]?.id;
-  const partialExp = Math.floor((rewards.exp || 0) * 0.35);
-  const expPack = grantExpInWallet(profile, ownedId, partialExp);
+  const expPack = grantExpInWallet(profile, ownedId, rewards.exp);
+  const idx = gd.players.findIndex((p) => p.id === profileId);
+  if (idx >= 0) gd.players[idx] = profile;
   return {
     gameData: gd,
     rewards: {
       ...rewards,
-      coins: partialCoins,
-      exp: partialExp,
       expPack,
       won: false,
     },
