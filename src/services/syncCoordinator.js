@@ -25,14 +25,19 @@ function normalizeProfileIDs(profileIDs) {
 /**
  * @param {{ reason: string, gameData: object, profileIDs?: string|string[]|null, skipCloud?: boolean }} opts
  */
+/**
+ * @returns {Promise<{ localOk: boolean, cloudSynced: boolean, cloudFailed: boolean, cloudNeedsKey: boolean }|undefined>}
+ */
 export async function commitSave(opts) {
   const { reason, gameData, profileIDs, skipCloud = false } = opts;
-  if (!gameData) return;
+  if (!gameData) return undefined;
 
   await saveGameSave(gameData);
   emitSaveStatus('local_saved');
 
-  if (skipCloud) return;
+  const result = { localOk: true, cloudSynced: false, cloudFailed: false, cloudNeedsKey: false };
+
+  if (skipCloud) return result;
 
   const ids = normalizeProfileIDs(
     Array.isArray(profileIDs) ? profileIDs : profileIDs ? [profileIDs] : [],
@@ -40,20 +45,28 @@ export async function commitSave(opts) {
   const fallback = gameData.session?.activeProfileId;
   const targets = ids.length > 0 ? ids : fallback ? [fallback] : [];
 
-  if (targets.length === 0) return;
-
-  let anyOk = false;
-  let anyFail = false;
+  if (targets.length === 0) return result;
 
   for (const profileID of targets) {
     const res = await syncProfileToCloud(profileID, gameData);
-    if (res.ok) anyOk = true;
-    else if (!res.skipped) anyFail = true;
+    if (res.ok) result.cloudSynced = true;
+    else if (res.skipped) {
+      /* API not configured — local only */
+    } else if (
+      typeof res.error === 'string' &&
+      res.error.toLowerCase().includes('player key')
+    ) {
+      result.cloudNeedsKey = true;
+    } else {
+      result.cloudFailed = true;
+    }
   }
 
   if (reason === 'profile_created') emitSaveStatus('player_created');
-  if (anyOk) emitSaveStatus('cloud_synced');
-  else if (anyFail) emitSaveStatus('cloud_failed');
+  if (result.cloudSynced) emitSaveStatus('cloud_synced');
+  else if (result.cloudFailed) emitSaveStatus('cloud_failed');
+
+  return result;
 }
 
 /**

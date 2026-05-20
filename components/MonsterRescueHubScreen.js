@@ -19,6 +19,7 @@ import { WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
 export default function MonsterRescueHubScreen({
   profileName,
   highestCleared = 0,
+  hasPlayerKey = false,
   onBack,
   onStartStage,
 }) {
@@ -47,6 +48,22 @@ export default function MonsterRescueHubScreen({
         <Text style={rescueUiStyles.blurb}>
           Clear every bubble before time runs out. Drag the cannon left/right to aim, then release to shoot. Sub-levels 5 and 10 award Monster Ladder chests.
         </Text>
+        <Text style={rescueUiStyles.saveHint}>
+          {hasPlayerKey
+            ? 'Progress auto-saves on this device. Tap Sync Cloud before closing the browser to keep monster levels and rescue progress.'
+            : 'Progress saves on this device only. Set a Player Key on the home screen and use Cloud sync there (or below) so levels survive after reopening the browser.'}
+        </Text>
+        {onCloudSync ? (
+          <TouchableOpacity
+            onPress={onCloudSync}
+            style={rescueUiStyles.cloudSyncBtn}
+            activeOpacity={0.88}
+          >
+            <Text style={rescueUiStyles.cloudSyncBtnText}>
+              {hasPlayerKey ? 'Sync to cloud' : 'Cloud sync (needs Player Key)'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={rescueUiStyles.noticeBar}>

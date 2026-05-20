@@ -81,7 +81,7 @@ export default class BubbleSystem {
         this.sprites.delete(spriteKey);
 
         if (!sprite) continue;
-        dropTweens.push(this._animateBubbleDrop(sprite, cell, i * 45));
+        dropTweens.push(this._animateBubbleDrop(sprite, cell));
       }
 
       if (removed.length) playRescuePopBurst(removed.length);
@@ -95,8 +95,8 @@ export default class BubbleSystem {
     });
   }
 
-  /** Fall off the bottom of the playfield instead of vanishing in place. */
-  _animateBubbleDrop(sprite, cell, staggerMs = 0) {
+  /** Matched / floating bubbles fall together off the bottom of the playfield. */
+  _animateBubbleDrop(sprite, cell) {
     return new Promise((resolve) => {
       if (!sprite?.active) {
         resolve();
@@ -105,17 +105,15 @@ export default class BubbleSystem {
       const h = this.scene.scale.height;
       const r = this.bubbleRadius ?? 22;
       const fallY = h + r * 2.5;
-      const driftX = (Math.random() - 0.5) * r * 0.35;
 
       this.scene.tweens.add({
         targets: sprite,
-        x: sprite.x + driftX,
         y: fallY,
-        alpha: 0.35,
-        scaleX: sprite.scaleX * 0.88,
-        scaleY: sprite.scaleY * 0.88,
-        duration: 420 + Math.min(120, staggerMs),
-        delay: staggerMs,
+        alpha: 0.4,
+        scaleX: sprite.scaleX * 0.9,
+        scaleY: sprite.scaleY * 0.9,
+        duration: 260,
+        delay: 0,
         ease: 'Quad.In',
         onComplete: () => {
           try {

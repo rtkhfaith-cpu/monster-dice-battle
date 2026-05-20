@@ -6,6 +6,8 @@ import { getPlayerProfile, cloneGameData, repairPlayerProfileInventory } from '.
 import { DEFAULT_GEAR_SLOTS } from '../../utils/gearSlots';
 import { normalizePlayerKey } from '../../utils/playerKey';
 import { normalizeMonsterLadder } from '../../utils/monsterLadder/ladderProgress';
+import { normalizeMonsterRescue } from '../../utils/monsterRescue/progress';
+import { clampMergeTier } from '../../utils/mergeSystem';
 /**
  * @param {object} gameData
  * @param {string} profileID
@@ -22,6 +24,7 @@ export function toCloudProfile(gameData, profileID) {
     nickname: om.nickname ?? '',
     level: om.level ?? 1,
     exp: om.exp ?? 0,
+    mergeTier: clampMergeTier(om.mergeTier),
     monsterParts: om.monsterParts ?? {},
     equippedGear: Array.isArray(om.equippedGear) ? om.equippedGear : [],
     gearSlotCount: om.gearSlotCount ?? DEFAULT_GEAR_SLOTS,
@@ -49,6 +52,7 @@ export function toCloudProfile(gameData, profileID) {
     audioSettings: loadAudioSettings(),
     battleProgress: p.battleProgress ?? { totalBattles: 0, winStreak: 0, lossStreak: 0 },
     monsterLadder: p.monsterLadder ?? null,
+    monsterRescue: p.monsterRescue ? normalizeMonsterRescue(p.monsterRescue) : null,
     meta: p.meta ?? null,
     createdAt: p.createdAt ?? new Date().toISOString(),
     updatedAt: p.updatedAt ?? new Date().toISOString(),
@@ -128,6 +132,7 @@ export function applyCloudProfile(gameData, cloud) {
     nickname: om.nickname ?? '',
     level: om.level ?? 1,
     exp: om.exp ?? 0,
+    mergeTier: clampMergeTier(om.mergeTier),
     monsterParts: om.monsterParts ?? {},
     equippedGear: equippedMap[om.id] ?? om.equippedGear ?? [],
     gearSlotCount: slotsMap[om.id] ?? om.gearSlotCount ?? DEFAULT_GEAR_SLOTS,
@@ -138,6 +143,9 @@ export function applyCloudProfile(gameData, cloud) {
   if (normalized.monsterLadder) p.monsterLadder = normalized.monsterLadder;
   else if (normalized.ladderProgress) {
     p.monsterLadder = normalizeMonsterLadder(null, normalized.ladderProgress);
+  }
+  if (normalized.monsterRescue) {
+    p.monsterRescue = normalizeMonsterRescue(normalized.monsterRescue);
   }
   if (normalized.meta) p.meta = normalized.meta;
 

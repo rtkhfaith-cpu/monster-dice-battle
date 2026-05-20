@@ -14,15 +14,15 @@ import { drawGridVignette, drawProceduralArena } from './rescueBackdrop';
 import { playRescueShoot } from '../../../src/utils/audioManager';
 
 /** Physics solve step speed (px/s) — not the on-screen tween. */
-const SHOOT_SPEED = 520;
+const SHOOT_SPEED = 660;
 /** Visible speed (px/s) for flight to wall / between bounces. */
-const SHOOT_VISUAL_SPEED = 460;
+const SHOOT_VISUAL_SPEED = 580;
 /** Slower approach into the main bubble cluster (wall segments stay at SHOOT_VISUAL_SPEED). */
-const SHOOT_VISUAL_SPEED_FINAL = 235;
-const SHOOT_TWEEN_MIN_MS = 70;
-const SHOOT_TWEEN_MAX_MS = 520;
-const SHOOT_FINAL_MIN_MS = 130;
-const SHOOT_FINAL_MAX_MS = 620;
+const SHOOT_VISUAL_SPEED_FINAL = 300;
+const SHOOT_TWEEN_MIN_MS = 55;
+const SHOOT_TWEEN_MAX_MS = 400;
+const SHOOT_FINAL_MIN_MS = 100;
+const SHOOT_FINAL_MAX_MS = 480;
 /** Upward arc only — steep enough to bank off left/right frame walls. */
 const MIN_AIM_ANGLE = -Math.PI + 0.12;
 const MAX_AIM_ANGLE = -0.12;

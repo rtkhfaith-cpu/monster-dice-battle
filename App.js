@@ -1022,7 +1022,7 @@ export default function App() {
     setPhase('monsterRescue');
   }
 
-  function handleMonsterRescueFinish(payload) {
+  async function handleMonsterRescueFinish(payload) {
     if (!gameData || !setupP1ProfileId) return;
     const won = !!payload?.won;
     const { gameData: gd, rewards } = applyMonsterRescueStageResult(
@@ -1032,14 +1032,28 @@ export default function App() {
       payload?.summary ?? {},
       won,
     );
-    persistSave(gd, 'monster_rescue_stage', setupP1ProfileId);
     setGameData(gd);
+    const saveRes = await commitSave({
+      reason: 'monster_rescue_stage',
+      gameData: gd,
+      profileIDs: setupP1ProfileId,
+    });
+    let saveMessage = 'Progress saved on this device.';
+    if (saveRes?.cloudSynced) {
+      saveMessage = 'Progress saved and synced to cloud automatically.';
+    } else if (saveRes?.cloudNeedsKey) {
+      saveMessage =
+        'Progress saved on this device. Set a 4-digit Player Key on the home screen for automatic cloud backup.';
+    } else if (saveRes?.cloudFailed) {
+      saveMessage = 'Saved on this device. Cloud sync failed — your next cleared stage will try again.';
+    }
     setRescueRewardPayload({
       won,
       timeUp: !!payload?.timeUp,
       stageId: payload?.stageId ?? rescueStageId,
       rewards,
       summary: payload?.summary,
+      saveMessage,
     });
     setPhase('monsterRescueReward');
     if (rewards?.chestDrop) setLadderChestDrop(rewards.chestDrop);
@@ -1649,6 +1663,11 @@ export default function App() {
           <MonsterRescueHubScreen
             profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
             highestCleared={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).highestCleared}
+            hasPlayerKey={
+              normalizePlayerKey(
+                getPlayerProfile(gameData, setupP1ProfileId)?.pin || '',
+              ).length === 4
+            }
             onBack={returnToQuestPicker}
             onStartStage={startMonsterRescueStage}
           />
