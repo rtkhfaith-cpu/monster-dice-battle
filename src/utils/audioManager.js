@@ -54,6 +54,15 @@ let bgmTargetMode = 'none';
 let bgmTargetPath = '';
 let fadeTimer = null;
 let duckUntil = 0;
+let duckRefreshTimer = null;
+/** @type {Map<string, { pool: HTMLAudioElement[], idx: number }>} */
+const sfxPools = new Map();
+const SFX_POOL_SIZE = 6;
+let rescuePopPending = 0;
+let rescuePopFlushTimer = null;
+let rescuePopLastAt = 0;
+let rescueComboLastAt = 0;
+let rescueShootLastAt = 0;
 let menuPick = '';
 let menuMusicKind = 'menu';
 let battlePick = '';
@@ -137,21 +146,64 @@ export function saveAudioSettings(patch) {
 
 function bgmVolumeNow() {
   let v = settings.bgmVolume;
-  if (menuMusicKind === 'rescue' && bgmMode === 'menu') v *= 0.72;
-  if (Date.now() < duckUntil) v *= menuMusicKind === 'rescue' ? 0.65 : 0.38;
+  if (menuMusicKind === 'rescue' && bgmMode === 'menu') v *= 0.78;
+  if (Date.now() < duckUntil) v *= menuMusicKind === 'rescue' ? 0.88 : 0.42;
   return clamp01(v);
 }
 
-function playOneShot(path, gain) {
+function getPooledAudio(path) {
+  const url = encodePublicPath(path);
+  if (!sfxPools.has(path)) {
+    const pool = [];
+    for (let i = 0; i < SFX_POOL_SIZE; i++) {
+      const el = new Audio(url);
+      el.preload = 'auto';
+      pool.push(el);
+    }
+    sfxPools.set(path, { pool, idx: 0 });
+  }
+  const entry = sfxPools.get(path);
+  const el = entry.pool[entry.idx % entry.pool.length];
+  entry.idx += 1;
+  return el;
+}
+
+function warmSfxPool(paths) {
+  if (!isWeb()) return;
+  for (const path of paths) {
+    getPooledAudio(path);
+  }
+}
+
+/**
+ * @param {string} path
+ * @param {number} gain 0–1 before sfxVolume
+ * @param {{ duckMs?: number, gentleDuck?: boolean }} [opts]
+ */
+function playOneShot(path, gain, opts = {}) {
   if (!isWeb() || settings.muted || !unlocked) return false;
+  const duckMs = opts.duckMs ?? 0;
+  if (duckMs > 0) duckBgm(duckMs, { gentle: opts.gentleDuck === true });
+
   try {
-    const a = new Audio(encodePublicPath(path));
+    const a = getPooledAudio(path);
     a.volume = clamp01(gain * settings.sfxVolume);
-    void a.play().catch(() => {});
+    const playPromise = a.play();
+    if (playPromise?.catch) {
+      void playPromise.catch(() => {});
+    }
     return true;
   } catch {
     return false;
   }
+}
+
+function scheduleDuckRefresh(ms) {
+  if (duckRefreshTimer) clearTimeout(duckRefreshTimer);
+  duckRefreshTimer = setTimeout(() => {
+    duckRefreshTimer = null;
+    refreshBgmVolume();
+  }, ms + 24);
 }
 
 function clearFade() {
@@ -413,28 +465,69 @@ export function playLose() {
   return playOneShot(SFX.lose, 0.9);
 }
 
-/** Light bubble pop — dodge SFX reads well as a soft pop */
+function flushRescuePopBurst() {
+  rescuePopFlushTimer = null;
+  const count = rescuePopPending;
+  rescuePopPending = 0;
+  if (count <= 0 || !isWeb() || settings.muted || !unlocked) return false;
+
+  rescuePopLastAt = Date.now();
+  duckBgm(Math.min(70, 36 + count * 2), { gentle: true });
+  const gain = clamp01(0.68 + Math.min(0.22, count * 0.018));
+  return playOneShot(SFX.dodge, gain);
+}
+
+/** One pop sound per cluster (not per bubble). */
+export function playRescuePopBurst(count = 1) {
+  if (!isWeb() || settings.muted || !unlocked) return false;
+  const n = Math.max(1, Math.floor(count || 1));
+  rescuePopPending += n;
+
+  const now = Date.now();
+  if (now - rescuePopLastAt < 48) {
+    if (!rescuePopFlushTimer) {
+      rescuePopFlushTimer = setTimeout(flushRescuePopBurst, 52);
+    }
+    return false;
+  }
+  return flushRescuePopBurst();
+}
+
+/** @deprecated — use playRescuePopBurst */
 export function playBubblePop() {
-  duckBgm(90);
-  return playOneShot(SFX.dodge, 0.92);
+  return playRescuePopBurst(1);
 }
 
-/** Combo chain accent */
-export function playRescueCombo() {
-  duckBgm(140);
-  return playOneShot(SFX.critical, 0.88);
+/** Combo accent — throttled so it does not fight pops. */
+export function playRescueCombo(combo = 2) {
+  if (!isWeb() || settings.muted || !unlocked) return false;
+  const now = Date.now();
+  if (now - rescueComboLastAt < 380) return false;
+  if (combo < 2) return false;
+  rescueComboLastAt = now;
+  duckBgm(90, { gentle: true });
+  return playOneShot(SFX.critical, clamp01(0.78 + combo * 0.03));
 }
 
-/** Bubble launcher whoosh */
+/** Launcher — light duck, rate-limited. */
+export function playRescueShoot() {
+  if (!isWeb() || settings.muted || !unlocked) return false;
+  const now = Date.now();
+  if (now - rescueShootLastAt < 70) return false;
+  rescueShootLastAt = now;
+  duckBgm(48, { gentle: true });
+  return playOneShot(SFX.attack, 0.88);
+}
+
+/** @deprecated */
 export function playBubbleShoot() {
-  duckBgm(120);
-  return playOneShot(SFX.attack, 1.05);
+  return playRescueShoot();
 }
 
 /** Monster freed from bubble */
 export function playMonsterRescued() {
-  duckBgm(260);
-  return playOneShot(SFX.levelUp, 0.88);
+  duckBgm(180, { gentle: true });
+  return playOneShot(SFX.levelUp, 0.82);
 }
 
 function normalizeMenuMusicKind(input) {
@@ -459,6 +552,7 @@ export function startLadderMusic() {
 }
 
 export function startRescueMusic() {
+  warmSfxPool([SFX.dodge, SFX.attack, SFX.critical]);
   startMenuMusic({ kind: 'rescue' });
 }
 
@@ -595,12 +689,16 @@ export function setAudioVolumes({ bgm, sfx, bgmVolume, sfxVolume } = {}) {
   void import('../services/syncCoordinator').then((m) => m.commitAudioSettingsSave?.());
 }
 
-export function duckBgm(ms = 400) {
-  duckUntil = Date.now() + ms;
+/**
+ * @param {number} ms
+ * @param {{ gentle?: boolean }} [opts]
+ */
+export function duckBgm(ms = 400, opts = {}) {
+  const gentle = opts.gentle && menuMusicKind === 'rescue';
+  const duration = gentle ? Math.min(ms, 90) : ms;
+  duckUntil = Math.max(duckUntil, Date.now() + duration);
   refreshBgmVolume();
-  setTimeout(() => {
-    refreshBgmVolume();
-  }, ms + 30);
+  scheduleDuckRefresh(duration);
 }
 
 /** No-op — file BGM has no dynamic intensity layers. */

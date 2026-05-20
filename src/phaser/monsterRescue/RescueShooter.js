@@ -8,7 +8,9 @@ export const RESCUE_SHOOTER_MONSTER_KEY = 'rescue_shooter_monster';
 
 const BARREL_LENGTH = 42;
 const CANNON_PIVOT_Y = -10;
-const MONSTER_SIZE = 22;
+const MONSTER_SIZE = 24;
+/** Feet sit on the stone platform ring, not the outer glow. */
+const MONSTER_FOOT_ON_PLATFORM = 0.38;
 const PREVIEW_COUNT = 3;
 const PREVIEW_SCALE = 0.3;
 const PREVIEW_SLOT_X = -58;
@@ -69,12 +71,12 @@ export default class RescueShooter {
 
     this.monsterImg = scene.add
       .image(0, 0, RESCUE_SHOOTER_MONSTER_KEY)
-      .setOrigin(0, 1);
+      .setOrigin(0.5, 1);
     this.monsterImg.setDisplaySize(MONSTER_SIZE, MONSTER_SIZE);
     this.monsterImg.setVisible(false);
     this.monsterFallback = scene.add
       .text(0, 0, '🐾', { fontSize: '14px' })
-      .setOrigin(0, 1);
+      .setOrigin(0.5, 1);
 
     this.aimPivot = scene.add.container(0, CANNON_PIVOT_Y);
     this.aimLineGfx = scene.add.graphics();
@@ -101,13 +103,19 @@ export default class RescueShooter {
    * @param {{ canvasWidth: number, frameLineLocalY: number, gunBaseRight?: number }} layout
    */
   configureLayout(layout) {
-    const footY = layout.frameLineLocalY ?? this.platformRadius + 18;
+    this._layoutRef = layout;
     const gunRight = layout.gunBaseRight ?? GUN_BASE_HALF_W;
     const gap = layout.canvasWidth * 0.01;
     const monsterX = gunRight + gap;
+    const footY = this._monsterFootY();
 
     this.monsterImg.setPosition(monsterX, footY);
     this.monsterFallback.setPosition(monsterX, footY);
+  }
+
+  _monsterFootY() {
+    const platformR = this.platformRadius ?? 34;
+    return 4 + platformR * MONSTER_FOOT_ON_PLATFORM;
   }
 
   setBubbleRadius(radius) {
@@ -116,6 +124,7 @@ export default class RescueShooter {
     drawSummoningPlatform(this.platformGfx, this.platformRadius);
     this._drawCannon();
     this.setAimAngle(this.aimAngle);
+    if (this._layoutRef) this.configureLayout(this._layoutRef);
   }
 
   _tryLoadMonsterTexture() {
@@ -126,8 +135,11 @@ export default class RescueShooter {
       if (!this.scene?.scene?.isActive?.()) return;
       if (this.scene.textures.exists(RESCUE_SHOOTER_MONSTER_KEY)) {
         this.monsterImg.setTexture(RESCUE_SHOOTER_MONSTER_KEY);
+        this.monsterImg.setDisplaySize(MONSTER_SIZE, MONSTER_SIZE);
+        this.monsterImg.setOrigin(0.5, 1);
         this.monsterImg.setVisible(true);
         this.monsterFallback?.setVisible(false);
+        if (this._layoutRef) this.configureLayout(this._layoutRef);
       }
     };
 

@@ -14,18 +14,6 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
   const canvasH = Math.min(Math.max(winH - 96, 400), 640);
   const canvasW = Math.min(winW - 24, 520);
 
-  const handlePop = useCallback(() => {
-    playSound('bubblePop');
-  }, []);
-
-  const handleCombo = useCallback(() => {
-    playSound('rescueCombo');
-  }, []);
-
-  const handleShoot = useCallback(() => {
-    playSound('bubbleShoot');
-  }, []);
-
   const handleFinish = useCallback(
     (payload) => {
       if (payload?.won) playSound('win');
@@ -55,9 +43,6 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
             shooterMonsterTemplateId={shooterMonsterTemplateId}
             width={canvasW}
             height={canvasH}
-            onPop={handlePop}
-            onCombo={handleCombo}
-            onShoot={handleShoot}
             onFinish={handleFinish}
           />
         ) : (

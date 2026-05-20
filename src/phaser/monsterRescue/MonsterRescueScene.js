@@ -10,14 +10,19 @@ import { preloadRescueAssets, rescueBackgroundForStage, RESCUE_SCENE_ASSETS } fr
 import RescueShooter from './RescueShooter';
 import { computeRescueLayout } from './rescueLayout';
 import { drawGridVignette, drawProceduralArena } from './rescueBackdrop';
+import { playRescueShoot } from '../../../src/utils/audioManager';
 
-const SHOOT_SPEED = 680;
-const MIN_AIM_ANGLE = -2.75;
-const MAX_AIM_ANGLE = -0.35;
+const SHOOT_SPEED = 720;
+/** Short flight tween after instant trajectory solve. */
+const PROJECTILE_TWEEN_MS = 95;
+/** Allow steep bank shots off left/right frame walls. */
+const MIN_AIM_ANGLE = -3.05;
+const MAX_AIM_ANGLE = -0.1;
 /** Radians per horizontal pixel while dragging on the turret. */
-const AIM_DRAG_SENSITIVITY = 0.011;
-/** Must drag at least this many px before release will fire (blocks tap-to-shoot). */
-const MIN_AIM_DRAG_PX = 6;
+const AIM_DRAG_SENSITIVITY = 0.012;
+/** Finger movement or angle change required before release fires. */
+const MIN_AIM_DRAG_PX = 5;
+const MIN_AIM_ANGLE_DELTA = 0.028;
 
 export function createMonsterRescueScene(Phaser) {
   return class MonsterRescueScene extends Phaser.Scene {
@@ -293,12 +298,12 @@ export function createMonsterRescueScene(Phaser) {
       });
     }
 
-    /** Only the turret strip accepts aim input — not the bubble grid. */
+    /** Bottom touch strip (wider than play frame) — not the bubble grid. */
     _isInAimZone(p) {
-      const top = this.layout?.shooterZoneTop ?? this.shooterY - 58;
+      const top = this.layout?.aimZoneTop ?? (this.layout?.shooterZoneTop ?? this.shooterY - 58) - 40;
       if (p.y < top) return false;
-      const left = this.layout?.playLeft ?? 10;
-      const right = left + (this.layout?.playWidth ?? this.scale.width - 20);
+      const left = this.layout?.aimZoneLeft ?? (this.layout?.playLeft ?? 10) - 44;
+      const right = this.layout?.aimZoneRight ?? left + (this.layout?.playWidth ?? this.scale.width - 20) + 88;
       return p.x >= left && p.x <= right;
     }
 
@@ -308,6 +313,7 @@ export function createMonsterRescueScene(Phaser) {
       this.isAiming = true;
       this.aimDragMoved = false;
       this.aimDragStartX = p.x;
+      this.aimDragStartY = p.y;
       this.aimDragStartAngle = this.aimAngle;
     }
 
@@ -315,9 +321,15 @@ export function createMonsterRescueScene(Phaser) {
       if (!this.isAiming || this.isShooting || this.gameOver) return;
       if (!this.input.activePointer.isDown) return;
       const dx = p.x - this.aimDragStartX;
-      if (Math.abs(dx) >= MIN_AIM_DRAG_PX) this.aimDragMoved = true;
+      const dy = p.y - (this.aimDragStartY ?? p.y);
       let ang = this.aimDragStartAngle + dx * AIM_DRAG_SENSITIVITY;
       ang = Phaser.Math.Clamp(ang, MIN_AIM_ANGLE, MAX_AIM_ANGLE);
+      if (
+        Math.hypot(dx, dy) >= MIN_AIM_DRAG_PX ||
+        Math.abs(ang - this.aimDragStartAngle) >= MIN_AIM_ANGLE_DELTA
+      ) {
+        this.aimDragMoved = true;
+      }
       this.aimAngle = ang;
       this.shooter?.setAimAngle(ang);
     }
@@ -335,7 +347,7 @@ export function createMonsterRescueScene(Phaser) {
       this._clearMoveTimer();
       this.isShooting = true;
       try {
-        this.game.events.emit('rescue:shoot');
+        playRescueShoot();
         this.shooter?.setAimLineVisible(false);
         const cell = this.currentCell;
         this.shooter.clearLoadedBubble();
@@ -361,13 +373,15 @@ export function createMonsterRescueScene(Phaser) {
         this.bubbleSystem.attachBubble(row, col, cell);
         this.shotsFired += 1;
 
-        await this.bubbleSystem.resolveAfterAttach(row, col, this.comboManager, this.rewardManager);
-
-        await this._maybePushTopRow();
-
         this._advanceShooterQueue();
         this.shooter.setLoadedBubble(this.currentCell);
         this.shooter.setNextPreview(this.previewQueue);
+        this.isShooting = false;
+        this.shooter?.setAimLineVisible(true);
+        if (!this.gameOver) this._startMoveTimer();
+
+        await this.bubbleSystem.resolveAfterAttach(row, col, this.comboManager, this.rewardManager);
+        await this._maybePushTopRow();
 
         this._refreshHud();
         this._checkEnd();
@@ -375,12 +389,14 @@ export function createMonsterRescueScene(Phaser) {
         console.error('[MonsterRescue] fire failed', err);
         this.game.events.emit('monster-rescue-error', err);
       } finally {
-        this.isShooting = false;
-        this.shooter?.setAimLineVisible(true);
+        if (this.isShooting) {
+          this.isShooting = false;
+          this.shooter?.setAimLineVisible(true);
+        }
         if (this._pendingTimeUp) {
           this._pendingTimeUp = false;
           this._onTimeUp();
-        } else if (!this.gameOver) {
+        } else if (!this.gameOver && !this._moveTimerEvent) {
           this._startMoveTimer();
         }
       }
@@ -405,80 +421,84 @@ export function createMonsterRescueScene(Phaser) {
       return { x: nx, y: ny, vx: nvx, vy: nvy };
     }
 
+    /** Instant physics solve — no per-frame delayedCall queue (was causing multi-second lag). */
+    _solveProjectileHit() {
+      const h = this.scale.height;
+      const r = this.layout.bubbleRadius;
+      const start = this.shooter.getMuzzleWorld();
+      let x = start.x;
+      let y = start.y;
+      let vx = this.projectile.vx;
+      let vy = this.projectile.vy;
+      let steps = 0;
+      const maxSteps = 900;
+      const dt = 1 / 60;
+      const ceilingY = this.layout.originY - r;
+      const floorY = this.layout.shooterZoneTop ?? h - r - 8;
+
+      while (steps++ < maxSteps) {
+        const speed = Math.hypot(vx, vy);
+        const travel = speed * dt;
+        const subSteps = Math.max(1, Math.min(8, Math.ceil(travel / (r * 0.45))));
+
+        for (let i = 0; i < subSteps; i++) {
+          const subDt = dt / subSteps;
+          x += vx * subDt;
+          y += vy * subDt;
+
+          const bounced = this._reflectSideWalls(x, y, vx, vy, r);
+          x = bounced.x;
+          y = bounced.y;
+          vx = bounced.vx;
+          vy = bounced.vy;
+
+          if (y < ceilingY) {
+            const col = Math.floor((x - this.layout.originX) / this.layout.cellW);
+            return { row: 0, col: Phaser.Math.Clamp(col, 0, 10), x, y };
+          }
+
+          if (y > floorY) return null;
+
+          const hit = this._findGridHit(x, y);
+          if (hit) {
+            const slot = this.bubbleSystem.getModel().findAttachSlot(
+              hit.row,
+              hit.col,
+              x,
+              y,
+              (row, col) => this.bubbleSystem.toWorld(row, col)
+            );
+            const attach = slot ?? hit;
+            const pos = this.bubbleSystem.toWorld(attach.row, attach.col);
+            return { ...attach, x: pos.x, y: pos.y };
+          }
+        }
+      }
+      return null;
+    }
+
     _simulateProjectile() {
+      const container = this.projectile?.container;
+      if (!container?.active) return Promise.resolve(null);
+
+      const hit = this._solveProjectileHit();
+      if (!hit) {
+        container.destroy();
+        return Promise.resolve(null);
+      }
+
       return new Promise((resolve) => {
-        const h = this.scale.height;
-        const r = this.layout.bubbleRadius;
-        const start = this.shooter.getMuzzleWorld();
-        let x = start.x;
-        let y = start.y;
-        let vx = this.projectile.vx;
-        let vy = this.projectile.vy;
-        let steps = 0;
-        const maxSteps = 900;
-        const dt = 1 / 60;
-        const ceilingY = this.layout.originY - r;
-        const floorY = this.layout.shooterZoneTop ?? h - r - 8;
-
-        const finish = (pos) => {
-          this.projectile?.container?.destroy();
-          resolve(pos);
-        };
-
-        const step = () => {
-          if (!this.projectile?.container?.active) {
-            resolve(null);
-            return;
-          }
-          if (steps++ > maxSteps) {
-            finish(null);
-            return;
-          }
-
-          const speed = Math.hypot(vx, vy);
-          const travel = speed * dt;
-          const subSteps = Math.max(1, Math.min(8, Math.ceil(travel / (r * 0.45))));
-
-          for (let i = 0; i < subSteps; i++) {
-            const subDt = dt / subSteps;
-            x += vx * subDt;
-            y += vy * subDt;
-
-            const bounced = this._reflectSideWalls(x, y, vx, vy, r);
-            x = bounced.x;
-            y = bounced.y;
-            vx = bounced.vx;
-            vy = bounced.vy;
-
-            if (y < ceilingY) {
-              const col = Math.floor((x - this.layout.originX) / this.layout.cellW);
-              finish({ row: 0, col: Phaser.Math.Clamp(col, 0, 10) });
-              return;
-            }
-
-            if (y > floorY) {
-              finish(null);
-              return;
-            }
-
-            const hit = this._findGridHit(x, y);
-            if (hit) {
-              const slot = this.bubbleSystem.getModel().findAttachSlot(
-                hit.row,
-                hit.col,
-                x,
-                y,
-                (r, c) => this.bubbleSystem.toWorld(r, c)
-              );
-              finish(slot ?? hit);
-              return;
-            }
-          }
-
-          this.projectile.container.setPosition(x, y);
-          this.time.delayedCall(16, step);
-        };
-        step();
+        this.tweens.add({
+          targets: container,
+          x: hit.x,
+          y: hit.y,
+          duration: PROJECTILE_TWEEN_MS,
+          ease: 'Cubic.easeIn',
+          onComplete: () => {
+            container.destroy();
+            resolve({ row: hit.row, col: hit.col });
+          },
+        });
       });
     }
 

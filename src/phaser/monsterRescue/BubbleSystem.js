@@ -1,4 +1,5 @@
 import { BUBBLE_COLORS, GRID_COLS, GRID_ROWS } from '../../../utils/monsterRescue/constants';
+import { playRescueCombo, playRescuePopBurst } from '../../../src/utils/audioManager';
 import BubbleGrid from './BubbleGrid';
 import { createShinyBubble } from './bubbleVisuals';
 import { RESCUE_SCENE_ASSETS } from './rescueAssets';
@@ -90,6 +91,8 @@ export default class BubbleSystem {
         sprite.destroy();
       }
 
+      if (removed.length) playRescuePopBurst(removed.length);
+
       resolve(cells);
     });
   }
@@ -141,14 +144,10 @@ export default class BubbleSystem {
       if (matches.length >= 3) {
         const combo = comboManager.onPop(matches.length);
         totalCombo = Math.max(totalCombo, combo);
-        const cells = await this.popPositions(
-          matches.map((m) => ({ row: m.row, col: m.col })),
-          () => {
-            this.scene.events.emit('rescue:pop');
-          }
-        );
+        const cells = await this.popPositions(matches.map((m) => ({ row: m.row, col: m.col })));
         rewardManager.addPopScore(cells, comboManager.getMultiplier());
         if (comboManager.combo > 1) {
+          playRescueCombo(comboManager.combo);
           this.scene.game.events.emit('rescue:combo', comboManager.combo);
         }
         continue;
@@ -158,9 +157,7 @@ export default class BubbleSystem {
       if (!floating.length) break;
 
       comboManager.onPop(floating.length);
-      const cells = await this.popPositions(floating, () => {
-        this.scene.events.emit('rescue:pop');
-      });
+      const cells = await this.popPositions(floating);
       rewardManager.addPopScore(cells, comboManager.getMultiplier());
     }
 

@@ -5,10 +5,15 @@ const HUD_TOP = 48;
 const FRAME_INSET = 3;
 /** Top portion of canvas reserved for bubble grid (matches background art). */
 export const GRID_ZONE_RATIO = 0.6;
-/** Pixels from platform center down to lowest platform glow (feet on frame line). */
+/** Platform anchor: distance from inner frame bottom to shooter root. */
 const PLATFORM_FOOT_DEPTH = 18;
-/** Clearance above shooter for cannon + loaded bubble */
+/** Lift shooter so platform glow + monster are not clipped by canvas bottom. */
+const SHOOTER_BOTTOM_LIFT = 14;
+/** Clearance above shooter for bubble grid (layout only). */
 const SHOOTER_ZONE_H = 58;
+/** Extra touch area above shooter strip and past frame sides. */
+export const AIM_ZONE_PAD_X = 44;
+export const AIM_ZONE_EXTRA_TOP = 40;
 const EVEN_ROW_SPAN = GRID_COLS - 1;
 const RADIUS_RATIO = 0.46;
 
@@ -43,8 +48,8 @@ export function computeRescueLayout(w, h, fillRows) {
 
   const innerFrameBottom = playTop + playHeight - FRAME_INSET;
   const platformFootDepth = platformRadius + PLATFORM_FOOT_DEPTH;
-  const shooterY = innerFrameBottom - platformFootDepth;
-  const frameLineLocalY = platformFootDepth;
+  const shooterY = innerFrameBottom - platformFootDepth - SHOOTER_BOTTOM_LIFT;
+  const frameLineLocalY = platformFootDepth + SHOOTER_BOTTOM_LIFT;
   const shooterZoneTop = shooterY - SHOOTER_ZONE_H;
 
   const gridZoneBottom = playTop + h * GRID_ZONE_RATIO;
@@ -93,6 +98,9 @@ export function computeRescueLayout(w, h, fillRows) {
     frameLineLocalY,
     innerFrameBottom,
     shooterZoneTop,
+    aimZoneTop: shooterZoneTop - AIM_ZONE_EXTRA_TOP,
+    aimZoneLeft: playLeft - AIM_ZONE_PAD_X,
+    aimZoneRight: playLeft + playWidth + AIM_ZONE_PAD_X,
     gunBaseRight: 18,
     wallLeft,
     wallRight,

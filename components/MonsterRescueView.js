@@ -18,9 +18,6 @@ export default function MonsterRescueView({
   height = 520,
   onReady,
   onFinish,
-  onPop,
-  onCombo,
-  onShoot,
   onRescued,
   onError,
 }) {
@@ -28,9 +25,6 @@ export default function MonsterRescueView({
   const gameRef = useRef(null);
   const onReadyRef = useRef(onReady);
   const onFinishRef = useRef(onFinish);
-  const onPopRef = useRef(onPop);
-  const onComboRef = useRef(onCombo);
-  const onShootRef = useRef(onShoot);
   const onRescuedRef = useRef(onRescued);
   const onErrorRef = useRef(onError);
   const [error, setError] = useState('');
@@ -42,15 +36,6 @@ export default function MonsterRescueView({
   useEffect(() => {
     onFinishRef.current = onFinish;
   }, [onFinish]);
-  useEffect(() => {
-    onPopRef.current = onPop;
-  }, [onPop]);
-  useEffect(() => {
-    onComboRef.current = onCombo;
-  }, [onCombo]);
-  useEffect(() => {
-    onShootRef.current = onShoot;
-  }, [onShoot]);
   useEffect(() => {
     onRescuedRef.current = onRescued;
   }, [onRescued]);
@@ -66,6 +51,7 @@ export default function MonsterRescueView({
     let scenePollId = null;
     let ready = false;
     let resizeObserver = null;
+    let resizeTimer = null;
 
     async function mountPhaser() {
       try {
@@ -136,9 +122,6 @@ export default function MonsterRescueView({
           game.events.once('monster-rescue-ready', handleReady);
           game.events.once('monster-rescue-error', handleBootError);
           game.events.on('monster-rescue-finish', handleFinish);
-          game.events.on('rescue:pop', () => onPopRef.current?.());
-          game.events.on('rescue:combo', (combo) => onComboRef.current?.(combo));
-          game.events.on('rescue:shoot', () => onShootRef.current?.());
           game.events.on('rescue:rescued', () => onRescuedRef.current?.());
 
           game._rescueCleanup = () => {
@@ -146,9 +129,6 @@ export default function MonsterRescueView({
             if (waitPollId != null) cancelAnimationFrame(waitPollId);
             if (scenePollId != null) cancelAnimationFrame(scenePollId);
             game.events.off('monster-rescue-finish', handleFinish);
-            game.events.off('rescue:pop');
-            game.events.off('rescue:combo');
-            game.events.off('rescue:shoot');
             game.events.off('rescue:rescued');
           };
 
@@ -188,16 +168,21 @@ export default function MonsterRescueView({
           if (typeof ResizeObserver !== 'undefined' && hostRef.current) {
             resizeObserver = new ResizeObserver(() => {
               if (disposed) return;
-              const game = gameRef.current;
-              const el = hostRef.current;
-              if (game && el) {
-                const { w, h } = hostDimensions(el, height, width);
-                game.scale.resize(w, h);
-                const scene = game.scene.getScene('MonsterRescueScene');
-                scene?.relayout?.(w, h);
-                return;
-              }
-              void startGame();
+              if (resizeTimer) clearTimeout(resizeTimer);
+              resizeTimer = setTimeout(() => {
+                resizeTimer = null;
+                if (disposed) return;
+                const game = gameRef.current;
+                const el = hostRef.current;
+                if (game && el) {
+                  const { w, h } = hostDimensions(el, height, width);
+                  game.scale.resize(w, h);
+                  const scene = game.scene.getScene('MonsterRescueScene');
+                  scene?.relayout?.(w, h);
+                  return;
+                }
+                void startGame();
+              }, 120);
             });
             resizeObserver.observe(hostRef.current);
           }
@@ -218,6 +203,7 @@ export default function MonsterRescueView({
       disposed = true;
       resizeObserver?.disconnect();
       if (readyTimer) clearTimeout(readyTimer);
+      if (resizeTimer) clearTimeout(resizeTimer);
       if (waitPollId != null) cancelAnimationFrame(waitPollId);
       if (scenePollId != null) cancelAnimationFrame(scenePollId);
       if (gameRef.current) {

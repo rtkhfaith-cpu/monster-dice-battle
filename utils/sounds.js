@@ -32,7 +32,7 @@ export function playSound(name, opts = {}) {
 
   if (name === 'rescueCombo' || name === 'combo') {
     unlockAudio();
-    playRescueCombo();
+    playRescueCombo(opts.combo ?? 2);
     return;
   }
 
