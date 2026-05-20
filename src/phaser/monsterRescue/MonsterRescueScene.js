@@ -465,7 +465,7 @@ export function createMonsterRescueScene(Phaser) {
         wall = 'left';
       } else if (nx + r > right) {
         nx = right - r;
-        nvx = Math.abs(vx) > 1 ? -Math.abs(vx) : -(Math.abs(vy) * 0.35 + 120;
+        nvx = Math.abs(vx) > 1 ? -Math.abs(vx) : -(Math.abs(vy) * 0.35 + 120);
         wall = 'right';
       }
 
