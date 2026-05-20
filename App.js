@@ -1112,6 +1112,8 @@ export default function App() {
     setPlayer1(null);
     setPlayer2(null);
     setRewardSummary(null);
+    setLadderChestDrop(null);
+    setLadderChestAutoReveal(false);
     setBattleKey((k) => k + 1);
     startLadderMusic();
     setPhase('ladder');
@@ -1125,6 +1127,8 @@ export default function App() {
     setPlayer2(null);
     const wasLadder = !!rewardSummary?.monsterLadder;
     setRewardSummary(null);
+    setLadderChestDrop(null);
+    setLadderChestAutoReveal(false);
     if (wasOnline) {
       setPhase('menu');
     } else if (wasLadder) {
@@ -1386,7 +1390,12 @@ export default function App() {
       } else if (iWon && summary?.chestBlocked) {
         showNotice('Monster Ladder', 'Daily chest already claimed today. Resets at 6:00 PM (Singapore time).');
       } else if (iWon && summary?.chestAwarded && !summary?.chestDrop) {
-        showNotice('Monster Ladder', 'Chest reward could not be opened. Try again from the ladder hub inventory.');
+        showNotice(
+          'Monster Ladder',
+          summary?.chestBlocked
+            ? 'Daily chest already claimed today. Resets at 6:00 PM (Singapore time).'
+            : 'Boss chest could not be opened. Your progress was saved — try Chest Exchange on the ladder map.',
+        );
       }
       const st = summary?.stage;
       const stKind = st ? getStageKind(st.subLevel) : 'normal';

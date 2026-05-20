@@ -443,6 +443,7 @@ export default function MonsterLadderHubScreen({
   const canFight = !!activeFighter && !levelLocked;
   const rarity = activeFighter?.rarity ?? 'common';
   const rarityUi = RARITY_UI[rarity] ?? RARITY_UI.common;
+  const chestInventory = ml.chestInventory ?? { gear: 0, monster: 0 };
   const gearChestState = ml.gearChestClaimedToday
     ? (chestInventory.gear > 0 ? 'stored' : 'claimed')
     : stage.subLevel >= 5
@@ -453,7 +454,6 @@ export default function MonsterLadderHubScreen({
     : stage.subLevel >= 10
       ? 'available'
       : 'locked';
-  const chestInventory = ml.chestInventory ?? { gear: 0, monster: 0 };
   const bottomStatus = levelLocked
     ? "Today's level complete. Next level unlocks after 6PM Singapore time."
     : canFight

@@ -37,8 +37,21 @@ function awardAndOpenDailyBossChest(profile, type) {
   if (ml[claimedKey]) {
     return { chestBlocked: true, chestAwarded: null, chestDrop: null };
   }
+
+  let drop = null;
+  for (let attempt = 0; attempt < 6 && !drop; attempt += 1) {
+    drop = resolveChestOpen(profile, ml, type);
+  }
+  if (!drop) {
+    return {
+      chestBlocked: false,
+      chestAwarded: type,
+      chestDrop: null,
+      openFailed: true,
+    };
+  }
+
   ml[claimedKey] = true;
-  const drop = resolveChestOpen(profile, ml, type);
   const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
   ml.pity[pityKey] = (ml.pity[pityKey] || 0) + 1;
   ml.stats[pityKey] = (ml.stats[pityKey] || 0) + 1;
@@ -46,7 +59,7 @@ function awardAndOpenDailyBossChest(profile, type) {
   return {
     chestBlocked: false,
     chestAwarded: type,
-    chestDrop: drop ?? null,
+    chestDrop: drop,
     shardsGained: drop?.shardsGained ?? 0,
   };
 }
@@ -206,24 +219,30 @@ export function openLadderChestOnProfile(profile, type) {
 /** @param {object} profile @param {import('./ladderProgress').MonsterLadderState} ml @param {'gear'|'monster'} type */
 function resolveChestOpen(profile, ml, type) {
   const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
-  const roll = rollChestDrop(type, ml.pity[pityKey]);
-  if (!roll) return null;
+  const roll = rollChestDrop(type, ml.pity?.[pityKey] ?? 0);
+  if (!roll?.id) return null;
 
   if (roll.kind === 'monster') {
     const templateId = resolveLadderTemplateId(roll.id) ?? roll.id;
-    const duplicate = profileOwnsLadderTemplate(profile, templateId);
-    const row = grantLadderMonsterToProfile(profile, templateId);
-    if (!ml.activeMonsterId) ml.activeMonsterId = row.id;
-    return {
-      ...roll,
-      duplicate,
-      ownedId: row.id,
-      shardsGained: 0,
-      futureCombine: duplicate,
-    };
+    try {
+      const duplicate = profileOwnsLadderTemplate(profile, templateId);
+      const row = grantLadderMonsterToProfile(profile, templateId);
+      if (!ml.activeMonsterId) ml.activeMonsterId = row.id;
+      return {
+        ...roll,
+        duplicate,
+        ownedId: row.id,
+        shardsGained: 0,
+        futureCombine: duplicate,
+      };
+    } catch (err) {
+      console.warn('[ladder] monster chest grant failed', templateId, err?.message || err);
+      return null;
+    }
   }
 
   const gearGrant = grantGearToProfile(profile, roll.id, { ladderState: ml, deferLadderSave: true });
+  if (gearGrant.error) return null;
   return {
     ...roll,
     duplicate: gearGrant.duplicate,

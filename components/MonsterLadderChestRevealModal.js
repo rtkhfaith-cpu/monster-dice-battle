@@ -30,9 +30,10 @@ export default function MonsterLadderChestRevealModal({
 
   useEffect(() => {
     if (!visible || !drop) return;
-    setOpened(!!autoReveal);
+    const revealNow = !!autoReveal;
+    setOpened(revealNow);
     chestDropY.setValue(-280);
-    revealOpacity.setValue(0);
+    revealOpacity.setValue(revealNow ? 1 : 0);
     Animated.spring(chestDropY, {
       toValue: 0,
       friction: 7,
@@ -46,17 +47,24 @@ export default function MonsterLadderChestRevealModal({
       revealOpacity.setValue(0);
       return;
     }
+    if (autoReveal) {
+      revealOpacity.setValue(1);
+      return;
+    }
+    revealOpacity.setValue(0);
     Animated.timing(revealOpacity, {
       toValue: 1,
       duration: 280,
       easing: Easing.out(Easing.quad),
       useNativeDriver,
     }).start();
-  }, [opened, revealOpacity, useNativeDriver]);
+  }, [opened, autoReveal, revealOpacity, useNativeDriver]);
 
-  if (!drop) return null;
+  if (!visible || !drop) return null;
+
   const ui = RARITY_UI[drop.rarity] ?? RARITY_UI.common;
   const duplicate = !!drop.duplicate;
+  const showReveal = opened;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -71,17 +79,17 @@ export default function MonsterLadderChestRevealModal({
               disabled={opened}
             >
               <Image
-                source={{ uri: opened ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
+                source={{ uri: showReveal ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed }}
                 style={styles.chestImg}
                 resizeMode="contain"
                 {...WEB_DECORATIVE_IMAGE_PROPS}
               />
             </TouchableOpacity>
           </Animated.View>
-          {!opened ? (
+          {!showReveal ? (
             <Text style={styles.tapHint}>Tap the chest to reveal your reward.</Text>
           ) : (
-            <Animated.View style={{ opacity: revealOpacity, alignItems: 'center', width: '100%' }}>
+            <View style={styles.revealBlock}>
               <Text style={[styles.rarity, { color: ui.border }]}>
                 {rarityLabel(drop.rarity)}
               </Text>
@@ -109,13 +117,13 @@ export default function MonsterLadderChestRevealModal({
                   {drop.rarity === 'mythic' ? 'MYTHIC SIGNAL LOCKED.' : 'LEGENDARY SIGNAL FOUND.'}
                 </Text>
               ) : null}
-            </Animated.View>
+            </View>
           )}
           <TouchableOpacity
-            style={[styles.btn, { backgroundColor: opened ? ui.border : '#636e72' }]}
-            onPress={opened ? onClose : () => setOpened(true)}
+            style={[styles.btn, { backgroundColor: showReveal ? ui.border : '#636e72' }]}
+            onPress={showReveal ? onClose : () => setOpened(true)}
           >
-            <Text style={styles.btnTxt}>{opened ? 'Continue' : 'Open Chest'}</Text>
+            <Text style={styles.btnTxt}>{showReveal ? 'Continue' : 'Open Chest'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -131,7 +139,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: '#1a1a2e',
     borderRadius: 20,
     borderWidth: 4,
     padding: 22,
@@ -140,7 +148,7 @@ const styles = StyleSheet.create({
   kicker: {
     fontWeight: '900',
     fontSize: 12,
-    color: '#636e72',
+    color: '#ffe6a3',
     textTransform: 'uppercase',
     letterSpacing: 1.6,
     marginBottom: 12,
@@ -161,8 +169,13 @@ const styles = StyleSheet.create({
   tapHint: {
     fontWeight: '900',
     fontSize: 15,
-    color: '#636e72',
+    color: '#cbd5e1',
     textAlign: 'center',
+    marginTop: 4,
+  },
+  revealBlock: {
+    alignItems: 'center',
+    width: '100%',
     marginTop: 4,
   },
   rarity: { fontWeight: '900', fontSize: 18, textTransform: 'uppercase' },
@@ -170,29 +183,29 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: '900',
     fontSize: 24,
-    color: '#1a1a2e',
+    color: '#f8fafc',
     textAlign: 'center',
   },
-  type: { marginTop: 4, fontWeight: '800', fontSize: 13, color: '#636e72' },
+  type: { marginTop: 4, fontWeight: '800', fontSize: 13, color: '#93c5fd' },
   duplicate: {
     marginTop: 12,
     fontWeight: '900',
     fontSize: 14,
-    color: '#6c5ce7',
+    color: '#c4b5fd',
     textAlign: 'center',
   },
   newItem: {
     marginTop: 12,
     fontWeight: '800',
     fontSize: 14,
-    color: '#27ae60',
+    color: '#86efac',
     textAlign: 'center',
   },
   dramatic: {
     marginTop: 10,
     fontWeight: '900',
     fontSize: 13,
-    color: '#e84393',
+    color: '#f9a8d4',
     letterSpacing: 1,
   },
   btn: {

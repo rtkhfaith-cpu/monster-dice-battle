@@ -31,12 +31,19 @@ function pickFromPool(pool) {
  */
 export function rollChestDrop(chestType, pityCounter) {
   const rarity = rollRarity(pityCounter + 1, chestType);
-  if (chestType === 'gear') {
-    const pool = getLadderGearByRarity(rarity);
+  const tryRarities = [rarity, ...LADDER_RARITY_ORDER.filter((r) => r !== rarity)];
+  for (const r of tryRarities) {
+    const pool =
+      chestType === 'gear' ? getLadderGearByRarity(r) : getLadderMonstersByRarity(r);
     const item = pickFromPool(pool);
-    return item ? { kind: 'gear', id: item.id, rarity: item.rarity, name: item.name } : null;
+    if (item) {
+      return {
+        kind: chestType === 'gear' ? 'gear' : 'monster',
+        id: item.id,
+        rarity: item.rarity,
+        name: item.name,
+      };
+    }
   }
-  const pool = getLadderMonstersByRarity(rarity);
-  const item = pickFromPool(pool);
-  return item ? { kind: 'monster', id: item.id, rarity: item.rarity, name: item.name } : null;
+  return null;
 }
