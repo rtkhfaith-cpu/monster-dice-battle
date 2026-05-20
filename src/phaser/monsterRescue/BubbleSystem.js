@@ -1,6 +1,9 @@
 import { BUBBLE_COLORS, GRID_COLS, GRID_ROWS } from '../../../utils/monsterRescue/constants';
 import BubbleGrid from './BubbleGrid';
 import { createShinyBubble } from './bubbleVisuals';
+import { RESCUE_SCENE_ASSETS } from './rescueAssets';
+
+const MAX_RESOLVE_CHAIN = 48;
 
 export default class BubbleSystem {
   /**
@@ -10,10 +13,10 @@ export default class BubbleSystem {
   constructor(scene, layout) {
     this.scene = scene;
     this.layout = layout;
+    this.bubbleRadius = layout.bubbleRadius ?? 22;
     this.gridModel = new BubbleGrid(BubbleGrid.empty());
     /** @type {Map<string, Phaser.GameObjects.Container>} */
     this.sprites = new Map();
-    this.pendingResolve = null;
   }
 
   loadGrid(grid) {
@@ -52,7 +55,7 @@ export default class BubbleSystem {
   }
 
   _makeBubbleVisual(cell, x, y, depth) {
-    const container = createShinyBubble(this.scene, cell, depth);
+    const container = createShinyBubble(this.scene, cell, depth, this.bubbleRadius);
     container.setPosition(x, y);
     return container;
   }
@@ -63,34 +66,31 @@ export default class BubbleSystem {
         resolve([]);
         return;
       }
+
       const removed = this.gridModel.removeMany(positions);
-      let done = 0;
       const cells = [];
+
       for (const { row, col, cell } of removed) {
         cells.push(cell);
         onCell?.(cell, row, col);
-        const sprite = this.sprites.get(this.key(row, col));
-        this.sprites.delete(this.key(row, col));
-        if (!sprite) {
-          done++;
-          if (done >= removed.length) resolve(cells);
-          continue;
+
+        const spriteKey = this.key(row, col);
+        const sprite = this.sprites.get(spriteKey);
+        this.sprites.delete(spriteKey);
+
+        if (!sprite) continue;
+
+        const wx = sprite.x;
+        const wy = sprite.y;
+        try {
+          this._spawnPopSpark(wx, wy, cell);
+        } catch (err) {
+          console.warn('[MonsterRescue] pop spark failed', err);
         }
-        this.scene.tweens.add({
-          targets: sprite,
-          scaleX: 1.35,
-          scaleY: 1.35,
-          alpha: 0,
-          duration: 160,
-          ease: 'Back.easeIn',
-          onComplete: () => {
-            this._spawnPopSpark(sprite.x, sprite.y, cell);
-            sprite.destroy();
-            done++;
-            if (done >= removed.length) resolve(cells);
-          },
-        });
+        sprite.destroy();
       }
+
+      resolve(cells);
     });
   }
 
@@ -98,7 +98,8 @@ export default class BubbleSystem {
     const color = BUBBLE_COLORS[cell.color % BUBBLE_COLORS.length] ?? 0xffffff;
     if (this.scene.textures.exists(RESCUE_SCENE_ASSETS.popFx.key)) {
       const fx = this.scene.add.image(x, y, RESCUE_SCENE_ASSETS.popFx.key).setDepth(20).setAlpha(0.85);
-      fx.setDisplaySize(28, 28);
+      const popSize = (this.bubbleRadius ?? 22) * 1.25;
+      fx.setDisplaySize(popSize, popSize);
       this.scene.tweens.add({
         targets: fx,
         scaleX: 1.4,
@@ -122,12 +123,18 @@ export default class BubbleSystem {
     }
   }
 
-  async resolveAfterAttach(row, col, comboManager, rewardManager) {
+  async resolveAfterAttach(attachRow, attachCol, comboManager, rewardManager) {
     let totalCombo = 0;
-    let loop = true;
-    while (loop) {
-      loop = false;
-      const matches = this.gridModel.findMatchesFrom(row, col);
+    let chain = 0;
+
+    while (chain < MAX_RESOLVE_CHAIN) {
+      chain += 1;
+
+      let matches = this.gridModel.findMatchesFrom(attachRow, attachCol);
+      if (matches.length < 3) {
+        matches = this.gridModel.findFirstMatchCluster();
+      }
+
       if (matches.length >= 3) {
         const combo = comboManager.onPop(matches.length);
         totalCombo = Math.max(totalCombo, combo);
@@ -137,31 +144,32 @@ export default class BubbleSystem {
             this.scene.events.emit('rescue:pop');
           }
         );
-        rewardManager.addPopScore(
-          cells,
-          comboManager.getMultiplier()
-        );
+        rewardManager.addPopScore(cells, comboManager.getMultiplier());
         if (comboManager.combo > 1) {
           this.scene.game.events.emit('rescue:combo', comboManager.combo);
         }
-        loop = true;
         continue;
       }
 
       const floating = this.gridModel.findFloatingClusters();
-      if (floating.length) {
-        comboManager.onPop(floating.length);
-        const cells = await this.popPositions(floating, () => {
-          this.scene.events.emit('rescue:pop');
-        });
-        rewardManager.addPopScore(cells, comboManager.getMultiplier());
-        loop = true;
-      }
+      if (!floating.length) break;
+
+      comboManager.onPop(floating.length);
+      const cells = await this.popPositions(floating, () => {
+        this.scene.events.emit('rescue:pop');
+      });
+      rewardManager.addPopScore(cells, comboManager.getMultiplier());
     }
+
     return totalCombo;
   }
 
   attachBubble(row, col, cell) {
+    const existing = this.sprites.get(this.key(row, col));
+    if (existing) {
+      existing.destroy();
+      this.sprites.delete(this.key(row, col));
+    }
     this.gridModel.set(row, col, cell);
     return this.spawnBubbleSprite(row, col, cell);
   }

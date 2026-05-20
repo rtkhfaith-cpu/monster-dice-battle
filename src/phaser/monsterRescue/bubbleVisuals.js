@@ -1,4 +1,4 @@
-import { BUBBLE_COLORS, BUBBLE_RADIUS } from '../../../utils/monsterRescue/constants';
+import { BUBBLE_COLORS, BUBBLE_RADIUS as DEFAULT_BUBBLE_RADIUS } from '../../../utils/monsterRescue/constants';
 
 function bubbleColor(cell) {
   const idx = cell.color % BUBBLE_COLORS.length;
@@ -24,12 +24,13 @@ function glowColor(cell) {
  * @param {Phaser.Scene} scene
  * @param {{ color: number }} cell
  * @param {number} depth
+ * @param {number} [radius] bubble radius (defaults to constant)
  * @returns {Phaser.GameObjects.Container}
  */
-export function createShinyBubble(scene, cell, depth = 5) {
+export function createShinyBubble(scene, cell, depth = 5, radius = DEFAULT_BUBBLE_RADIUS) {
   const fill = bubbleColor(cell);
   const glow = glowColor(cell);
-  const r = BUBBLE_RADIUS;
+  const r = radius;
   const container = scene.add.container(0, 0).setDepth(depth);
 
   const outerGlow = scene.add.circle(0, 0, r + 8, glow, 0.22);

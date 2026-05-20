@@ -10,8 +10,9 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
   useEffect(() => {
     unlockAudio();
   }, []);
-  const { height: winH } = useWindowDimensions();
-  const canvasH = Math.min(Math.max(winH - 140, 320), 560);
+  const { height: winH, width: winW } = useWindowDimensions();
+  const canvasH = Math.min(Math.max(winH - 130, 340), 580);
+  const canvasW = Math.min(winW - 24, 520);
 
   const handlePop = useCallback(() => {
     playSound('bubblePop');
@@ -46,12 +47,13 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
         <View style={rescueUiStyles.topBarSpacer} />
       </View>
 
-      <View style={rescueUiStyles.canvasFrame}>
+      <View style={[rescueUiStyles.canvasFrame, { width: '100%', maxWidth: canvasW, alignSelf: 'center' }]}>
         {Platform.OS === 'web' ? (
           <MonsterRescueView
             key={`rescue-stage-${stageId}`}
             stageId={stageId}
             shooterMonsterTemplateId={shooterMonsterTemplateId}
+            width={canvasW}
             height={canvasH}
             onPop={handlePop}
             onCombo={handleCombo}

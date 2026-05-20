@@ -1,4 +1,4 @@
-import { BUBBLE_RADIUS } from '../../../utils/monsterRescue/constants';
+import { BUBBLE_RADIUS as DEFAULT_BUBBLE_RADIUS } from '../../../utils/monsterRescue/constants';
 import { getRescueBootShooterTemplateId } from './bootConfig';
 import { getMonsterImageAsset } from '../../../utils/monsterImageAssets';
 import { createShinyBubble } from './bubbleVisuals';
@@ -6,7 +6,9 @@ import { createShinyBubble } from './bubbleVisuals';
 export const RESCUE_SHOOTER_MONSTER_KEY = 'rescue_shooter_monster';
 
 const CANNON_LENGTH = 46;
-const MONSTER_SIZE = 58;
+/** Gun footprint ~22×50px — monster ≈ 2× that visual scale */
+const CANNON_VISUAL_W = 22;
+const MONSTER_SIZE = CANNON_VISUAL_W * 2;
 
 /**
  * Puzzle Bobble–style shooter: player's monster + rotating bubble cannon (no aim line).
@@ -18,30 +20,43 @@ export default class RescueShooter {
    * @param {number} y
    * @param {string} [monsterTemplateId]
    */
-  constructor(scene, x, y, monsterTemplateId) {
+  constructor(scene, x, y, monsterTemplateId, bubbleRadius = DEFAULT_BUBBLE_RADIUS) {
     this.scene = scene;
     this.baseX = x;
     this.baseY = y;
+    this.bubbleRadius = bubbleRadius;
     this.templateId = monsterTemplateId || getRescueBootShooterTemplateId();
     this.aimAngle = -Math.PI / 2;
     this.loadedBubble = null;
 
     this.root = scene.add.container(x, y).setDepth(32);
 
-    const pad = scene.add.ellipse(0, 14, 88, 28, 0x0f172a, 0.45);
+    const pad = scene.add.ellipse(0, 10, 62, 22, 0x0f172a, 0.45);
     pad.setStrokeStyle(2, 0xffe6a3, 0.35);
 
+    this.nextBubbleSlot = scene.add.container(-36, 0);
+    this.nextPreviewLabel = scene.add
+      .text(-36, -16, 'NEXT', {
+        fontFamily: 'Arial',
+        fontSize: '9px',
+        color: '#ffe6a3',
+        stroke: '#000',
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5);
+    this.nextPreviewBubble = null;
+
     this.aimPivot = scene.add.container(0, 0);
-    this.monsterImg = scene.add.image(0, 12, RESCUE_SHOOTER_MONSTER_KEY).setOrigin(0.5, 1);
+    this.monsterImg = scene.add.image(0, 6, RESCUE_SHOOTER_MONSTER_KEY).setOrigin(0.5, 1);
     this.monsterImg.setDisplaySize(MONSTER_SIZE, MONSTER_SIZE);
     this.monsterImg.setVisible(false);
-    this.monsterFallback = scene.add.text(0, 4, '🐾', { fontSize: '32px' }).setOrigin(0.5, 1);
+    this.monsterFallback = scene.add.text(0, 2, '🐾', { fontSize: '20px' }).setOrigin(0.5, 1);
 
     this.cannonGfx = scene.add.graphics();
     this.bubbleSlot = scene.add.container(0, 0);
 
     this.aimPivot.add([this.monsterFallback, this.monsterImg, this.cannonGfx, this.bubbleSlot]);
-    this.root.add([pad, this.aimPivot]);
+    this.root.add([pad, this.nextPreviewLabel, this.nextBubbleSlot, this.aimPivot]);
 
     this._drawCannon();
     this._tryLoadMonsterTexture();
@@ -107,14 +122,14 @@ export default class RescueShooter {
   setAimAngle(rad) {
     this.aimAngle = rad;
     this.aimPivot.rotation = rad + Math.PI / 2;
-    const tipY = -CANNON_LENGTH - BUBBLE_RADIUS * 0.35;
+    const tipY = -CANNON_LENGTH - this.bubbleRadius * 0.35;
     this.bubbleSlot.setPosition(0, tipY);
   }
 
   setLoadedBubble(cell) {
     this.clearLoadedBubble();
     if (!cell) return null;
-    this.loadedBubble = createShinyBubble(this.scene, cell, 40);
+    this.loadedBubble = createShinyBubble(this.scene, cell, 40, this.bubbleRadius);
     this.bubbleSlot.add(this.loadedBubble);
     return this.loadedBubble;
   }
@@ -124,6 +139,17 @@ export default class RescueShooter {
       this.loadedBubble.destroy();
       this.loadedBubble = null;
     }
+  }
+
+  setNextPreview(cell) {
+    if (this.nextPreviewBubble) {
+      this.nextPreviewBubble.destroy();
+      this.nextPreviewBubble = null;
+    }
+    if (!cell) return;
+    this.nextPreviewBubble = createShinyBubble(this.scene, cell, 33, this.bubbleRadius);
+    this.nextPreviewBubble.setScale(0.55);
+    this.nextBubbleSlot.add(this.nextPreviewBubble);
   }
 
   /** World position of muzzle / loaded bubble. */
@@ -138,6 +164,10 @@ export default class RescueShooter {
 
   destroy() {
     this.clearLoadedBubble();
+    if (this.nextPreviewBubble) {
+      this.nextPreviewBubble.destroy();
+      this.nextPreviewBubble = null;
+    }
     this.root?.destroy();
     this.root = null;
   }

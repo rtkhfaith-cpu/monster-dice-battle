@@ -2,8 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { RESCUE_COLORS } from './monsterRescue/rescueUiTheme';
 
-function hostDimensions(el, fallbackHeight) {
-  const w = Math.max(320, el?.clientWidth || el?.offsetWidth || 320);
+function hostDimensions(el, fallbackHeight, fallbackWidth) {
+  const w = Math.max(
+    280,
+    el?.clientWidth || el?.offsetWidth || fallbackWidth || 360
+  );
   const h = Math.max(280, el?.clientHeight || el?.offsetHeight || fallbackHeight || 520);
   return { w, h };
 }
@@ -11,6 +14,7 @@ function hostDimensions(el, fallbackHeight) {
 export default function MonsterRescueView({
   stageId = 1,
   shooterMonsterTemplateId,
+  width,
   height = 520,
   onReady,
   onFinish,
@@ -94,7 +98,7 @@ export default function MonsterRescueView({
         const startGame = async () => {
           if (disposed || !hostRef.current || gameRef.current) return false;
           const el = hostRef.current;
-          const { w, h } = hostDimensions(el, height);
+          const { w, h } = hostDimensions(el, height, width);
 
           const { setRescueBootStageId, setRescueBootShooterTemplateId } = await import(
             '../src/phaser/monsterRescue/bootConfig'
@@ -183,7 +187,17 @@ export default function MonsterRescueView({
           waitPollId = requestAnimationFrame(waitForHost);
           if (typeof ResizeObserver !== 'undefined' && hostRef.current) {
             resizeObserver = new ResizeObserver(() => {
-              if (!disposed) void startGame();
+              if (disposed) return;
+              const game = gameRef.current;
+              const el = hostRef.current;
+              if (game && el) {
+                const { w, h } = hostDimensions(el, height, width);
+                game.scale.resize(w, h);
+                const scene = game.scene.getScene('MonsterRescueScene');
+                scene?.relayout?.(w, h);
+                return;
+              }
+              void startGame();
             });
             resizeObserver.observe(hostRef.current);
           }
@@ -212,7 +226,7 @@ export default function MonsterRescueView({
         gameRef.current = null;
       }
     };
-  }, [height, stageId, shooterMonsterTemplateId]);
+  }, [height, width, stageId, shooterMonsterTemplateId]);
 
   if (Platform.OS !== 'web') {
     return (

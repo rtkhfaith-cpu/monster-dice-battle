@@ -73,6 +73,21 @@ export default class BubbleGrid {
     return cluster.length >= 3 ? cluster : [];
   }
 
+  /** First match-3+ cluster on the board (for chain reactions after pops). */
+  findFirstMatchCluster() {
+    const visited = new Set();
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < this.colsInRow(row); col++) {
+        const k = `${row},${col}`;
+        if (visited.has(k) || !this.get(row, col)) continue;
+        const cluster = this.findCluster(row, col);
+        for (const p of cluster) visited.add(`${p.row},${p.col}`);
+        if (cluster.length >= 3) return cluster;
+      }
+    }
+    return [];
+  }
+
   removeAt(row, col) {
     if (!this.get(row, col)) return null;
     const cell = this.grid[row][col];
