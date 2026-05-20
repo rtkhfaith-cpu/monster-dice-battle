@@ -435,7 +435,12 @@ export function createMonsterRescueScene(Phaser) {
         }
 
         const { row, col } = result;
-        this.bubbleSystem.attachBubble(row, col, cell);
+        const attached = this.bubbleSystem.attachBubble(row, col, cell);
+        if (!attached) {
+          this.currentCell = cell;
+          this.shooter.setLoadedBubble(cell);
+          return;
+        }
         this.shotsFired += 1;
 
         this._advanceShooterQueue();
@@ -550,11 +555,15 @@ export function createMonsterRescueScene(Phaser) {
           }
 
           if (y < ceilingY) {
-            const col = Math.floor((x - this.layout.originX) / this.layout.cellW);
-            const attachCol = Phaser.Math.Clamp(col, 0, GRID_COLS - 1);
-            const pos = this.bubbleSystem.toWorld(0, attachCol);
+            const slot = this.bubbleSystem.getModel().findCeilingAttachSlot(
+              x,
+              y,
+              (row, c) => this.bubbleSystem.toWorld(row, c)
+            );
+            if (!slot) return null;
+            const pos = this.bubbleSystem.toWorld(slot.row, slot.col);
             this._pushPathPoint(path, pos.x, pos.y, minPointDist);
-            return { row: 0, col: attachCol, path };
+            return { row: slot.row, col: slot.col, path };
           }
 
           if (y > floorY && vy > 0) return null;
@@ -638,7 +647,7 @@ export function createMonsterRescueScene(Phaser) {
       let best = null;
       const hitR = this.layout.bubbleRadius * 1.85;
       let bestDist = hitR * hitR;
-      for (let row = 0; row < 14; row++) {
+      for (let row = 0; row < GRID_ROWS; row++) {
         for (let col = 0; col < model.colsInRow(row); col++) {
           if (!model.get(row, col)) continue;
           const pos = this.bubbleSystem.toWorld(row, col);

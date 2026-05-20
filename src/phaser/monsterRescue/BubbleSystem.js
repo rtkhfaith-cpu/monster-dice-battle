@@ -69,8 +69,10 @@ export default class BubbleSystem {
 
       const removed = this.gridModel.removeMany(positions);
       const cells = [];
+      const dropTweens = [];
 
-      for (const { row, col, cell } of removed) {
+      for (let i = 0; i < removed.length; i++) {
+        const { row, col, cell } = removed[i];
         cells.push(cell);
         onCell?.(cell, row, col);
 
@@ -79,20 +81,52 @@ export default class BubbleSystem {
         this.sprites.delete(spriteKey);
 
         if (!sprite) continue;
-
-        const wx = sprite.x;
-        const wy = sprite.y;
-        try {
-          this._spawnPopSpark(wx, wy, cell);
-        } catch (err) {
-          console.warn('[MonsterRescue] pop spark failed', err);
-        }
-        sprite.destroy();
+        dropTweens.push(this._animateBubbleDrop(sprite, cell, i * 45));
       }
 
       if (removed.length) playRescuePopBurst(removed.length);
 
-      resolve(cells);
+      if (!dropTweens.length) {
+        resolve(cells);
+        return;
+      }
+
+      Promise.all(dropTweens).then(() => resolve(cells));
+    });
+  }
+
+  /** Fall off the bottom of the playfield instead of vanishing in place. */
+  _animateBubbleDrop(sprite, cell, staggerMs = 0) {
+    return new Promise((resolve) => {
+      if (!sprite?.active) {
+        resolve();
+        return;
+      }
+      const h = this.scene.scale.height;
+      const r = this.bubbleRadius ?? 22;
+      const fallY = h + r * 2.5;
+      const driftX = (Math.random() - 0.5) * r * 0.35;
+
+      this.scene.tweens.add({
+        targets: sprite,
+        x: sprite.x + driftX,
+        y: fallY,
+        alpha: 0.35,
+        scaleX: sprite.scaleX * 0.88,
+        scaleY: sprite.scaleY * 0.88,
+        duration: 420 + Math.min(120, staggerMs),
+        delay: staggerMs,
+        ease: 'Quad.In',
+        onComplete: () => {
+          try {
+            this._spawnPopSpark(sprite.x, fallY - r, cell);
+          } catch (err) {
+            console.warn('[MonsterRescue] drop spark failed', err);
+          }
+          sprite.destroy();
+          resolve();
+        },
+      });
     });
   }
 
@@ -161,11 +195,9 @@ export default class BubbleSystem {
   }
 
   attachBubble(row, col, cell) {
-    const existing = this.sprites.get(this.key(row, col));
-    if (existing) {
-      existing.destroy();
-      this.sprites.delete(this.key(row, col));
-    }
+    if (!this.gridModel.inBounds(row, col)) return null;
+    if (this.gridModel.get(row, col)) return null;
+
     this.gridModel.set(row, col, cell);
     return this.spawnBubbleSprite(row, col, cell);
   }

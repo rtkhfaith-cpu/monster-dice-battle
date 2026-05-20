@@ -18,6 +18,7 @@ const ROW_PUSH_TIER_STEP = 2;
  */
 export function rowPushEveryForLevel(levelId) {
   const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
+  if (id === 1) return 30;
   const tier = Math.floor((id - 1) / ROW_PUSH_TIER_SPAN);
   return Math.max(ROW_PUSH_MOVES_MIN, ROW_PUSH_MOVES_BASE - tier * ROW_PUSH_TIER_STEP);
 }

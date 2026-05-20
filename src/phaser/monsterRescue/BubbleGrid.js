@@ -179,23 +179,49 @@ export default class BubbleGrid {
     return floating;
   }
 
-  /** Neighbor slot for projectile attachment */
+  /** Closest empty cell on ceiling row 0 (never overwrites an occupied slot). */
+  findCeilingAttachSlot(fromX, fromY, toWorld) {
+    const candidates = [];
+    for (let col = 0; col < this.colsInRow(0); col++) {
+      if (this.get(0, col)) continue;
+      const pos = toWorld(0, col);
+      const dist = (pos.x - fromX) ** 2 + (pos.y - fromY) ** 2;
+      candidates.push({ row: 0, col, dist });
+    }
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => a.dist - b.dist);
+    return { row: candidates[0].row, col: candidates[0].col };
+  }
+
+  /** Neighbor slot for projectile attachment — only returns empty cells. */
   findAttachSlot(hitRow, hitCol, fromX, fromY, toWorld) {
     const candidates = [];
-    for (const [dr, dc] of this.neighborDirs(hitRow)) {
-      const nr = hitRow + dr;
-      const nc = hitCol + dc;
-      if (!this.inBounds(nr, nc) || this.get(nr, nc)) continue;
+    const seen = new Set();
+    const addCandidate = (nr, nc) => {
+      const k = `${nr},${nc}`;
+      if (seen.has(k) || !this.inBounds(nr, nc) || this.get(nr, nc)) return;
+      seen.add(k);
       const pos = toWorld(nr, nc);
       const dist = (pos.x - fromX) ** 2 + (pos.y - fromY) ** 2;
       candidates.push({ row: nr, col: nc, dist });
+    };
+
+    for (const [dr, dc] of this.neighborDirs(hitRow)) {
+      addCandidate(hitRow + dr, hitCol + dc);
     }
+
     if (!candidates.length) {
-      if (this.inBounds(hitRow, hitCol) && !this.get(hitRow, hitCol)) {
-        return { row: hitRow, col: hitCol };
+      for (const [dr, dc] of this.neighborDirs(hitRow)) {
+        const nr = hitRow + dr;
+        const nc = hitCol + dc;
+        if (!this.inBounds(nr, nc) || !this.get(nr, nc)) continue;
+        for (const [dr2, dc2] of this.neighborDirs(nr)) {
+          addCandidate(nr + dr2, nc + dc2);
+        }
       }
-      return null;
     }
+
+    if (!candidates.length) return null;
     candidates.sort((a, b) => a.dist - b.dist);
     return { row: candidates[0].row, col: candidates[0].col };
   }
