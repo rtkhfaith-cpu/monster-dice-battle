@@ -317,6 +317,7 @@ function FantasyActionButton({ label, onPress, disabled, variant = 'default' }) 
 function ChestCard({ title, state, type, onPress }) {
   const available = state === 'available';
   const claimed = state === 'claimed';
+  const stored = state === 'stored';
   const exchange = state === 'exchange';
   const uri = claimed ? GAME_ASSETS.chestOpen : GAME_ASSETS.chestClosed;
   const body = (
@@ -338,6 +339,7 @@ function ChestCard({ title, state, type, onPress }) {
           styles.chestCard,
           available && styles.chestAvailable,
           claimed && styles.chestClaimed,
+          stored && styles.chestExchange,
           exchange && styles.chestExchange,
         ]}
       >
@@ -351,6 +353,7 @@ function ChestCard({ title, state, type, onPress }) {
         styles.chestCard,
         available && styles.chestAvailable,
         claimed && styles.chestClaimed,
+        stored && styles.chestExchange,
         exchange && styles.chestExchange,
       ]}
     >
@@ -440,8 +443,16 @@ export default function MonsterLadderHubScreen({
   const canFight = !!activeFighter && !levelLocked;
   const rarity = activeFighter?.rarity ?? 'common';
   const rarityUi = RARITY_UI[rarity] ?? RARITY_UI.common;
-  const gearChestState = ml.gearChestClaimedToday ? 'claimed' : stage.subLevel >= 5 ? 'available' : 'locked';
-  const monsterChestState = ml.monsterChestClaimedToday ? 'claimed' : stage.subLevel >= 10 ? 'available' : 'locked';
+  const gearChestState = ml.gearChestClaimedToday
+    ? (chestInventory.gear > 0 ? 'stored' : 'claimed')
+    : stage.subLevel >= 5
+      ? 'available'
+      : 'locked';
+  const monsterChestState = ml.monsterChestClaimedToday
+    ? (chestInventory.monster > 0 ? 'stored' : 'claimed')
+    : stage.subLevel >= 10
+      ? 'available'
+      : 'locked';
   const chestInventory = ml.chestInventory ?? { gear: 0, monster: 0 };
   const bottomStatus = levelLocked
     ? "Today's level complete. Next level unlocks after 6PM Singapore time."

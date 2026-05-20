@@ -163,6 +163,7 @@ export default function App() {
   const [ladderGearOpen, setLadderGearOpen] = useState(false);
   const [ladderChestDrop, setLadderChestDrop] = useState(null);
   const [ladderChestAutoReveal, setLadderChestAutoReveal] = useState(false);
+  const [ladderChestKicker, setLadderChestKicker] = useState('Monster Ladder Chest');
   const [onlineRoom, setOnlineRoom] = useState(null);
   const [onlineSlot, setOnlineSlot] = useState(() => loadOnlineSession()?.playerSlot ?? null);
   const [player1, setPlayer1] = useState(null);
@@ -1068,6 +1069,7 @@ export default function App() {
     setPhase('monsterRescueReward');
     if (rewards?.chestDrop) {
       setLadderChestDrop(rewards.chestDrop);
+      setLadderChestKicker('Monster Rescue Chest');
       setLadderChestAutoReveal(true);
     }
     if (rewards?.expPack?.levelsGained > 0) playSound('levelUp');
@@ -1332,7 +1334,12 @@ export default function App() {
         coinsAwarded: summary?.ladderGoldGain ?? 0,
         expP1: summary?.expPack,
       });
-      if (summary?.chestDrop) setLadderChestDrop(summary.chestDrop);
+      if (summary?.chestDrop) {
+        setLadderChestDrop(summary.chestDrop);
+        setLadderChestKicker('Monster Ladder Chest');
+        setLadderChestAutoReveal(true);
+        playSound('reward');
+      }
       const st = summary?.stage;
       const stKind = st ? getStageKind(st.subLevel) : 'normal';
       const stLabel = st ? `Level ${formatStageLabel(st.mainLevel, st.subLevel)}` : '';
@@ -1888,10 +1895,11 @@ export default function App() {
         visible={!!ladderChestDrop}
         drop={ladderChestDrop}
         autoReveal={ladderChestAutoReveal}
-        kicker={ladderChestAutoReveal ? 'Monster Rescue Chest' : 'Monster Ladder Chest'}
+        kicker={ladderChestKicker}
         onClose={() => {
           setLadderChestDrop(null);
           setLadderChestAutoReveal(false);
+          setLadderChestKicker('Monster Ladder Chest');
         }}
       />
 

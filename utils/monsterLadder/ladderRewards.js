@@ -56,6 +56,31 @@ function ensureChestInventory(ml) {
 }
 
 /**
+ * Grant today's mini/boss chest and open it immediately on the profile.
+ * @param {object} profile
+ * @param {import('./ladderProgress').MonsterLadderState} ml
+ * @param {'gear'|'monster'} type
+ */
+function awardAndOpenDailyBossChest(profile, ml, type) {
+  const claimedKey = type === 'gear' ? 'gearChestClaimedToday' : 'monsterChestClaimedToday';
+  if (ml[claimedKey]) {
+    return { chestBlocked: true, chestAwarded: null, chestDrop: null };
+  }
+  ensureChestInventory(ml)[type] += 1;
+  ml[claimedKey] = true;
+  const opened = openLadderChestOnProfile(profile, type);
+  if (opened.error) {
+    return { chestBlocked: false, chestAwarded: type, chestDrop: null };
+  }
+  return {
+    chestBlocked: false,
+    chestAwarded: type,
+    chestDrop: opened.drop ?? null,
+    shardsGained: opened.drop?.shardsGained ?? 0,
+  };
+}
+
+/**
  * @param {object} gameData
  * @param {string} profileId
  * @param {{ outcome: 1|2|'draw', enemyLevel: number, ownedMonsterId: string }} payload
@@ -108,24 +133,17 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
 
   if (won) {
     advanceMonsterLadderStage(ml, true);
-    const chestInventory = ensureChestInventory(ml);
     const kind = getStageKind(stage.subLevel);
     if (kind === 'miniBoss') {
-      if (!ml.gearChestClaimedToday) {
-        chestInventory.gear += 1;
-        chestAwarded = 'gear';
-        ml.gearChestClaimedToday = true;
-      } else {
-        chestBlocked = true;
-      }
+      const chest = awardAndOpenDailyBossChest(profile, ml, 'gear');
+      chestAwarded = chest.chestAwarded;
+      chestBlocked = chest.chestBlocked;
+      chestDrop = chest.chestDrop;
     } else if (kind === 'bigBoss') {
-      if (!ml.monsterChestClaimedToday) {
-        chestInventory.monster += 1;
-        chestAwarded = 'monster';
-        ml.monsterChestClaimedToday = true;
-      } else {
-        chestBlocked = true;
-      }
+      const chest = awardAndOpenDailyBossChest(profile, ml, 'monster');
+      chestAwarded = chest.chestAwarded;
+      chestBlocked = chest.chestBlocked;
+      chestDrop = chest.chestDrop;
     }
   } else if (payload.outcome === 2) {
     advanceMonsterLadderStage(ml, false);

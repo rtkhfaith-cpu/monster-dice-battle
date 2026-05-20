@@ -33,6 +33,8 @@ const AIM_DASH = 14;
 const AIM_GAP = 7;
 const AIM_LINE_WIDTH = 5;
 const AIM_LINE_WIDTH_HI = 2;
+const AIM_LINE_ALPHA = 0.52;
+const AIM_LINE_ALPHA_HI = 0.28;
 
 /** Silver pipe palette */
 const SILVER = {
@@ -314,9 +316,9 @@ export default class RescueShooter {
     const y1 = tipY - len;
 
     const phase = this.aimDashPhase ?? 0;
-    g.lineStyle(AIM_LINE_WIDTH, 0xffe6a3, 0.82);
+    g.lineStyle(AIM_LINE_WIDTH, 0xffe6a3, AIM_LINE_ALPHA);
     this._strokeDottedLine(g, x0, y0, x0, y1, phase);
-    g.lineStyle(AIM_LINE_WIDTH_HI, 0xffffff, 0.45);
+    g.lineStyle(AIM_LINE_WIDTH_HI, 0xffffff, AIM_LINE_ALPHA_HI);
     this._strokeDottedLine(g, x0, y0, x0, y1, phase);
   }
 
