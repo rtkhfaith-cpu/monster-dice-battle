@@ -719,6 +719,7 @@ export default function HomeSetupScreen({
               onClose={() => setRankingsOpen(false)}
               localProfile={activeProfile}
               localProfileId={activeProfileId}
+              allLocalProfiles={profiles}
               cloudPlayers={cloudPlayers}
               cloudFetchLoading={cloudFetchLoading}
               cloudFetchError={cloudFetchError}

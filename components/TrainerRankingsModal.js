@@ -13,22 +13,29 @@ export default function TrainerRankingsModal({
   onClose,
   localProfile,
   localProfileId,
+  allLocalProfiles = [],
   cloudPlayers = [],
   cloudFetchLoading = false,
   cloudFetchError = null,
   onRefresh,
 }) {
-  const { rows, yourRank } = useMemo(
-    () => buildTopTrainerRankings({ localProfile, localProfileId, cloudPlayers }),
-    [localProfile, localProfileId, cloudPlayers],
+  const { rows, yourBestRank, yourMonstersInTopTen } = useMemo(
+    () =>
+      buildTopTrainerRankings({
+        localProfile,
+        localProfileId,
+        allLocalProfiles,
+        cloudPlayers,
+      }),
+    [localProfile, localProfileId, allLocalProfiles, cloudPlayers],
   );
 
-  const youInTopTen = rows.some((r) => r.isYou);
+  const youInTopTen = yourMonstersInTopTen > 0;
   const subtitle = cloudFetchError
     ? 'Showing this device only — cloud rankings unavailable.'
     : rows.length
-      ? 'Ranked by each trainer’s highest monster level.'
-      : 'Play and level up a monster to appear here.';
+      ? 'Global ranks #1–#10 by monster level. Each monster is its own row.'
+      : 'Play and level up monsters to appear here.';
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -52,11 +59,11 @@ export default function TrainerRankingsModal({
           ) : (
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
               {rows.length === 0 ? (
-                <Text style={styles.empty}>No trainers ranked yet.</Text>
+                <Text style={styles.empty}>No monsters ranked yet.</Text>
               ) : (
                 rows.map((row) => (
                   <View
-                    key={row.profileID}
+                    key={`${row.profileID}-${row.ownedMonsterId}`}
                     style={[styles.row, row.isYou && styles.rowYou]}
                   >
                     <Text style={[styles.cell, styles.cellRank]}>{rankLabel(row.rank)}</Text>
@@ -74,8 +81,13 @@ export default function TrainerRankingsModal({
             </ScrollView>
           )}
 
-          {yourRank && !youInTopTen ? (
-            <Text style={styles.yourRank}>Your rank: #{yourRank}</Text>
+          {yourBestRank && !youInTopTen ? (
+            <Text style={styles.yourRank}>Your highest monster: #{yourBestRank}</Text>
+          ) : null}
+          {youInTopTen && yourMonstersInTopTen > 1 ? (
+            <Text style={styles.yourRank}>
+              {yourMonstersInTopTen} of your monsters in the top 10
+            </Text>
           ) : null}
 
           <View style={styles.actions}>

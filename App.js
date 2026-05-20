@@ -100,7 +100,7 @@ import { loadGameSave, saveGameSave } from './src/services/saveService';
 import { listCloudPlayers, recallCloudProfile } from './src/services/cloudSaveService';
 import { applyCloudProfile } from './src/services/cloudSaveMapper';
 import { commitProfileDeleted, commitSave, setCloudSyncProfileID } from './src/services/syncCoordinator';
-import { emitSaveStatus } from './src/services/saveStatusBus';
+import { emitSaveStatus, subscribeSaveStatus } from './src/services/saveStatusBus';
 import ConfirmDialog from './components/ConfirmDialog';
 import {
   normalizePlayerKey,
@@ -561,6 +561,12 @@ export default function App() {
 
   useEffect(() => {
     void loadSaveApiConfig().then(() => handleFetchCloudPlayers());
+  }, [handleFetchCloudPlayers]);
+
+  useEffect(() => {
+    return subscribeSaveStatus((status) => {
+      if (status === 'cloud_synced') void handleFetchCloudPlayers();
+    });
   }, [handleFetchCloudPlayers]);
 
   function closeKeyModal() {

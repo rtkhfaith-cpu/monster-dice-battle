@@ -7,6 +7,7 @@ import { loadGameSave, saveGameSave } from './saveService';
 import { profileBlockedForCloudSync } from '../../utils/profileIntegrity';
 import { getPlayerProfile } from '../../utils/gameStorage';
 import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
+import { trainerRankingFromCloudRow } from '../../utils/trainerRankings';
 
 function apiHostLabel(base) {
   if (!base) return '';
@@ -231,16 +232,23 @@ export async function listCloudPlayers() {
     const players = raw
       .map((row) => normalizeCloudRecord(row))
       .filter(Boolean)
-      .map((row) => ({
-        profileID: row.profileID,
-        playerName: row.playerName || 'Player',
-        selectedMonsterId: row.selectedMonsterId ?? null,
-        monsterTemplateId: row.monsterTemplateId ?? null,
-        level: row.level ?? 1,
-        coins: row.coins ?? 0,
-        updatedAt: row.updatedAt ?? null,
-        requiresKey: row.requiresKey !== false,
-      }));
+      .map((row) => {
+        const rank = trainerRankingFromCloudRow(row);
+        return {
+          profileID: row.profileID,
+          playerName: row.playerName || 'Player',
+          selectedMonsterId: row.selectedMonsterId ?? null,
+          monsterTemplateId: rank.templateId ?? row.monsterTemplateId ?? null,
+          level: rank.level,
+          monsterName: rank.monsterName,
+          peakMonsterLevel: row.peakMonsterLevel ?? rank.level,
+          peakMonsterTemplateId: row.peakMonsterTemplateId ?? rank.templateId ?? null,
+          monsters: row.monsters ?? row.ownedMonsters ?? null,
+          coins: row.coins ?? 0,
+          updatedAt: row.updatedAt ?? null,
+          requiresKey: row.requiresKey !== false,
+        };
+      });
     return { ok: true, players };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] GET /players error', base, err?.message || err);

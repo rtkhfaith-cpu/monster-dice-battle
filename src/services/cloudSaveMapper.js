@@ -8,6 +8,8 @@ import { normalizePlayerKey } from '../../utils/playerKey';
 import { normalizeMonsterLadder } from '../../utils/monsterLadder/ladderProgress';
 import { normalizeMonsterRescue } from '../../utils/monsterRescue/progress';
 import { clampMergeTier } from '../../utils/mergeSystem';
+import { peakMonsterLevelFromRoster } from '../../utils/trainerRankings';
+
 /**
  * @param {object} gameData
  * @param {string} profileID
@@ -39,6 +41,7 @@ export function toCloudProfile(gameData, profileID) {
   }
 
   const playerKey = normalizePlayerKey(p.pin || p.playerKey || '');
+  const peak = peakMonsterLevelFromRoster(p.ownedMonsters);
 
   const row = {
     profileID: String(profileID),
@@ -46,6 +49,9 @@ export function toCloudProfile(gameData, profileID) {
     coins: typeof p.coins === 'number' ? p.coins : 0,
     selectedMonsterId: p.selectedMonsterId ?? null,
     monsters,
+    peakMonsterLevel: peak.level,
+    peakMonsterTemplateId: peak.templateId,
+    peakMonsterNickname: peak.nickname || '',
     gear: Array.isArray(p.cosmeticsOwned) ? p.cosmeticsOwned : [],
     equippedGear,
     unlockedGearSlots,
