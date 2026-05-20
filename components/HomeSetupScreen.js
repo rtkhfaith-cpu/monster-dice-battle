@@ -543,7 +543,7 @@ export default function HomeSetupScreen({
             const picked = primary.id === selectedMonsterId;
             const countLabel = group.count > 1 ? ` ×${group.count}` : '';
             const mergeLabel = group.mergeTier > 0 ? ` · +${group.mergeTier}` : '';
-            const mergeTargetId = group.primary?.id ?? primary.id;
+            const mergeTargetId = (group.battlePrimary ?? group.primary)?.id;
             return (
               <View key={group.templateId} style={[styles.monsterSelectRow, picked && styles.monsterChipActive]}>
                 <View style={styles.monsterSelectMain}>

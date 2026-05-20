@@ -1,4 +1,4 @@
-import { GRID_COLS, GRID_ROWS, RESCUE_GAME_TIME_SEC, RESCUE_MOVE_TIME_SEC } from '../../../utils/monsterRescue/constants';
+import { GRID_COLS, GRID_ROWS, RESCUE_GAME_TIME_SEC } from '../../../utils/monsterRescue/constants';
 import { ROW_PUSH_MOVES_BASE } from '../../../utils/monsterRescue/difficulty';
 import { getRescueStage } from '../../../utils/monsterRescue/stages';
 import StageGenerator from './StageGenerator';
@@ -27,7 +27,9 @@ const SHOOT_FINAL_MAX_MS = 620;
 const MIN_AIM_ANGLE = -Math.PI + 0.12;
 const MAX_AIM_ANGLE = -0.12;
 /** Radians per horizontal pixel when fine-tuning from the bottom strip. */
-const AIM_DRAG_SENSITIVITY = 0.014;
+const AIM_DRAG_SENSITIVITY = 0.009;
+/** Smooth aim rotation toward pointer (higher = snappier). */
+const AIM_SMOOTH_RATE = 16;
 /** Width of left/right touch bands (full play height) for wall-bank aiming. */
 const SIDE_AIM_BAND_PX = 52;
 /** Finger movement or angle change required before release fires. */
@@ -49,6 +51,7 @@ export function createMonsterRescueScene(Phaser) {
       this.timeRemainingMs = this.gameTimeLimitMs;
       this.isAiming = false;
       this.aimDragMoved = false;
+      this.aimAngleTarget = -Math.PI / 2;
     }
 
     init(data) {
@@ -93,11 +96,13 @@ export function createMonsterRescueScene(Phaser) {
       this.shooterX = w / 2;
       this.shooterY = layout.shooterY;
       this.aimAngle = -Math.PI / 2;
-      this.currentCell = this.stageGenerator.rollShooterBubble();
+      this.aimAngleTarget = this.aimAngle;
+      const gridModel = this.bubbleSystem.getModel();
+      this.currentCell = this.stageGenerator.rollShooterBubble(gridModel);
       this.previewQueue = [
-        this.stageGenerator.rollShooterBubble(),
-        this.stageGenerator.rollShooterBubble(),
-        this.stageGenerator.rollShooterBubble(),
+        this.stageGenerator.rollShooterBubble(gridModel),
+        this.stageGenerator.rollShooterBubble(gridModel),
+        this.stageGenerator.rollShooterBubble(gridModel),
       ];
 
       this.shooter = new RescueShooter(
@@ -187,7 +192,8 @@ export function createMonsterRescueScene(Phaser) {
     _startMoveTimer() {
       this._clearMoveTimer();
       if (this.gameOver || this.isShooting || this.timeRemainingMs <= 0) return;
-      this._moveTimerEvent = this.time.delayedCall(RESCUE_MOVE_TIME_SEC * 1000, () => {
+      const moveSec = this.stageDef?.moveTimeSec ?? 15;
+      this._moveTimerEvent = this.time.delayedCall(moveSec * 1000, () => {
         this._moveTimerEvent = null;
         if (this.gameOver || this.isShooting) return;
         void this._fire();
@@ -260,17 +266,18 @@ export function createMonsterRescueScene(Phaser) {
     }
 
     _advanceShooterQueue() {
+      const gridModel = this.bubbleSystem?.getModel?.();
       if (!this.previewQueue?.length) {
-        this.currentCell = this.stageGenerator.rollShooterBubble();
+        this.currentCell = this.stageGenerator.rollShooterBubble(gridModel);
         this.previewQueue = [
-          this.stageGenerator.rollShooterBubble(),
-          this.stageGenerator.rollShooterBubble(),
-          this.stageGenerator.rollShooterBubble(),
+          this.stageGenerator.rollShooterBubble(gridModel),
+          this.stageGenerator.rollShooterBubble(gridModel),
+          this.stageGenerator.rollShooterBubble(gridModel),
         ];
         return;
       }
       this.currentCell = this.previewQueue.shift();
-      this.previewQueue.push(this.stageGenerator.rollShooterBubble());
+      this.previewQueue.push(this.stageGenerator.rollShooterBubble(gridModel));
     }
 
     async _maybePushTopRow() {
@@ -279,7 +286,7 @@ export function createMonsterRescueScene(Phaser) {
       if (this.movesSinceRowPush < interval) return false;
 
       this.movesSinceRowPush = 0;
-      const topCells = this.stageGenerator.buildPushRowCells();
+      const topCells = this.stageGenerator.buildPushRowCells(this.bubbleSystem.getModel());
       const { lostCount } = this.bubbleSystem.pushTopRow(topCells, this.stageGenerator);
       if (lostCount > 0) {
         this.rewardManager.addPopScore(
@@ -354,8 +361,17 @@ export function createMonsterRescueScene(Phaser) {
       if (Math.abs(ang - this.aimAngle) >= MIN_AIM_ANGLE_DELTA) {
         this.aimDragMoved = true;
       }
-      this.aimAngle = ang;
-      this.shooter?.setAimAngle(ang);
+      this.aimAngleTarget = ang;
+    }
+
+    update(_time, delta) {
+      if (!this.shooter || this.isShooting || this.gameOver) return;
+      if (!this.isAiming) return;
+      const t = 1 - Math.exp(-AIM_SMOOTH_RATE * (delta / 1000));
+      const next = Phaser.Math.Linear(this.aimAngle, this.aimAngleTarget, t);
+      if (Math.abs(next - this.aimAngle) < 0.0004) return;
+      this.aimAngle = next;
+      this.shooter.setAimAngle(next);
     }
 
     _onPointerDown(p) {

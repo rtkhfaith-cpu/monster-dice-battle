@@ -36,7 +36,7 @@ import {
   mergeLadderMonsterParts,
   setMonsterLadderState,
 } from './monsterLadder/ladderProfile';
-import { clampMergeTier, mergeCostForNextTier } from './mergeSystem';
+import { clampMergeTier, mergeCostForNextTier, pickPrimaryInstance } from './mergeSystem';
 import { assertShopGearPurchase, assertShopMonsterPurchase } from './shopGuards';
 import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
@@ -1143,15 +1143,20 @@ export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
     refs.push({ monster: m, list: 'ladder' });
   }
 
-  const primaryRef = refs.find((r) => r.monster.id === primaryOwnedId);
-  if (!primaryRef) return { gameData: gd, error: 'Monster not found.' };
+  const clickedRef = refs.find((r) => r.monster.id === primaryOwnedId);
+  if (!clickedRef) return { gameData: gd, error: 'Monster not found.' };
 
-  const templateId = primaryRef.monster.templateId;
+  const templateId = clickedRef.monster.templateId;
+  const sameTemplateRefs = refs.filter((r) => r.monster.templateId === templateId);
+  const survivorMonster = pickPrimaryInstance(sameTemplateRefs.map((r) => r.monster));
+  if (!survivorMonster) return { gameData: gd, error: 'Monster not found.' };
+
+  const primaryRef = refs.find((r) => r.monster.id === survivorMonster.id);
   const tier = clampMergeTier(primaryRef.monster.mergeTier);
   const cost = mergeCostForNextTier(tier);
   if (cost == null) return { gameData: gd, error: 'Already at max merge level (+9).' };
 
-  const others = refs.filter((r) => r.monster.templateId === templateId && r.monster.id !== primaryOwnedId);
+  const others = sameTemplateRefs.filter((r) => r.monster.id !== survivorMonster.id);
   if (others.length < cost) {
     return {
       gameData: gd,
@@ -1165,17 +1170,18 @@ export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
     return (a.monster.level ?? 1) - (b.monster.level ?? 1);
   });
   const removeIds = new Set(sorted.slice(0, cost).map((r) => r.monster.id));
+  const survivorId = survivorMonster.id;
 
   wallet.ownedMonsters = (wallet.ownedMonsters || []).filter((m) => {
     if (!removeIds.has(m.id)) return true;
-    if (profile.selectedMonsterId === m.id) profile.selectedMonsterId = primaryOwnedId;
+    if (profile.selectedMonsterId === m.id) profile.selectedMonsterId = survivorId;
     return false;
   });
 
   if (removeIds.has(ml.activeMonsterId)) {
-    const primaryOnLadder = (ml.ownedMonsters || []).some((m) => m.id === primaryOwnedId);
+    const primaryOnLadder = (ml.ownedMonsters || []).some((m) => m.id === survivorId);
     ml.activeMonsterId = primaryOnLadder
-      ? primaryOwnedId
+      ? survivorId
       : (ml.ownedMonsters || []).find((m) => !removeIds.has(m.id))?.id ?? null;
   }
   ml.ownedMonsters = (ml.ownedMonsters || []).filter((m) => !removeIds.has(m.id));
