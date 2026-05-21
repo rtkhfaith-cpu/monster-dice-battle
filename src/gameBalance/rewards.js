@@ -1,16 +1,18 @@
+import { LADDER_BALANCE } from './ladder';
+
 export const REWARD_BALANCE = {
   normalExpBase: 15,
   normalExpPerEnemyLevel: 3,
   miniBossExpMultiplier: 2,
   bigBossExpMultiplier: 4,
-  ladderExpMultiplier: 3,
+  ladderExpMultiplier: LADDER_BALANCE.expMultiplier,
   lossExpBase: 5,
   lossExpPerPlayerLevel: 1,
   coinsBase: 8,
   coinsPerEnemyLevel: 0.5,
   miniBossCoinMultiplier: 1.5,
   bigBossCoinMultiplier: 2,
-  ladderCoinMultiplier: 0.2,
+  ladderCoinMultiplier: LADDER_BALANCE.coinMultiplier,
 };
 
 export function normalExpForEnemyLevel(enemyLevel) {

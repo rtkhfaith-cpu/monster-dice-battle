@@ -1,31 +1,25 @@
 import { decodeRescueLevel } from './stages';
-import { normalCoinsForEnemyLevel, normalExpForEnemyLevel } from '../../src/gameBalance/rewards';
+import { rescueCoinCap, rescueExpCap } from '../../src/gameBalance/rescue';
 
 /**
- * Rescue payouts are tuned ~one normal battle win (not multi-battle jackpots).
- * Reference at enemy level ≈ stage tier: coins ~8–13, EXP ~18–30 per fight.
+ * Rescue payouts scale with rescue stage id (1–60) only.
+ * Player monster level does not affect coins or EXP.
  */
-const COINS_PER_BUBBLE = 0.18;
-const EXP_PER_BUBBLE = 0.3;
-const COMBO_COIN_PER_STEP = 1;
-const COMBO_EXP_PER_STEP = 1;
-const CLEAR_COIN_BONUS = 4;
-const CLEAR_EXP_BONUS = 5;
-
-function tierEnemyLevel(themeId, subLevel) {
-  return Math.max(1, Math.min(60, (themeId - 1) * 8 + subLevel));
-}
+const COINS_PER_BUBBLE = 0.52;
+const EXP_PER_BUBBLE = 0.09;
+const COMBO_COIN_PER_STEP = 2;
+const COMBO_EXP_PER_STEP = 0;
+const CLEAR_COIN_BONUS = 10;
+const CLEAR_EXP_BONUS = 3;
 
 /**
  * Full payout — only when the stage is cleared (all bubbles popped).
- * @param {{ comboPeak: number, bubblesCleared: number, themeId: number, subLevel: number }} params
+ * @param {{ comboPeak: number, bubblesCleared: number, rescueStageId: number }} params
  */
-export function computeStageRewards({ comboPeak = 1, bubblesCleared = 0, themeId = 1, subLevel = 1 }) {
+export function computeStageRewards({ comboPeak = 1, bubblesCleared = 0, rescueStageId = 1 }) {
   const cleared = Math.max(0, Math.floor(bubblesCleared));
   const comboSteps = Math.max(0, comboPeak - 1);
-  const refLv = tierEnemyLevel(themeId, subLevel);
-  const battleCoinRef = normalCoinsForEnemyLevel(refLv);
-  const battleExpRef = normalExpForEnemyLevel(refLv);
+  const stageId = Math.max(1, Math.floor(rescueStageId || 1));
 
   let coins = Math.floor(
     cleared * COINS_PER_BUBBLE + comboSteps * COMBO_COIN_PER_STEP + CLEAR_COIN_BONUS
@@ -34,8 +28,8 @@ export function computeStageRewards({ comboPeak = 1, bubblesCleared = 0, themeId
     cleared * EXP_PER_BUBBLE + comboSteps * COMBO_EXP_PER_STEP + CLEAR_EXP_BONUS
   );
 
-  const coinCap = battleCoinRef + 4;
-  const expCap = battleExpRef + 6;
+  const coinCap = rescueCoinCap(stageId);
+  const expCap = rescueExpCap(stageId);
   coins = Math.min(coinCap, Math.max(CLEAR_COIN_BONUS, coins));
   exp = Math.min(expCap, Math.max(CLEAR_EXP_BONUS, exp));
 
@@ -53,8 +47,8 @@ export function computeStageRewards({ comboPeak = 1, bubblesCleared = 0, themeId
 export function computeLossRewards(runSummary = {}) {
   const cleared = Math.max(0, Math.floor(runSummary?.bubblesCleared ?? 0));
   return {
-    coins: cleared >= 12 ? 1 : 0,
-    exp: cleared >= 15 ? 2 : cleared >= 8 ? 1 : 0,
+    coins: cleared >= 12 ? 2 : cleared >= 6 ? 1 : 0,
+    exp: cleared >= 15 ? 1 : 0,
     shards: 0,
     comboPeak: runSummary?.comboPeak ?? 1,
     bubblesCleared: cleared,
@@ -64,11 +58,10 @@ export function computeLossRewards(runSummary = {}) {
 
 export function computeStageRewardsFromLevel(levelId, runSummary = {}, won = true) {
   if (!won) return computeLossRewards(runSummary);
-  const { themeId, subLevel } = decodeRescueLevel(levelId);
+  const { levelId: rescueStageId } = decodeRescueLevel(levelId);
   return computeStageRewards({
     comboPeak: runSummary?.comboPeak ?? 1,
     bubblesCleared: runSummary?.bubblesCleared ?? 0,
-    themeId,
-    subLevel,
+    rescueStageId,
   });
 }

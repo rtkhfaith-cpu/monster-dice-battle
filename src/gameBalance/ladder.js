@@ -1,6 +1,7 @@
 export const LADDER_BALANCE = {
-  expMultiplier: 3,
-  coinMultiplier: 0.2,
+  /** High EXP, low ladder Gold (see rewards.js ladder payouts). */
+  expMultiplier: 4,
+  coinMultiplier: 0.12,
   dailyResetTimeZone: 'Asia/Singapore',
   dailyResetHour: 18,
   chestRates: {
