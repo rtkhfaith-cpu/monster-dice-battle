@@ -99,9 +99,13 @@ function WedgeLabel({ seg, mid, maxWidth, textColor }) {
 }
 
 export {
-  rotationMatchesSegmentIndex,
+  prizeIndexFromRotation,
+  rotationMatchesPrizeIndex,
   segmentCenterDeg,
   segmentIndexFromRotation,
+  spinAnimationTargetDegForPrize,
+  spinLayoutIndexForPrizeIndex,
+  spinRestRotationForPrizeIndex,
   spinRotationForSegmentIndex,
 } from '../utils/dailySpinWheelAlign';
 

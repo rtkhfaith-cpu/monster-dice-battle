@@ -16,8 +16,9 @@ import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGa
 import { playButton, playLevelUp, playWin, unlockAudio } from '../utils/audioManager';
 import DailySpinWheel from './DailySpinWheel';
 import {
-  spinAnimationTargetDeg,
-  spinRestRotationForIndex,
+  rotationMatchesPrizeIndex,
+  spinAnimationTargetDegForPrize,
+  spinRestRotationForPrizeIndex,
 } from '../utils/dailySpinWheelAlign';
 
 export default function DailyLuckySpinModal({
@@ -76,8 +77,15 @@ export default function DailyLuckySpinModal({
 
     const startDeg = rotationDeg.current;
     const extraTurns = 5 + Math.floor(Math.random() * 2);
-    const animTarget = spinAnimationTargetDeg(idx, SEGMENT_DEG, startDeg, extraTurns);
-    const snapDeg = spinRestRotationForIndex(idx, SEGMENT_DEG);
+    const segmentCount = DAILY_SPIN_SEGMENTS.length;
+    const animTarget = spinAnimationTargetDegForPrize(
+      idx,
+      SEGMENT_DEG,
+      startDeg,
+      extraTurns,
+      segmentCount,
+    );
+    const snapDeg = spinRestRotationForPrizeIndex(idx, SEGMENT_DEG, segmentCount);
 
     rotation.setValue(startDeg);
 
@@ -89,6 +97,9 @@ export default function DailyLuckySpinModal({
     }).start(({ finished }) => {
       rotationDeg.current = snapDeg;
       rotation.setValue(snapDeg);
+      if (__DEV__ && !rotationMatchesPrizeIndex(snapDeg, idx, SEGMENT_DEG, segmentCount)) {
+        console.warn('[DailySpin] needle/prize mismatch after snap', { segmentId, idx, snapDeg });
+      }
       setSpinning(false);
       const claimed = onClaimSpin?.(segmentId);
       const merged = claimed

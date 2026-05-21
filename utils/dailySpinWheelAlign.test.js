@@ -2,37 +2,56 @@
  * Run: node utils/dailySpinWheelAlign.test.js
  */
 import {
-  segmentCenterDeg,
-  segmentIndexFromRotation,
-  spinAnimationTargetDeg,
-  spinRestRotationForIndex,
-  rotationMatchesSegmentIndex,
+  prizeIndexFromRotation,
+  rotationMatchesPrizeIndex,
+  spinAnimationTargetDegForPrize,
+  spinLayoutIndexForPrizeIndex,
+  spinRestRotationForPrizeIndex,
 } from './dailySpinWheelAlign.js';
 
 const SEGMENTS = 9;
 const STEP = 360 / SEGMENTS;
 
+const NAMES = [
+  '10',
+  '25',
+  '50',
+  '20sh',
+  '40sh',
+  'gear',
+  'mon',
+  'myth',
+  '150',
+];
+
 let failed = 0;
 
-for (let idx = 0; idx < SEGMENTS; idx += 1) {
-  const rest = spinRestRotationForIndex(idx, STEP);
-  const back = segmentIndexFromRotation(rest, STEP, SEGMENTS);
-  const screen = (segmentCenterDeg(idx, STEP) + rest) % 360;
-  const animEnd = spinAnimationTargetDeg(idx, STEP, 0, 5);
+for (let prizeIdx = 0; prizeIdx < SEGMENTS; prizeIdx += 1) {
+  const layoutIdx = spinLayoutIndexForPrizeIndex(prizeIdx, SEGMENTS);
+  const rest = spinRestRotationForPrizeIndex(prizeIdx, STEP, SEGMENTS);
+  const back = prizeIndexFromRotation(rest, STEP, SEGMENTS);
+  const animEnd = spinAnimationTargetDegForPrize(prizeIdx, STEP, 0, 5, SEGMENTS);
   const animMod = ((animEnd % 360) + 360) % 360;
   const ok =
-    back === idx &&
-    screen === 0 &&
+    back === prizeIdx &&
     animMod === rest &&
-    rotationMatchesSegmentIndex(rest, idx, STEP, SEGMENTS);
+    rotationMatchesPrizeIndex(rest, prizeIdx, STEP, SEGMENTS);
   if (!ok) {
     failed += 1;
-    console.error('FAIL idx', idx, { rest, back, screen, animMod });
+    console.error('FAIL prize', prizeIdx, NAMES[prizeIdx], { layoutIdx, rest, back, animMod });
   }
+}
+
+// User report: prize mon (6) must not show gear (5)
+const monRest = spinRestRotationForPrizeIndex(6, STEP, SEGMENTS);
+const monUnderNeedle = prizeIndexFromRotation(monRest, STEP, SEGMENTS);
+if (monUnderNeedle !== 6) {
+  failed += 1;
+  console.error('FAIL mon chest case', { monRest, monUnderNeedle });
 }
 
 if (failed > 0) {
   console.error(`${failed} alignment checks failed`);
   process.exit(1);
 }
-console.log(`OK: all ${SEGMENTS} prizes land under the needle`);
+console.log(`OK: needle matches prize for all ${SEGMENTS} wedges (incl. gear/mon)`);
