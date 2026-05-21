@@ -1,7 +1,8 @@
 import { DEFAULT_GEAR_SLOTS } from '../gearSlots';
 import { applyMonsterTheme } from '../monsterThemes';
 import { getLadderMonsterTemplate } from './ladderMonsterCatalog';
-import { canonicalMonsterKey, resolveLadderTemplateId } from './ladderMonsterMigrate';
+import { resolveLadderTemplateId } from './ladderMonsterMigrate';
+import { countOwnedSpecies, rosterSpeciesKey } from '../rosterInventory';
 import { normalizeMonsterLadder } from './ladderProgress';
 
 function uid(prefix) {
@@ -110,16 +111,10 @@ export function profileOwnsLadderTemplate(profile, templateId) {
 
 /** @param {object} profile @param {string} templateId */
 export function profileOwnsMonsterTemplate(profile, templateId) {
-  const canonical = canonicalMonsterKey(templateId) ?? templateId;
-  return (profile.ownedMonsters ?? []).some(
-    (m) => canonicalMonsterKey(m.templateId) === canonical,
-  );
+  return countOwnedSpecies(profile, templateId) > 0;
 }
 
 /** @param {object} profile @param {string} templateId */
 export function countOwnedMonsterTemplate(profile, templateId) {
-  const canonical = canonicalMonsterKey(templateId) ?? templateId;
-  return (profile.ownedMonsters ?? []).filter(
-    (m) => canonicalMonsterKey(m.templateId) === canonical,
-  ).length;
+  return countOwnedSpecies(profile, templateId);
 }

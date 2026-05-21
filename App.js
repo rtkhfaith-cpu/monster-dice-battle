@@ -921,13 +921,14 @@ export default function App() {
   }
 
   function handleMergeMonster(primaryOwnedId) {
-    if (!gameData || !setupP1ProfileId || !primaryOwnedId) return;
-    const res = mergeOwnedMonsters(gameData, setupP1ProfileId, primaryOwnedId);
+    const mergeProfileId = activeProfileId || setupP1ProfileId;
+    if (!gameData || !mergeProfileId || !primaryOwnedId) return;
+    const res = mergeOwnedMonsters(gameData, mergeProfileId, primaryOwnedId);
     if (res.error) {
       showNotice('Merge monsters', res.error);
       return;
     }
-    persistSave(res.gameData, 'monster_merged', setupP1ProfileId);
+    persistSave(res.gameData, 'monster_merged', mergeProfileId);
     setGameData(res.gameData);
     playSound('levelUp');
     showNotice('Merge complete', `Now +${res.mergeTier} merge (used ${res.consumed} duplicate${res.consumed === 1 ? '' : 's'}).`);
@@ -1903,6 +1904,9 @@ export default function App() {
         onSelectActive={(id) => {
           setActiveLadderMonster(id);
           setLadderCollectionOpen(false);
+        }}
+        onMergeMonster={(id) => {
+          handleMergeMonster(id);
         }}
       />
       <MonsterLadderGearScreen

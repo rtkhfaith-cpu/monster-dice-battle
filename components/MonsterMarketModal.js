@@ -6,21 +6,11 @@ import { mergeMonsterParts } from '../utils/gameStorage';
 import { MONSTER_CATALOG, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 import { computeBattleStats } from '../utils/statsCalc';
 import { monsterShopPrice } from '../src/gameBalance/shop';
-import { canonicalMonsterKey } from '../utils/monsterLadder/ladderMonsterMigrate';
-
-/** Count owned instances per species (canonical template key). */
-function ownedCounts(wallet) {
-  const m = {};
-  for (const om of wallet?.ownedMonsters || []) {
-    const key = canonicalMonsterKey(om.templateId) ?? om.templateId;
-    m[key] = (m[key] || 0) + 1;
-  }
-  return m;
-}
+import { ownedSpeciesCounts, rosterSpeciesKey } from '../utils/rosterInventory';
 
 export default function MonsterMarketModal({ visible, coins, wallet, onClose, onBuy }) {
   const [cardMonster, setCardMonster] = useState(null);
-  const counts = ownedCounts(wallet || {});
+  const counts = ownedSpeciesCounts(wallet);
   const cardFighter = useMemo(() => {
     if (!cardMonster) return null;
     const built = computeBattleStats(cardMonster.id, 1);
@@ -42,7 +32,7 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
             {MONSTER_CATALOG.map((m) => {
               const ru = RARITY_UI[m.rarity];
-              const count = counts[m.id] || 0;
+              const count = counts[rosterSpeciesKey(m.id)] || 0;
               const price = monsterShopPrice(m);
               const purchasable = typeof price === 'number';
               const afford = purchasable && (coins ?? 0) >= price;

@@ -39,6 +39,7 @@ import {
   setMonsterLadderState,
 } from './monsterLadder/ladderProfile';
 import { clampMergeTier, mergeCostForNextTier, pickPrimaryInstance } from './mergeSystem';
+import { getOwnedRoster, rosterInstancesForTemplate, rosterSpeciesKey } from './rosterInventory';
 import { assertShopGearPurchase, assertShopMonsterPurchase } from './shopGuards';
 import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
@@ -1125,30 +1126,26 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
  */
 export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
   const gd = cloneGameData(gameData);
-  const profile = profileId ? getPlayerProfile(gd, profileId) : null;
   const wallet = walletForProfile(gd, profileId);
-  if (!profile || !wallet) return { gameData: gd, error: 'Profile not found.' };
+  if (!wallet) return { gameData: gd, error: 'Profile not found.' };
 
-  consolidatePlayerMonstersToMain(profile);
-  const ml = getMonsterLadderState(profile);
-  const refs = (wallet.ownedMonsters || []).map((m) => ({ monster: m, list: 'main' }));
+  const profile = profileId ? getPlayerProfile(gd, profileId) : null;
+  if (profile) consolidatePlayerMonstersToMain(profile);
 
-  const clickedRef = refs.find((r) => r.monster.id === primaryOwnedId);
-  if (!clickedRef) return { gameData: gd, error: 'Monster not found.' };
+  const roster = getOwnedRoster(wallet);
+  const clicked = roster.find((m) => m.id === primaryOwnedId);
+  if (!clicked) return { gameData: gd, error: 'Monster not found.' };
 
-  const templateKey = canonicalMonsterKey(clickedRef.monster.templateId) ?? clickedRef.monster.templateId;
-  const sameTemplateRefs = refs.filter(
-    (r) => (canonicalMonsterKey(r.monster.templateId) ?? r.monster.templateId) === templateKey,
-  );
-  const survivorMonster = pickPrimaryInstance(sameTemplateRefs.map((r) => r.monster));
+  const templateKey = rosterSpeciesKey(clicked.templateId);
+  const sameSpecies = rosterInstancesForTemplate(roster, templateKey);
+  const survivorMonster = pickPrimaryInstance(sameSpecies);
   if (!survivorMonster) return { gameData: gd, error: 'Monster not found.' };
 
-  const primaryRef = refs.find((r) => r.monster.id === survivorMonster.id);
-  const tier = clampMergeTier(primaryRef.monster.mergeTier);
+  const tier = clampMergeTier(survivorMonster.mergeTier);
   const cost = mergeCostForNextTier(tier);
   if (cost == null) return { gameData: gd, error: 'Already at max merge level (+9).' };
 
-  const others = sameTemplateRefs.filter((r) => r.monster.id !== survivorMonster.id);
+  const others = sameSpecies.filter((m) => m.id !== survivorMonster.id);
   if (others.length < cost) {
     return {
       gameData: gd,
@@ -1157,32 +1154,36 @@ export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
   }
 
   const sorted = [...others].sort((a, b) => {
-    const td = clampMergeTier(a.monster.mergeTier) - clampMergeTier(b.monster.mergeTier);
+    const td = clampMergeTier(a.mergeTier) - clampMergeTier(b.mergeTier);
     if (td !== 0) return td;
-    return (a.monster.level ?? 1) - (b.monster.level ?? 1);
+    return (a.level ?? 1) - (b.level ?? 1);
   });
-  const removeIds = new Set(sorted.slice(0, cost).map((r) => r.monster.id));
+  const removeIds = new Set(sorted.slice(0, cost).map((m) => m.id));
   const survivorId = survivorMonster.id;
 
-  wallet.ownedMonsters = (wallet.ownedMonsters || []).filter((m) => {
+  wallet.ownedMonsters = roster.filter((m) => {
     if (!removeIds.has(m.id)) return true;
-    if (profile.selectedMonsterId === m.id) profile.selectedMonsterId = survivorId;
+    if (profile?.selectedMonsterId === m.id) profile.selectedMonsterId = survivorId;
     return false;
   });
 
-  if (removeIds.has(ml.activeMonsterId)) {
-    ml.activeMonsterId = profile.ownedMonsters.some((m) => m.id === survivorId)
-      ? survivorId
-      : profile.ownedMonsters[0]?.id ?? null;
+  if (profile) {
+    const ml = getMonsterLadderState(profile);
+    if (removeIds.has(ml.activeMonsterId)) {
+      ml.activeMonsterId = wallet.ownedMonsters.some((m) => m.id === survivorId)
+        ? survivorId
+        : wallet.ownedMonsters[0]?.id ?? null;
+    }
+    setMonsterLadderState(profile, ml);
   }
 
-  primaryRef.monster.mergeTier = tier + 1;
-  setMonsterLadderState(profile, ml);
+  survivorMonster.mergeTier = tier + 1;
 
   return {
     gameData: gd,
     mergeTier: tier + 1,
     consumed: cost,
     templateId: templateKey,
+    ownedCount: rosterInstancesForTemplate(wallet.ownedMonsters, templateKey).length,
   };
 }

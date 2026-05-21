@@ -1,4 +1,4 @@
-import { canonicalMonsterKey } from './monsterLadder/ladderMonsterMigrate';
+import { rosterSpeciesKey } from './rosterInventory';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import { getMonsterTemplate } from './monsterTemplates';
 
@@ -45,7 +45,7 @@ export function groupOwnedMonsters(mainMonsters = [], ladderMonsters = []) {
 
   function add(monster, source) {
     if (!monster?.templateId) return;
-    const key = canonicalMonsterKey(monster.templateId) ?? monster.templateId;
+    const key = rosterSpeciesKey(monster.templateId);
     if (!groups.has(key)) {
       groups.set(key, { templateId: key, instances: [] });
     }

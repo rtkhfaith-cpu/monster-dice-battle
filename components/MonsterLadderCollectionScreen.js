@@ -5,6 +5,7 @@ import MonsterStatCardOverlay from './MonsterStatCardOverlay';
 import { RARITY_UI, getMonsterTemplate } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { fighterForLadderBattle } from '../utils/monsterLadder/ladderFighters';
+import { groupOwnedMonsters } from '../utils/mergeSystem';
 
 function formatStats(stats) {
   if (!stats) return '';
@@ -18,8 +19,10 @@ export default function MonsterLadderCollectionScreen({
   activeMonsterId,
   onClose,
   onSelectActive,
+  onMergeMonster,
 }) {
   const [cardMonster, setCardMonster] = useState(null);
+  const monsterGroups = groupOwnedMonsters(ownedMonsters);
   const cardFighter = cardMonster ? fighterForLadderBattle(cardMonster) : null;
   const cardTemplate =
     cardMonster
@@ -35,16 +38,16 @@ export default function MonsterLadderCollectionScreen({
             {ownedMonsters.length === 0 ? (
               <Text style={styles.empty}>No monsters yet. Buy or earn monsters on the home screen, or win ladder chests.</Text>
             ) : (
-              ownedMonsters.map((om) => {
+              monsterGroups.map((group) => {
+                const om = group.primary;
+                if (!om) return null;
                 const f = fighterForLadderBattle(om);
                 const t = getLadderMonsterTemplate(om.templateId) ?? getMonsterTemplate(om.templateId);
                 const active = om.id === activeMonsterId;
+                const countLabel = group.count > 1 ? ` · ×${group.count}` : '';
+                const mergeLabel = group.mergeTier > 0 ? ` · +${group.mergeTier}` : '';
                 return (
-                  <TouchableOpacity
-                    key={om.id}
-                    style={[styles.row, active && styles.rowOn]}
-                    onPress={() => onSelectActive(om.id)}
-                  >
+                  <View key={group.templateId} style={[styles.row, active && styles.rowOn]}>
                     {f ? (
                       <TouchableOpacity
                         activeOpacity={0.86}
@@ -57,15 +60,31 @@ export default function MonsterLadderCollectionScreen({
                     ) : (
                       <Text style={styles.fallback}>?</Text>
                     )}
-                    <View style={styles.meta}>
-                      <Text style={styles.name}>{om.nickname || t?.name}</Text>
+                    <TouchableOpacity style={styles.meta} onPress={() => onSelectActive(om.id)}>
+                      <Text style={styles.name}>
+                        {om.nickname || t?.name}
+                        {countLabel}
+                      </Text>
                       <Text style={styles.lv}>
-                        Lv {om.level} · {RARITY_UI[t?.rarity]?.label ?? t?.rarity}
+                        Lv {om.level}
+                        {mergeLabel}
+                        {' · '}
+                        {RARITY_UI[t?.rarity]?.label ?? t?.rarity}
                       </Text>
                       <Text style={styles.stats} numberOfLines={2}>{formatStats(f?.stats || f?.baseStats)}</Text>
-                    </View>
-                    {active ? <Text style={styles.badge}>ACTIVE</Text> : null}
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                    {group.canMerge && onMergeMonster ? (
+                      <TouchableOpacity
+                        style={styles.mergeBtn}
+                        onPress={() => onMergeMonster(om.id)}
+                      >
+                        <Text style={styles.mergeBtnTxt}>Merge</Text>
+                        <Text style={styles.mergeBtnSub}>+{group.mergeTier + 1}</Text>
+                      </TouchableOpacity>
+                    ) : active ? (
+                      <Text style={styles.badge}>ACTIVE</Text>
+                    ) : null}
+                  </View>
                 );
               })
             )}
@@ -150,6 +169,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
   },
+  mergeBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#22c55e',
+    borderWidth: 1,
+    borderColor: '#15803d',
+  },
+  mergeBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 11 },
+  mergeBtnSub: { color: '#dcfce7', fontWeight: '800', fontSize: 10 },
   closeBtn: {
     marginTop: 10,
     backgroundColor: '#6c5ce7',

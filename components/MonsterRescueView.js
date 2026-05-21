@@ -2,6 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { RESCUE_COLORS } from './monsterRescue/rescueUiTheme';
 import {
+  setRescueBootStageId,
+  setRescueBootShooterTemplateId,
+} from '../src/phaser/monsterRescue/bootConfig';
+import { createMonsterRescueScene } from '../src/phaser/monsterRescue/MonsterRescueScene';
+import {
   applyWebCanvasTouchGuards,
   attachWebTouchGuards,
   gameSurfaceDataProps,
@@ -64,7 +69,6 @@ export default function MonsterRescueView({
       try {
         const PhaserModule = await import('phaser');
         const Phaser = PhaserModule.default ?? PhaserModule;
-        const { createMonsterRescueScene } = await import('../src/phaser/monsterRescue/MonsterRescueScene');
 
         const markReady = (scene) => {
           if (disposed || ready) return;
@@ -93,9 +97,6 @@ export default function MonsterRescueView({
           const el = hostRef.current;
           const { w, h } = hostDimensions(el, height, width);
 
-          const { setRescueBootStageId, setRescueBootShooterTemplateId } = await import(
-            '../src/phaser/monsterRescue/bootConfig'
-          );
           setRescueBootStageId(stageId);
           if (shooterMonsterTemplateId) setRescueBootShooterTemplateId(shooterMonsterTemplateId);
           const SceneClass = createMonsterRescueScene(Phaser);

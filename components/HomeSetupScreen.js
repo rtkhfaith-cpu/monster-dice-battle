@@ -145,7 +145,8 @@ export default function HomeSetupScreen({
   const syncedMonsterIdRef = useRef(null);
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null;
-  const activeWallet = walletP1 || wallet;
+  const activeWallet =
+    gameMode === 'twoPlayer' && activeSlot === 2 ? (walletP2 || wallet) : (wallet || walletP1);
   const monsters = activeWallet?.ownedMonsters ?? [];
   const monsterGroups = useMemo(
     () => groupOwnedMonsters(monsters).map((group) => ({
