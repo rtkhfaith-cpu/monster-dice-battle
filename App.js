@@ -137,6 +137,7 @@ import {
 import { consumeMainMiniBossSkipNext } from './utils/mainBattleChest';
 
 const LOBBY_PHASES = new Set(['menu', 'ladder', 'monsterRescueHub', 'online', 'gameOver', 'audioSettings']);
+const RESCUE_PHASES = new Set(['monsterRescue', 'monsterRescueHub', 'monsterRescueReward']);
 
 const BG = '#dceaf8';
 
@@ -1654,37 +1655,39 @@ export default function App() {
       {phase !== 'menu' && phase !== 'ladder' && phase !== 'battle' && phase !== 'online' ? (
         <>
           <Text style={styles.gameTitle}>
-            {phase === 'monsterRescue' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward'
-              ? 'Monster Rescue'
-              : 'Monster Battle'}
+            {RESCUE_PHASES.has(phase) ? 'Monster Rescue' : 'Monster Battle'}
           </Text>
           <View style={styles.coinsRow}>
             <Text style={styles.coinsStripText}>
               Coins 🪙 <Text style={styles.coinsAmt}>{coins}</Text>
             </Text>
-            <TouchableOpacity
-              style={styles.miniShop}
-              onPress={() => {
-                playSound('shop');
-                setGearMartOpen(true);
-              }}
-              accessibilityLabel="Gear mart"
-            >
-              <Text style={styles.miniShopTxt}>Gear Mart</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.miniShop} onPress={openMonsterGearForActiveSlot} accessibilityLabel="Monster gear">
-              <Text style={styles.miniShopTxt}>Equip</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.miniShop}
-              onPress={() => {
-                playSound('shop');
-                setMonsterMartOpen(true);
-              }}
-              accessibilityLabel="Monster mart"
-            >
-              <Text style={styles.miniShopTxt}>Monsters</Text>
-            </TouchableOpacity>
+            {!RESCUE_PHASES.has(phase) ? (
+              <>
+                <TouchableOpacity
+                  style={styles.miniShop}
+                  onPress={() => {
+                    playSound('shop');
+                    setGearMartOpen(true);
+                  }}
+                  accessibilityLabel="Gear mart"
+                >
+                  <Text style={styles.miniShopTxt}>Gear Mart</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.miniShop} onPress={openMonsterGearForActiveSlot} accessibilityLabel="Monster gear">
+                  <Text style={styles.miniShopTxt}>Equip</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.miniShop}
+                  onPress={() => {
+                    playSound('shop');
+                    setMonsterMartOpen(true);
+                  }}
+                  accessibilityLabel="Monster mart"
+                >
+                  <Text style={styles.miniShopTxt}>Monsters</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
         </>
       ) : null}
