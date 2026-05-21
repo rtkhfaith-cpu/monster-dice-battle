@@ -46,6 +46,7 @@ import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
+import { grantChestMonsterToProfile } from './chestMonsterGrant';
 import { grantGearToProfile } from './gearDuplicateReward';
 import {
   clearMainMiniBossSkipNext,
@@ -1116,11 +1117,12 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
       applied.duplicate = false;
     }
   } else if (drop.kind === 'monster') {
-    const om = generateOwnedMonster(drop.id);
-    applied.duplicate = profileOwnsMonsterTemplate(wallet, drop.id);
-    wallet.ownedMonsters.push(om);
-    applied.ownedCount = countOwnedMonsterTemplate(wallet, drop.id);
-    applied.ownedId = om.id;
+    const granted = grantChestMonsterToProfile(profile, drop);
+    if (granted) {
+      applied.duplicate = granted.duplicate;
+      applied.ownedCount = countOwnedMonsterTemplate(wallet, drop.id);
+      applied.ownedId = granted.ownedId;
+    }
   }
 
   return { gameData: gd, drop: applied };

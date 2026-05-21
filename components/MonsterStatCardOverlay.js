@@ -27,9 +27,19 @@ function hasGearBonuses(bonuses) {
   return Object.values(bonuses).some((v) => typeof v === 'number' && v > 0);
 }
 
+function formatSkillLine(skill) {
+  if (!skill?.name) return null;
+  if (skill.kind === 'magic') {
+    const mp = skill.mpCost ?? 0;
+    return `${skill.emoji ?? '✨'} ${skill.name} · ${mp} MP`;
+  }
+  return `${skill.emoji ?? '👊'} ${skill.name}`;
+}
+
 /** Shared monster detail card — same layout as Monster Mart preview card. */
 export default function MonsterStatCardOverlay({
   fighter,
+  skills = null,
   kicker = 'Monster Card',
   mergeTier = 0,
   selected = false,
@@ -76,6 +86,19 @@ export default function MonsterStatCardOverlay({
           {selected ? <Text style={styles.cardSelected}>SELECTED</Text> : null}
         </View>
         {description ? <Text style={styles.cardDesc}>{description}</Text> : null}
+        {skills ? (
+          <View style={styles.cardSkills}>
+            <Text style={styles.cardSkillsTitle}>Skills</Text>
+            {skills.physical ? (
+              <Text style={styles.cardSkillLine}>{formatSkillLine(skills.physical)}</Text>
+            ) : null}
+            {(skills.magic ?? []).map((skill) => (
+              <Text key={skill.id ?? skill.name} style={styles.cardSkillLine}>
+                {formatSkillLine(skill)}
+              </Text>
+            ))}
+          </View>
+        ) : null}
         {gearNote ? <Text style={styles.gearNote}>Stats include equipped gear</Text> : null}
         <View style={styles.cardStatsGrid}>
           {statGrid(stats).map((col, colIndex) => (
@@ -203,6 +226,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
     width: '100%',
+  },
+  cardSkills: {
+    width: '100%',
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(250, 204, 21, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(250, 204, 21, 0.28)',
+  },
+  cardSkillsTitle: {
+    color: '#fde68a',
+    fontWeight: '900',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  cardSkillLine: {
+    color: '#e2e8f0',
+    fontWeight: '800',
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
   },
   gearNote: {
     color: '#94a3b8',

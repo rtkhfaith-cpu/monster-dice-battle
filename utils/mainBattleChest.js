@@ -1,4 +1,5 @@
 import { bossCoinsForEnemyLevel, bossExpForEnemyLevel } from '../src/gameBalance/rewards';
+import { getChestMonstersByRarity } from './chestMonsterPools';
 import { GEAR_CATALOG, getGear } from './cosmetics';
 import { getAllowedCpuRarities } from './fighterFromOwned';
 import { profileOwnsMonsterTemplate } from './monsterLadder/ladderProfile';
@@ -31,7 +32,8 @@ export const MAIN_MINI_BOSS_CHEST_ROWS = [
     id: 'monster',
     label: 'Monster',
     chancePct: 18,
-    detail: 'Roll rarity first (fixed weights below), then a random monster of that rarity. Duplicate → another copy on your roster.',
+    detail:
+      'Roll rarity first (fixed weights below), then a random monster of that rarity (equal chance per species). Mythic pool includes 67-Rex, Goldzilla, and ladder mythics. Duplicate → another copy on your roster.',
   },
 ];
 
@@ -161,15 +163,19 @@ function pickChestMonster(profile, enemyLevel) {
   for (const rarity of tryRarities) {
     if (seen.has(rarity)) continue;
     seen.add(rarity);
-    const pool = MONSTER_CATALOG.filter((m) => m?.id && m.rarity === rarity);
+    const pool = getChestMonstersByRarity(rarity).filter((m) => allowed.has(m.rarity));
     if (pool.length) {
       pick = pool[Math.floor(Math.random() * pool.length)];
       break;
     }
   }
   if (!pick) {
-    const fallback = MONSTER_CATALOG.filter((m) => m?.id && allowed.has(m.rarity));
-    pick = fallback[Math.floor(Math.random() * fallback.length)] ?? MONSTER_CATALOG[0];
+    const fallback = RARITY_ORDER.flatMap((r) =>
+      allowed.has(r) ? getChestMonstersByRarity(r) : [],
+    );
+    pick = fallback[Math.floor(Math.random() * fallback.length)]
+      ?? getChestMonstersByRarity('common')[0]
+      ?? MONSTER_CATALOG[0];
   }
   const tpl = getMonsterTemplate(pick.id);
   return {

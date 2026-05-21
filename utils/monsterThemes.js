@@ -148,7 +148,7 @@ export const MONSTER_THEMES = {
     aura: '#f1c40f',
     label: 'Goldzilla',
     colorIdx: 4,
-    themeBody: 'goldzilla',
+    themeBody: 'sixtyseven',
     archetype: 'kaiju',
     palette: { base: '#f1c40f', light: '#ffeaa7', dark: '#d4ac0d', accent: '#2d3436', glow: '#ffd166' },
   },

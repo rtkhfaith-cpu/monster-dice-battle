@@ -1,10 +1,9 @@
 import { LADDER_DAILY_RESET_HOUR, LADDER_TIMEZONE } from './monsterLadder/ladderConstants';
 import { getLadderRewardDayKey } from './monsterLadder/ladderDailyReset';
-import { getLadderMonstersByRarity } from './monsterLadder/ladderMonsterCatalog';
+import { grantChestMonsterToProfile } from './chestMonsterGrant';
+import { pickRandomChestMonsterByRarity } from './chestMonsterPools';
 import {
   getMonsterLadderState,
-  grantLadderMonsterToProfile,
-  profileOwnsMonsterTemplate,
   setMonsterLadderState,
 } from './monsterLadder/ladderProfile';
 import { openLadderChestOnProfile } from './monsterLadder/ladderRewards';
@@ -190,8 +189,7 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
   }
 
   if (segment.kind === 'mythic_monster') {
-    const pool = getLadderMonstersByRarity('mythic');
-    const pick = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
+    const pick = pickRandomChestMonsterByRarity('mythic');
     if (!pick) {
       const opened = grantAndOpenChest(profile, 'monster');
       result.opensChest = true;
@@ -202,14 +200,23 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
         : 'Mythic chest opened';
       return result;
     }
-    const duplicate = profileOwnsMonsterTemplate(profile, pick.id);
-    const row = grantLadderMonsterToProfile(profile, pick.id);
+    const granted = grantChestMonsterToProfile(profile, pick);
+    if (!granted) {
+      const opened = grantAndOpenChest(profile, 'monster');
+      result.opensChest = true;
+      result.chestDrop = opened.drop;
+      result.ladderShardsTotal = getMonsterLadderState(profile).ladderShards;
+      result.message = opened.drop
+        ? formatChestDropMessage(opened.drop, 'monster')
+        : 'Mythic chest opened';
+      return result;
+    }
     const mlAfter = getMonsterLadderState(profile);
-    if (!mlAfter.activeMonsterId) mlAfter.activeMonsterId = row.id;
+    if (!mlAfter.activeMonsterId) mlAfter.activeMonsterId = granted.ownedId;
     setMonsterLadderState(profile, mlAfter);
     result.opensChest = true;
-    result.duplicate = duplicate;
-    result.message = duplicate
+    result.duplicate = granted.duplicate;
+    result.message = granted.duplicate
       ? `${pick.name} — mythic duplicate for merge`
       : `${pick.name} — mythic jackpot`;
     result.chestDrop = {
@@ -217,7 +224,7 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
       id: pick.id,
       name: pick.name,
       rarity: 'mythic',
-      duplicate,
+      duplicate: granted.duplicate,
     };
     return result;
   }

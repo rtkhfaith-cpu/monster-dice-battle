@@ -1,6 +1,7 @@
 import { addExperience, subtractExperience, expToAdvanceFrom, expWinForEnemyLevel, expLossPenalty } from '../expLevel';
 import { ladderCoinsForEnemyLevel } from '../../src/gameBalance/rewards';
 import { LADDER_CHEST_SHARD_COST, LADDER_EXP_MULTIPLIER } from './ladderConstants';
+import { grantChestMonsterToProfile } from '../chestMonsterGrant';
 import { grantGearToProfile } from '../gearDuplicateReward';
 import { rollChestDrop } from './ladderChestTables';
 import {
@@ -10,11 +11,8 @@ import {
 import { getStageKind } from './stages';
 import {
   getMonsterLadderState,
-  grantLadderMonsterToProfile,
-  profileOwnsLadderTemplate,
   setMonsterLadderState,
 } from './ladderProfile';
-import { resolveLadderTemplateId } from './ladderMonsterMigrate';
 import { cloneGameData, getPlayerProfile } from '../gameStorage';
 
 function ensureChestInventory(ml) {
@@ -223,20 +221,19 @@ function resolveChestOpen(profile, ml, type) {
   if (!roll?.id) return null;
 
   if (roll.kind === 'monster') {
-    const templateId = resolveLadderTemplateId(roll.id) ?? roll.id;
     try {
-      const duplicate = profileOwnsLadderTemplate(profile, templateId);
-      const row = grantLadderMonsterToProfile(profile, templateId);
-      if (!ml.activeMonsterId) ml.activeMonsterId = row.id;
+      const granted = grantChestMonsterToProfile(profile, roll);
+      if (!granted) return null;
+      if (!ml.activeMonsterId) ml.activeMonsterId = granted.ownedId;
       return {
         ...roll,
-        duplicate,
-        ownedId: row.id,
+        duplicate: granted.duplicate,
+        ownedId: granted.ownedId,
         shardsGained: 0,
-        futureCombine: duplicate,
+        futureCombine: granted.duplicate,
       };
     } catch (err) {
-      console.warn('[ladder] monster chest grant failed', templateId, err?.message || err);
+      console.warn('[ladder] monster chest grant failed', roll.id, err?.message || err);
       return null;
     }
   }

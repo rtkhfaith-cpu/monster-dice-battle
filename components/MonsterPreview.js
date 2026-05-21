@@ -109,7 +109,7 @@ export default function MonsterPreview({
     return <View style={{ width: size, height: size * 1.06, alignSelf: 'center' }} />;
   }
 
-  const imageAsset = Platform.OS === 'web' ? getMonsterImageAsset(safe.templateId) : null;
+  const imageAsset = getMonsterImageAsset(safe.templateId);
   if (imageAsset?.path) {
     return (
       <View style={{ width: size, height: size * 1.06, alignSelf: 'center', justifyContent: 'center' }}>

@@ -2,15 +2,26 @@ import React, { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import MonsterStatCardOverlay from './MonsterStatCardOverlay';
+import { getTemplateElement } from '../utils/elements';
 import { mergeMonsterParts } from '../utils/gameStorage';
-import { MONSTER_CATALOG, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
+import { getMonsterSkillSet } from '../utils/monsterSkills';
+import { MONSTER_CATALOG, RARITY_UI, ROLE_LABELS, rarityRank } from '../utils/monsterTemplates';
 import { computeBattleStats } from '../utils/statsCalc';
 import { monsterShopPrice } from '../src/gameBalance/shop';
 import { ownedSpeciesCounts, rosterSpeciesKey } from '../utils/rosterInventory';
 
+function formatMartStats(stats) {
+  if (!stats) return '';
+  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max} · DEF ${stats.def.min}-${stats.def.max} · HIT ${stats.hitRate ?? 92}% · AGI ${stats.agility ?? stats.speed ?? 10}`;
+}
+
 export default function MonsterMarketModal({ visible, coins, wallet, onClose, onBuy }) {
   const [cardMonster, setCardMonster] = useState(null);
   const counts = ownedSpeciesCounts(wallet);
+  const catalog = useMemo(
+    () => [...MONSTER_CATALOG].sort((a, b) => rarityRank(a.rarity) - rarityRank(b.rarity)),
+    [],
+  );
   const cardFighter = useMemo(() => {
     if (!cardMonster) return null;
     const built = computeBattleStats(cardMonster.id, 1);
@@ -19,10 +30,14 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
       displayName: cardMonster.name,
       rarity: cardMonster.rarity,
       role: cardMonster.role,
+      element: getTemplateElement(cardMonster.id),
       level: 1,
       stats: built?.stats,
+      templateId: cardMonster.id,
+      skills: getMonsterSkillSet(cardMonster.id),
     };
   }, [cardMonster]);
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -30,13 +45,14 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
           <Text style={styles.title}>Monster Mart</Text>
           <Text style={styles.sub}>Coins: {coins ?? 0}</Text>
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-            {MONSTER_CATALOG.map((m) => {
+            {catalog.map((m) => {
               const ru = RARITY_UI[m.rarity];
               const count = counts[rosterSpeciesKey(m.id)] || 0;
               const price = monsterShopPrice(m);
               const purchasable = typeof price === 'number';
               const afford = purchasable && (coins ?? 0) >= price;
               const previewParts = mergeMonsterParts(m.id);
+              const baseStats = formatMartStats(computeBattleStats(m.id, 1)?.stats);
               return (
                 <View key={m.id} style={[styles.row, { borderLeftColor: ru.border }]}>
                   <TouchableOpacity style={styles.thumbCol} activeOpacity={0.86} onPress={() => setCardMonster(m)}>
@@ -49,6 +65,7 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
                       <Text style={[styles.rChip, { backgroundColor: ru.chipBg, color: ru.chipFg }]}>{ru.label}</Text>
                     </View>
                     <Text style={styles.role}>{ROLE_LABELS[m.role] ?? m.role}</Text>
+                    {baseStats ? <Text style={styles.stats} numberOfLines={2}>{baseStats}</Text> : null}
                     <Text style={styles.desc}>{m.description}</Text>
                     <Text style={styles.ownedLbl}>
                       {count > 1
@@ -60,13 +77,19 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
                   </View>
                   <View style={styles.right}>
                     <Text style={styles.price}>{purchasable ? `${price} 🪙` : 'Event only'}</Text>
-                    <TouchableOpacity
-                      style={[styles.buy, (!afford || !onBuy || !purchasable) && styles.buyOff]}
-                      disabled={!afford || !onBuy || !purchasable}
-                      onPress={() => onBuy?.(m.id, price)}
-                    >
-                      <Text style={styles.buyTxt}>Buy</Text>
-                    </TouchableOpacity>
+                    {purchasable ? (
+                      <TouchableOpacity
+                        style={[styles.buy, (!afford || !onBuy) && styles.buyOff]}
+                        disabled={!afford || !onBuy}
+                        onPress={() => onBuy?.(m.id, price)}
+                      >
+                        <Text style={styles.buyTxt}>Buy</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.buyEvent}>
+                        <Text style={styles.buyEventTxt}>Event only</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
               );
@@ -78,6 +101,7 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
           {cardFighter ? (
             <MonsterStatCardOverlay
               fighter={cardFighter}
+              skills={cardFighter.skills}
               description={cardMonster?.description}
               kicker="Monster Card"
               layerZIndex={30}
@@ -160,6 +184,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   role: { fontWeight: '900', fontSize: 12, color: '#c4b5fd', marginTop: 2 },
+  stats: { fontWeight: '900', fontSize: 11, color: '#86efac', marginTop: 3, lineHeight: 15 },
   desc: { fontWeight: '800', fontSize: 13, color: '#bfdbfe', marginTop: 4, lineHeight: 18 },
   ownedLbl: { fontWeight: '900', fontSize: 12, color: '#86efac', marginTop: 4 },
   right: { justifyContent: 'space-between', alignItems: 'flex-end', width: 88 },
@@ -177,6 +202,22 @@ const styles = StyleSheet.create({
   },
   buyOff: { opacity: 0.35 },
   buyTxt: { fontWeight: '900', fontSize: 14, color: '#fff8dd', textTransform: 'uppercase' },
+  buyEvent: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(250, 204, 21, 0.5)',
+    backgroundColor: 'rgba(120, 53, 15, 0.55)',
+  },
+  buyEventTxt: {
+    fontWeight: '900',
+    fontSize: 11,
+    color: '#fde68a',
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
   closeBtn: {
     marginTop: 14,
     alignSelf: 'center',

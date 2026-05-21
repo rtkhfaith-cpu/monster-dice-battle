@@ -611,14 +611,6 @@ export default function HomeSetupScreen({
                 disabled={!canStart}
                 onPress={pressWithSound(onStartGame)}
               />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Mini boss chest drop table"
-                style={({ pressed }) => [styles.miniBossDropsLink, pressed && { opacity: 0.85 }]}
-                onPress={pressWithSound(() => setMiniBossDropsOpen(true))}
-              >
-                <Text style={styles.miniBossDropsLinkText}>Mini Boss drops ⓘ</Text>
-              </Pressable>
               <FantasyButton
                 label="Multiplayer"
                 icon="⚔"
@@ -643,6 +635,15 @@ export default function HomeSetupScreen({
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Mini boss chest drop table"
+              style={({ pressed }) => [styles.miniBossDropsLink, pressed && { opacity: 0.85 }]}
+              onPress={pressWithSound(() => setMiniBossDropsOpen(true))}
+            >
+              <Text style={styles.miniBossDropsLinkText}>Mini Boss drops ⓘ</Text>
+            </Pressable>
 
             <MainMiniBossDropsModal
               visible={miniBossDropsOpen}
@@ -884,20 +885,28 @@ const styles = StyleSheet.create({
   menuButtonOne: { top: '42%' },
   miniBossDropsLink: {
     position: 'absolute',
-    zIndex: 41,
-    top: '46.2%',
-    right: '8%',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: 'rgba(10, 16, 32, 0.72)',
+    zIndex: 38,
+    left: '3%',
+    bottom: '14%',
+    maxWidth: '28%',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(10, 16, 32, 0.78)',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(250, 204, 21, 0.55)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   miniBossDropsLinkText: {
     color: '#fde047',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
+    letterSpacing: 0.2,
   },
   menuButtonTwo: { top: '48.2%' },
   menuButtonThree: { top: '54.4%' },
