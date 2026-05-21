@@ -20,6 +20,7 @@ import { groupOwnedMonsters, MAX_MERGE_TIER } from '../utils/mergeSystem';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { gameSurfaceDataProps, WEB_GAME_TOUCH_STYLE } from '../utils/webGameTouch';
 import TrainerRankingsModal from './TrainerRankingsModal';
+import MainMiniBossDropsModal from './MainMiniBossDropsModal';
 
 const MAX_VISIBLE_PROFILES = 4;
 
@@ -141,6 +142,7 @@ export default function HomeSetupScreen({
   const [loginMsg, setLoginMsg] = useState('');
   const [loginMsgKind, setLoginMsgKind] = useState(/** @type {'success'|'error'|''} */ (''));
   const [rankingsOpen, setRankingsOpen] = useState(false);
+  const [miniBossDropsOpen, setMiniBossDropsOpen] = useState(false);
   const loginScrollRef = useRef(null);
   const syncedMonsterIdRef = useRef(null);
 
@@ -609,6 +611,14 @@ export default function HomeSetupScreen({
                 disabled={!canStart}
                 onPress={pressWithSound(onStartGame)}
               />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Mini boss chest drop table"
+                style={({ pressed }) => [styles.miniBossDropsLink, pressed && { opacity: 0.85 }]}
+                onPress={pressWithSound(() => setMiniBossDropsOpen(true))}
+              >
+                <Text style={styles.miniBossDropsLinkText}>Mini Boss drops ⓘ</Text>
+              </Pressable>
               <FantasyButton
                 label="Multiplayer"
                 icon="⚔"
@@ -633,6 +643,11 @@ export default function HomeSetupScreen({
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
+
+            <MainMiniBossDropsModal
+              visible={miniBossDropsOpen}
+              onClose={() => setMiniBossDropsOpen(false)}
+            />
 
             <TrainerRankingsModal
               visible={rankingsOpen}
@@ -867,6 +882,23 @@ const styles = StyleSheet.create({
     opacity: 0.48,
   },
   menuButtonOne: { top: '42%' },
+  miniBossDropsLink: {
+    position: 'absolute',
+    zIndex: 41,
+    top: '46.2%',
+    right: '8%',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(10, 16, 32, 0.72)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(250, 204, 21, 0.55)',
+  },
+  miniBossDropsLinkText: {
+    color: '#fde047',
+    fontSize: 11,
+    fontWeight: '800',
+  },
   menuButtonTwo: { top: '48.2%' },
   menuButtonThree: { top: '54.4%' },
   menuButtonFour: { top: '60.6%' },

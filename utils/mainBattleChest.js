@@ -2,10 +2,70 @@ import { bossCoinsForEnemyLevel, bossExpForEnemyLevel } from '../src/gameBalance
 import { GEAR_CATALOG, getGear } from './cosmetics';
 import { getAllowedCpuRarities } from './fighterFromOwned';
 import { profileOwnsMonsterTemplate } from './monsterLadder/ladderProfile';
-import { getMonsterTemplate, MONSTER_CATALOG } from './monsterTemplates';
+import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
 
 /** 20% chance for a main-menu CPU battle to spawn a catalog mini boss (testing). */
 export const MAIN_MINI_BOSS_CHANCE = 0.2;
+
+/** Chest reward bands (must match rollMainBattleChestDrop). */
+export const MAIN_MINI_BOSS_CHEST_ROWS = [
+  {
+    id: 'gold',
+    label: 'Bonus coins',
+    chancePct: 28,
+    detail: 'Extra coins on top of the normal win payout (scales with enemy level).',
+  },
+  {
+    id: 'exp',
+    label: 'Bonus EXP',
+    chancePct: 28,
+    detail: 'Bonus EXP for your active monster (scales with enemy level).',
+  },
+  {
+    id: 'gear',
+    label: 'Gear Mart item',
+    chancePct: 26,
+    detail: 'Random non–ladder gear from the mart (price ≤ 140). Within this roll: 40% premium tier (86–140), 60% standard (≤ 85). Duplicate → ladder shards.',
+  },
+  {
+    id: 'monster',
+    label: 'Monster',
+    chancePct: 18,
+    detail: 'Roll rarity first (fixed weights below), then a random monster of that rarity. Duplicate → another copy on your roster.',
+  },
+];
+
+/** Rarity weights for the 18% monster chest (not split by how many monsters exist per tier). */
+export const MAIN_MINI_BOSS_MONSTER_RARITY_WEIGHTS = {
+  common: 50,
+  rare: 30,
+  epic: 15,
+  legendary: 4,
+  mythic: 1,
+};
+
+export const MAIN_MINI_BOSS_MONSTER_RARITY_ROWS = [
+  { levelRange: '1–15', rarities: 'Common only (100%)' },
+  { levelRange: '16–25', rarities: 'Common 62.5% · Rare 37.5%' },
+  { levelRange: '26–35', rarities: 'Common 52.6% · Rare 31.6% · Epic 15.8%' },
+  { levelRange: '36+', rarities: 'Common 50% · Rare 30% · Epic 15% · Legendary 4% · Mythic 1%' },
+];
+
+/**
+ * Rarity % inside the monster chest roll, renormalized for allowed tiers at this level.
+ * @param {number} playerLevel
+ */
+export function getMainMiniBossMonsterRarityPercents(playerLevel) {
+  const lvl = Math.max(1, Math.floor(playerLevel || 1));
+  const allowed = getAllowedCpuRarities(lvl);
+  const order = RARITY_ORDER.filter((r) => allowed.includes(r));
+  const total = order.reduce((s, r) => s + (MAIN_MINI_BOSS_MONSTER_RARITY_WEIGHTS[r] ?? 0), 0);
+  if (!total) return [];
+  return order.map((rarity) => ({
+    rarity,
+    percent: Math.round(((MAIN_MINI_BOSS_MONSTER_RARITY_WEIGHTS[rarity] ?? 0) / total) * 1000) / 10,
+  }));
+}
 
 /** Mini boss stats = same template at level × this multiplier (vs normal CPU 0.9×). */
 export const MAIN_MINI_BOSS_STAT_MULT = 1.5;
@@ -77,6 +137,51 @@ function miniBossExpPayout(level) {
   return Math.max(14, Math.floor(bossExp * mult));
 }
 
+function rollChestMonsterRarity(allowedSet) {
+  const order = RARITY_ORDER.filter((r) => allowedSet.has(r));
+  const total = order.reduce((s, r) => s + (MAIN_MINI_BOSS_MONSTER_RARITY_WEIGHTS[r] ?? 0), 0);
+  if (!total) return 'common';
+  let roll = Math.random() * total;
+  for (const r of order) {
+    roll -= MAIN_MINI_BOSS_MONSTER_RARITY_WEIGHTS[r] ?? 0;
+    if (roll <= 0) return r;
+  }
+  return order[order.length - 1] ?? 'common';
+}
+
+function pickChestMonster(profile, enemyLevel) {
+  const lvl = Math.max(1, Math.floor(enemyLevel || 1));
+  const allowed = new Set(getAllowedCpuRarities(lvl));
+  const tryRarities = [
+    rollChestMonsterRarity(allowed),
+    ...RARITY_ORDER.filter((r) => allowed.has(r)),
+  ];
+  let pick = null;
+  const seen = new Set();
+  for (const rarity of tryRarities) {
+    if (seen.has(rarity)) continue;
+    seen.add(rarity);
+    const pool = MONSTER_CATALOG.filter((m) => m?.id && m.rarity === rarity);
+    if (pool.length) {
+      pick = pool[Math.floor(Math.random() * pool.length)];
+      break;
+    }
+  }
+  if (!pick) {
+    const fallback = MONSTER_CATALOG.filter((m) => m?.id && allowed.has(m.rarity));
+    pick = fallback[Math.floor(Math.random() * fallback.length)] ?? MONSTER_CATALOG[0];
+  }
+  const tpl = getMonsterTemplate(pick.id);
+  return {
+    kind: 'monster',
+    id: pick.id,
+    name: tpl?.name ?? pick.id,
+    label: tpl?.name ?? pick.id,
+    rarity: tpl?.rarity ?? 'common',
+    duplicate: profileOwnsMonsterTemplate(profile, pick.id),
+  };
+}
+
 function pickChestGear() {
   const premium = CHEST_GEAR_PREMIUM.length > 0 && Math.random() < 0.4;
   const pool = premium
@@ -131,20 +236,7 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
     };
   }
 
-  const allowed = new Set(getAllowedCpuRarities(lvl));
-  let pool = MONSTER_CATALOG.filter((m) => m?.id && allowed.has(m.rarity));
-  if (!pool.length) pool = MONSTER_CATALOG.filter((m) => m?.id);
-  const pick = pool[Math.floor(Math.random() * pool.length)] || MONSTER_CATALOG[0];
-  const tpl = getMonsterTemplate(pick.id);
-  const duplicate = profileOwnsMonsterTemplate(profile, pick.id);
-  return {
-    kind: 'monster',
-    id: pick.id,
-    name: tpl?.name ?? pick.id,
-    label: tpl?.name ?? pick.id,
-    rarity: tpl?.rarity ?? 'common',
-    duplicate,
-  };
+  return pickChestMonster(profile, lvl);
 }
 
 /** Coins when chest gear is already owned. */
