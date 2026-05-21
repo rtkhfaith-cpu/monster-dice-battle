@@ -577,9 +577,20 @@ export default function HomeSetupScreen({
           imageStyle={styles.backgroundImage}
         >
           <View style={styles.uiLayer} pointerEvents="box-none">
-            <View style={styles.topCoinDisplay} pointerEvents="none">
-              <Text style={styles.topCoinIcon}>◈</Text>
-              <Text style={styles.topCoinText}>{coins ?? 0}</Text>
+            <View style={styles.topLeftHud} pointerEvents="box-none">
+              <View style={styles.topCoinDisplay} pointerEvents="none">
+                <Text style={styles.topCoinIcon}>◈</Text>
+                <Text style={styles.topCoinText}>{coins ?? 0}</Text>
+              </View>
+              <Text
+                accessibilityRole="button"
+                accessibilityLabel="Mini boss chest drop table"
+                style={styles.miniBossDropsLinkText}
+                numberOfLines={1}
+                onPress={pressWithSound(() => setMiniBossDropsOpen(true))}
+              >
+                Mini Boss drops ⓘ
+              </Text>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -635,15 +646,6 @@ export default function HomeSetupScreen({
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
             <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Mini boss chest drop table"
-              style={({ pressed }) => [styles.miniBossDropsLink, pressed && { opacity: 0.85 }]}
-              onPress={pressWithSound(() => setMiniBossDropsOpen(true))}
-            >
-              <Text style={styles.miniBossDropsLinkText}>Mini Boss drops ⓘ</Text>
-            </Pressable>
 
             <MainMiniBossDropsModal
               visible={miniBossDropsOpen}
@@ -736,10 +738,16 @@ const styles = StyleSheet.create({
   uiLayer: {
     ...StyleSheet.absoluteFillObject,
   },
-  topCoinDisplay: {
+  topLeftHud: {
     position: 'absolute',
     top: '2.8%',
     left: '5.5%',
+    zIndex: 40,
+    alignItems: 'flex-start',
+    gap: 3,
+    maxWidth: '46%',
+  },
+  topCoinDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -883,30 +891,15 @@ const styles = StyleSheet.create({
     opacity: 0.48,
   },
   menuButtonOne: { top: '42%' },
-  miniBossDropsLink: {
-    position: 'absolute',
-    zIndex: 38,
-    left: '3%',
-    bottom: '14%',
-    maxWidth: '28%',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(10, 16, 32, 0.78)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(250, 204, 21, 0.55)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 6,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
   miniBossDropsLinkText: {
     color: '#fde047',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.2,
+    letterSpacing: 0.15,
+    textShadowColor: 'rgba(0,0,0,0.72)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   menuButtonTwo: { top: '48.2%' },
   menuButtonThree: { top: '54.4%' },
