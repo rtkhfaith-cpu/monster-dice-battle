@@ -151,7 +151,7 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
     duplicate: false,
     chestDrop: null,
     ladderShardsTotal: null,
-    coinsTotal: profile.coins ?? 0,
+    coinsTotal: null,
     opensChest: false,
   };
 

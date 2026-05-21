@@ -158,10 +158,14 @@ export default function DailyLuckySpinModal({
                   <Text style={styles.resultMain}>{result.grant?.message ?? 'Reward saved!'}</Text>
                   {result.grant?.opensChest ? (
                     <Text style={styles.resultSub}>Your chest is opening now…</Text>
-                  ) : result.grant?.coinsTotal != null ? (
+                  ) : result.segment?.kind === 'coins' || result.grant?.kind === 'coins' ? (
                     <Text style={styles.resultSub}>Gold added to your wallet.</Text>
-                  ) : result.grant?.ladderShardsTotal != null ? (
-                    <Text style={styles.resultSub}>{`Ladder shards: ${result.grant.ladderShardsTotal}`}</Text>
+                  ) : result.segment?.kind === 'shards' || result.grant?.kind === 'shards' ? (
+                    <Text style={styles.resultSub}>
+                      {result.grant?.ladderShardsTotal != null
+                        ? `Total ladder shards: ${result.grant.ladderShardsTotal}`
+                        : 'Shards added to Monster Ladder.'}
+                    </Text>
                   ) : null}
                 </View>
               ) : (
