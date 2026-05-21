@@ -13,7 +13,14 @@ import { DAILY_SPIN_SEGMENTS, dailySpinSegmentIndex } from '../utils/dailyLoginS
 import { RESCUE_COLORS, rescueWebShadow } from './monsterRescue/rescueUiTheme';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
-import { playButton, playLevelUp, playShop, playWin, unlockAudio } from '../utils/audioManager';
+import {
+  playButton,
+  playLevelUp,
+  playWheelLand,
+  playWheelTick,
+  playWin,
+  unlockAudio,
+} from '../utils/audioManager';
 import DailySpinWheel, { spinRotationForSegmentIndex } from './DailySpinWheel';
 
 export default function DailyLuckySpinModal({
@@ -29,10 +36,15 @@ export default function DailyLuckySpinModal({
   const [result, setResult] = useState(null);
   const rotation = useRef(new Animated.Value(0)).current;
   const rotationDeg = useRef(0);
+  const spinListenerRef = useRef(null);
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!visible) {
+      if (spinListenerRef.current != null) {
+        rotation.removeListener(spinListenerRef.current);
+        spinListenerRef.current = null;
+      }
       setStep('intro');
       setSpinning(false);
       setResult(null);
