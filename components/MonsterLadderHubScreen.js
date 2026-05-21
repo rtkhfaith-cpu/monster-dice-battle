@@ -15,9 +15,20 @@ import {
   stageTypeBanner,
   stageTypeLabel,
 } from '../utils/monsterLadder';
-import { LADDER_PITY, LADDER_RARITY_ORDER, LADDER_RARITY_WEIGHTS, LADDER_SHARDS_BY_RARITY } from '../utils/monsterLadder/ladderConstants';
+import {
+  LADDER_CHEST_GOLD_COST,
+  LADDER_CHEST_SHARD_COST,
+  LADDER_PITY,
+  LADDER_RARITY_ORDER,
+  LADDER_RARITY_WEIGHTS,
+  LADDER_SHARDS_BY_RARITY,
+} from '../utils/monsterLadder/ladderConstants';
 import { isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
-import { formatLadderBiweeklyResetHint } from '../utils/monsterLadder/ladderBiweeklyReset';
+import {
+  formatLadderBiweeklyResetHint,
+  getNextLadderBiweeklyResetDate,
+  LADDER_BIWEEKLY_EPOCH,
+} from '../utils/monsterLadder/ladderBiweeklyReset';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import {
   gameSurfaceDataProps,
@@ -47,22 +58,58 @@ function formatPitySummary(ml) {
   return `G${gear} E+${opensUntilPityGate(gear, LADDER_PITY.epicPlusEvery)} · M${mon} E+${opensUntilPityGate(mon, LADDER_PITY.epicPlusEvery)}`;
 }
 
+const RULE_SECTION = (title) => `—— ${title} ——`;
+
 /** @param {import('../utils/monsterLadder/ladderProgress').MonsterLadderState} ml */
 function buildLadderRulesLines(ml) {
   const gearOpens = ml?.pity?.gearChestsOpened ?? 0;
   const monsterOpens = ml?.pity?.monsterChestsOpened ?? 0;
-  const rates = LADDER_RARITY_ORDER.map((r) => `${rarityLabel(r)} ${LADDER_RARITY_WEIGHTS[r]}%`).join(' · ');
+  const gold = ml?.ladderGold ?? 0;
+  const shards = ml?.ladderShards ?? 0;
+  const gearGoldCost = LADDER_CHEST_GOLD_COST.gear;
+  const monShardCost = LADDER_CHEST_SHARD_COST.monster;
+  const nextBiweekly = getNextLadderBiweeklyResetDate();
+  const rates = LADDER_RARITY_ORDER.map((r) => `${rarityLabel(r)} ${LADDER_RARITY_WEIGHTS[r]}%`).join(', ');
+  const dupeShards = LADDER_RARITY_ORDER.map(
+    (r) => `${rarityLabel(r)} ${LADDER_SHARDS_BY_RARITY[r]}`,
+  ).join(' · ');
 
   return [
-    'Daily: beat all 10 subs on a main level, then that level locks until 6:00 PM Singapore. After reset you advance to the next main level.',
-    'Boss chests: Sub 5 Mini Boss → Gear Chest (once per day). Sub 10 Boss → Monster Chest (once per day). Unclaimed chests go to Chest Exchange.',
-    formatLadderBiweeklyResetHint(),
-    formatPityLine('Gear pity', gearOpens),
-    formatPityLine('Monster pity', monsterOpens),
-    `Normal chest odds: ${rates}. Pity guarantees Epic+ every ${LADDER_PITY.epicPlusEvery}, Legendary+ every ${LADDER_PITY.legendaryPlusEvery}, Mythic every ${LADDER_PITY.mythicEvery} opens (per chest type).`,
-    'Chest Exchange: buy Gear Chests with ladder gold (wins). Buy Monster Chests with shards (duplicate gear).',
-    'Duplicates → ladder shards. Biweekly reset keeps gold, shards, collection, and pity counters.',
+    RULE_SECTION('Daily progress'),
+    'Each main level has 10 sub-stages. Win fights to advance. After you clear all 10, that main level locks until 6:00 PM Singapore time — then the next main level unlocks. You can still open stored chests and use Chest Exchange while locked.',
+
+    RULE_SECTION('Boss chests (free)'),
+    'Sub 5 Mini Boss: win once per day to earn a Gear Chest (opens immediately). Sub 10 Boss: win once per day to earn a Monster Chest. If you already claimed today, the chest is stored in Chest Exchange until you open it.',
+
+    RULE_SECTION('Biweekly reset (every 2 Sundays)'),
+    `Every 2 weeks at Sunday 6:00 PM Singapore, your ladder stage progress resets so you can climb again and earn fresh daily boss chests. First reset: ${LADDER_BIWEEKLY_EPOCH} 6:00 PM. Next reset: ${nextBiweekly} 6:00 PM.`,
+    'What resets: main level → 1, sub-level → 1, daily boss chest claims, and “level cleared today” lock.',
+    'What you keep: ladder gold, shards, owned ladder monsters & gear, chests in inventory, pity counters, and Chest Collection.',
+
+    RULE_SECTION('Ladder gold'),
+    `You earn gold only by winning ladder battles (not from chests). Amount scales with enemy level and boss type; early fights often give 1–3 gold. Your balance: ${gold}.`,
+    `Spend gold in Chest Exchange to buy a Gear Chest for ${gearGoldCost} gold. Gear chests drop ladder-exclusive items. Gold is separate from main-game coins.`,
+
+    RULE_SECTION('Ladder shards'),
+    `Shards are the currency for Monster Chests. Your balance: ${shards}. Buy a Monster Chest in Chest Exchange for ${monShardCost} shards.`,
+    'How to earn shards: opening Gear or Monster chests and getting duplicate ladder gear converts to shards (new gear is kept). Monster duplicates do not give shards yet.',
+    `Duplicate gear shards by rarity: ${dupeShards}.`,
+
+    RULE_SECTION('Pity system (bad-luck protection)'),
+    'Each chest type has its own pity counter (total chests opened of that type, including free boss chests and bought chests). Pity never resets on the biweekly stage reset.',
+    `Normal drop rates per open: ${rates}.`,
+    `Guaranteed minimum rarity gates: Epic+ every ${LADDER_PITY.epicPlusEvery} opens, Legendary+ every ${LADDER_PITY.legendaryPlusEvery}, Mythic every ${LADDER_PITY.mythicEvery}. If multiple gates match, the best rarity wins.`,
+    formatPityLine('Your gear chest pity', gearOpens),
+    formatPityLine('Your monster chest pity', monsterOpens),
+    'E+ = opens until next Epic+ guarantee. L+ = Legendary+. M+ = Mythic. Hub bar “Pity” shows gear (G) and monster (M) opens with next Epic+ countdown.',
+
+    RULE_SECTION('Chest Exchange summary'),
+    `Gear Chest: ${gearGoldCost} gold · Monster Chest: ${monShardCost} shards. Tap the Shards chest card on the hub to open exchange.`,
   ];
+}
+
+function isRuleSectionLine(line) {
+  return line.startsWith('——') && line.endsWith('——');
 }
 
 function LadderRulesNotice({ mapHint, levelLocked, ml }) {
@@ -88,8 +135,11 @@ function LadderRulesNotice({ mapHint, levelLocked, ml }) {
       ) : (
         <ScrollView style={styles.noticeRulesScroll} showsVerticalScrollIndicator={false}>
           {showMapHint ? <Text style={styles.noticeHintLine}>{mapHint}</Text> : null}
-          {rules.map((line) => (
-            <Text key={line} style={styles.noticeRuleLine}>
+          {rules.map((line, idx) => (
+            <Text
+              key={`${idx}-${line.slice(0, 24)}`}
+              style={isRuleSectionLine(line) ? styles.noticeRuleTitle : styles.noticeRuleLine}
+            >
               {line}
             </Text>
           ))}
@@ -804,9 +854,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(167, 139, 250, 0.35)',
   },
   noticeBarExpanded: {
-    maxHeight: '18%',
+    maxHeight: '42%',
     zIndex: 20,
-    backgroundColor: 'rgba(12, 6, 28, 0.92)',
+    backgroundColor: 'rgba(12, 6, 28, 0.94)',
   },
   noticeBarCompact: {
     maxHeight: '2.4%',
@@ -838,6 +888,14 @@ const styles = StyleSheet.create({
   },
   noticeRulesScroll: {
     flex: 1,
+  },
+  noticeRuleTitle: {
+    color: '#fde68a',
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 14,
+    marginTop: 6,
+    marginBottom: 4,
   },
   noticeRuleLine: {
     color: '#e9e0ff',
