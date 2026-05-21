@@ -16,8 +16,8 @@ import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGa
 import { playButton, playLevelUp, playWin, unlockAudio } from '../utils/audioManager';
 import DailySpinWheel from './DailySpinWheel';
 import {
-  rotationMatchesSegmentIndex,
-  spinRotationForSegmentIndex,
+  spinAnimationTargetDeg,
+  spinRestRotationForIndex,
 } from '../utils/dailySpinWheelAlign';
 
 export default function DailyLuckySpinModal({
@@ -33,6 +33,7 @@ export default function DailyLuckySpinModal({
   const [result, setResult] = useState(null);
   const rotation = useRef(new Animated.Value(0)).current;
   const rotationDeg = useRef(0);
+  const pendingSegmentRef = useRef(null);
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function DailyLuckySpinModal({
       setResult(null);
       rotation.setValue(0);
       rotationDeg.current = 0;
+      pendingSegmentRef.current = null;
       return undefined;
     }
     const loop = Animated.loop(
@@ -62,38 +64,37 @@ export default function DailyLuckySpinModal({
     const segmentId = prepared?.segmentId;
     if (!segmentId) return;
 
+    const idx = dailySpinSegmentIndex(segmentId);
+    if (idx < 0) return;
+
+    const segment = DAILY_SPIN_SEGMENTS[idx];
+    pendingSegmentRef.current = segment;
+
     unlockAudio();
     setSpinning(true);
     setStep('wheel');
 
-    const idx = dailySpinSegmentIndex(segmentId);
+    const startDeg = rotationDeg.current;
     const extraTurns = 5 + Math.floor(Math.random() * 2);
-    const totalRotate = spinRotationForSegmentIndex(
-      idx,
-      SEGMENT_DEG,
-      rotationDeg.current,
-      extraTurns,
-    );
+    const animTarget = spinAnimationTargetDeg(idx, SEGMENT_DEG, startDeg, extraTurns);
+    const snapDeg = spinRestRotationForIndex(idx, SEGMENT_DEG);
+
+    rotation.setValue(startDeg);
 
     Animated.timing(rotation, {
-      toValue: totalRotate,
+      toValue: animTarget,
       duration: 4400,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
-      const finalNorm = ((totalRotate % 360) + 360) % 360;
-      rotationDeg.current = finalNorm;
-      rotation.setValue(finalNorm);
-      if (__DEV__ && !rotationMatchesSegmentIndex(finalNorm, idx, SEGMENT_DEG, DAILY_SPIN_SEGMENTS.length)) {
-        console.warn('[DailySpin] needle alignment mismatch', {
-          segmentId,
-          idx,
-          finalNorm,
-        });
-      }
+      rotationDeg.current = snapDeg;
+      rotation.setValue(snapDeg);
       setSpinning(false);
       const claimed = onClaimSpin?.(segmentId);
-      setResult(claimed ?? null);
+      const merged = claimed
+        ? { ...claimed, segment: claimed.segment ?? segment }
+        : null;
+      setResult(merged);
       if (finished) {
         if (claimed?.segment?.kind === 'mythic_monster') playLevelUp();
         else playWin();
@@ -103,8 +104,8 @@ export default function DailyLuckySpinModal({
   }
 
   const rotateInterpolate = rotation.interpolate({
-    inputRange: [0, 360],
-    outputRange: ['0deg', '360deg'],
+    inputRange: [-3600, 0, 3600],
+    outputRange: ['-3600deg', '0deg', '3600deg'],
     extrapolate: 'extend',
   });
 
@@ -165,6 +166,10 @@ export default function DailyLuckySpinModal({
                 <View style={styles.resultBox}>
                   <Text style={styles.resultEmoji}>
                     {result.segment?.emoji ?? (result.grant?.opensChest ? '📦' : '🎉')}
+                  </Text>
+                  <Text style={styles.resultWheelLabel}>
+                    {result.segment?.wheelTitle}
+                    {result.segment?.wheelSub ? ` · ${result.segment.wheelSub}` : ''}
                   </Text>
                   <Text style={styles.resultMain}>{result.grant?.message ?? 'Reward saved!'}</Text>
                   {result.grant?.opensChest ? (
@@ -339,6 +344,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resultEmoji: { fontSize: 32, marginBottom: 6 },
+  resultWheelLabel: {
+    color: RESCUE_COLORS.title,
+    fontWeight: '900',
+    fontSize: 15,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
   resultMain: {
     color: RESCUE_COLORS.win,
     fontWeight: '900',

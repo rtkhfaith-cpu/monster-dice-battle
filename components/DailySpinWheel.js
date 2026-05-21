@@ -110,10 +110,11 @@ export default function DailySpinWheel({ segments, rotate }) {
   const maxLabelWidth = wedgeLabelMaxWidth(stepDeg);
 
   const sliceData = useMemo(() => {
+    const half = stepDeg / 2;
     return segments.map((seg, i) => {
-      const start = i * stepDeg;
-      const end = start + stepDeg;
-      const mid = start + stepDeg / 2;
+      const mid = i * stepDeg;
+      const start = mid - half;
+      const end = mid + half;
       return {
         seg,
         start,
@@ -135,14 +136,6 @@ export default function DailySpinWheel({ segments, rotate }) {
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.pointerWrap} pointerEvents="none">
-        <View style={styles.pointerCrown}>
-          <Text style={styles.pointerCrownIcon}>♛</Text>
-        </View>
-        <View style={styles.pointerStem} />
-        <View style={styles.pointerTip} />
-      </View>
-
       <View style={styles.outerFrame}>
         <View style={styles.outerFrameInner}>
           <Animated.View style={[styles.spinLayer, { transform: [{ rotate }] }]}>
@@ -195,6 +188,14 @@ export default function DailySpinWheel({ segments, rotate }) {
             ))}
           </Animated.View>
 
+          <View style={styles.pointerFixed} pointerEvents="none">
+            <View style={styles.pointerCrown}>
+              <Text style={styles.pointerCrownIcon}>♛</Text>
+            </View>
+            <View style={styles.pointerStem} />
+            <View style={styles.pointerTip} />
+          </View>
+
           <View style={styles.hub} pointerEvents="none">
             <View style={styles.hubRing}>
               <Text style={styles.hubCrown}>♛</Text>
@@ -209,17 +210,17 @@ export default function DailySpinWheel({ segments, rotate }) {
 
 const styles = StyleSheet.create({
   wrap: {
-    width: SIZE,
-    height: SIZE + 36,
+    width: SIZE + 14,
+    height: SIZE + 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 4,
   },
-  pointerWrap: {
+  pointerFixed: {
     position: 'absolute',
-    top: 20,
+    top: 2,
     left: SIZE / 2 - 24,
-    zIndex: 20,
+    zIndex: 30,
     alignItems: 'center',
     width: 48,
   },
@@ -259,7 +260,6 @@ const styles = StyleSheet.create({
   outerFrame: {
     width: SIZE + 14,
     height: SIZE + 14,
-    marginTop: 34,
     borderRadius: (SIZE + 14) / 2,
     padding: 5,
     backgroundColor: ROYAL.rimGold,
