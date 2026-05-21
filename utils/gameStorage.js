@@ -19,7 +19,7 @@ import {
 import { expMultiplierFromGear } from './gearStats';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
-import { applyStageClear, normalizeMonsterRescue } from './monsterRescue/progress';
+import { applyStageClear, markRescueChestClaimed, normalizeMonsterRescue } from './monsterRescue/progress';
 import { computeStageRewardsFromLevel } from './monsterRescue/rewards';
 import { awardAndOpenRescueChest } from './monsterRescue/rescueChestRewards';
 import { normalizeDailyLoginSpin } from './dailyLoginSpin';
@@ -382,7 +382,10 @@ export function applyMonsterRescueStageResult(gameData, profileId, stageId, runS
     next.coins += rewards.coins;
     gd.players[idx] = next;
 
-    const chest = awardAndOpenRescueChest(next, subLevel);
+    const chest = awardAndOpenRescueChest(next, stageId, subLevel);
+    if (!chest.chestBlocked && (chest.chestDrop || chest.chestAwarded)) {
+      next = markRescueChestClaimed(next, stageId);
+    }
     const chestDrop = chest.chestDrop ?? null;
     gd.players[idx] = next;
 

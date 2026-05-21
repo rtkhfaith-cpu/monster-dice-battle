@@ -1,15 +1,15 @@
 import { decodeRescueLevel } from './stages';
-import { rescueCoinCap, rescueExpCap } from '../../src/gameBalance/rescue';
+import { RESCUE_BALANCE, rescueCoinCap, rescueExpCap } from '../../src/gameBalance/rescue';
 
 /**
  * Rescue payouts scale with rescue stage id (1–60) only.
  * Player monster level does not affect coins or EXP.
  */
-const COINS_PER_BUBBLE = 0.52;
+const COINS_PER_BUBBLE = 0.65;
 const EXP_PER_BUBBLE = 0.09;
-const COMBO_COIN_PER_STEP = 2;
+const COMBO_COIN_PER_STEP = 3;
 const COMBO_EXP_PER_STEP = 0;
-const CLEAR_COIN_BONUS = 10;
+const CLEAR_COIN_BONUS = 18;
 const CLEAR_EXP_BONUS = 3;
 
 /**
@@ -30,7 +30,11 @@ export function computeStageRewards({ comboPeak = 1, bubblesCleared = 0, rescueS
 
   const coinCap = rescueCoinCap(stageId);
   const expCap = rescueExpCap(stageId);
-  coins = Math.min(coinCap, Math.max(CLEAR_COIN_BONUS, coins));
+  const coinFloor = Math.max(
+    CLEAR_COIN_BONUS,
+    Math.floor(coinCap * RESCUE_BALANCE.coinClearMinRatio),
+  );
+  coins = Math.min(coinCap, Math.max(coinFloor, coins));
   exp = Math.min(expCap, Math.max(CLEAR_EXP_BONUS, exp));
 
   return {

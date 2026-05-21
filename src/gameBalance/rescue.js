@@ -1,12 +1,14 @@
 /** Monster Rescue — gold-focused; low EXP. Scales with rescue stage only (not monster level). */
 export const RESCUE_BALANCE = {
-  coinMultiplier: 2.75,
+  /** vs reference coins — main battle pays ~8–38; rescue targets ~5–9× that curve. */
+  coinMultiplier: 5,
   expMultiplier: 0.28,
-  coinCapBonus: 12,
+  coinCapBonus: 40,
   expCapBonus: 4,
-  /** Reference payout curve by rescue stage id (1–60). */
-  coinsBase: 8,
-  coinsPerStage: 0.5,
+  /** Full clear earns at least this fraction of the stage coin cap. */
+  coinClearMinRatio: 0.88,
+  coinsBase: 10,
+  coinsPerStage: 1.1,
   expBase: 12,
   expPerStage: 3,
   maxStage: 60,

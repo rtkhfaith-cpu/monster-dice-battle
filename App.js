@@ -58,7 +58,11 @@ import {
   buyMonsterLadderChest,
   openMonsterLadderChest,
 } from './utils/monsterLadder/ladderRewards';
-import { getMonsterRescueState } from './utils/monsterRescue/progress';
+import {
+  getMonsterRescueState,
+  isRescueStagePlayable,
+} from './utils/monsterRescue/progress';
+import { formatRescueWeeklyResetHint } from './utils/monsterRescue/rescueWeeklyReset';
 import { getRescueStage } from './utils/monsterRescue/stages';
 import {
   formatStageLabel,
@@ -1125,6 +1129,15 @@ export default function App() {
   }
 
   function startMonsterRescueStage(stageId) {
+    const profile = getPlayerProfile(gameData, setupP1ProfileId);
+    const rescue = getMonsterRescueState(profile);
+    if (!isRescueStagePlayable(rescue, stageId)) {
+      showNotice(
+        'Monster Rescue',
+        'This stage is closed for this week. Chest stages stay locked after the reward; other cleared stages cannot be replayed. A new run starts Sunday 6:00 PM (Singapore).',
+      );
+      return;
+    }
     unlockAudio();
     startRescueMusic();
     setRescueStageId(stageId);
@@ -1808,7 +1821,8 @@ export default function App() {
         {phase === 'monsterRescueHub' ? (
           <MonsterRescueHubScreen
             profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
-            highestCleared={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).highestCleared}
+            rescueState={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId))}
+            weeklyResetHint={formatRescueWeeklyResetHint()}
             hasPlayerKey={
               normalizePlayerKey(
                 getPlayerProfile(gameData, setupP1ProfileId)?.pin || '',
@@ -1839,7 +1853,16 @@ export default function App() {
             rewards={rescueRewardPayload.rewards}
             saveMessage={rescueRewardPayload.saveMessage}
             onContinue={() => setPhase('monsterRescueHub')}
-            onRetry={() => startMonsterRescueStage(rescueRewardPayload.stageId)}
+            onRetry={() => {
+              if (isRescueStagePlayable(
+                getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)),
+                rescueRewardPayload.stageId,
+              )) {
+                startMonsterRescueStage(rescueRewardPayload.stageId);
+              } else {
+                setPhase('monsterRescueHub');
+              }
+            }}
           />
         ) : null}
 

@@ -1,5 +1,6 @@
 import { openLadderChestOnProfile } from '../monsterLadder/ladderRewards';
 import { getMonsterLadderState, setMonsterLadderState } from '../monsterLadder/ladderProfile';
+import { getMonsterRescueState } from './progress';
 import { getRescueSubKind } from './stages';
 
 function ensureChestInventory(ml) {
@@ -12,15 +13,27 @@ function ensureChestInventory(ml) {
 }
 
 /**
- * Sub-levels 5 and 10 drop a ladder chest and open it immediately (no daily ladder limit).
+ * Sub-levels 5 and 10 drop one ladder chest per stage per weekly run (opened immediately).
  * @param {object} profile
+ * @param {number} levelId Flat rescue stage 1–60
  * @param {number} subLevel 1–10 within a theme
  */
-export function awardAndOpenRescueChest(profile, subLevel) {
+export function awardAndOpenRescueChest(profile, levelId, subLevel) {
   const kind = getRescueSubKind(subLevel);
   const chestAwarded = kind === 'miniBoss' ? 'gear' : kind === 'bigBoss' ? 'monster' : null;
   if (!chestAwarded) {
     return { chestAwarded: null, chestBlocked: false, chestDrop: null };
+  }
+
+  const mr = getMonsterRescueState(profile);
+  const stageId = Math.floor(levelId || 0);
+  if (mr.chestClaimedLevelIds.includes(stageId)) {
+    return {
+      chestAwarded,
+      chestBlocked: true,
+      chestDrop: null,
+      chestAlreadyClaimed: true,
+    };
   }
 
   const ml = getMonsterLadderState(profile);

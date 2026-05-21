@@ -46,6 +46,9 @@ export default function MonsterRescueRewardScreen({
           <Text style={rescueUiStyles.statRow}>Bubbles cleared: {r.bubblesCleared ?? 0}</Text>
           <Text style={rescueUiStyles.statRow}>Peak combo: x{r.comboPeak ?? 1}</Text>
           {chestLine ? <Text style={rescueUiStyles.statReward}>{chestLine}</Text> : null}
+          {r.chestBlocked ? (
+            <Text style={rescueUiStyles.statRow}>Chest already claimed this week for this stage.</Text>
+          ) : null}
           <View style={rescueUiStyles.statDivider} />
           <Text style={rescueUiStyles.statReward}>+{r.coins ?? 0} coins</Text>
           <Text style={rescueUiStyles.statReward}>+{r.exp ?? 0} monster EXP</Text>
