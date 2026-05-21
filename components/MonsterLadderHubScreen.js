@@ -16,9 +16,15 @@ import {
   stageTypeLabel,
 } from '../utils/monsterLadder';
 import { LADDER_PITY, LADDER_RARITY_ORDER, LADDER_RARITY_WEIGHTS, LADDER_SHARDS_BY_RARITY } from '../utils/monsterLadder/ladderConstants';
-import { getLadderRewardDayKey, isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
+import { isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
 import { formatLadderBiweeklyResetHint } from '../utils/monsterLadder/ladderBiweeklyReset';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
+import {
+  gameSurfaceDataProps,
+  WEB_DECORATIVE_IMAGE_PROPS,
+  WEB_GAME_TOUCH_STYLE,
+} from '../utils/webGameTouch';
+import { formatGearBonusLines } from '../utils/cosmetics';
 
 function opensUntilPityGate(opens, every) {
   const n = Math.max(0, Number(opens) || 0);
@@ -35,6 +41,13 @@ function formatPityLine(label, opens) {
 }
 
 /** @param {import('../utils/monsterLadder/ladderProgress').MonsterLadderState} ml */
+function formatPitySummary(ml) {
+  const gear = ml?.pity?.gearChestsOpened ?? 0;
+  const mon = ml?.pity?.monsterChestsOpened ?? 0;
+  return `G${gear} E+${opensUntilPityGate(gear, LADDER_PITY.epicPlusEvery)} · M${mon} E+${opensUntilPityGate(mon, LADDER_PITY.epicPlusEvery)}`;
+}
+
+/** @param {import('../utils/monsterLadder/ladderProgress').MonsterLadderState} ml */
 function buildLadderRulesLines(ml) {
   const gearOpens = ml?.pity?.gearChestsOpened ?? 0;
   const monsterOpens = ml?.pity?.monsterChestsOpened ?? 0;
@@ -47,30 +60,34 @@ function buildLadderRulesLines(ml) {
     formatPityLine('Gear pity', gearOpens),
     formatPityLine('Monster pity', monsterOpens),
     `Normal chest odds: ${rates}. Pity guarantees Epic+ every ${LADDER_PITY.epicPlusEvery}, Legendary+ every ${LADDER_PITY.legendaryPlusEvery}, Mythic every ${LADDER_PITY.mythicEvery} opens (per chest type).`,
+    'Chest Exchange: buy Gear Chests with ladder gold (wins). Buy Monster Chests with shards (duplicate gear).',
     'Duplicates → ladder shards. Biweekly reset keeps gold, shards, collection, and pity counters.',
   ];
 }
 
-function LadderRulesNotice({ mapHint, ml }) {
+function LadderRulesNotice({ mapHint, levelLocked, ml }) {
   const [expanded, setExpanded] = useState(false);
   const rules = useMemo(() => buildLadderRulesLines(ml), [ml]);
+  const showMapHint = !levelLocked && !!mapHint;
 
   return (
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={() => setExpanded((v) => !v)}
-      style={[styles.noticeBar, expanded && styles.noticeBarExpanded]}
+      style={[styles.noticeBar, expanded && styles.noticeBarExpanded, !showMapHint && !expanded && styles.noticeBarCompact]}
     >
       <Text style={styles.noticeRulesLabel}>
         {expanded ? 'Monster Ladder rules ▴' : 'Monster Ladder rules ▾'}
       </Text>
       {!expanded ? (
-        <Text style={styles.noticeText} numberOfLines={2}>
-          {mapHint}
-        </Text>
+        showMapHint ? (
+          <Text style={styles.noticeText} numberOfLines={2}>
+            {mapHint}
+          </Text>
+        ) : null
       ) : (
         <ScrollView style={styles.noticeRulesScroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.noticeHintLine}>{mapHint}</Text>
+          {showMapHint ? <Text style={styles.noticeHintLine}>{mapHint}</Text> : null}
           {rules.map((line) => (
             <Text key={line} style={styles.noticeRuleLine}>
               {line}
@@ -81,12 +98,6 @@ function LadderRulesNotice({ mapHint, ml }) {
     </TouchableOpacity>
   );
 }
-import {
-  gameSurfaceDataProps,
-  WEB_DECORATIVE_IMAGE_PROPS,
-  WEB_GAME_TOUCH_STYLE,
-} from '../utils/webGameTouch';
-import { formatGearBonusLines } from '../utils/cosmetics';
 
 const RARITY_TONE = {
   common: '#cbd5e1',
@@ -425,8 +436,20 @@ function ChestCard({ title, state, type, onPress }) {
   );
 }
 
-function ChestExchangeOverlay({ visible, shards, chestInventory, chestCosts, onClose, onBuyChest, onOpenChest }) {
+function ChestExchangeOverlay({
+  visible,
+  ladderGold,
+  shards,
+  chestInventory,
+  chestGoldCost,
+  chestShardCost,
+  onClose,
+  onBuyChest,
+  onOpenChest,
+}) {
   if (!visible) return null;
+  const gearGold = chestGoldCost ?? 24;
+  const monShards = chestShardCost ?? 72;
   return (
     <View style={styles.exchangeBackdrop}>
       <View style={styles.exchangePanel}>
@@ -434,7 +457,7 @@ function ChestExchangeOverlay({ visible, shards, chestInventory, chestCosts, onC
           <Text style={styles.exchangeCloseTxt}>×</Text>
         </TouchableOpacity>
         <Text style={styles.exchangeTitle}>Chest Exchange</Text>
-        <Text style={styles.exchangeSub}>Shards: {shards ?? 0}</Text>
+        <Text style={styles.exchangeSub}>Gold {ladderGold ?? 0} · Shards {shards ?? 0}</Text>
         <View style={styles.exchangeRow}>
           <Text style={styles.exchangeRowTitle}>Gear Chest x{chestInventory?.gear ?? 0}</Text>
           <TouchableOpacity
@@ -445,7 +468,7 @@ function ChestExchangeOverlay({ visible, shards, chestInventory, chestCosts, onC
             <Text style={styles.exchangeBtnTxt}>Open</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.exchangeBtn} onPress={() => onBuyChest?.('gear')}>
-            <Text style={styles.exchangeBtnTxt}>Buy {chestCosts?.gear ?? 24}</Text>
+            <Text style={styles.exchangeBtnTxt}>Buy {gearGold}g</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.exchangeRow}>
@@ -458,10 +481,12 @@ function ChestExchangeOverlay({ visible, shards, chestInventory, chestCosts, onC
             <Text style={styles.exchangeBtnTxt}>Open</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.exchangeBtn} onPress={() => onBuyChest?.('monster')}>
-            <Text style={styles.exchangeBtnTxt}>Buy {chestCosts?.monster ?? 72}</Text>
+            <Text style={styles.exchangeBtnTxt}>Buy {monShards} shards</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.exchangeFoot}>Duplicate gear becomes shards. Duplicate monsters are kept for future combine.</Text>
+        <Text style={styles.exchangeFoot}>
+          Gear chests cost ladder gold from wins. Monster chests cost shards from duplicate gear. Duplicate monsters are kept for future combine.
+        </Text>
       </View>
     </View>
   );
@@ -474,7 +499,8 @@ export default function MonsterLadderHubScreen({
   onStartBattle,
   onOpenCollection,
   onOpenGear,
-  chestCosts,
+  chestGoldCost,
+  chestShardCost,
   onBuyChest,
   onOpenChest,
 }) {
@@ -541,7 +567,7 @@ export default function MonsterLadderHubScreen({
               <Text style={styles.rewardsBtnTxt}>Rewards</Text>
             </TouchableOpacity>
 
-            <LadderRulesNotice mapHint={mapHint} ml={ml} />
+            <LadderRulesNotice mapHint={mapHint} levelLocked={levelLocked} ml={ml} />
 
             <View style={styles.fighterPanel}>
               <TouchableOpacity
@@ -584,7 +610,7 @@ export default function MonsterLadderHubScreen({
               <View style={styles.resourceRow}>
                 <Text style={styles.resourceText}>Gold {ml.ladderGold}</Text>
                 <Text style={styles.resourceText}>Shards {ml.ladderShards}</Text>
-                <Text style={styles.resourceText}>Day {getLadderRewardDayKey()}</Text>
+                <Text style={styles.resourceText}>Pity {formatPitySummary(ml)}</Text>
               </View>
             </View>
 
@@ -630,9 +656,11 @@ export default function MonsterLadderHubScreen({
             {rewardsOpen ? <RewardsCodexOverlay onClose={() => setRewardsOpen(false)} /> : null}
             <ChestExchangeOverlay
               visible={chestExchangeOpen}
+              ladderGold={ml.ladderGold}
               shards={ml.ladderShards}
               chestInventory={chestInventory}
-              chestCosts={chestCosts}
+              chestGoldCost={chestGoldCost}
+              chestShardCost={chestShardCost}
               onClose={() => setChestExchangeOpen(false)}
               onBuyChest={onBuyChest}
               onOpenChest={onOpenChest}
@@ -779,6 +807,9 @@ const styles = StyleSheet.create({
     maxHeight: '18%',
     zIndex: 20,
     backgroundColor: 'rgba(12, 6, 28, 0.92)',
+  },
+  noticeBarCompact: {
+    maxHeight: '2.4%',
   },
   noticeRulesLabel: {
     color: '#c4b5fd',

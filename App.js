@@ -119,7 +119,7 @@ import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
 import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
-import { LADDER_CHEST_SHARD_COST } from './utils/monsterLadder/ladderConstants';
+import { LADDER_CHEST_GOLD_COST, LADDER_CHEST_SHARD_COST } from './utils/monsterLadder/ladderConstants';
 import { getLadderRewardDayKey } from './utils/monsterLadder/ladderDailyReset';
 import {
   claimDailySpinPrize,
@@ -1888,7 +1888,8 @@ export default function App() {
                 setGearOpen(true);
               }
             }}
-            chestCosts={LADDER_CHEST_SHARD_COST}
+            chestGoldCost={LADDER_CHEST_GOLD_COST.gear}
+            chestShardCost={LADDER_CHEST_SHARD_COST.monster}
             onBuyChest={handleBuyLadderChest}
             onOpenChest={handleOpenLadderChest}
           />

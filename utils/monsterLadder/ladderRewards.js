@@ -1,6 +1,6 @@
 import { addExperience, subtractExperience, expToAdvanceFrom, expWinForEnemyLevel, expLossPenalty } from '../expLevel';
 import { ladderCoinsForEnemyLevel } from '../../src/gameBalance/rewards';
-import { LADDER_CHEST_SHARD_COST, LADDER_EXP_MULTIPLIER } from './ladderConstants';
+import { LADDER_CHEST_GOLD_COST, LADDER_CHEST_SHARD_COST, LADDER_EXP_MULTIPLIER } from './ladderConstants';
 import { grantChestMonsterToProfile } from '../chestMonsterGrant';
 import { grantGearToProfile } from '../gearDuplicateReward';
 import { rollChestDrop } from './ladderChestTables';
@@ -174,13 +174,37 @@ export function buyMonsterLadderChest(gameData, profileId, type) {
   const profile = getPlayerProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'Profile not found.' };
   const ml = getMonsterLadderState(profile);
-  const cost = LADDER_CHEST_SHARD_COST[type];
-  if ((ml.ladderShards || 0) < cost) return { gameData: gd, error: `Need ${cost} shards.` };
   const inv = ensureChestInventory(ml);
-  ml.ladderShards -= cost;
-  inv[type] += 1;
+
+  if (type === 'gear') {
+    const cost = LADDER_CHEST_GOLD_COST.gear;
+    if ((ml.ladderGold || 0) < cost) return { gameData: gd, error: `Need ${cost} ladder gold.` };
+    ml.ladderGold -= cost;
+    inv.gear += 1;
+    setMonsterLadderState(profile, ml);
+    return {
+      gameData: gd,
+      chestType: type,
+      cost,
+      currency: 'gold',
+      ladderGoldTotal: ml.ladderGold,
+      ladderShardsTotal: ml.ladderShards,
+    };
+  }
+
+  const shardCost = LADDER_CHEST_SHARD_COST.monster;
+  if ((ml.ladderShards || 0) < shardCost) return { gameData: gd, error: `Need ${shardCost} shards.` };
+  ml.ladderShards -= shardCost;
+  inv.monster += 1;
   setMonsterLadderState(profile, ml);
-  return { gameData: gd, chestType: type, cost, ladderShardsTotal: ml.ladderShards };
+  return {
+    gameData: gd,
+    chestType: type,
+    cost: shardCost,
+    currency: 'shards',
+    ladderGoldTotal: ml.ladderGold,
+    ladderShardsTotal: ml.ladderShards,
+  };
 }
 
 export function openMonsterLadderChest(gameData, profileId, type) {

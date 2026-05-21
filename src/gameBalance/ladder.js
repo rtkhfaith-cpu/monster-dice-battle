@@ -26,4 +26,7 @@ export const LADDER_BALANCE = {
     legendary: 150,
     mythic: 500,
   },
+  /** Chest Exchange: gear chest bought with ladder gold, monster chest with shards. */
+  chestGoldCost: { gear: 24 },
+  chestShardCost: { monster: 72 },
 };
