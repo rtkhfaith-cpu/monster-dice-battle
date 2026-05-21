@@ -6,12 +6,14 @@ import { mergeMonsterParts } from '../utils/gameStorage';
 import { MONSTER_CATALOG, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 import { computeBattleStats } from '../utils/statsCalc';
 import { monsterShopPrice } from '../src/gameBalance/shop';
+import { canonicalMonsterKey } from '../utils/monsterLadder/ladderMonsterMigrate';
 
-/** Count owned instances per template id */
+/** Count owned instances per species (canonical template key). */
 function ownedCounts(wallet) {
   const m = {};
   for (const om of wallet?.ownedMonsters || []) {
-    m[om.templateId] = (m[om.templateId] || 0) + 1;
+    const key = canonicalMonsterKey(om.templateId) ?? om.templateId;
+    m[key] = (m[key] || 0) + 1;
   }
   return m;
 }
@@ -58,7 +60,13 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
                     </View>
                     <Text style={styles.role}>{ROLE_LABELS[m.role] ?? m.role}</Text>
                     <Text style={styles.desc}>{m.description}</Text>
-                    <Text style={styles.ownedLbl}>{count ? `Owned ×${count}` : 'Not owned yet'}</Text>
+                    <Text style={styles.ownedLbl}>
+                      {count > 1
+                        ? `Owned ×${count} · duplicate copies stack for merge`
+                        : count === 1
+                          ? 'Owned ×1'
+                          : 'Not owned yet'}
+                    </Text>
                   </View>
                   <View style={styles.right}>
                     <Text style={styles.price}>{purchasable ? `${price} 🪙` : 'Event only'}</Text>

@@ -835,6 +835,12 @@ export default function App() {
     }
     persistSave(nextGd, 'coins_changed', slotProfileId);
     playSound('shop');
+    if (res.duplicate) {
+      showNotice(
+        'Monster Mart',
+        `Duplicate added for merging. You now own ×${res.ownedCount ?? 2} of this species.`,
+      );
+    }
   }
 
   function fighterFromSetupId(ownedId, profileId) {

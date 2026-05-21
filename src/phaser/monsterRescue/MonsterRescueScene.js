@@ -307,6 +307,7 @@ export function createMonsterRescueScene(Phaser) {
           1
         );
       }
+      await this.bubbleSystem.clearFloatingAfterPush(this.comboManager, this.rewardManager);
       this.game.events.emit('rescue:rowPush');
       this.cameras?.main?.shake?.(80, 0.004);
       return true;
@@ -417,7 +418,6 @@ export function createMonsterRescueScene(Phaser) {
       if (!this.isAiming) return;
       this.isAiming = false;
       if (this.isShooting || this.gameOver || this.timeRemainingMs <= 0) return;
-      if (!this.aimDragMoved) return;
       await this._fire();
     }
 

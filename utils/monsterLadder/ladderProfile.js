@@ -105,8 +105,21 @@ export function getLadderOwnedMonster(profile, ownedId) {
 
 /** @param {object} profile @param {string} templateId */
 export function profileOwnsLadderTemplate(profile, templateId) {
+  return profileOwnsMonsterTemplate(profile, templateId);
+}
+
+/** @param {object} profile @param {string} templateId */
+export function profileOwnsMonsterTemplate(profile, templateId) {
   const canonical = canonicalMonsterKey(templateId) ?? templateId;
   return (profile.ownedMonsters ?? []).some(
     (m) => canonicalMonsterKey(m.templateId) === canonical,
   );
+}
+
+/** @param {object} profile @param {string} templateId */
+export function countOwnedMonsterTemplate(profile, templateId) {
+  const canonical = canonicalMonsterKey(templateId) ?? templateId;
+  return (profile.ownedMonsters ?? []).filter(
+    (m) => canonicalMonsterKey(m.templateId) === canonical,
+  ).length;
 }

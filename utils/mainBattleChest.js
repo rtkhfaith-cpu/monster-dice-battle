@@ -1,6 +1,7 @@
 import { bossCoinsForEnemyLevel, bossExpForEnemyLevel } from '../src/gameBalance/rewards';
 import { GEAR_CATALOG, getGear } from './cosmetics';
 import { getAllowedCpuRarities } from './fighterFromOwned';
+import { profileOwnsMonsterTemplate } from './monsterLadder/ladderProfile';
 import { getMonsterTemplate, MONSTER_CATALOG } from './monsterTemplates';
 
 /** 20% chance for a main-menu CPU battle to spawn a catalog mini boss (testing). */
@@ -135,7 +136,7 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
   if (!pool.length) pool = MONSTER_CATALOG.filter((m) => m?.id);
   const pick = pool[Math.floor(Math.random() * pool.length)] || MONSTER_CATALOG[0];
   const tpl = getMonsterTemplate(pick.id);
-  const duplicate = profile?.ownedMonsters?.some((m) => m.templateId === pick.id) ?? false;
+  const duplicate = profileOwnsMonsterTemplate(profile, pick.id);
   return {
     kind: 'monster',
     id: pick.id,

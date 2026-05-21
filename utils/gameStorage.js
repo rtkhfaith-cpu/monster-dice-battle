@@ -31,9 +31,11 @@ import {
   resolveLadderTemplateId,
 } from './monsterLadder/ladderMonsterMigrate';
 import {
+  countOwnedMonsterTemplate,
   generateLadderOwnedMonster,
   getMonsterLadderState,
   mergeLadderMonsterParts,
+  profileOwnsMonsterTemplate,
   setMonsterLadderState,
 } from './monsterLadder/ladderProfile';
 import { clampMergeTier, mergeCostForNextTier, pickPrimaryInstance } from './mergeSystem';
@@ -241,20 +243,12 @@ function normalizeWalletMonsters(wallet) {
   migrateLegacyWalletGear(wallet);
 }
 
-/** Merge one legacy ladder-owned row into profile.ownedMonsters. */
+/** Merge one legacy ladder-owned row into profile.ownedMonsters (by row id only — keeps duplicate species). */
 function absorbLadderOwnedRow(profile, lm) {
-  const canon = canonicalMonsterKey(lm.templateId);
   const canonicalTpl = resolveLadderTemplateId(lm.templateId) ?? lm.templateId;
-  let target = profile.ownedMonsters.find((m) => m.id === lm.id)
-    ?? (canon
-      ? profile.ownedMonsters.find((m) => canonicalMonsterKey(m.templateId) === canon)
-      : null);
+  const target = profile.ownedMonsters.find((m) => m.id === lm.id);
 
   if (target) {
-    const best = pickPrimaryInstance([target, lm]);
-    target.level = best.level ?? target.level;
-    target.exp = best.exp ?? target.exp;
-    target.mergeTier = clampMergeTier(best.mergeTier ?? target.mergeTier);
     if (canonicalTpl && target.templateId !== canonicalTpl) target.templateId = canonicalTpl;
     if (!Array.isArray(target.equippedLadderGear)) target.equippedLadderGear = [];
     for (const g of lm.equippedLadderGear || []) {
@@ -274,57 +268,6 @@ function absorbLadderOwnedRow(profile, lm) {
   normalizeOwnedMonster(row);
   profile.ownedMonsters.push(row);
   return row;
-}
-
-/** Collapse duplicate species rows on the single main roster. */
-function collapseMainRosterDuplicates(profile) {
-  const ml = getMonsterLadderState(profile);
-  const groups = new Map();
-  const noKey = [];
-  for (const om of profile.ownedMonsters || []) {
-    const canon = canonicalMonsterKey(om.templateId);
-    if (!canon) {
-      noKey.push(om);
-      continue;
-    }
-    if (!groups.has(canon)) groups.set(canon, []);
-    groups.get(canon).push(om);
-  }
-
-  let changed = false;
-  const next = [...noKey];
-  for (const [canon, instances] of groups) {
-    if (instances.length === 1) {
-      next.push(instances[0]);
-      continue;
-    }
-    changed = true;
-    const survivor = pickPrimaryInstance(instances);
-    const resolved = resolveLadderTemplateId(canon);
-    if (resolved && survivor.templateId !== resolved) survivor.templateId = resolved;
-    survivor.level = Math.max(...instances.map((m) => m.level ?? 1));
-    survivor.exp = Math.max(...instances.map((m) => m.exp ?? 0));
-    survivor.mergeTier = clampMergeTier(
-      Math.max(...instances.map((m) => clampMergeTier(m.mergeTier))),
-    );
-    if (!Array.isArray(survivor.equippedLadderGear)) survivor.equippedLadderGear = [];
-    for (const m of instances) {
-      for (const g of m.equippedLadderGear || []) {
-        if (!survivor.equippedLadderGear.includes(g)) survivor.equippedLadderGear.push(g);
-      }
-    }
-    const removeIds = instances.filter((m) => m.id !== survivor.id).map((m) => m.id);
-    if (profile.selectedMonsterId && removeIds.includes(profile.selectedMonsterId)) {
-      profile.selectedMonsterId = survivor.id;
-    }
-    if (ml.activeMonsterId && removeIds.includes(ml.activeMonsterId)) {
-      ml.activeMonsterId = survivor.id;
-      setMonsterLadderState(profile, ml);
-    }
-    next.push(survivor);
-  }
-  if (changed) profile.ownedMonsters = next;
-  return changed;
 }
 
 /**
@@ -365,8 +308,6 @@ function consolidatePlayerMonstersToMain(profile) {
     changed = true;
     setMonsterLadderState(profile, ml);
   }
-
-  changed = collapseMainRosterDuplicates(profile) || changed;
 
   if (ml.activeMonsterId && !profile.ownedMonsters.some((m) => m.id === ml.activeMonsterId)) {
     ml.activeMonsterId = profile.ownedMonsters[0]?.id ?? null;
@@ -1167,8 +1108,9 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
     }
   } else if (drop.kind === 'monster') {
     const om = generateOwnedMonster(drop.id);
-    applied.duplicate = wallet.ownedMonsters.some((m) => m.templateId === drop.id);
+    applied.duplicate = profileOwnsMonsterTemplate(wallet, drop.id);
     wallet.ownedMonsters.push(om);
+    applied.ownedCount = countOwnedMonsterTemplate(wallet, drop.id);
     applied.ownedId = om.id;
   }
 

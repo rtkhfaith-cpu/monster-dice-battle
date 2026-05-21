@@ -5,6 +5,7 @@ import { getLadderGear } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
+import { RESCUE_COLORS } from './monsterRescue/rescueUiTheme';
 
 function rarityLabel(rarity) {
   return RARITY_UI[rarity]?.label ?? rarity ?? 'Reward';
@@ -211,9 +212,20 @@ const styles = StyleSheet.create({
   btn: {
     width: '100%',
     marginTop: 18,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 13,
     alignItems: 'center',
+    borderWidth: 2,
   },
-  btnTxt: { color: '#fff', fontWeight: '900', fontSize: 16 },
+  btnContinue: {
+    backgroundColor: 'rgba(48, 129, 66, 0.96)',
+    borderColor: '#efd17a',
+    borderBottomWidth: 5,
+    borderBottomColor: '#31551f',
+  },
+  btnOpen: {
+    backgroundColor: 'rgba(34, 50, 80, 0.95)',
+    borderColor: 'rgba(255, 219, 142, 0.45)',
+  },
+  btnTxt: { color: RESCUE_COLORS.title, fontWeight: '900', fontSize: 16 },
 });

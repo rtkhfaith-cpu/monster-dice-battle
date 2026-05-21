@@ -223,4 +223,17 @@ export default class BubbleSystem {
     this.rebuildSprites();
     return { lostCount: lost.length };
   }
+
+  /** Drop clusters no longer connected to the ceiling after a row push. */
+  async clearFloatingAfterPush(comboManager, rewardManager) {
+    let floatChain = 0;
+    while (floatChain < MAX_RESOLVE_CHAIN) {
+      const floating = this.gridModel.findFloatingClusters();
+      if (!floating.length) break;
+      floatChain += 1;
+      comboManager?.onPop?.(floating.length);
+      const cells = await this.popPositions(floating);
+      rewardManager?.addPopScore?.(cells, comboManager?.getMultiplier?.() ?? 1);
+    }
+  }
 }
