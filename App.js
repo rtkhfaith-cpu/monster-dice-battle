@@ -25,6 +25,7 @@ import MonsterRescueRewardScreen from './components/MonsterRescueRewardScreen';
 import MonsterLadderCollectionScreen from './components/MonsterLadderCollectionScreen';
 import MonsterLadderGearScreen from './components/MonsterLadderGearScreen';
 import MonsterLadderChestRevealModal from './components/MonsterLadderChestRevealModal';
+import DailyLuckySpinModal from './components/DailyLuckySpinModal';
 import AudioSettingsScreen from './components/AudioSettingsScreen';
 import PhaserBattleLabScreen from './components/PhaserBattleLabScreen';
 import OnlineLobbyScreen from './components/OnlineLobbyScreen';
@@ -115,6 +116,12 @@ import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTempl
 import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
 import { LADDER_CHEST_SHARD_COST } from './utils/monsterLadder/ladderConstants';
+import { getLadderRewardDayKey } from './utils/monsterLadder/ladderDailyReset';
+import {
+  claimDailySpinPrize,
+  isDailySpinEligible,
+  rollDailySpinSegment,
+} from './utils/dailyLoginSpin';
 import {
   startBattleMusic,
   startLadderMusic,
@@ -184,6 +191,10 @@ export default function App() {
   const [setupP1ProfileId, setSetupP1ProfileId] = useState(null);
   const [setupP2ProfileId, setSetupP2ProfileId] = useState(null);
   const unlockedProfileIdsRef = useRef(new Set());
+  const dailySpinShownKeyRef = useRef(null);
+  const dailySpinSkipSessionRef = useRef(null);
+  const dailySpinProfileIdRef = useRef(null);
+  const [dailySpinOpen, setDailySpinOpen] = useState(false);
   /** First main CPU battle after a full page load cannot roll a mini boss. */
   const skipMiniBossAfterReloadRef = useRef(true);
   const dismissedOnlineBattleRef = useRef(false);
@@ -434,6 +445,13 @@ export default function App() {
     setCloudSyncProfileID(activeProfileId);
   }, [activeProfileId]);
 
+  useEffect(() => {
+    if (phase !== 'menu' || !gameData) return;
+    const profileId = activeProfileId || setupP1ProfileId;
+    if (!profileId) return;
+    tryOfferDailySpin(profileId, 'menu');
+  }, [phase, gameData, activeProfileId, setupP1ProfileId]);
+
   function persistSave(nextGd, reason, profileIDs) {
     setGameData(nextGd);
     void commitSave({
@@ -487,6 +505,67 @@ export default function App() {
     return unlockedProfileIdsRef.current.has(profileId);
   }
 
+  function closeDailySpin() {
+    setDailySpinOpen(false);
+    dailySpinProfileIdRef.current = null;
+  }
+
+  function tryOfferDailySpin(profileId, source = 'menu') {
+    if (!gameData || !profileId) return;
+    const profile = getPlayerProfile(gameData, profileId);
+    if (!isDailySpinEligible(profile)) return;
+
+    const key = `${profileId}:${getLadderRewardDayKey()}`;
+    if (dailySpinShownKeyRef.current === key) return;
+    if (source === 'menu' && dailySpinSkipSessionRef.current === key) return;
+
+    if (source === 'login') {
+      dailySpinSkipSessionRef.current = null;
+    }
+
+    dailySpinShownKeyRef.current = key;
+    dailySpinProfileIdRef.current = profileId;
+    setDailySpinOpen(true);
+  }
+
+  function handleDailySpinLater() {
+    const pid = dailySpinProfileIdRef.current;
+    if (pid) {
+      dailySpinSkipSessionRef.current = `${pid}:${getLadderRewardDayKey()}`;
+    }
+    closeDailySpin();
+  }
+
+  function handleDailySpinPrepare() {
+    const seg = rollDailySpinSegment();
+    return { segmentId: seg.id };
+  }
+
+  function handleDailySpinClaim(segmentId) {
+    const profileId = dailySpinProfileIdRef.current;
+    if (!gameData || !profileId || !segmentId) return null;
+
+    const res = claimDailySpinPrize(gameData, profileId, segmentId);
+    if (res.error) {
+      showNotice('Daily spin', res.error);
+      return null;
+    }
+
+    const applied = getPlayerProfile(res.gameData, profileId);
+    if (applied) repairPlayerProfileInventory(applied);
+
+    setGameData(res.gameData);
+    persistSave(res.gameData, 'daily_login_spin', profileId);
+
+    if (res.grant?.chestDrop?.kind === 'monster' && res.grant.chestDrop.rarity === 'mythic') {
+      setLadderChestDrop(res.grant.chestDrop);
+      setLadderChestKicker('Daily Lucky Spin');
+      setLadderChestAutoReveal(true);
+    }
+
+    return { segment: res.segment, grant: res.grant };
+  }
+
   function applyProfileSelection(profileId, gd = gameData) {
     if (!gd || !profileId) return;
     let next = setActiveProfile(gd, profileId);
@@ -499,6 +578,7 @@ export default function App() {
     setSetupP1Id(w.selectedMonsterId || w.ownedMonsters?.[0]?.id || null);
     setGameData(next);
     persistSave(next, 'profile_selected', profileId);
+    tryOfferDailySpin(profileId, 'login');
   }
 
   function handleSelectProfile(profileId) {
@@ -1888,6 +1968,19 @@ export default function App() {
           />
         )}
       </View>
+
+      <DailyLuckySpinModal
+        visible={dailySpinOpen}
+        playerName={
+          dailySpinProfileIdRef.current
+            ? gameData?.players?.find((p) => p.id === dailySpinProfileIdRef.current)?.name
+            : null
+        }
+        onPrepareSpin={handleDailySpinPrepare}
+        onClaimSpin={handleDailySpinClaim}
+        onLater={handleDailySpinLater}
+        onCollect={closeDailySpin}
+      />
 
       <MonsterLadderCollectionScreen
         visible={ladderCollectionOpen}

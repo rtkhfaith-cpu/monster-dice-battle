@@ -22,6 +22,7 @@ import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { applyStageClear, normalizeMonsterRescue } from './monsterRescue/progress';
 import { computeStageRewardsFromLevel } from './monsterRescue/rewards';
 import { awardAndOpenRescueChest } from './monsterRescue/rescueChestRewards';
+import { normalizeDailyLoginSpin } from './dailyLoginSpin';
 import { decodeRescueLevel } from './monsterRescue/stages';
 import { sanitizePlayerProfile } from './profileIntegrity';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
@@ -330,6 +331,7 @@ export function ensureLadderMonstersInMainInventory(profile) {
 export function repairPlayerProfileInventory(profile) {
   if (!profile) return false;
   profile.monsterLadder = normalizeMonsterLadder(profile.monsterLadder, profile.ladderProgress);
+  normalizeDailyLoginSpin(profile);
   return consolidatePlayerMonstersToMain(profile);
 }
 
@@ -351,6 +353,7 @@ function normalizePlayerProfile(p) {
   normalizeMainBattleState(p);
   p.monsterLadder = normalizeMonsterLadder(p.monsterLadder, p.ladderProgress);
   p.monsterRescue = normalizeMonsterRescue(p.monsterRescue);
+  normalizeDailyLoginSpin(p);
   consolidatePlayerMonstersToMain(p);
   delete p.ladderProgress;
   sanitizePlayerProfile(p);
