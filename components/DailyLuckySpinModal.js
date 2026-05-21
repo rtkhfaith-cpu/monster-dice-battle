@@ -14,7 +14,7 @@ import { RESCUE_COLORS, rescueWebShadow } from './monsterRescue/rescueUiTheme';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
 import { playButton, playLevelUp, playShop, playWin, unlockAudio } from '../utils/audioManager';
-import DailySpinWheel from './DailySpinWheel';
+import DailySpinWheel, { spinRotationForSegmentIndex } from './DailySpinWheel';
 
 export default function DailyLuckySpinModal({
   visible,
@@ -64,13 +64,13 @@ export default function DailyLuckySpinModal({
     setStep('wheel');
 
     const idx = dailySpinSegmentIndex(segmentId);
-    const segmentCenter = idx * SEGMENT_DEG + SEGMENT_DEG / 2;
-    const spins = 5 + Math.floor(Math.random() * 2);
-    const targetMod = (360 - segmentCenter + SEGMENT_DEG / 2) % 360;
-    const currentMod = ((rotationDeg.current % 360) + 360) % 360;
-    let delta = targetMod - currentMod;
-    if (delta < 0) delta += 360;
-    const totalRotate = rotationDeg.current + spins * 360 + delta;
+    const extraTurns = 5 + Math.floor(Math.random() * 2);
+    const totalRotate = spinRotationForSegmentIndex(
+      idx,
+      SEGMENT_DEG,
+      rotationDeg.current,
+      extraTurns,
+    );
 
     Animated.timing(rotation, {
       toValue: totalRotate,
@@ -104,8 +104,8 @@ export default function DailyLuckySpinModal({
 
           {step === 'intro' ? (
             <>
-              <Text style={styles.kicker}>Evening login bonus</Text>
-              <Text style={styles.title}>Fortune Wheel</Text>
+              <Text style={styles.kicker}>Royal evening bonus</Text>
+              <Text style={styles.title}>Crown Wheel</Text>
               <Text style={styles.sub}>
                 {playerName ? `Hey ${playerName}! ` : ''}
                 One free spin after 6PM Singapore time. Chest prizes open instantly.
@@ -139,7 +139,7 @@ export default function DailyLuckySpinModal({
 
           {step === 'wheel' || step === 'result' ? (
             <>
-              <Text style={styles.kicker}>Lucky spin</Text>
+              <Text style={styles.kicker}>Royal spin</Text>
               <Text style={styles.title}>
                 {result ? 'Congratulations!' : spinning ? 'Good luck…' : 'Tap to spin'}
               </Text>
@@ -208,13 +208,13 @@ const styles = StyleSheet.create({
     width: 340,
     height: 340,
     borderRadius: 170,
-    backgroundColor: 'rgba(251, 191, 36, 0.12)',
+    backgroundColor: 'rgba(212, 175, 55, 0.14)',
   },
   card: {
-    backgroundColor: 'rgba(12, 18, 38, 0.98)',
+    backgroundColor: 'rgba(26, 10, 46, 0.98)',
     borderRadius: 24,
     borderWidth: 3,
-    borderColor: RESCUE_COLORS.panelBorder,
+    borderColor: '#d4af37',
     padding: 22,
     alignItems: 'center',
     maxWidth: 420,

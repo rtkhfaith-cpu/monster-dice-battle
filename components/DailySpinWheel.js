@@ -1,12 +1,26 @@
 import React, { useMemo } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, G, Path } from 'react-native-svg';
 
-const SIZE = 288;
+export const DAILY_WHEEL_SIZE = 300;
+const SIZE = DAILY_WHEEL_SIZE;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
-const RIM = SIZE / 2 - 8;
-const HUB_R = 36;
+const RIM = SIZE / 2 - 10;
+const HUB_R = 38;
+const LABEL_R = RIM * 0.56;
+const LABEL_PAD_DEG = 5;
+
+const ROYAL = {
+  rimGold: '#d4af37',
+  rimGoldLight: '#f5e6b8',
+  rimPurple: '#2a1448',
+  hub: '#1a0a2e',
+  hubBorder: '#e8c547',
+  divider: '#f5e6b8',
+  dividerShadow: 'rgba(26, 10, 46, 0.55)',
+  jewel: '#c9a227',
+};
 
 function polar(cx, cy, r, deg) {
   const rad = ((deg - 90) * Math.PI) / 180;
@@ -21,97 +35,177 @@ function wedgePath(startDeg, endDeg) {
   return `M ${CX} ${CY} L ${start.x} ${start.y} A ${RIM} ${RIM} 0 ${large} 1 ${end.x} ${end.y} Z`;
 }
 
+/** Max label width that fits inside a wedge without crossing divider lines. */
+export function wedgeLabelMaxWidth(stepDeg, radius = LABEL_R, padDeg = LABEL_PAD_DEG) {
+  const halfRad = Math.max(4, (stepDeg / 2 - padDeg) * (Math.PI / 180));
+  return Math.floor(2 * radius * Math.sin(halfRad) * 0.88);
+}
+
 function labelTextColor(hex) {
   const h = hex.replace('#', '');
-  if (h.length !== 6) return '#0f172a';
+  if (h.length !== 6) return '#fff8e7';
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
   const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum > 0.62 ? '#1e1b4b' : '#fff7ed';
+  return lum > 0.55 ? '#2a1448' : '#fff8e7';
+}
+
+function WedgeLabel({ seg, mid, maxWidth, textColor }) {
+  const labelH = 42;
+  return (
+    <View
+      style={[
+        styles.labelPivot,
+        { left: CX, top: CY, transform: [{ rotate: `${mid}deg` }] },
+      ]}
+      pointerEvents="none"
+    >
+      <View
+        style={[
+          styles.labelBox,
+          {
+            width: maxWidth,
+            marginLeft: -maxWidth / 2,
+            top: -(LABEL_R + labelH * 0.5),
+            height: labelH,
+          },
+        ]}
+      >
+        <Text style={styles.labelEmoji} numberOfLines={1}>
+          {seg.emoji}
+        </Text>
+        <Text
+          style={[styles.labelTitle, { color: textColor }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.65}
+        >
+          {seg.wheelTitle}
+        </Text>
+        {seg.wheelSub ? (
+          <Text
+            style={[styles.labelSub, { color: textColor }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
+            {seg.wheelSub}
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Rotation (deg) so segment idx's leading divider sits under the top pointer.
+ * Prize wedge is the slice clockwise from that line.
+ */
+export function spinRotationForSegmentIndex(idx, stepDeg, currentRotation = 0, extraFullTurns = 5) {
+  const boundaryDeg = idx * stepDeg;
+  const targetMod = (360 - boundaryDeg) % 360;
+  const currentMod = ((currentRotation % 360) + 360) % 360;
+  let delta = targetMod - currentMod;
+  if (delta < 0) delta += 360;
+  return currentRotation + extraFullTurns * 360 + delta;
 }
 
 export default function DailySpinWheel({ segments, rotate }) {
-  const sliceData = useMemo(() => {
-    const n = segments.length;
-    const step = 360 / n;
-    return segments.map((seg, i) => {
-      const start = i * step;
-      const end = start + step;
-      const mid = start + step / 2;
-      const labelR = RIM * 0.58;
-      const pos = polar(CX, CY, labelR, mid);
-      return { seg, start, end, mid, pos, textColor: labelTextColor(seg.color) };
-    });
-  }, [segments]);
+  const stepDeg = 360 / segments.length;
+  const maxLabelWidth = wedgeLabelMaxWidth(stepDeg);
 
-  const tickMarks = useMemo(() => {
-    const n = segments.length;
-    const step = 360 / n;
-    return Array.from({ length: n }, (_, i) => {
-      const deg = i * step;
-      const outer = polar(CX, CY, RIM + 2, deg);
-      const inner = polar(CX, CY, RIM - 10, deg);
-      return { key: `tick_${i}`, x1: outer.x, y1: outer.y, x2: inner.x, y2: inner.y };
+  const sliceData = useMemo(() => {
+    return segments.map((seg, i) => {
+      const start = i * stepDeg;
+      const end = start + stepDeg;
+      const mid = start + stepDeg / 2;
+      return {
+        seg,
+        start,
+        end,
+        mid,
+        textColor: labelTextColor(seg.color),
+      };
     });
-  }, [segments.length]);
+  }, [segments, stepDeg]);
+
+  const rimJewels = useMemo(() => {
+    const count = 18;
+    const step = 360 / count;
+    return Array.from({ length: count }, (_, i) => {
+      const p = polar(CX, CY, RIM + 5, i * step);
+      return { key: `jewel_${i}`, x: p.x, y: p.y };
+    });
+  }, []);
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.pointerWrap}>
-        <View style={styles.pointerRing} />
-        <View style={styles.pointer} />
+      <View style={styles.pointerWrap} pointerEvents="none">
+        <View style={styles.pointerCrown}>
+          <Text style={styles.pointerCrownIcon}>♛</Text>
+        </View>
+        <View style={styles.pointerStem} />
+        <View style={styles.pointerTip} />
       </View>
 
-      <View style={styles.outerRing}>
-        <View style={styles.outerGlow} pointerEvents="none" />
-        <Animated.View style={[styles.spinLayer, { transform: [{ rotate }] }]}>
-          <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
-            <Circle cx={CX} cy={CY} r={RIM + 6} fill="#120a24" />
-            {sliceData.map(({ seg, start, end }) => (
-              <Path
-                key={seg.id}
-                d={wedgePath(start, end)}
-                fill={seg.color}
-                stroke="rgba(255, 230, 163, 0.45)"
-                strokeWidth={2}
-              />
-            ))}
-            {tickMarks.map((t) => (
-              <Path
-                key={t.key}
-                d={`M ${t.x1} ${t.y1} L ${t.x2} ${t.y2}`}
-                stroke="rgba(255, 230, 163, 0.7)"
-                strokeWidth={2}
-              />
-            ))}
-            <Circle cx={CX} cy={CY} r={RIM} fill="none" stroke="#ffe6a3" strokeWidth={4} />
-            <Circle cx={CX} cy={CY} r={RIM - 6} fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth={1} />
-          </Svg>
+      <View style={styles.outerFrame}>
+        <View style={styles.outerFrameInner}>
+          <Animated.View style={[styles.spinLayer, { transform: [{ rotate }] }]}>
+            <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+              <Circle cx={CX} cy={CY} r={RIM + 8} fill={ROYAL.rimPurple} />
+              {sliceData.map(({ seg, start, end }) => (
+                <Path
+                  key={seg.id}
+                  d={wedgePath(start, end)}
+                  fill={seg.color}
+                  stroke={ROYAL.dividerShadow}
+                  strokeWidth={1}
+                />
+              ))}
+              {sliceData.map(({ seg, start, end }) => (
+                <G key={`line_${seg.id}`}>
+                  <Path
+                    d={wedgePath(start, end)}
+                    fill="none"
+                    stroke={ROYAL.divider}
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                  />
+                </G>
+              ))}
+              {rimJewels.map((j) => (
+                <Circle
+                  key={j.key}
+                  cx={j.x}
+                  cy={j.y}
+                  r={3.5}
+                  fill={ROYAL.jewel}
+                  stroke={ROYAL.rimGoldLight}
+                  strokeWidth={1}
+                />
+              ))}
+              <Circle cx={CX} cy={CY} r={RIM + 2} fill="none" stroke={ROYAL.rimGold} strokeWidth={5} />
+              <Circle cx={CX} cy={CY} r={RIM - 4} fill="none" stroke="rgba(255, 248, 231, 0.12)" strokeWidth={1} />
+            </Svg>
 
-          {sliceData.map(({ seg, pos, textColor }) => (
-            <View
-              key={`lbl_${seg.id}`}
-              style={[styles.labelSlot, { left: pos.x - 40, top: pos.y - 24 }]}
-              pointerEvents="none"
-            >
-              <Text style={styles.emoji}>{seg.emoji}</Text>
-              <Text style={[styles.labelTitle, { color: textColor }]} numberOfLines={1}>
-                {seg.wheelTitle}
-              </Text>
-              {seg.wheelSub ? (
-                <Text style={[styles.labelSub, { color: textColor }]} numberOfLines={1}>
-                  {seg.wheelSub}
-                </Text>
-              ) : null}
+            {sliceData.map((item) => (
+              <View key={`lbl_${item.seg.id}`} style={styles.labelClipHost} pointerEvents="none">
+                <WedgeLabel
+                  seg={item.seg}
+                  mid={item.mid}
+                  maxWidth={maxLabelWidth}
+                  textColor={item.textColor}
+                />
+              </View>
+            ))}
+          </Animated.View>
+
+          <View style={styles.hub} pointerEvents="none">
+            <View style={styles.hubRing}>
+              <Text style={styles.hubCrown}>♛</Text>
+              <Text style={styles.hubTxt}>ROYAL</Text>
             </View>
-          ))}
-        </Animated.View>
-
-        <View style={styles.hub} pointerEvents="none">
-          <View style={styles.hubInner}>
-            <Text style={styles.hubStar}>✦</Text>
-            <Text style={styles.hubTxt}>LUCKY</Text>
           </View>
         </View>
       </View>
@@ -122,90 +216,114 @@ export default function DailySpinWheel({ segments, rotate }) {
 const styles = StyleSheet.create({
   wrap: {
     width: SIZE,
-    height: SIZE + 32,
+    height: SIZE + 36,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 6,
+    marginVertical: 4,
   },
   pointerWrap: {
     position: 'absolute',
-    top: 0,
-    zIndex: 10,
+    top: 20,
+    left: SIZE / 2 - 24,
+    zIndex: 20,
     alignItems: 'center',
+    width: 48,
   },
-  pointerRing: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 230, 163, 0.25)',
+  pointerCrown: {
+    width: 34,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#2a1448',
     borderWidth: 2,
-    borderColor: 'rgba(255, 230, 163, 0.6)',
-    position: 'absolute',
-    top: 2,
-  },
-  pointer: {
-    width: 0,
-    height: 0,
-    marginTop: 10,
-    borderLeftWidth: 15,
-    borderRightWidth: 15,
-    borderBottomWidth: 28,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#ffe6a3',
-    elevation: 10,
-  },
-  outerRing: {
-    width: SIZE,
-    height: SIZE,
-    marginTop: 24,
-    borderRadius: SIZE / 2,
-    borderWidth: 6,
-    borderColor: '#c9a227',
-    backgroundColor: '#0c0618',
+    borderColor: ROYAL.rimGold,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#fbbf24',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 18,
-    elevation: 14,
+    marginBottom: -2,
   },
-  outerGlow: {
-    ...StyleSheet.absoluteFillObject,
+  pointerCrownIcon: {
+    color: ROYAL.rimGoldLight,
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: -2,
+  },
+  pointerStem: {
+    width: 4,
+    height: 10,
+    backgroundColor: ROYAL.rimGold,
+  },
+  pointerTip: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderBottomWidth: 16,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: ROYAL.rimGold,
+    marginTop: -1,
+  },
+  outerFrame: {
+    width: SIZE + 14,
+    height: SIZE + 14,
+    marginTop: 34,
+    borderRadius: (SIZE + 14) / 2,
+    padding: 5,
+    backgroundColor: ROYAL.rimGold,
+    shadowColor: '#d4af37',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 20,
+    elevation: 16,
+  },
+  outerFrameInner: {
+    width: SIZE,
+    height: SIZE,
     borderRadius: SIZE / 2,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 230, 163, 0.2)',
+    borderWidth: 3,
+    borderColor: '#5b21b6',
+    backgroundColor: ROYAL.rimPurple,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   spinLayer: {
     width: SIZE,
     height: SIZE,
     position: 'relative',
   },
-  labelSlot: {
+  labelClipHost: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    borderRadius: SIZE / 2,
+  },
+  labelPivot: {
     position: 'absolute',
-    width: 80,
+    width: 0,
+    height: 0,
+  },
+  labelBox: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 2,
   },
-  emoji: {
-    fontSize: 20,
-    lineHeight: 22,
+  labelEmoji: {
+    fontSize: 16,
+    lineHeight: 18,
     textAlign: 'center',
-    marginBottom: 1,
   },
   labelTitle: {
     fontWeight: '900',
-    fontSize: 12,
+    fontSize: 10,
     textAlign: 'center',
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
   labelSub: {
     fontWeight: '800',
-    fontSize: 8,
+    fontSize: 7,
     textAlign: 'center',
-    letterSpacing: 0.8,
-    opacity: 0.92,
+    letterSpacing: 0.6,
+    opacity: 0.95,
   },
   hub: {
     position: 'absolute',
@@ -214,28 +332,36 @@ const styles = StyleSheet.create({
     width: HUB_R * 2,
     height: HUB_R * 2,
     borderRadius: HUB_R,
-    backgroundColor: '#1a1030',
+    backgroundColor: ROYAL.hub,
     borderWidth: 4,
-    borderColor: '#ffe6a3',
+    borderColor: ROYAL.hubBorder,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 10,
   },
-  hubInner: { alignItems: 'center' },
-  hubStar: {
-    color: '#fde68a',
-    fontSize: 18,
+  hubRing: {
+    width: HUB_R * 2 - 10,
+    height: HUB_R * 2 - 10,
+    borderRadius: HUB_R - 5,
+    borderWidth: 2,
+    borderColor: 'rgba(232, 197, 71, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hubCrown: {
+    color: ROYAL.rimGoldLight,
+    fontSize: 20,
     fontWeight: '900',
     marginBottom: -2,
   },
   hubTxt: {
-    color: '#ffe6a3',
+    color: ROYAL.rimGoldLight,
     fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 2.5,
+    fontSize: 9,
+    letterSpacing: 3,
   },
 });

@@ -518,7 +518,7 @@ export default function App() {
     closeDailySpin();
     if (pending?.drop) {
       setLadderChestDrop(pending.drop);
-      setLadderChestKicker('Daily Fortune Wheel');
+      setLadderChestKicker('Royal Crown Wheel');
       setLadderChestAutoReveal(true);
     }
   }

@@ -26,15 +26,15 @@ import { cloneGameData, getPlayerProfile } from './gameStorage';
 
 /** Wheel wedges — weights sum to 100. */
 export const DAILY_SPIN_SEGMENTS = /** @type {DailySpinSegment[]} */ ([
-  { id: 'coins_10', wheelTitle: '10', wheelSub: 'GOLD', emoji: '🪙', weight: 24, color: '#d97706', kind: 'coins', amount: 10 },
-  { id: 'coins_25', wheelTitle: '25', wheelSub: 'GOLD', emoji: '🪙', weight: 18, color: '#f59e0b', kind: 'coins', amount: 25 },
-  { id: 'coins_50', wheelTitle: '50', wheelSub: 'GOLD', emoji: '🪙', weight: 14, color: '#fbbf24', kind: 'coins', amount: 50 },
-  { id: 'shards_20', wheelTitle: '+20', wheelSub: 'SHARDS', emoji: '💎', weight: 14, color: '#7c3aed', kind: 'shards', amount: 20 },
-  { id: 'shards_40', wheelTitle: '+40', wheelSub: 'SHARDS', emoji: '💎', weight: 10, color: '#8b5cf6', kind: 'shards', amount: 40 },
-  { id: 'gear_chest', wheelTitle: 'GEAR', wheelSub: 'CHEST', emoji: '📦', weight: 10, color: '#0284c7', kind: 'gear_chest' },
-  { id: 'monster_chest', wheelTitle: 'MONSTER', wheelSub: 'CHEST', emoji: '🎁', weight: 9, color: '#db2777', kind: 'monster_chest' },
-  { id: 'mythic', wheelTitle: 'MYTHIC', wheelSub: '1%', emoji: '👑', weight: 1, color: '#a21caf', kind: 'mythic_monster' },
-  { id: 'coins_150', wheelTitle: '150', wheelSub: 'JACKPOT', emoji: '✨', weight: 1, color: '#eab308', kind: 'coins', amount: 150 },
+  { id: 'coins_10', wheelTitle: '10', wheelSub: 'GOLD', emoji: '🪙', weight: 24, color: '#5c3d0a', kind: 'coins', amount: 10 },
+  { id: 'coins_25', wheelTitle: '25', wheelSub: 'GOLD', emoji: '🪙', weight: 18, color: '#7c4a12', kind: 'coins', amount: 25 },
+  { id: 'coins_50', wheelTitle: '50', wheelSub: 'GOLD', emoji: '🪙', weight: 14, color: '#92610f', kind: 'coins', amount: 50 },
+  { id: 'shards_20', wheelTitle: '20', wheelSub: 'SHARD', emoji: '💎', weight: 14, color: '#4c1d95', kind: 'shards', amount: 20 },
+  { id: 'shards_40', wheelTitle: '40', wheelSub: 'SHARD', emoji: '💎', weight: 10, color: '#5b21b6', kind: 'shards', amount: 40 },
+  { id: 'gear_chest', wheelTitle: 'GEAR', wheelSub: 'CHEST', emoji: '📦', weight: 10, color: '#1e3a5f', kind: 'gear_chest' },
+  { id: 'monster_chest', wheelTitle: 'MON', wheelSub: 'CHEST', emoji: '🎁', weight: 9, color: '#6b1d3a', kind: 'monster_chest' },
+  { id: 'mythic', wheelTitle: 'MYTH', wheelSub: '1%', emoji: '👑', weight: 1, color: '#581c87', kind: 'mythic_monster' },
+  { id: 'coins_150', wheelTitle: '150', wheelSub: 'KING', emoji: '✨', weight: 1, color: '#854d0e', kind: 'coins', amount: 150 },
 ]);
 
 function ensureChestInventory(ml) {
