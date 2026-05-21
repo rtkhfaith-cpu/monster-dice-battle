@@ -11,7 +11,7 @@ import { preloadRescueAssets, rescueBackgroundForStage, RESCUE_SCENE_ASSETS } fr
 import RescueShooter from './RescueShooter';
 import { computeRescueLayout } from './rescueLayout';
 import { drawGridVignette, drawProceduralArena } from './rescueBackdrop';
-import { playRescueShoot } from '../../../src/utils/audioManager';
+import { playRescueShoot } from '../../utils/audioManager';
 
 /** Physics solve step speed (px/s) — not the on-screen tween. */
 const SHOOT_SPEED = 660;

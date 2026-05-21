@@ -2,11 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { RESCUE_COLORS } from './monsterRescue/rescueUiTheme';
 import {
-  setRescueBootStageId,
-  setRescueBootShooterTemplateId,
-} from '../src/phaser/monsterRescue/bootConfig';
-import { createMonsterRescueScene } from '../src/phaser/monsterRescue/MonsterRescueScene';
-import {
   applyWebCanvasTouchGuards,
   attachWebTouchGuards,
   gameSurfaceDataProps,
@@ -67,8 +62,14 @@ export default function MonsterRescueView({
 
     async function mountPhaser() {
       try {
-        const PhaserModule = await import('phaser');
+        const [PhaserModule, sceneModule, bootModule] = await Promise.all([
+          import('phaser'),
+          import('../src/phaser/monsterRescue/MonsterRescueScene'),
+          import('../src/phaser/monsterRescue/bootConfig'),
+        ]);
         const Phaser = PhaserModule.default ?? PhaserModule;
+        const { createMonsterRescueScene } = sceneModule;
+        const { setRescueBootStageId, setRescueBootShooterTemplateId } = bootModule;
 
         const markReady = (scene) => {
           if (disposed || ready) return;
@@ -202,7 +203,10 @@ export default function MonsterRescueView({
           }
         }
       } catch (err) {
-        const msg = err?.message || 'Monster Rescue failed to load.';
+        const raw = err?.message || String(err);
+        const msg = /module|import|chunk|fetch/i.test(raw)
+          ? `Monster Rescue could not load game modules. Refresh the page and try again. (${raw})`
+          : raw || 'Monster Rescue failed to load.';
         setError(msg);
         setLoading(false);
         onErrorRef.current?.(err);

@@ -1,5 +1,5 @@
 import { BUBBLE_COLORS, GRID_COLS, GRID_ROWS } from '../../../utils/monsterRescue/constants';
-import { playRescueCombo, playRescuePopBurst } from '../../../src/utils/audioManager';
+import { playRescueCombo, playRescuePopBurst } from '../../utils/audioManager';
 import BubbleGrid from './BubbleGrid';
 import { createShinyBubble } from './bubbleVisuals';
 
