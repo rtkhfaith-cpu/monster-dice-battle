@@ -1,33 +1,20 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
   Image,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { DAILY_SPIN_SEGMENTS, dailySpinSegmentIndex } from '../utils/dailyLoginSpin';
-import { RESCUE_COLORS } from './monsterRescue/rescueUiTheme';
+import { RESCUE_COLORS, rescueWebShadow } from './monsterRescue/rescueUiTheme';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
 import { playButton, playLevelUp, playShop, playWin, unlockAudio } from '../utils/audioManager';
-
-const SEGMENT_COUNT = DAILY_SPIN_SEGMENTS.length;
-const SEGMENT_DEG = 360 / SEGMENT_COUNT;
-
-function segmentGradientStops() {
-  let acc = 0;
-  const step = 100 / SEGMENT_COUNT;
-  return DAILY_SPIN_SEGMENTS.map((seg) => {
-    const start = acc;
-    acc += step;
-    return `${seg.color} ${start}% ${acc}%`;
-  }).join(', ');
-}
+import DailySpinWheel from './DailySpinWheel';
 
 export default function DailyLuckySpinModal({
   visible,
@@ -42,6 +29,7 @@ export default function DailyLuckySpinModal({
   const [result, setResult] = useState(null);
   const rotation = useRef(new Animated.Value(0)).current;
   const rotationDeg = useRef(0);
+  const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!visible) {
@@ -50,15 +38,19 @@ export default function DailyLuckySpinModal({
       setResult(null);
       rotation.setValue(0);
       rotationDeg.current = 0;
+      return undefined;
     }
-  }, [visible, rotation]);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.04, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [visible, rotation, pulse]);
 
-  const wheelBg = useMemo(() => {
-    if (Platform.OS === 'web') {
-      return { backgroundImage: `conic-gradient(from -90deg, ${segmentGradientStops()})` };
-    }
-    return { backgroundColor: '#4c1d95' };
-  }, []);
+  const SEGMENT_DEG = 360 / DAILY_SPIN_SEGMENTS.length;
 
   function runSpin() {
     if (spinning || result) return;
@@ -82,7 +74,7 @@ export default function DailyLuckySpinModal({
 
     Animated.timing(rotation, {
       toValue: totalRotate,
-      duration: 4200,
+      duration: 4400,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
@@ -97,8 +89,8 @@ export default function DailyLuckySpinModal({
   }
 
   const rotateInterpolate = rotation.interpolate({
-    inputRange: [0, 3600],
-    outputRange: ['0deg', '3600deg'],
+    inputRange: [0, 7200],
+    outputRange: ['0deg', '7200deg'],
   });
 
   if (!visible) return null;
@@ -106,21 +98,29 @@ export default function DailyLuckySpinModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onLater}>
       <View style={styles.backdrop}>
+        <Animated.View style={[styles.cardGlow, { transform: [{ scale: pulse }] }]} />
         <View style={[styles.card, step === 'intro' && styles.cardIntro]} {...gameSurfaceDataProps()}>
+          <View style={styles.cardShine} pointerEvents="none" />
+
           {step === 'intro' ? (
             <>
-              <Text style={styles.kicker}>Daily login</Text>
-              <Text style={styles.title}>Lucky spin is ready!</Text>
+              <Text style={styles.kicker}>Evening login bonus</Text>
+              <Text style={styles.title}>Fortune Wheel</Text>
               <Text style={styles.sub}>
-                {playerName ? `Welcome back, ${playerName}. ` : ''}
-                Your free spin unlocks after 6PM Singapore time — once per day.
+                {playerName ? `Hey ${playerName}! ` : ''}
+                One free spin after 6PM Singapore time. Chest prizes open instantly.
               </Text>
-              <Image
-                source={{ uri: GAME_ASSETS.chestClosed }}
-                style={styles.chestHero}
-                resizeMode="contain"
-                {...WEB_DECORATIVE_IMAGE_PROPS}
-              />
+              <View style={styles.heroRow}>
+                <Image
+                  source={{ uri: GAME_ASSETS.chestClosed }}
+                  style={styles.chestHero}
+                  resizeMode="contain"
+                  {...WEB_DECORATIVE_IMAGE_PROPS}
+                />
+                <View style={styles.heroBadge}>
+                  <Text style={styles.heroBadgeTxt}>★ Daily ★</Text>
+                </View>
+              </View>
               <Pressable
                 style={styles.primaryBtn}
                 onPress={() => {
@@ -129,10 +129,10 @@ export default function DailyLuckySpinModal({
                   setStep('wheel');
                 }}
               >
-                <Text style={styles.primaryBtnTxt}>Spin now</Text>
+                <Text style={styles.primaryBtnTxt}>Spin the wheel</Text>
               </Pressable>
               <Pressable style={styles.ghostBtn} onPress={onLater}>
-                <Text style={styles.ghostBtnTxt}>Later</Text>
+                <Text style={styles.ghostBtnTxt}>Maybe later</Text>
               </Pressable>
             </>
           ) : null}
@@ -140,47 +140,30 @@ export default function DailyLuckySpinModal({
           {step === 'wheel' || step === 'result' ? (
             <>
               <Text style={styles.kicker}>Lucky spin</Text>
-              <Text style={styles.title}>{result ? 'You won!' : 'Spin the wheel'}</Text>
-              <View style={styles.wheelWrap}>
-                <View style={styles.pointer} />
-                <Animated.View
-                  style={[
-                    styles.wheel,
-                    wheelBg,
-                    { transform: [{ rotate: rotateInterpolate }] },
-                  ]}
-                >
-                  {DAILY_SPIN_SEGMENTS.map((seg, i) => {
-                    const ang = ((i + 0.5) * SEGMENT_DEG - 90) * (Math.PI / 180);
-                    const r = 92;
-                    const x = 110 + r * Math.cos(ang);
-                    const y = 110 + r * Math.sin(ang);
-                    return (
-                      <View
-                        key={`lbl_${seg.id}`}
-                        style={[styles.segLabel, { left: x - 28, top: y - 16 }]}
-                        pointerEvents="none"
-                      >
-                        <Text style={styles.segLabelMain}>{seg.label}</Text>
-                        <Text style={styles.segLabelSub}>{seg.sublabel}</Text>
-                      </View>
-                    );
-                  })}
-                </Animated.View>
-                <View style={styles.wheelHub}>
-                  <Text style={styles.hubTxt}>★</Text>
-                </View>
-              </View>
+              <Text style={styles.title}>
+                {result ? 'Congratulations!' : spinning ? 'Good luck…' : 'Tap to spin'}
+              </Text>
+
+              <DailySpinWheel segments={DAILY_SPIN_SEGMENTS} rotate={rotateInterpolate} />
 
               {result ? (
                 <View style={styles.resultBox}>
-                  <Text style={styles.resultMain}>{result.grant?.message ?? 'Reward claimed!'}</Text>
-                  {result.grant?.duplicate ? (
-                    <Text style={styles.resultSub}>Stored for merging on your roster.</Text>
+                  <Text style={styles.resultEmoji}>
+                    {result.segment?.emoji ?? (result.grant?.opensChest ? '📦' : '🎉')}
+                  </Text>
+                  <Text style={styles.resultMain}>{result.grant?.message ?? 'Reward saved!'}</Text>
+                  {result.grant?.opensChest ? (
+                    <Text style={styles.resultSub}>Your chest is opening now…</Text>
+                  ) : result.grant?.coinsTotal != null ? (
+                    <Text style={styles.resultSub}>Gold added to your wallet.</Text>
+                  ) : result.grant?.ladderShardsTotal != null ? (
+                    <Text style={styles.resultSub}>{`Ladder shards: ${result.grant.ladderShardsTotal}`}</Text>
                   ) : null}
                 </View>
               ) : (
-                <Text style={styles.sub}>Tap spin — prizes from 10 coins to mythic monsters.</Text>
+                <Text style={styles.hint}>
+                  Gold · Shards · Gear chest · Monster chest · Mythic jackpot
+                </Text>
               )}
 
               {result ? (
@@ -191,7 +174,9 @@ export default function DailyLuckySpinModal({
                     (onCollect ?? onLater)?.();
                   }}
                 >
-                  <Text style={styles.primaryBtnTxt}>Collect</Text>
+                  <Text style={styles.primaryBtnTxt}>
+                    {result.grant?.opensChest ? 'Open chest' : 'Collect reward'}
+                  </Text>
                 </Pressable>
               ) : (
                 <Pressable
@@ -199,7 +184,7 @@ export default function DailyLuckySpinModal({
                   disabled={spinning}
                   onPress={runSpin}
                 >
-                  <Text style={styles.primaryBtnTxt}>{spinning ? 'Spinning…' : 'Spin!'}</Text>
+                  <Text style={styles.primaryBtnTxt}>{spinning ? 'Spinning…' : 'Spin now'}</Text>
                 </Pressable>
               )}
             </>
@@ -213,49 +198,99 @@ export default function DailyLuckySpinModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(6, 8, 20, 0.88)',
+    backgroundColor: 'rgba(4, 6, 18, 0.92)',
     justifyContent: 'center',
-    padding: 20,
+    alignItems: 'center',
+    padding: 16,
+  },
+  cardGlow: {
+    position: 'absolute',
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    backgroundColor: 'rgba(251, 191, 36, 0.12)',
   },
   card: {
-    backgroundColor: 'rgba(15, 22, 42, 0.98)',
-    borderRadius: 22,
+    backgroundColor: 'rgba(12, 18, 38, 0.98)',
+    borderRadius: 24,
     borderWidth: 3,
     borderColor: RESCUE_COLORS.panelBorder,
-    padding: 20,
+    padding: 22,
     alignItems: 'center',
-    maxWidth: 400,
-    alignSelf: 'center',
+    maxWidth: 420,
     width: '100%',
+    overflow: 'hidden',
+    ...rescueWebShadow,
   },
-  cardIntro: { paddingVertical: 24 },
+  cardIntro: { paddingVertical: 26 },
+  cardShine: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    backgroundColor: 'rgba(255, 230, 163, 0.06)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 230, 163, 0.15)',
+  },
   kicker: {
     fontWeight: '900',
     fontSize: 11,
     color: RESCUE_COLORS.kicker,
     textTransform: 'uppercase',
-    letterSpacing: 1.8,
+    letterSpacing: 2.2,
   },
   title: {
     marginTop: 6,
     fontWeight: '900',
-    fontSize: 22,
+    fontSize: 26,
     color: RESCUE_COLORS.title,
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   sub: {
-    marginTop: 8,
+    marginTop: 10,
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 14,
     color: RESCUE_COLORS.body,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
+    paddingHorizontal: 8,
   },
-  chestHero: { width: 88, height: 88, marginVertical: 14 },
+  heroRow: {
+    marginVertical: 16,
+    alignItems: 'center',
+  },
+  chestHero: { width: 96, height: 96 },
+  heroBadge: {
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 230, 163, 0.5)',
+  },
+  heroBadgeTxt: {
+    color: RESCUE_COLORS.title,
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  hint: {
+    marginTop: 4,
+    marginBottom: 4,
+    fontWeight: '700',
+    fontSize: 12,
+    color: RESCUE_COLORS.sub,
+    textAlign: 'center',
+    lineHeight: 16,
+    paddingHorizontal: 6,
+  },
   primaryBtn: {
-    marginTop: 16,
+    marginTop: 14,
     width: '100%',
-    paddingVertical: 14,
+    paddingVertical: 15,
     borderRadius: 14,
     backgroundColor: 'rgba(48, 129, 66, 0.96)',
     borderWidth: 2,
@@ -268,80 +303,35 @@ const styles = StyleSheet.create({
   primaryBtnTxt: {
     color: '#fff6d6',
     fontWeight: '900',
-    fontSize: 16,
+    fontSize: 15,
     textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   ghostBtn: { marginTop: 10, padding: 8 },
   ghostBtnTxt: { color: RESCUE_COLORS.sub, fontWeight: '800', fontSize: 13 },
-  wheelWrap: {
-    width: 220,
-    height: 220,
-    marginTop: 16,
-    marginBottom: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  wheel: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 4,
-    borderColor: '#ffe6a3',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  segLabel: {
-    position: 'absolute',
-    width: 56,
-    alignItems: 'center',
-  },
-  segLabelMain: { color: '#0f172a', fontWeight: '900', fontSize: 11, textAlign: 'center' },
-  segLabelSub: { color: '#1e293b', fontWeight: '800', fontSize: 8, textAlign: 'center' },
-  wheelHub: {
-    position: 'absolute',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#1a1a2e',
-    borderWidth: 3,
-    borderColor: '#ffe6a3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hubTxt: { color: '#ffe6a3', fontWeight: '900', fontSize: 18 },
-  pointer: {
-    position: 'absolute',
-    top: -4,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 12,
-    borderRightWidth: 12,
-    borderBottomWidth: 22,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#ffe6a3',
-    zIndex: 5,
-  },
   resultBox: {
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(48, 129, 66, 0.2)',
-    borderWidth: 1,
+    marginTop: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: 'rgba(48, 129, 66, 0.18)',
+    borderWidth: 2,
     borderColor: 'rgba(134, 239, 172, 0.45)',
     width: '100%',
+    alignItems: 'center',
   },
+  resultEmoji: { fontSize: 32, marginBottom: 6 },
   resultMain: {
     color: RESCUE_COLORS.win,
     fontWeight: '900',
-    fontSize: 16,
+    fontSize: 17,
     textAlign: 'center',
   },
   resultSub: {
-    marginTop: 4,
+    marginTop: 6,
     color: RESCUE_COLORS.sub,
     fontWeight: '700',
-    fontSize: 12,
+    fontSize: 13,
     textAlign: 'center',
+    lineHeight: 18,
   },
 });

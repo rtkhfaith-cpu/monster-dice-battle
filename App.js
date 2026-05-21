@@ -194,6 +194,7 @@ export default function App() {
   const dailySpinShownKeyRef = useRef(null);
   const dailySpinSkipSessionRef = useRef(null);
   const dailySpinProfileIdRef = useRef(null);
+  const dailySpinPendingChestRef = useRef(null);
   const [dailySpinOpen, setDailySpinOpen] = useState(false);
   /** First main CPU battle after a full page load cannot roll a mini boss. */
   const skipMiniBossAfterReloadRef = useRef(true);
@@ -508,6 +509,18 @@ export default function App() {
   function closeDailySpin() {
     setDailySpinOpen(false);
     dailySpinProfileIdRef.current = null;
+    dailySpinPendingChestRef.current = null;
+  }
+
+  function handleDailySpinCollect() {
+    const pending = dailySpinPendingChestRef.current;
+    dailySpinPendingChestRef.current = null;
+    closeDailySpin();
+    if (pending?.drop) {
+      setLadderChestDrop(pending.drop);
+      setLadderChestKicker('Daily Fortune Wheel');
+      setLadderChestAutoReveal(true);
+    }
   }
 
   function tryOfferDailySpin(profileId, source = 'menu') {
@@ -557,10 +570,15 @@ export default function App() {
     setGameData(res.gameData);
     persistSave(res.gameData, 'daily_login_spin', profileId);
 
-    if (res.grant?.chestDrop?.kind === 'monster' && res.grant.chestDrop.rarity === 'mythic') {
-      setLadderChestDrop(res.grant.chestDrop);
-      setLadderChestKicker('Daily Lucky Spin');
-      setLadderChestAutoReveal(true);
+    if (res.grant?.chestDrop) {
+      dailySpinPendingChestRef.current = { drop: res.grant.chestDrop };
+    } else if (res.grant?.message) {
+      const extra = res.grant.ladderShardsTotal != null ? ` Shards: ${res.grant.ladderShardsTotal}.` : '';
+      const inv = res.grant.chestInventory;
+      const invLine = inv
+        ? ` Stored chests — Gear x${inv.gear ?? 0}, Monster x${inv.monster ?? 0}.`
+        : '';
+      showNotice('Daily spin saved', `${res.grant.message}.${extra}${invLine} Coins: ${getPlayerProfile(res.gameData, profileId)?.coins ?? '?'}.`);
     }
 
     return { segment: res.segment, grant: res.grant };
@@ -1979,7 +1997,7 @@ export default function App() {
         onPrepareSpin={handleDailySpinPrepare}
         onClaimSpin={handleDailySpinClaim}
         onLater={handleDailySpinLater}
-        onCollect={closeDailySpin}
+        onCollect={handleDailySpinCollect}
       />
 
       <MonsterLadderCollectionScreen

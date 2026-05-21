@@ -7,6 +7,7 @@ import {
   profileOwnsMonsterTemplate,
   setMonsterLadderState,
 } from './monsterLadder/ladderProfile';
+import { openLadderChestOnProfile } from './monsterLadder/ladderRewards';
 import { cloneGameData, getPlayerProfile } from './gameStorage';
 
 /** @typedef {'coins'|'shards'|'gear_chest'|'monster_chest'|'mythic_monster'} DailySpinKind */
@@ -14,8 +15,9 @@ import { cloneGameData, getPlayerProfile } from './gameStorage';
 /**
  * @typedef {object} DailySpinSegment
  * @property {string} id
- * @property {string} label
- * @property {string} sublabel
+ * @property {string} wheelTitle
+ * @property {string} wheelSub
+ * @property {string} emoji
  * @property {number} weight
  * @property {string} color
  * @property {DailySpinKind} kind
@@ -24,15 +26,15 @@ import { cloneGameData, getPlayerProfile } from './gameStorage';
 
 /** Wheel wedges — weights sum to 100. */
 export const DAILY_SPIN_SEGMENTS = /** @type {DailySpinSegment[]} */ ([
-  { id: 'coins_10', label: '10', sublabel: 'Coins', weight: 24, color: '#fbbf24', kind: 'coins', amount: 10 },
-  { id: 'coins_25', label: '25', sublabel: 'Coins', weight: 18, color: '#fcd34d', kind: 'coins', amount: 25 },
-  { id: 'coins_50', label: '50', sublabel: 'Coins', weight: 14, color: '#fde68a', kind: 'coins', amount: 50 },
-  { id: 'shards_20', label: '20', sublabel: 'Shards', weight: 14, color: '#c4b5fd', kind: 'shards', amount: 20 },
-  { id: 'shards_40', label: '40', sublabel: 'Shards', weight: 10, color: '#a78bfa', kind: 'shards', amount: 40 },
-  { id: 'gear_chest', label: 'Gear', sublabel: 'Chest', weight: 10, color: '#60a5fa', kind: 'gear_chest' },
-  { id: 'monster_chest', label: 'Monster', sublabel: 'Chest', weight: 9, color: '#f472b6', kind: 'monster_chest' },
-  { id: 'mythic', label: 'Mythic', sublabel: 'Monster', weight: 1, color: '#f9a8d4', kind: 'mythic_monster' },
-  { id: 'coins_150', label: '150', sublabel: 'Jackpot', weight: 1, color: '#ffe6a3', kind: 'coins', amount: 150 },
+  { id: 'coins_10', wheelTitle: '10', wheelSub: 'GOLD', emoji: '🪙', weight: 24, color: '#d97706', kind: 'coins', amount: 10 },
+  { id: 'coins_25', wheelTitle: '25', wheelSub: 'GOLD', emoji: '🪙', weight: 18, color: '#f59e0b', kind: 'coins', amount: 25 },
+  { id: 'coins_50', wheelTitle: '50', wheelSub: 'GOLD', emoji: '🪙', weight: 14, color: '#fbbf24', kind: 'coins', amount: 50 },
+  { id: 'shards_20', wheelTitle: '+20', wheelSub: 'SHARDS', emoji: '💎', weight: 14, color: '#7c3aed', kind: 'shards', amount: 20 },
+  { id: 'shards_40', wheelTitle: '+40', wheelSub: 'SHARDS', emoji: '💎', weight: 10, color: '#8b5cf6', kind: 'shards', amount: 40 },
+  { id: 'gear_chest', wheelTitle: 'GEAR', wheelSub: 'CHEST', emoji: '📦', weight: 10, color: '#0284c7', kind: 'gear_chest' },
+  { id: 'monster_chest', wheelTitle: 'MONSTER', wheelSub: 'CHEST', emoji: '🎁', weight: 9, color: '#db2777', kind: 'monster_chest' },
+  { id: 'mythic', wheelTitle: 'MYTHIC', wheelSub: '1%', emoji: '👑', weight: 1, color: '#a21caf', kind: 'mythic_monster' },
+  { id: 'coins_150', wheelTitle: '150', wheelSub: 'JACKPOT', emoji: '✨', weight: 1, color: '#eab308', kind: 'coins', amount: 150 },
 ]);
 
 function ensureChestInventory(ml) {
@@ -42,6 +44,32 @@ function ensureChestInventory(ml) {
   ml.chestInventory.gear = Math.max(0, Math.floor(ml.chestInventory.gear || 0));
   ml.chestInventory.monster = Math.max(0, Math.floor(ml.chestInventory.monster || 0));
   return ml.chestInventory;
+}
+
+/** Grant one chest token and open it immediately; returns openLadderChestOnProfile result. */
+function grantAndOpenChest(profile, chestType) {
+  const ml = getMonsterLadderState(profile);
+  ensureChestInventory(ml)[chestType] += 1;
+  setMonsterLadderState(profile, ml);
+  return openLadderChestOnProfile(profile, chestType);
+}
+
+/** @param {object} drop @param {'gear'|'monster'} chestType */
+function formatChestDropMessage(drop, chestType) {
+  if (!drop) {
+    return chestType === 'gear' ? 'Gear chest opened' : 'Monster chest opened';
+  }
+  if (drop.kind === 'gear') {
+    if (drop.exchangedForShards) {
+      return `${drop.name ?? 'Gear'} → +${drop.shardsGained ?? 0} shards`;
+    }
+    return drop.duplicate
+      ? `${drop.name ?? 'Ladder gear'} (duplicate)`
+      : `${drop.name ?? 'Ladder gear'} unlocked`;
+  }
+  return drop.duplicate
+    ? `${drop.name ?? 'Monster'} — extra copy for merge`
+    : `${drop.name ?? 'Monster'} joined your team`;
 }
 
 /** @param {Date} [now] */
@@ -116,14 +144,15 @@ export function dailySpinSegmentIndex(segmentId) {
 export function applyDailySpinPrizeToProfile(profile, segment) {
   const result = {
     segmentId: segment.id,
-    label: segment.label,
-    sublabel: segment.sublabel,
+    wheelTitle: segment.wheelTitle,
+    wheelSub: segment.wheelSub,
     kind: segment.kind,
     message: '',
     duplicate: false,
     chestDrop: null,
     ladderShardsTotal: null,
     coinsTotal: profile.coins ?? 0,
+    opensChest: false,
   };
 
   if (segment.kind === 'coins') {
@@ -145,17 +174,18 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
     return result;
   }
 
-  if (segment.kind === 'gear_chest') {
-    ensureChestInventory(ml).gear += 1;
-    setMonsterLadderState(profile, ml);
-    result.message = 'Free gear chest added';
-    return result;
-  }
-
-  if (segment.kind === 'monster_chest') {
-    ensureChestInventory(ml).monster += 1;
-    setMonsterLadderState(profile, ml);
-    result.message = 'Free monster chest added';
+  if (segment.kind === 'gear_chest' || segment.kind === 'monster_chest') {
+    const chestType = segment.kind === 'gear_chest' ? 'gear' : 'monster';
+    const opened = grantAndOpenChest(profile, chestType);
+    const mlAfter = getMonsterLadderState(profile);
+    result.opensChest = true;
+    result.ladderShardsTotal = opened.ladderShardsTotal ?? mlAfter.ladderShards;
+    result.chestDrop = opened.drop ?? null;
+    result.duplicate = !!opened.drop?.duplicate;
+    result.message = formatChestDropMessage(opened.drop, chestType);
+    if (opened.error) {
+      result.message = `${chestType === 'gear' ? 'Gear' : 'Monster'} chest could not open — try Monster Ladder`;
+    }
     return result;
   }
 
@@ -163,20 +193,25 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
     const pool = getLadderMonstersByRarity('mythic');
     const pick = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
     if (!pick) {
-      ml.ladderShards = (ml.ladderShards ?? 0) + 500;
-      setMonsterLadderState(profile, ml);
-      result.message = '+500 ladder shards (mythic fallback)';
-      result.ladderShardsTotal = ml.ladderShards;
+      const opened = grantAndOpenChest(profile, 'monster');
+      result.opensChest = true;
+      result.chestDrop = opened.drop;
+      result.ladderShardsTotal = getMonsterLadderState(profile).ladderShards;
+      result.message = opened.drop
+        ? formatChestDropMessage(opened.drop, 'monster')
+        : 'Mythic chest opened';
       return result;
     }
     const duplicate = profileOwnsMonsterTemplate(profile, pick.id);
     const row = grantLadderMonsterToProfile(profile, pick.id);
-    if (!ml.activeMonsterId) ml.activeMonsterId = row.id;
-    setMonsterLadderState(profile, ml);
+    const mlAfter = getMonsterLadderState(profile);
+    if (!mlAfter.activeMonsterId) mlAfter.activeMonsterId = row.id;
+    setMonsterLadderState(profile, mlAfter);
+    result.opensChest = true;
     result.duplicate = duplicate;
     result.message = duplicate
-      ? `${pick.name} — duplicate for merging`
-      : `${pick.name} joins your roster`;
+      ? `${pick.name} — mythic duplicate for merge`
+      : `${pick.name} — mythic jackpot`;
     result.chestDrop = {
       kind: 'monster',
       id: pick.id,
