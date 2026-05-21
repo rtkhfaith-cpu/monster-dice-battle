@@ -55,6 +55,9 @@ const SKILL_ANIM_BY_ID = {
   sixtyseven_blast: { animKind: 'sparkle', projectileId: 'sixtyseven', sfxKey: 'magic' },
   golden_roar: { animKind: 'cloud_spread', projectileId: 'crown', sfxKey: 'roar' },
   hype_wave: { animKind: 'water_wave', projectileId: 'star', sfxKey: 'magic' },
+  golden_wall: { animKind: 'sparkle', projectileId: 'goldBrick', sfxKey: 'metal' },
+  executive_slam: { animKind: 'rush', projectileId: 'briefcase', sfxKey: 'hit' },
+  billionaire_roar: { animKind: 'cloud_spread', projectileId: 'moneyBag', sfxKey: 'roar' },
   basic_hit: { animKind: 'bite_lunge', projectileId: 'fist', sfxKey: 'hit' },
   spark: { animKind: 'sparkle', projectileId: 'sparkle', sfxKey: 'magic' },
 };

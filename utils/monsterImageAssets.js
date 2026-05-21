@@ -14,6 +14,11 @@ export const NORMAL_MONSTER_IMAGE_ASSETS = {
     path: '/assets/monsters/normal/67-rex/idle.png',
     mirrorSafe: false,
   },
+  goldzilla: {
+    key: 'monster-normal-goldzilla',
+    path: '/assets/normal/goldzilla/Idle.png',
+    mirrorSafe: false,
+  },
   schoolbag_golem: {
     key: 'monster-normal-schoolbag-golem',
     path: '/assets/monsters/normal/schoolbag-golem/idle.png',

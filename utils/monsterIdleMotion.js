@@ -20,6 +20,7 @@ const BY_BODY = {
   skibidi: { bobMs: 750, swayMs: 600, twistMs: 480, squashMs: 650, bobMul: 1.2, swayMul: 1.1, twistDeg: 6, jitter: true, jitterMs: 110, jitterAmp: 2.8 },
   bubble_tea: { bobMs: 1500, swayMs: 1900, twistMs: 2100, squashMs: 950, bobMul: 1.05, swayMul: 0.6, twistDeg: 2 },
   sixtyseven: { bobMs: 700, swayMs: 900, twistMs: 800, squashMs: 550, bobMul: 1.3, swayMul: 1.25, twistDeg: 6, jitter: true, jitterMs: 85, jitterAmp: 4 },
+  goldzilla: { bobMs: 680, swayMs: 880, twistMs: 780, squashMs: 540, bobMul: 1.32, swayMul: 1.22, twistDeg: 5.5, jitter: true, jitterMs: 82, jitterAmp: 3.8 },
   nugget_dragon: { bobMs: 920, swayMs: 1300, twistMs: 1200, squashMs: 620, bobMul: 1.25, swayMul: 0.75, twistDeg: 3.2 },
   cable_serpent: { bobMs: 760, swayMs: 520, twistMs: 620, squashMs: 720, bobMul: 0.65, swayMul: 1.9, twistDeg: 7, jitter: true, jitterMs: 115, jitterAmp: 2.6 },
   pizza_meteor: { bobMs: 1350, swayMs: 900, twistMs: 680, squashMs: 1200, bobMul: 0.8, swayMul: 1.05, twistDeg: 8 },

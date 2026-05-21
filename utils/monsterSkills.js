@@ -130,6 +130,13 @@ export const MONSTER_SKILL_SETS = {
       { id: 'hype_wave', name: 'Hype Wave', kind: 'magic', mpCost: 12, element: 'metal', power: 1.2, effectType: 'normal', emoji: '🌟' },
     ],
   },
+  goldzilla: {
+    physical: { id: 'executive_slam', name: 'Executive Slam', kind: 'physical', effectType: 'normal', emoji: '💼', power: 1.13 },
+    magic: [
+      { id: 'golden_wall', name: 'Golden Wall', kind: 'magic', mpCost: 15, element: 'metal', power: 1.42, effectType: 'normal', emoji: '🧱', status: { type: 'defDown', chance: 0.4, turns: 2 } },
+      { id: 'billionaire_roar', name: 'Billionaire Roar', kind: 'magic', mpCost: 18, element: 'fire', power: 1.47, effectType: 'roar', emoji: '💰', status: { type: 'burn', chance: 0.45, turns: 2 } },
+    ],
+  },
 };
 
 /** @param {string} templateId */

@@ -41,6 +41,7 @@ export const MONSTER_ELEMENTS = {
   skibidi_bot: 'water',
   bubble_tea_slime: 'water',
   sixtyseven_rex: 'metal',
+  goldzilla: 'metal',
 };
 
 /** @param {string} templateId */

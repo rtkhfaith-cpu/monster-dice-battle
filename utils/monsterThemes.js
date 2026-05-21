@@ -143,6 +143,15 @@ export const MONSTER_THEMES = {
     archetype: 'kaiju',
     palette: { base: '#fd79a8', light: '#ffb8d0', dark: '#e84393', accent: '#2d3436', glow: '#ffd166' },
   },
+  goldzilla: {
+    emoji: '🦖',
+    aura: '#f1c40f',
+    label: 'Goldzilla',
+    colorIdx: 4,
+    themeBody: 'goldzilla',
+    archetype: 'kaiju',
+    palette: { base: '#f1c40f', light: '#ffeaa7', dark: '#d4ac0d', accent: '#2d3436', glow: '#ffd166' },
+  },
   glitchroach_prime: {
     emoji: '🪳',
     aura: '#00f5d4',

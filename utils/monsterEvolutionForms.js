@@ -96,6 +96,12 @@ export const MONSTER_EVOLUTION_FORMS = {
     { tier: 2, name: 'Sixty Champ', tagline: 'Neon ridge plates' },
     { tier: 3, name: '67 Overlord', tagline: 'Peak internet evolution' },
   ],
+  goldzilla: [
+    { tier: 0, name: 'Bullion Hatch', tagline: 'Pocket change kaiju' },
+    { tier: 1, name: 'Market Rex', tagline: 'Charts glow green' },
+    { tier: 2, name: 'Titan Tycoon', tagline: 'Gold plating thickens' },
+    { tier: 3, name: 'Goldzilla Prime', tagline: 'Peak billionaire evolution' },
+  ],
 };
 
 const DEFAULT_FORMS = [

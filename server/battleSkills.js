@@ -15,6 +15,7 @@ const MONSTER_ELEMENTS = {
   skibidi_bot: 'water',
   bubble_tea_slime: 'water',
   sixtyseven_rex: 'metal',
+  goldzilla: 'metal',
 };
 const MONSTER_SKILL_SETS = {
   cockroachsaurus: {
@@ -125,6 +126,13 @@ const MONSTER_SKILL_SETS = {
       { id: 'sixtyseven_blast', name: '67 Blast', kind: 'magic', mpCost: 15, element: 'metal', power: 1.35, effectType: 'magic67', emoji: '6️⃣' },
       { id: 'golden_roar', name: 'Golden Roar', kind: 'magic', mpCost: 18, element: 'fire', power: 1.4, effectType: 'roar', emoji: '👑', status: { type: 'burn', chance: 0.45, turns: 2 } },
       { id: 'hype_wave', name: 'Hype Wave', kind: 'magic', mpCost: 12, element: 'metal', power: 1.2, effectType: 'normal', emoji: '🌟' },
+    ],
+  },
+  goldzilla: {
+    physical: { id: 'executive_slam', name: 'Executive Slam', kind: 'physical', effectType: 'normal', emoji: '💼', power: 1.13 },
+    magic: [
+      { id: 'golden_wall', name: 'Golden Wall', kind: 'magic', mpCost: 15, element: 'metal', power: 1.42, effectType: 'normal', emoji: '🧱', status: { type: 'defDown', chance: 0.4, turns: 2 } },
+      { id: 'billionaire_roar', name: 'Billionaire Roar', kind: 'magic', mpCost: 18, element: 'fire', power: 1.47, effectType: 'roar', emoji: '💰', status: { type: 'burn', chance: 0.45, turns: 2 } },
     ],
   },
 };
