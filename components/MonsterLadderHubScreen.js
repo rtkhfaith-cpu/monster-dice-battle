@@ -19,6 +19,68 @@ import { LADDER_PITY, LADDER_RARITY_ORDER, LADDER_RARITY_WEIGHTS, LADDER_SHARDS_
 import { getLadderRewardDayKey, isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
 import { formatLadderBiweeklyResetHint } from '../utils/monsterLadder/ladderBiweeklyReset';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
+
+function opensUntilPityGate(opens, every) {
+  const n = Math.max(0, Number(opens) || 0);
+  if (!n) return every;
+  const mod = n % every;
+  return mod === 0 ? every : every - mod;
+}
+
+function formatPityLine(label, opens) {
+  const epicIn = opensUntilPityGate(opens, LADDER_PITY.epicPlusEvery);
+  const legIn = opensUntilPityGate(opens, LADDER_PITY.legendaryPlusEvery);
+  const mythIn = opensUntilPityGate(opens, LADDER_PITY.mythicEvery);
+  return `${label}: ${opens} opens — Epic+ in ${epicIn}, Legendary+ in ${legIn}, Mythic in ${mythIn}`;
+}
+
+/** @param {import('../utils/monsterLadder/ladderProgress').MonsterLadderState} ml */
+function buildLadderRulesLines(ml) {
+  const gearOpens = ml?.pity?.gearChestsOpened ?? 0;
+  const monsterOpens = ml?.pity?.monsterChestsOpened ?? 0;
+  const rates = LADDER_RARITY_ORDER.map((r) => `${rarityLabel(r)} ${LADDER_RARITY_WEIGHTS[r]}%`).join(' · ');
+
+  return [
+    'Daily: beat all 10 subs on a main level, then that level locks until 6:00 PM Singapore. After reset you advance to the next main level.',
+    'Boss chests: Sub 5 Mini Boss → Gear Chest (once per day). Sub 10 Boss → Monster Chest (once per day). Unclaimed chests go to Chest Exchange.',
+    formatLadderBiweeklyResetHint(),
+    formatPityLine('Gear pity', gearOpens),
+    formatPityLine('Monster pity', monsterOpens),
+    `Normal chest odds: ${rates}. Pity guarantees Epic+ every ${LADDER_PITY.epicPlusEvery}, Legendary+ every ${LADDER_PITY.legendaryPlusEvery}, Mythic every ${LADDER_PITY.mythicEvery} opens (per chest type).`,
+    'Duplicates → ladder shards. Biweekly reset keeps gold, shards, collection, and pity counters.',
+  ];
+}
+
+function LadderRulesNotice({ mapHint, ml }) {
+  const [expanded, setExpanded] = useState(false);
+  const rules = useMemo(() => buildLadderRulesLines(ml), [ml]);
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => setExpanded((v) => !v)}
+      style={[styles.noticeBar, expanded && styles.noticeBarExpanded]}
+    >
+      <Text style={styles.noticeRulesLabel}>
+        {expanded ? 'Monster Ladder rules ▴' : 'Monster Ladder rules ▾'}
+      </Text>
+      {!expanded ? (
+        <Text style={styles.noticeText} numberOfLines={2}>
+          {mapHint}
+        </Text>
+      ) : (
+        <ScrollView style={styles.noticeRulesScroll} showsVerticalScrollIndicator={false}>
+          <Text style={styles.noticeHintLine}>{mapHint}</Text>
+          {rules.map((line) => (
+            <Text key={line} style={styles.noticeRuleLine}>
+              {line}
+            </Text>
+          ))}
+        </ScrollView>
+      )}
+    </TouchableOpacity>
+  );
+}
 import {
   gameSurfaceDataProps,
   WEB_DECORATIVE_IMAGE_PROPS,
@@ -479,9 +541,7 @@ export default function MonsterLadderHubScreen({
               <Text style={styles.rewardsBtnTxt}>Rewards</Text>
             </TouchableOpacity>
 
-            <View style={styles.noticeBar}>
-              <Text style={styles.noticeText} numberOfLines={1}>{mapHint}</Text>
-            </View>
+            <LadderRulesNotice mapHint={mapHint} ml={ml} />
 
             <View style={styles.fighterPanel}>
               <TouchableOpacity
@@ -521,7 +581,6 @@ export default function MonsterLadderHubScreen({
               <Text style={styles.infoLine}>Region: {theme.name}</Text>
               <Text style={styles.infoLine}>Stage: {bossBanner || stageTypeLabel(currentKind)}</Text>
               <Text style={styles.infoLine}>Rewards: {hints.subsToMini > 0 ? `Gear chest in ${hints.subsToMini}` : hints.subsToBig > 0 ? `Monster chest in ${hints.subsToBig}` : 'Boss rewards ready'}</Text>
-              <Text style={styles.infoLineBiweekly}>{formatLadderBiweeklyResetHint()}</Text>
               <View style={styles.resourceRow}>
                 <Text style={styles.resourceText}>Gold {ml.ladderGold}</Text>
                 <Text style={styles.resourceText}>Shards {ml.ladderShards}</Text>
@@ -703,21 +762,58 @@ const styles = StyleSheet.create({
   noticeBar: {
     position: 'absolute',
     top: '24.2%',
-    left: '25%',
-    width: '50%',
-    height: '3.2%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
+    left: '22%',
+    width: '56%',
+    minHeight: '3.2%',
+    maxHeight: '3.2%',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(12, 6, 28, 0.55)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.35)',
+  },
+  noticeBarExpanded: {
+    maxHeight: '18%',
+    zIndex: 20,
+    backgroundColor: 'rgba(12, 6, 28, 0.92)',
+  },
+  noticeRulesLabel: {
+    color: '#c4b5fd',
+    fontSize: 9,
+    fontWeight: '900',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 2,
   },
   noticeText: {
     color: '#f5e8ff',
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
     textAlign: 'center',
     textShadowColor: 'rgba(0,0,0,0.8)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  noticeHintLine: {
+    color: '#fde68a',
+    fontSize: 10,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  noticeRulesScroll: {
+    flex: 1,
+  },
+  noticeRuleLine: {
+    color: '#e9e0ff',
+    fontSize: 9,
+    fontWeight: '700',
+    lineHeight: 13,
+    marginBottom: 5,
   },
   fighterPanel: {
     position: 'absolute',
@@ -849,13 +945,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     marginTop: 2,
-  },
-  infoLineBiweekly: {
-    color: '#b8a8e8',
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 4,
-    lineHeight: 14,
   },
   resourceRow: {
     flexDirection: 'row',
