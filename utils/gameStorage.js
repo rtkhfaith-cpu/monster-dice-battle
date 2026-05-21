@@ -76,6 +76,8 @@ const LEGACY_KEY_V2 = 'monster_dice_battle_v2';
  * }} PlayerProfile */
 
 export const MAX_PLAYER_PROFILES = 1;
+/** Coins granted when a new player profile is created (Create ID / new save). */
+export const STARTING_PLAYER_COINS = 500;
 
 function defaultProfileMeta() {
   return {
@@ -540,7 +542,7 @@ export function ensureProfilesFromGuest(gameData) {
     id,
     name: 'Player 1',
     pin: '0000',
-    coins: hasGuest ? g.coins : 0,
+    coins: hasGuest ? g.coins : STARTING_PLAYER_COINS,
     ownedMonsters: hasGuest ? g.ownedMonsters : [],
     cosmeticsOwned: hasGuest ? [...(g.cosmeticsOwned || [])] : [],
     cosmeticEquippedP1: hasGuest ? [...(g.cosmeticEquippedP1 || [])] : [],
@@ -580,7 +582,7 @@ export function createPlayerProfile(gameData, name, playerKey = '') {
     id,
     name: String(name || 'New Player').trim().slice(0, 24) || 'New Player',
     pin: String(playerKey || '').replace(/\D/g, '').slice(0, 4),
-    coins: 0,
+    coins: STARTING_PLAYER_COINS,
     ownedMonsters: [],
     cosmeticsOwned: [],
     cosmeticEquippedP1: [],
