@@ -13,14 +13,7 @@ import { DAILY_SPIN_SEGMENTS, dailySpinSegmentIndex } from '../utils/dailyLoginS
 import { RESCUE_COLORS, rescueWebShadow } from './monsterRescue/rescueUiTheme';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
-import {
-  playButton,
-  playLevelUp,
-  playWheelLand,
-  playWheelTick,
-  playWin,
-  unlockAudio,
-} from '../utils/audioManager';
+import { playButton, playLevelUp, playWin, unlockAudio } from '../utils/audioManager';
 import DailySpinWheel, { spinRotationForSegmentIndex } from './DailySpinWheel';
 
 export default function DailyLuckySpinModal({
@@ -36,15 +29,10 @@ export default function DailyLuckySpinModal({
   const [result, setResult] = useState(null);
   const rotation = useRef(new Animated.Value(0)).current;
   const rotationDeg = useRef(0);
-  const spinListenerRef = useRef(null);
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!visible) {
-      if (spinListenerRef.current != null) {
-        rotation.removeListener(spinListenerRef.current);
-        spinListenerRef.current = null;
-      }
       setStep('intro');
       setSpinning(false);
       setResult(null);
@@ -83,34 +71,16 @@ export default function DailyLuckySpinModal({
       extraTurns,
     );
 
-    if (spinListenerRef.current != null) {
-      rotation.removeListener(spinListenerRef.current);
-    }
-    let lastTickBucket = Math.floor(rotationDeg.current / SEGMENT_DEG);
-    spinListenerRef.current = rotation.addListener(({ value }) => {
-      const bucket = Math.floor(value / SEGMENT_DEG);
-      if (bucket === lastTickBucket) return;
-      lastTickBucket = bucket;
-      playWheelTick();
-    });
-
-    const clearSpinListener = () => {
-      if (spinListenerRef.current != null) {
-        rotation.removeListener(spinListenerRef.current);
-        spinListenerRef.current = null;
-      }
-    };
-
     Animated.timing(rotation, {
       toValue: totalRotate,
       duration: 4400,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
-      clearSpinListener();
-      rotationDeg.current = totalRotate;
+      const finalNorm = ((totalRotate % 360) + 360) % 360;
+      rotationDeg.current = finalNorm;
+      rotation.setValue(finalNorm);
       setSpinning(false);
-      if (finished) playWheelLand();
       const claimed = onClaimSpin?.(segmentId);
       setResult(claimed ?? null);
       if (finished) {
@@ -122,8 +92,9 @@ export default function DailyLuckySpinModal({
   }
 
   const rotateInterpolate = rotation.interpolate({
-    inputRange: [0, 7200],
-    outputRange: ['0deg', '7200deg'],
+    inputRange: [0, 360],
+    outputRange: ['0deg', '360deg'],
+    extrapolate: 'extend',
   });
 
   if (!visible) return null;

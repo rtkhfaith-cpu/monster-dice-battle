@@ -240,7 +240,10 @@ export function claimDailySpinPrize(gameData, profileId, segmentId) {
     return { gameData: gd, error: 'Daily spin not available right now.' };
   }
 
-  const segment = getDailySpinSegmentById(segmentId) ?? rollDailySpinSegment();
+  const segment = getDailySpinSegmentById(segmentId);
+  if (!segment) {
+    return { gameData: gd, error: 'Invalid spin result.' };
+  }
   const grant = applyDailySpinPrizeToProfile(profile, segment);
 
   normalizeDailyLoginSpin(profile);

@@ -63,8 +63,6 @@ let rescuePopFlushTimer = null;
 let rescuePopLastAt = 0;
 let rescueComboLastAt = 0;
 let rescueShootLastAt = 0;
-let wheelTickLastAt = 0;
-let wheelLandLastAt = 0;
 let menuPick = '';
 let menuMusicKind = 'menu';
 let battlePick = '';
@@ -457,27 +455,6 @@ export function playLevelUp() {
 
 export function playShop() {
   return playOneShot(SFX.shop, 0.72);
-}
-
-/** Fortune wheel — needle tick as each wedge passes the pointer. */
-export function playWheelTick() {
-  if (!isWeb() || settings.muted || !unlocked) return false;
-  const now = Date.now();
-  if (now - wheelTickLastAt < 40) return false;
-  wheelTickLastAt = now;
-  duckBgm(32, { gentle: true });
-  return playOneShot(SFX.dodge, 0.5);
-}
-
-/** Fortune wheel — final needle catch when the wheel stops. */
-export function playWheelLand() {
-  if (!isWeb() || settings.muted || !unlocked) return false;
-  const now = Date.now();
-  if (now - wheelLandLastAt < 200) return false;
-  wheelLandLastAt = now;
-  duckBgm(100, { gentle: true });
-  playOneShot(SFX.button, 0.5);
-  return playOneShot(SFX.attack, 0.48);
 }
 
 export function playWin() {
