@@ -1,4 +1,5 @@
 import { LADDER_MAIN_LEVELS, LADDER_SUB_LEVELS, LADDER_TOTAL_STAGES } from './ladderConstants';
+import { applyLadderBiweeklyResetIfNeeded } from './ladderBiweeklyReset';
 import { applyLadderDailyResetIfNeeded, getLadderRewardDayKey } from './ladderDailyReset';
 import { decodeStage, encodeStage, getStageKind } from './stages';
 
@@ -8,6 +9,7 @@ import { decodeStage, encodeStage, getStageKind } from './stages';
  * @property {number} subLevel
  * @property {boolean} introSeen
  * @property {boolean} tutorialChestGranted
+ * @property {string|null} biweeklyPeriodKey
  * @property {string|null} lastRewardResetAt
  * @property {boolean} gearChestClaimedToday
  * @property {boolean} monsterChestClaimedToday
@@ -32,6 +34,7 @@ export function defaultMonsterLadderState() {
     subLevel: 1,
     introSeen: false,
     tutorialChestGranted: false,
+    biweeklyPeriodKey: null,
     lastRewardResetAt: null,
     gearChestClaimedToday: false,
     monsterChestClaimedToday: false,
@@ -74,7 +77,7 @@ export function normalizeMonsterLadder(raw, legacyLadderProgress) {
       base.introSeen = true;
       base.tutorialChestGranted = true;
     }
-    return applyLadderDailyResetIfNeeded(base);
+    return applyLadderDailyResetIfNeeded(applyLadderBiweeklyResetIfNeeded(base));
   }
 
   const r = /** @type {Record<string, unknown>} */ (raw);
@@ -82,6 +85,7 @@ export function normalizeMonsterLadder(raw, legacyLadderProgress) {
   base.subLevel = clampInt(r.subLevel, 1, LADDER_SUB_LEVELS, 1);
   base.introSeen = !!r.introSeen;
   base.tutorialChestGranted = !!r.tutorialChestGranted;
+  base.biweeklyPeriodKey = typeof r.biweeklyPeriodKey === 'string' ? r.biweeklyPeriodKey : null;
   base.lastRewardResetAt = typeof r.lastRewardResetAt === 'string' ? r.lastRewardResetAt : null;
   base.gearChestClaimedToday = !!r.gearChestClaimedToday;
   base.monsterChestClaimedToday = !!r.monsterChestClaimedToday;
@@ -125,7 +129,7 @@ export function normalizeMonsterLadder(raw, legacyLadderProgress) {
     helperFame: clampInt(/** @type {any} */ (as).helperFame, 0, 9999999, 0),
   };
 
-  return applyLadderDailyResetIfNeeded(base);
+  return applyLadderDailyResetIfNeeded(applyLadderBiweeklyResetIfNeeded(base));
 }
 
 function clampInt(v, min, max, fallback) {

@@ -577,32 +577,38 @@ export default function HomeSetupScreen({
           imageStyle={styles.backgroundImage}
         >
           <View style={styles.uiLayer} pointerEvents="box-none">
-            <View style={styles.topLeftHud} pointerEvents="box-none">
-              <View style={styles.topCoinDisplay} pointerEvents="none">
-                <Text style={styles.topCoinIcon}>◈</Text>
-                <Text style={styles.topCoinText}>{coins ?? 0}</Text>
-              </View>
-              <Text
+            <View style={[styles.topHudBlock, styles.topLeftHud]} pointerEvents="box-none">
+              <Text style={styles.topHudPrimary} pointerEvents="none" numberOfLines={1}>
+                ◈ {coins ?? 0}
+              </Text>
+              <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Mini boss chest drop table"
-                style={styles.miniBossDropsLinkText}
-                numberOfLines={1}
+                style={({ pressed }) => [
+                  styles.topHudLinkPress,
+                  pressed && styles.topHudLinkPressed,
+                ]}
                 onPress={pressWithSound(() => setMiniBossDropsOpen(true))}
               >
-                Mini Boss drops ⓘ
-              </Text>
+                <Text style={styles.topHudHint} numberOfLines={1}>
+                  Mini Boss drops ▾
+                </Text>
+              </Pressable>
             </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Open Hall of Fame rankings"
               style={({ pressed }) => [
+                styles.topHudBlock,
                 styles.topPlayerNameWrap,
                 pressed && styles.topPlayerNamePressed,
               ]}
               onPress={pressWithSound(() => setRankingsOpen(true))}
             >
-              <Text style={styles.topPlayerName} numberOfLines={1}>{playerName}</Text>
-              <Text style={styles.topPlayerRankHint}>Hall of Fame ▾</Text>
+              <Text style={[styles.topHudPrimary, styles.topHudPrimaryRight]} numberOfLines={1}>
+                {playerName}
+              </Text>
+              <Text style={[styles.topHudHint, styles.topHudHintRight]}>Hall of Fame ▾</Text>
             </Pressable>
 
             {onlineBanner}
@@ -738,68 +744,59 @@ const styles = StyleSheet.create({
   uiLayer: {
     ...StyleSheet.absoluteFillObject,
   },
-  topLeftHud: {
-    position: 'absolute',
-    top: '2.8%',
-    left: '5.5%',
-    zIndex: 40,
-    alignItems: 'flex-start',
-    gap: 3,
-    maxWidth: '46%',
-  },
-  topCoinDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  topCoinIcon: {
-    color: '#f8d56d',
-    fontSize: 18,
-    fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.68)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 2,
-  },
-  topCoinText: {
-    color: '#fff8df',
-    fontSize: 15,
-    fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.68)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 2,
-  },
-  topPlayerNameWrap: {
+  topHudBlock: {
     position: 'absolute',
     top: '2.4%',
-    right: '4%',
+    zIndex: 40,
     maxWidth: '38%',
     minHeight: 28,
     justifyContent: 'center',
-    alignItems: 'flex-end',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
-    zIndex: 40,
   },
-  topPlayerNamePressed: {
-    backgroundColor: 'rgba(219, 39, 119, 0.22)',
+  topLeftHud: {
+    left: '4%',
+    alignItems: 'flex-start',
   },
-  topPlayerName: {
+  topPlayerNameWrap: {
+    right: '4%',
+    alignItems: 'flex-end',
+  },
+  topHudPrimary: {
     color: '#fff8df',
     fontSize: 14,
     fontWeight: '900',
-    textAlign: 'right',
+    textAlign: 'left',
     textShadowColor: 'rgba(0,0,0,0.68)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 2,
   },
-  topPlayerRankHint: {
+  topHudPrimaryRight: {
+    textAlign: 'right',
+  },
+  topHudHint: {
     marginTop: 1,
     color: '#fde68a',
     fontSize: 10,
     fontWeight: '800',
-    textAlign: 'right',
+    textAlign: 'left',
     letterSpacing: 0.3,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  topHudHintRight: {
+    textAlign: 'right',
+  },
+  topHudLinkPress: {
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  topHudLinkPressed: {
+    backgroundColor: 'rgba(219, 39, 119, 0.22)',
+  },
+  topPlayerNamePressed: {
+    backgroundColor: 'rgba(219, 39, 119, 0.22)',
   },
   menuLayer: {
     ...StyleSheet.absoluteFillObject,
@@ -891,16 +888,6 @@ const styles = StyleSheet.create({
     opacity: 0.48,
   },
   menuButtonOne: { top: '42%' },
-  miniBossDropsLinkText: {
-    color: '#fde047',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.15,
-    textShadowColor: 'rgba(0,0,0,0.72)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
   menuButtonTwo: { top: '48.2%' },
   menuButtonThree: { top: '54.4%' },
   menuButtonFour: { top: '60.6%' },

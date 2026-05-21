@@ -4,6 +4,9 @@ export const LADDER_BALANCE = {
   coinMultiplier: 0.12,
   dailyResetTimeZone: 'Asia/Singapore',
   dailyResetHour: 18,
+  /** Biweekly stage reset — first period starts this Sunday 6pm SG. */
+  biweeklyEpochSunday: '2026-05-24',
+  biweeklyPeriodDays: 14,
   chestRates: {
     common: 50,
     rare: 30,

@@ -17,6 +17,7 @@ import {
 } from '../utils/monsterLadder';
 import { LADDER_PITY, LADDER_RARITY_ORDER, LADDER_RARITY_WEIGHTS, LADDER_SHARDS_BY_RARITY } from '../utils/monsterLadder/ladderConstants';
 import { getLadderRewardDayKey, isLadderLevelLockedUntilReset } from '../utils/monsterLadder/ladderDailyReset';
+import { formatLadderBiweeklyResetHint } from '../utils/monsterLadder/ladderBiweeklyReset';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import {
   gameSurfaceDataProps,
@@ -520,6 +521,7 @@ export default function MonsterLadderHubScreen({
               <Text style={styles.infoLine}>Region: {theme.name}</Text>
               <Text style={styles.infoLine}>Stage: {bossBanner || stageTypeLabel(currentKind)}</Text>
               <Text style={styles.infoLine}>Rewards: {hints.subsToMini > 0 ? `Gear chest in ${hints.subsToMini}` : hints.subsToBig > 0 ? `Monster chest in ${hints.subsToBig}` : 'Boss rewards ready'}</Text>
+              <Text style={styles.infoLineBiweekly}>{formatLadderBiweeklyResetHint()}</Text>
               <View style={styles.resourceRow}>
                 <Text style={styles.resourceText}>Gold {ml.ladderGold}</Text>
                 <Text style={styles.resourceText}>Shards {ml.ladderShards}</Text>
@@ -847,6 +849,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     marginTop: 2,
+  },
+  infoLineBiweekly: {
+    color: '#b8a8e8',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 4,
+    lineHeight: 14,
   },
   resourceRow: {
     flexDirection: 'row',
