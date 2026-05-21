@@ -99,12 +99,11 @@ function WedgeLabel({ seg, mid, maxWidth, textColor }) {
 }
 
 /**
- * Rotation (deg) so segment idx's leading divider sits under the top pointer.
- * Prize wedge is the slice clockwise from that line.
+ * Rotation (deg) so segment idx's center (middle of the wedge) sits under the top pointer.
  */
 export function spinRotationForSegmentIndex(idx, stepDeg, currentRotation = 0, extraFullTurns = 5) {
-  const boundaryDeg = idx * stepDeg;
-  const targetMod = (360 - boundaryDeg) % 360;
+  const centerDeg = idx * stepDeg + stepDeg / 2;
+  const targetMod = (360 - centerDeg) % 360;
   const currentMod = ((currentRotation % 360) + 360) % 360;
   let delta = targetMod - currentMod;
   if (delta < 0) delta += 360;
