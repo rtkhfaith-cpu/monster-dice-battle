@@ -98,38 +98,12 @@ function WedgeLabel({ seg, mid, maxWidth, textColor }) {
   );
 }
 
-/** Wedge center angle on the wheel (0° = top, clockwise). */
-export function segmentCenterDeg(idx, stepDeg) {
-  return idx * stepDeg + stepDeg / 2;
-}
-
-/** Crown pointer sits ~one wedge clockwise from the wheel’s 12 o’clock. */
-export function spinPointerOffsetDeg(stepDeg) {
-  return stepDeg;
-}
-
-/**
- * Total clockwise rotation so wedge `idx` center sits under the crown pointer.
- * Uses normalized current angle so repeated spins stay aligned with the prize.
- */
-export function spinRotationForSegmentIndex(idx, stepDeg, currentRotation = 0, extraFullTurns = 5) {
-  const centerDeg = segmentCenterDeg(idx, stepDeg);
-  const pointerOffset = spinPointerOffsetDeg(stepDeg);
-  const targetMod = (360 - centerDeg + pointerOffset) % 360;
-  const currentMod = ((currentRotation % 360) + 360) % 360;
-  let delta = targetMod - currentMod;
-  if (delta < 0) delta += 360;
-  return currentMod + extraFullTurns * 360 + delta;
-}
-
-/** Which wedge index is under the crown pointer after a given rotation. */
-export function segmentIndexFromRotation(rotationDeg, stepDeg, segmentCount) {
-  const mod = ((rotationDeg % 360) + 360) % 360;
-  const pointerOffset = spinPointerOffsetDeg(stepDeg);
-  const centerDeg = (pointerOffset - mod + 360) % 360;
-  const idx = Math.floor(((centerDeg - stepDeg / 2 + 360) % 360) / stepDeg) % segmentCount;
-  return idx;
-}
+export {
+  rotationMatchesSegmentIndex,
+  segmentCenterDeg,
+  segmentIndexFromRotation,
+  spinRotationForSegmentIndex,
+} from '../utils/dailySpinWheelAlign';
 
 export default function DailySpinWheel({ segments, rotate }) {
   const stepDeg = 360 / segments.length;
@@ -276,10 +250,10 @@ const styles = StyleSheet.create({
     height: 0,
     borderLeftWidth: 10,
     borderRightWidth: 10,
-    borderBottomWidth: 16,
+    borderTopWidth: 16,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderBottomColor: ROYAL.rimGold,
+    borderTopColor: ROYAL.rimGold,
     marginTop: -1,
   },
   outerFrame: {

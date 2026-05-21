@@ -14,7 +14,11 @@ import { RESCUE_COLORS, rescueWebShadow } from './monsterRescue/rescueUiTheme';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
 import { playButton, playLevelUp, playWin, unlockAudio } from '../utils/audioManager';
-import DailySpinWheel, { spinRotationForSegmentIndex } from './DailySpinWheel';
+import DailySpinWheel from './DailySpinWheel';
+import {
+  rotationMatchesSegmentIndex,
+  spinRotationForSegmentIndex,
+} from '../utils/dailySpinWheelAlign';
 
 export default function DailyLuckySpinModal({
   visible,
@@ -80,6 +84,13 @@ export default function DailyLuckySpinModal({
       const finalNorm = ((totalRotate % 360) + 360) % 360;
       rotationDeg.current = finalNorm;
       rotation.setValue(finalNorm);
+      if (__DEV__ && !rotationMatchesSegmentIndex(finalNorm, idx, SEGMENT_DEG, DAILY_SPIN_SEGMENTS.length)) {
+        console.warn('[DailySpin] needle alignment mismatch', {
+          segmentId,
+          idx,
+          finalNorm,
+        });
+      }
       setSpinning(false);
       const claimed = onClaimSpin?.(segmentId);
       setResult(claimed ?? null);
