@@ -71,7 +71,6 @@ export default function DailyLuckySpinModal({
     if (!segmentId) return;
 
     unlockAudio();
-    playShop();
     setSpinning(true);
     setStep('wheel');
 
@@ -84,18 +83,40 @@ export default function DailyLuckySpinModal({
       extraTurns,
     );
 
+    if (spinListenerRef.current != null) {
+      rotation.removeListener(spinListenerRef.current);
+    }
+    let lastTickBucket = Math.floor(rotationDeg.current / SEGMENT_DEG);
+    spinListenerRef.current = rotation.addListener(({ value }) => {
+      const bucket = Math.floor(value / SEGMENT_DEG);
+      if (bucket === lastTickBucket) return;
+      lastTickBucket = bucket;
+      playWheelTick();
+    });
+
+    const clearSpinListener = () => {
+      if (spinListenerRef.current != null) {
+        rotation.removeListener(spinListenerRef.current);
+        spinListenerRef.current = null;
+      }
+    };
+
     Animated.timing(rotation, {
       toValue: totalRotate,
       duration: 4400,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start(() => {
+    }).start(({ finished }) => {
+      clearSpinListener();
       rotationDeg.current = totalRotate;
       setSpinning(false);
+      if (finished) playWheelLand();
       const claimed = onClaimSpin?.(segmentId);
       setResult(claimed ?? null);
-      if (claimed?.segment?.kind === 'mythic_monster') playLevelUp();
-      else playWin();
+      if (finished) {
+        if (claimed?.segment?.kind === 'mythic_monster') playLevelUp();
+        else playWin();
+      }
       setStep('result');
     });
   }

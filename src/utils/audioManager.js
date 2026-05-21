@@ -466,7 +466,7 @@ export function playWheelTick() {
   if (now - wheelTickLastAt < 40) return false;
   wheelTickLastAt = now;
   duckBgm(32, { gentle: true });
-  return playOneShot(SFX.button, 0.42);
+  return playOneShot(SFX.dodge, 0.5);
 }
 
 /** Fortune wheel — final needle catch when the wheel stops. */
