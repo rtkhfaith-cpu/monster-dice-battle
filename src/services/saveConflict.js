@@ -13,7 +13,13 @@ export function parseSaveTimestamp(iso) {
 
 /** @param {object|null|undefined} profile */
 export function profilePeakLevel(profile) {
-  return peakMonsterLevelFromRoster(profile?.ownedMonsters).level;
+  let peak = peakMonsterLevelFromRoster(profile?.ownedMonsters).level;
+  const ladderOwned = profile?.monsterLadder?.ownedMonsters;
+  if (Array.isArray(ladderOwned) && ladderOwned.length > 0) {
+    const ladderPeak = peakMonsterLevelFromRoster(ladderOwned).level;
+    if (ladderPeak > peak) peak = ladderPeak;
+  }
+  return peak;
 }
 
 /** @param {object|null|undefined} cloud */
@@ -106,12 +112,14 @@ export function buildSaveConflictMessage(comparison, playerName = 'Player') {
  * @param {object} gameData
  * @param {string} profileId
  */
+/**
+ * Block upload only when cloud was saved strictly later (login-style stale device).
+ * Do not block on ties or peak mismatch — that caused false alarms during normal play.
+ */
 export function isCloudUploadBlocked(gameData, profileId, cloudRecord) {
   const local = getPlayerProfile(gameData, profileId);
   const comparison = compareLocalAndCloudSave(local, cloudRecord);
-  if (comparison.resolution === 'cloud') return true;
-  if (comparison.resolution === 'conflict') return true;
-  return false;
+  return comparison.reason === 'cloud_newer';
 }
 
 /** True when this device has a local copy that must not merge with a newer/divergent cloud save. */

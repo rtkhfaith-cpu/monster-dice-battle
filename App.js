@@ -460,30 +460,6 @@ export default function App() {
     tryOfferDailySpin(profileId, 'menu');
   }, [phase, gameData, activeProfileId, setupP1ProfileId]);
 
-  useEffect(() => {
-    if (phase !== 'menu' || !gameData) return;
-    const profileId = activeProfileId || setupP1ProfileId;
-    if (!profileId || keyModalBusy) return;
-    if (cloudMergeSessionRef.current.has(profileId)) return;
-    const profile = getPlayerProfile(gameData, profileId);
-    const pin = normalizePlayerKey(profile?.pin);
-    if (pin.length !== 4) return;
-
-    let cancelled = false;
-    void resolveProfileLoginWithCloud(gameData, profileId, pin).then((res) => {
-      if (cancelled) return;
-      if (res.staleLocalDevice) {
-        showNotice('Login blocked', res.error || getStaleLocalDeviceMessage());
-        return;
-      }
-      if (!res.ok) return;
-      cloudMergeSessionRef.current.add(res.profileId);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [phase, gameData, activeProfileId, setupP1ProfileId, keyModalBusy, gameMode]);
-
   function persistSave(nextGd, reason, profileIDs, opts = {}) {
     setGameData(nextGd);
     void commitSave({
@@ -493,9 +469,7 @@ export default function App() {
       forceCloud: !!opts.forceCloud,
     }).then((res) => {
       if (res?.gameData) setGameData(res.gameData);
-      if (res?.cloudBlocked) {
-        showNotice('Sync blocked', getStaleLocalDeviceMessage());
-      }
+      // Stale-device message is for login only — do not interrupt mid-game (see saveConflict.js).
     });
   }
   const slotProfileId =
