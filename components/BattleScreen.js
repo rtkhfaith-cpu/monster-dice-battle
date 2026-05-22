@@ -156,6 +156,14 @@ function pickCpuStrike(atk) {
   return { skill: physical, strikeKind: 'physical' };
 }
 
+/** Highest-MP affordable magic skill for auto-cast (list order = strongest last). */
+function pickPlayerAutoMagic(atk) {
+  const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId);
+  const affordable = magicList.filter((s) => canAffordSkill(atk, s));
+  if (!affordable.length) return null;
+  return affordable[affordable.length - 1];
+}
+
 function moodFor(fighter, emotional) {
   if (fighter?.stats?.hp && fighter.hp / fighter.stats.hp <= 0.3 && fighter.hp > 0) return 'dizzy';
   if (emotional === 'happy') return 'happy';
@@ -236,6 +244,11 @@ export default function BattleScreen({
   const p2Ref = useRef(p2);
   const activeBattlerRef = useRef(PLAYER_ID);
   const phaserEventSeqRef = useRef(0);
+  const autoMagicRef = useRef(false);
+  const battlePhaseRef = useRef(battlePhase);
+  const busyRef = useRef(busy);
+  const isActionPlayingRef = useRef(isActionPlaying);
+  const battleIntroRef = useRef(battleIntro);
 
   useEffect(() => {
     p1Ref.current = p1;
@@ -254,6 +267,22 @@ export default function BattleScreen({
   useEffect(() => {
     activeBattlerRef.current = activeBattler;
   }, [activeBattler]);
+
+  useEffect(() => {
+    battlePhaseRef.current = battlePhase;
+  }, [battlePhase]);
+
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
+  useEffect(() => {
+    isActionPlayingRef.current = isActionPlaying;
+  }, [isActionPlaying]);
+
+  useEffect(() => {
+    battleIntroRef.current = battleIntro;
+  }, [battleIntro]);
 
   useEffect(() => {
     unlockBattleAudio();
@@ -331,6 +360,7 @@ export default function BattleScreen({
   }
 
   useEffect(() => () => {
+    autoMagicRef.current = false;
     clearTimers();
     if (combatBannerTimerRef.current) clearTimeout(combatBannerTimerRef.current);
   }, []);
@@ -446,6 +476,7 @@ export default function BattleScreen({
   }
 
   function wrapUpBattle(winnerSide, np1, np2) {
+    stopAutoMagic();
     clearTimers();
     clearAttackEffects();
     setIsActionPlaying(false);
@@ -511,6 +542,59 @@ export default function BattleScreen({
     setBusy(false);
     setIsActionPlaying(false);
     showBanner(bannerOverride || ticked.message || 'Choose your move');
+    if (autoMagicRef.current && opponentIsAi && activeBattlerRef.current === PLAYER_ID) {
+      schedule(150, () => tryAutoMagicAttack());
+    }
+  }
+
+  function stopAutoMagic(banner) {
+    if (!autoMagicRef.current) return;
+    autoMagicRef.current = false;
+    if (banner) showBanner(banner);
+  }
+
+  function tryAutoMagicAttack() {
+    if (!autoMagicRef.current || !opponentIsAi) return;
+    if (
+      battleIntroRef.current ||
+      isActionPlayingRef.current ||
+      busyRef.current ||
+      battlePhaseRef.current !== 'chooseAction'
+    ) {
+      return;
+    }
+    if (activeBattlerRef.current !== PLAYER_ID) return;
+    const attacker = p1Ref.current;
+    if (!attacker) return;
+    const skill = pickPlayerAutoMagic(attacker);
+    if (!skill) {
+      stopAutoMagic('Auto magic off — no MP');
+      return;
+    }
+    startBattleAudioFromInput();
+    runAttack({
+      attackerId: PLAYER_ID,
+      defenderId: CPU_ID,
+      bannerText: `${skill.name}!`,
+      skill,
+      strikeKind: 'magic',
+      onComplete: strikeAftermath(runCpuCounter),
+    });
+  }
+
+  function toggleAutoMagic() {
+    tapUi();
+    if (autoMagicRef.current) {
+      stopAutoMagic('Auto magic off');
+      return;
+    }
+    if (!opponentIsAi) {
+      showBanner('Auto magic: vs CPU only');
+      return;
+    }
+    autoMagicRef.current = true;
+    showBanner('Auto magic on');
+    schedule(120, () => tryAutoMagicAttack());
   }
 
   /** After a strike ends: CPU counter in 1P, pass turn in 2P local. */
@@ -632,11 +716,12 @@ export default function BattleScreen({
         : atk.skills?.physical ?? getPhysicalSkill(atk.monsterTemplateId));
 
     if (strikeKind === 'magic' && !canAffordSkill(atk, skill)) {
-      showBanner('Not enough MP!');
+      if (autoMagicRef.current) stopAutoMagic('Auto magic off — no MP');
+      else showBanner('Not enough MP!');
       setBusy(false);
       setIsActionPlaying(false);
       setBattlePhase('chooseAction');
-      setMenuMode('magic');
+      setMenuMode(autoMagicRef.current ? 'main' : 'magic');
       return;
     }
 
@@ -924,6 +1009,7 @@ export default function BattleScreen({
 
   function handleConfirmFlee() {
     tapUi();
+    stopAutoMagic();
     setFleeConfirmOpen(false);
     const latestP1 = p1Ref.current ?? p1;
     const latestP2 = p2Ref.current ?? p2;
@@ -983,6 +1069,12 @@ export default function BattleScreen({
                 }}
                 height={phaserArenaHeight}
               />
+              <Pressable
+                style={styles.hiddenRoundAutoTap}
+                onPress={toggleAutoMagic}
+                accessibilityLabel="Auto magic toggle"
+                hitSlop={12}
+              />
             </>
           ) : (
             <>
@@ -1014,6 +1106,7 @@ export default function BattleScreen({
                 sicklyFlashP2={sicklyFlash === CPU_ID}
                 flyStrikeP1={flyStrikeP1}
                 flyStrikeP2={flyStrikeP2}
+                onRoundBadgePress={toggleAutoMagic}
               />
               {battlePhase === 'resolveAttack' && activeAttackEffect ? (
                 <BattleProjectileLayer
@@ -1267,6 +1360,15 @@ const styles = StyleSheet.create({
   },
   arenaField: { flex: 1, minHeight: 0, width: '100%', position: 'relative', overflow: 'visible' },
   arenaInner: { flex: 1, width: '100%', minHeight: 0 },
+  hiddenRoundAutoTap: {
+    position: 'absolute',
+    top: '2%',
+    right: '1.5%',
+    width: 88,
+    height: 32,
+    zIndex: 12,
+    opacity: 0.01,
+  },
   ladderStagePill: {
     position: 'absolute',
     top: '1.2%',
