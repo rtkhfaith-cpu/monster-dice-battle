@@ -4,12 +4,13 @@
  * requires server-side validation on POST /save and server-authoritative rewards.
  */
 import { getGear } from './cosmetics';
+import { MONSTER_LEVEL_MAX, reconcileMonsterLevelExp } from './expLevel';
 import { getMonsterTemplate } from './monsterTemplates';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 
 /** Soft cap — legitimate play should stay far below this. */
 export const PROFILE_COINS_SOFT_CAP = 250_000;
-export const PROFILE_LEVEL_MAX = 99;
+export const PROFILE_LEVEL_MAX = MONSTER_LEVEL_MAX;
 export const PROFILE_MONSTER_CAP = 80;
 export const PROFILE_NICKNAME_MAX = 24;
 export const PROFILE_NAME_MAX = 24;
@@ -95,11 +96,13 @@ export function sanitizePlayerProfile(profile, opts = {}) {
       issues.push('monster_unknown_template');
       return false;
     }
-    const lvl = Math.floor(Number(om.level) || 1);
-    om.level = Math.max(1, Math.min(PROFILE_LEVEL_MAX, lvl));
     om.nickname = String(om.nickname ?? '').slice(0, PROFILE_NICKNAME_MAX);
-    const exp = Math.floor(Number(om.exp) || 0);
-    om.exp = Math.max(0, exp);
+    const reconciled = reconcileMonsterLevelExp({
+      level: Math.floor(Number(om.level) || 1),
+      exp: Math.floor(Number(om.exp) || 0),
+    });
+    om.level = reconciled.level;
+    om.exp = reconciled.exp;
     return true;
   });
 

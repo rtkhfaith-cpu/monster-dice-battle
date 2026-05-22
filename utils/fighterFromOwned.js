@@ -1,6 +1,6 @@
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
-import { expToAdvanceFrom } from './expLevel';
+import { MONSTER_LEVEL_MAX, expToAdvanceFrom } from './expLevel';
 import { applyGearBonuses } from './gearStats';
 import { compactGearIds, resolveFighterElement } from './cosmetics';
 import { mergeMonsterParts } from './gameStorage';
@@ -181,7 +181,7 @@ export function buildAiFighter(humanFighter, gameData = null, profileId = null, 
   const tplId = picked?.id || 'cockroachsaurus';
   const tpl = getMonsterTemplate(tplId);
   const levelJitter = Math.floor(Math.random() * 3) - 1;
-  const level = Math.max(1, Math.min(99, playerLevel + levelJitter));
+  const level = Math.max(1, Math.min(MONSTER_LEVEL_MAX, playerLevel + levelJitter));
   const profile = profileId && gameData ? getPlayerProfile(gameData, profileId) : null;
   const allowMiniBoss =
     !options.skipMiniBoss && canSpawnMainMiniBoss(profile);

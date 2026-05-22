@@ -4,6 +4,7 @@ import {
   EXP_UNDERDOG_BONUS,
   expToAdvanceFrom,
   addExperience,
+  reconcileMonsterLevelExp,
   subtractExperience,
   expWinForEnemyLevel,
   expLossPenalty,
@@ -218,6 +219,9 @@ function normalizeOwnedMonster(om) {
   }
   if (!Array.isArray(om.equippedLadderGear)) om.equippedLadderGear = [];
   om.mergeTier = clampMergeTier(om.mergeTier);
+  const reconciled = reconcileMonsterLevelExp({ level: om.level, exp: om.exp });
+  om.level = reconciled.level;
+  om.exp = reconciled.exp;
 }
 
 function migrateLegacyWalletGear(wallet) {

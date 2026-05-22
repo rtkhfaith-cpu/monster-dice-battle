@@ -1,6 +1,7 @@
 import { LADDER_MAIN_LEVELS, LADDER_SUB_LEVELS, LADDER_TOTAL_STAGES } from './ladderConstants';
 import { applyLadderBiweeklyResetIfNeeded } from './ladderBiweeklyReset';
 import { applyLadderDailyResetIfNeeded, getLadderRewardDayKey } from './ladderDailyReset';
+import { MONSTER_LEVEL_MAX, reconcileMonsterLevelExp } from '../expLevel';
 import { decodeStage, encodeStage, getStageKind } from './stages';
 
 /**
@@ -142,12 +143,16 @@ function normalizeOwnedRow(om) {
   if (!om || typeof om !== 'object') return null;
   const o = /** @type {Record<string, unknown>} */ (om);
   if (typeof o.templateId !== 'string' || typeof o.id !== 'string') return null;
+  const { level, exp } = reconcileMonsterLevelExp({
+    level: clampInt(o.level, 1, MONSTER_LEVEL_MAX, 1),
+    exp: clampInt(o.exp, 0, 99999999, 0),
+  });
   return {
     id: o.id,
     templateId: o.templateId,
     nickname: typeof o.nickname === 'string' ? o.nickname : '',
-    level: clampInt(o.level, 1, 99, 1),
-    exp: clampInt(o.exp, 0, 99999999, 0),
+    level,
+    exp,
     monsterParts: o.monsterParts && typeof o.monsterParts === 'object' ? o.monsterParts : {},
     equippedLadderGear: Array.isArray(o.equippedLadderGear)
       ? o.equippedLadderGear.filter((x) => typeof x === 'string')

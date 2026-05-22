@@ -1,6 +1,9 @@
 import { expToNextForLevel } from '../src/gameBalance/leveling';
 import { lossExpPenalty, normalExpForEnemyLevel } from '../src/gameBalance/rewards';
 
+/** Max monster level — matches Max Form (100+) and prestige curve in leveling.js */
+export const MONSTER_LEVEL_MAX = 999;
+
 /** EXP granted defaults (used as fallbacks; battle rewards compute per-level amounts). */
 export const EXP_WINNER = 25;
 export const EXP_LOSER = 10;
@@ -35,6 +38,23 @@ export function expLossPenalty(playerLevel) {
 }
 
 /**
+ * Clamp level and apply banked EXP (fixes saves stuck at old cap 99).
+ * @param {{ level: number, exp: number }} owned
+ */
+export function reconcileMonsterLevelExp(owned) {
+  let level = Math.max(1, Math.min(MONSTER_LEVEL_MAX, Math.floor(owned.level || 1)));
+  let exp = Math.max(0, Math.floor(owned.exp || 0));
+  let guard = 0;
+  while (guard++ < 200 && level < MONSTER_LEVEL_MAX) {
+    const need = expToAdvanceFrom(level);
+    if (exp < need) break;
+    exp -= need;
+    level += 1;
+  }
+  return { level, exp };
+}
+
+/**
  * Apply EXP gain; returns updated { level, exp, levelsGained }.
  * @param {{ level: number, exp: number }} owned
  * @param {number} addExp
@@ -48,7 +68,7 @@ export function addExperience(owned, addExp) {
   let guard = 0;
   while (guard++ < 500) {
     const need = expToAdvanceFrom(level);
-    if (exp < need || level >= 999) break;
+    if (exp < need || level >= MONSTER_LEVEL_MAX) break;
     exp -= need;
     level += 1;
     levelsGained += 1;
