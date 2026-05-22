@@ -1,8 +1,8 @@
 import { expToNextForLevel } from '../src/gameBalance/leveling';
 import { lossExpPenalty, normalExpForEnemyLevel } from '../src/gameBalance/rewards';
 
-/** Max monster level — matches Max Form (100+) and prestige curve in leveling.js */
-export const MONSTER_LEVEL_MAX = 999;
+/** Max monster level — hard cap for all modes */
+export const MONSTER_LEVEL_MAX = 120;
 
 /** EXP granted defaults (used as fallbacks; battle rewards compute per-level amounts). */
 export const EXP_WINNER = 25;
