@@ -642,11 +642,6 @@ export default function App() {
       applyProfileSelection(profileId);
       return;
     }
-    if (cloudMergeSessionRef.current.has(profileId)) {
-      markProfileUnlocked(profileId);
-      applyProfileSelection(profileId);
-      return;
-    }
     setKeyModalBusy(true);
     void completeProfileEntry(profileId, pin).finally(() => setKeyModalBusy(false));
   }
@@ -873,9 +868,7 @@ export default function App() {
       if (!verifyPlayerKeyForProfile(localProfile, pin)) {
         return { ok: false, error: 'Incorrect PIN.' };
       }
-      markProfileUnlocked(localId);
-      applyProfileSelection(localId);
-      return { ok: true, profileId: localId };
+      return completeProfileEntry(localId, pin);
     }
     const cloudProfile = cloudPlayers.find((p) => (
       String(p.profileID || '').toLowerCase() === query ||

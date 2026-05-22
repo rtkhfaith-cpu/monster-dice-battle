@@ -122,12 +122,16 @@ export function isCloudUploadBlocked(gameData, profileId, cloudRecord) {
   return comparison.reason === 'cloud_newer';
 }
 
-/** True when this device has a local copy that must not merge with a newer/divergent cloud save. */
+/**
+ * True when this device has stale local progress vs cloud (login must fail).
+ * Uses time, conflict, and peak level — not timestamp alone (autosave can bump local time).
+ */
 export function shouldBlockStaleLocalLogin(comparison, localProfile) {
   if (!localProfile) return false;
   if (comparison.resolution === 'conflict') return true;
-  // Only when cloud was saved strictly later — not when times match (same device, hours later).
-  return comparison.resolution === 'cloud' && comparison.reason === 'cloud_newer';
+  if (comparison.reason === 'cloud_newer') return true;
+  if (comparison.cloudPeak > comparison.localPeak) return true;
+  return false;
 }
 
 export function getStaleLocalDeviceMessage() {
