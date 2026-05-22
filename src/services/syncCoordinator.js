@@ -29,15 +29,8 @@ function normalizeProfileIDs(profileIDs) {
  * @returns {Promise<{ localOk: boolean, cloudSynced: boolean, cloudFailed: boolean, cloudNeedsKey: boolean }|undefined>}
  */
 export async function commitSave(opts) {
-  const { reason, gameData, profileIDs, skipCloud = false } = opts;
+  const { reason, gameData, profileIDs, skipCloud = false, forceCloud = false } = opts;
   if (!gameData) return undefined;
-
-  await saveGameSave(gameData);
-  emitSaveStatus('local_saved');
-
-  const result = { localOk: true, cloudSynced: false, cloudFailed: false, cloudNeedsKey: false };
-
-  if (skipCloud) return result;
 
   const ids = normalizeProfileIDs(
     Array.isArray(profileIDs) ? profileIDs : profileIDs ? [profileIDs] : [],
@@ -45,13 +38,43 @@ export async function commitSave(opts) {
   const fallback = gameData.session?.activeProfileId;
   const targets = ids.length > 0 ? ids : fallback ? [fallback] : [];
 
+  let gd = gameData;
+  const { touchProfileUpdatedAt, markProfileCloudSynced } = await import('../../utils/gameStorage');
+  for (const profileID of targets) {
+    gd = touchProfileUpdatedAt(gd, profileID);
+  }
+
+  await saveGameSave(gd);
+  emitSaveStatus('local_saved');
+
+  const result = {
+    localOk: true,
+    gameData: gd,
+    cloudSynced: false,
+    cloudFailed: false,
+    cloudNeedsKey: false,
+    cloudBlocked: false,
+    cloudBlockPayload: null,
+  };
+
+  if (skipCloud) return result;
+
   if (targets.length === 0) return result;
 
   for (const profileID of targets) {
-    const res = await syncProfileToCloud(profileID, gameData);
-    if (res.ok) result.cloudSynced = true;
-    else if (res.skipped) {
+    const res = await syncProfileToCloud(profileID, gd, { force: forceCloud });
+    if (res.ok) {
+      result.cloudSynced = true;
+      gd = markProfileCloudSynced(gd, profileID);
+    } else if (res.skipped) {
       /* API not configured — local only */
+    } else if (res.cloudNewer) {
+      result.cloudBlocked = true;
+      result.cloudBlockPayload = {
+        profileID,
+        cloudData: res.cloudData,
+        error: res.error,
+      };
     } else if (
       typeof res.error === 'string' &&
       res.error.toLowerCase().includes('player key')
@@ -62,8 +85,16 @@ export async function commitSave(opts) {
     }
   }
 
+  if (result.cloudSynced && gd !== gameData) {
+    await saveGameSave(gd);
+    result.gameData = gd;
+  } else {
+    result.gameData = gd;
+  }
+
   if (reason === 'profile_created') emitSaveStatus('player_created');
-  if (result.cloudSynced) emitSaveStatus('cloud_synced');
+  if (result.cloudBlocked) emitSaveStatus('cloud_blocked');
+  else if (result.cloudSynced) emitSaveStatus('cloud_synced');
   else if (result.cloudFailed) emitSaveStatus('cloud_failed');
 
   return result;
@@ -77,26 +108,7 @@ export async function commitSave(opts) {
  */
 export function scheduleCommitSave(reason, gameData, profileIDs) {
   autosaveGame(reason, gameData);
-  void (async () => {
-    await saveGameSave(gameData);
-    emitSaveStatus('local_saved');
-    const ids = normalizeProfileIDs(
-      Array.isArray(profileIDs) ? profileIDs : profileIDs ? [profileIDs] : [],
-    );
-    const fallback = gameData.session?.activeProfileId;
-    const targets = ids.length > 0 ? ids : fallback ? [fallback] : [];
-    if (targets.length === 0) return;
-
-    let anyOk = false;
-    let anyFail = false;
-    for (const profileID of targets) {
-      const res = await syncProfileToCloud(profileID, gameData);
-      if (res.ok) anyOk = true;
-      else if (!res.skipped) anyFail = true;
-    }
-    if (anyOk) emitSaveStatus('cloud_synced');
-    else if (anyFail) emitSaveStatus('cloud_failed');
-  })();
+  void commitSave({ reason, gameData, profileIDs });
 }
 
 /**

@@ -7,6 +7,7 @@ const LABELS = {
   local_saved: 'Saved locally ✓',
   cloud_synced: 'Cloud synced ✓',
   cloud_failed: 'Cloud sync failed',
+  cloud_blocked: 'Cloud newer — choose save',
   player_created: 'Player created ✓',
   player_deleted: 'Player deleted ✓',
   cloud_delete_failed: 'Cloud delete failed',
@@ -23,7 +24,7 @@ export default function SyncStatusIndicator() {
   if (!label) return null;
 
   const isCloudOk = status === 'cloud_synced';
-  const isCloudFail = status === 'cloud_failed';
+  const isCloudFail = status === 'cloud_failed' || status === 'cloud_blocked';
 
   return (
     <View

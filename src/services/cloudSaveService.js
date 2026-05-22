@@ -6,6 +6,7 @@ import { normalizePlayerKey } from '../../utils/playerKey';
 import { loadGameSave, saveGameSave } from './saveService';
 import { profileBlockedForCloudSync } from '../../utils/profileIntegrity';
 import { getPlayerProfile } from '../../utils/gameStorage';
+import { isCloudUploadBlocked } from './saveConflict';
 import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
 import { trainerRankingFromCloudRow } from '../../utils/trainerRankings';
 
@@ -445,7 +446,7 @@ export async function deleteCloudProfile(profileID, playerKey) {
  * @param {string} profileID
  * @param {object} [gameData] — optional; loads from disk if omitted
  */
-export async function syncProfileToCloud(profileID, gameData = null) {
+export async function syncProfileToCloud(profileID, gameData = null, opts = {}) {
   const gd = gameData || (await loadGameSave());
   const profile = getPlayerProfile(gd, profileID);
   if (profile && profileBlockedForCloudSync(profile)) {
@@ -460,6 +461,22 @@ export async function syncProfileToCloud(profileID, gameData = null) {
   if (!cloud.playerKey || normalizePlayerKey(cloud.playerKey).length !== 4) {
     return { ok: false, error: 'Set a Player Key on this profile before cloud sync' };
   }
+
+  const key = normalizePlayerKey(cloud.playerKey);
+  if (!opts.force) {
+  const remote = await loadCloudProfileWithKey(profileID, key);
+  if (remote.ok && remote.data) {
+    if (isCloudUploadBlocked(gd, profileID, remote.data)) {
+      return {
+        ok: false,
+        cloudNewer: true,
+        cloudData: remote.data,
+        error: 'Cloud save is newer than this device. Load the cloud save before uploading.',
+      };
+    }
+  }
+  }
+
   return saveCloudProfile(cloud);
 }
 

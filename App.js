@@ -102,8 +102,9 @@ import {
   walletForProfile,
 } from './utils/gameStorage';
 import { loadGameSave, saveGameSave } from './src/services/saveService';
-import { listCloudPlayers, recallCloudProfile } from './src/services/cloudSaveService';
-import { applyCloudProfile } from './src/services/cloudSaveMapper';
+import { listCloudPlayers } from './src/services/cloudSaveService';
+import { resolveProfileLoginWithCloud } from './src/services/profileCloudMerge';
+import { getStaleLocalDeviceMessage } from './src/services/saveConflict';
 import { commitProfileDeleted, commitSave, setCloudSyncProfileID } from './src/services/syncCoordinator';
 import { emitSaveStatus, subscribeSaveStatus } from './src/services/saveStatusBus';
 import ConfirmDialog from './components/ConfirmDialog';
@@ -218,6 +219,7 @@ export default function App() {
   const [rescueStageId, setRescueStageId] = useState(1);
   const [rescueRewardPayload, setRescueRewardPayload] = useState(null);
   const [questHubOpen, setQuestHubOpen] = useState(false);
+  const cloudMergeSessionRef = useRef(new Set());
 
   function showNotice(title, message) {
     setNoticeDialog({ title, message });
@@ -458,12 +460,42 @@ export default function App() {
     tryOfferDailySpin(profileId, 'menu');
   }, [phase, gameData, activeProfileId, setupP1ProfileId]);
 
-  function persistSave(nextGd, reason, profileIDs) {
+  useEffect(() => {
+    if (phase !== 'menu' || !gameData) return;
+    const profileId = activeProfileId || setupP1ProfileId;
+    if (!profileId || keyModalBusy) return;
+    if (cloudMergeSessionRef.current.has(profileId)) return;
+    const profile = getPlayerProfile(gameData, profileId);
+    const pin = normalizePlayerKey(profile?.pin);
+    if (pin.length !== 4) return;
+
+    let cancelled = false;
+    void resolveProfileLoginWithCloud(gameData, profileId, pin).then((res) => {
+      if (cancelled) return;
+      if (res.staleLocalDevice) {
+        showNotice('Login blocked', res.error || getStaleLocalDeviceMessage());
+        return;
+      }
+      if (!res.ok) return;
+      cloudMergeSessionRef.current.add(res.profileId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, gameData, activeProfileId, setupP1ProfileId, keyModalBusy, gameMode]);
+
+  function persistSave(nextGd, reason, profileIDs, opts = {}) {
     setGameData(nextGd);
     void commitSave({
       reason,
       gameData: nextGd,
       profileIDs,
+      forceCloud: !!opts.forceCloud,
+    }).then((res) => {
+      if (res?.gameData) setGameData(res.gameData);
+      if (res?.cloudBlocked) {
+        showNotice('Sync blocked', getStaleLocalDeviceMessage());
+      }
     });
   }
   const slotProfileId =
@@ -604,10 +636,45 @@ export default function App() {
     tryOfferDailySpin(profileId, 'login');
   }
 
+  async function completeProfileEntry(profileId, playerKey, { fromCloudList = false } = {}) {
+    if (!gameData || !profileId) return { ok: false };
+    const res = await resolveProfileLoginWithCloud(gameData, profileId, playerKey);
+    if (!res.ok) {
+      if (res.staleLocalDevice) {
+        setKeyModalError(res.error || getStaleLocalDeviceMessage());
+      }
+      return { ok: false, error: res.error, staleLocalDevice: !!res.staleLocalDevice };
+    }
+
+    setGameData(res.gameData);
+    markProfileUnlocked(res.profileId);
+    cloudMergeSessionRef.current.add(res.profileId);
+    setKeyModal(null);
+    setKeyModalError('');
+    await saveGameSave(res.gameData);
+    persistSave(res.gameData, fromCloudList ? 'profile_loaded_cloud' : 'profile_loaded', res.profileId);
+    emitSaveStatus('player_loaded');
+    applyProfileSelection(res.profileId, res.gameData);
+    return { ok: true, profileId: res.profileId };
+  }
+
   function handleSelectProfile(profileId) {
     if (!gameData || !profileId) return;
-    markProfileUnlocked(profileId);
-    applyProfileSelection(profileId);
+    const profile = getPlayerProfile(gameData, profileId);
+    if (!profile) return;
+    const pin = normalizePlayerKey(profile.pin);
+    if (pin.length !== 4) {
+      markProfileUnlocked(profileId);
+      applyProfileSelection(profileId);
+      return;
+    }
+    if (cloudMergeSessionRef.current.has(profileId)) {
+      markProfileUnlocked(profileId);
+      applyProfileSelection(profileId);
+      return;
+    }
+    setKeyModalBusy(true);
+    void completeProfileEntry(profileId, pin).finally(() => setKeyModalBusy(false));
   }
 
   function handleRequestSelectProfile(profileId) {
@@ -706,20 +773,21 @@ export default function App() {
         setKeyModalError('Enter your 4-digit Player Key.');
         return;
       }
-      const fromCloud = !!keyModal.fromCloud;
       const localProfile = gameData ? getPlayerProfile(gameData, profileId) : null;
-      if (localProfile && !fromCloud) {
-        if (!verifyPlayerKeyForProfile(localProfile, key)) {
-          setKeyModalError('Incorrect key. Please try again.');
-          return;
-        }
-        markProfileUnlocked(profileId);
-        setKeyModal(null);
-        setKeyModalError('');
-        applyProfileSelection(profileId);
+      if (localProfile && !verifyPlayerKeyForProfile(localProfile, key)) {
+        setKeyModalError('Incorrect key. Please try again.');
         return;
       }
-      void finalizeCloudLogin(profileId, key);
+      setKeyModalBusy(true);
+      void completeProfileEntry(profileId, key, { fromCloudList: !!keyModal.fromCloud })
+        .then((res) => {
+          if (!res.ok) {
+            setKeyModalError(
+              res.error || 'Could not load save. Check your connection.',
+            );
+          }
+        })
+        .finally(() => setKeyModalBusy(false));
       return;
     }
 
@@ -732,71 +800,28 @@ export default function App() {
     }
   }
 
-  async function finalizeCloudLogin(profileId, playerKey, { requiresKey = true, showModalOnFail = true } = {}) {
+  async function finalizeCloudLogin(profileId, playerKey, { showModalOnFail = true } = {}) {
     if (keyModalBusy) return { ok: false, error: 'Login already in progress.' };
     if (!playerKey || playerKey.length !== 4) {
       setKeyModalError('Enter your 4-digit Player Key.');
       return { ok: false, error: 'Enter your 4-digit Player Key.' };
     }
-    setKeyModalBusy(true);
     setKeyModalError('');
-
-    try {
-      const login = await recallCloudProfile(profileId, playerKey);
-      if (!login.ok) {
-        const msg =
-          login.skipped
-            ? 'Cloud save is not configured on this build.'
-            : login.status === 401
-              ? 'Incorrect key. Please try again.'
-              : login.error || 'Could not load player from cloud.';
-
-        if (showModalOnFail) {
-          setKeyModal({
-            mode: 'login',
-            profileId,
-            playerName: keyModal?.playerName || 'Player',
-            fromCloud: true,
-            requiresKey: true,
-          });
-        }
-        setKeyModalError(msg);
-        return { ok: false, error: msg };
+    const res = await completeProfileEntry(profileId, playerKey, { fromCloudList: true });
+    if (!res.ok && !res.needsConflict) {
+      const msg = res.error || 'Could not load player from cloud.';
+      if (showModalOnFail) {
+        setKeyModal({
+          mode: 'login',
+          profileId,
+          playerName: keyModal?.playerName || 'Player',
+          fromCloud: true,
+          requiresKey: true,
+        });
       }
-
-      const baseGd = gameData || (await loadGameSave());
-      const pin = normalizePlayerKey(playerKey);
-      const resolvedId = String(login.data?.profileID || login.data?.id || profileId).trim();
-      let next = applyCloudProfile(baseGd, login.data);
-      const applied = next.players?.find((p) => p.id === resolvedId || p.id === profileId);
-      if (applied) repairPlayerProfileInventory(applied);
-      if (!applied) {
-        setKeyModalError('Could not apply cloud save. Try again or redeploy the save API.');
-        return { ok: false, error: 'Could not apply cloud save. Try again or redeploy the save API.' };
-      }
-      const activeId = applied.id;
-      if (requiresKey && pin.length === 4) next = setPlayerKeyForProfile(next, activeId, pin);
-      next = enforceSingleActiveProfile(next, activeId);
-
-      setGameData(next);
-      markProfileUnlocked(activeId);
-      setKeyModal(null);
-      setKeyModalError('');
-
-      await saveGameSave(next);
-      persistSave(next, 'profile_loaded', activeId);
-      emitSaveStatus('player_loaded');
-      applyProfileSelection(activeId, next);
-      return { ok: true, profileId: activeId };
-    } catch (err) {
-      if (typeof __DEV__ !== 'undefined' && __DEV__) {
-        console.warn('[cloud] finalizeCloudLogin failed', err);
-      }
-      setKeyModalError('Load failed. Check your connection and try again.');
-      return { ok: false, error: 'Load failed. Check your connection and try again.' };
-    } finally {
-      setKeyModalBusy(false);
+      setKeyModalError(msg);
     }
+    return res;
   }
 
   async function finalizeProfileDelete(profileId, playerKey, { requiresKey = true } = {}) {
@@ -882,7 +907,7 @@ export default function App() {
       String(p.profileID || '').toLowerCase() === query ||
       String(p.playerName || '').toLowerCase() === query
     ));
-    return finalizeCloudLogin(cloudProfile?.profileID || id, pin, { requiresKey: true, showModalOnFail: false });
+    return finalizeCloudLogin(cloudProfile?.profileID || id, pin, { showModalOnFail: false });
   }
 
   async function handleMainMenuCreate(name, playerKey) {

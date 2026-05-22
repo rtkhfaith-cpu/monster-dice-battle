@@ -630,6 +630,25 @@ export function setPlayerKeyForProfile(gameData, profileId, playerKey) {
   return gd;
 }
 
+/** Bump save timestamp before cloud upload (last-write-wins uses updatedAt). */
+export function touchProfileUpdatedAt(gameData, profileId) {
+  const gd = cloneGameData(gameData);
+  const p = gd.players.find((x) => x.id === profileId);
+  if (!p) return gd;
+  p.updatedAt = new Date().toISOString();
+  if (!p.createdAt) p.createdAt = p.updatedAt;
+  return gd;
+}
+
+/** @param {object} gameData @param {string} profileId @param {string} [syncedAt] */
+export function markProfileCloudSynced(gameData, profileId, syncedAt = new Date().toISOString()) {
+  const gd = cloneGameData(gameData);
+  const p = gd.players.find((x) => x.id === profileId);
+  if (!p) return gd;
+  p.lastCloudSyncedAt = syncedAt;
+  return gd;
+}
+
 /** @deprecated use createPlayerProfile */
 export function createPlayer(gameData, name, pin) {
   const res = createPlayerProfile(gameData, name);
