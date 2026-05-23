@@ -19,7 +19,11 @@ export default function MonsterMarketModal({ visible, coins, wallet, onClose, on
   const [cardMonster, setCardMonster] = useState(null);
   const counts = ownedSpeciesCounts(wallet);
   const catalog = useMemo(
-    () => [...MONSTER_CATALOG].sort((a, b) => rarityRank(a.rarity) - rarityRank(b.rarity)),
+    () => [...MONSTER_CATALOG].sort((a, b) => {
+      const rarityDiff = rarityRank(b.rarity) - rarityRank(a.rarity);
+      if (rarityDiff !== 0) return rarityDiff;
+      return a.name.localeCompare(b.name);
+    }),
     [],
   );
   const cardFighter = useMemo(() => {

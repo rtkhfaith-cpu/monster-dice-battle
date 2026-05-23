@@ -1,6 +1,6 @@
 import { rosterSpeciesKey } from './rosterInventory';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
-import { getMonsterTemplate } from './monsterTemplates';
+import { getMonsterTemplate, rarityRank } from './monsterTemplates';
 
 export const MAX_MERGE_TIER = 9;
 
@@ -24,6 +24,12 @@ export function mergeCostForNextTier(currentTier) {
 export function getMonsterDisplayName(templateId, fallbackNickname) {
   const t = getMonsterTemplate(templateId) ?? getLadderMonsterTemplate(templateId);
   return fallbackNickname || t?.name || templateId;
+}
+
+/** @param {string} templateId */
+export function templateRarityRank(templateId) {
+  const t = getMonsterTemplate(templateId) ?? getLadderMonsterTemplate(templateId);
+  return rarityRank(t?.rarity ?? 'common');
 }
 
 /** Pick the instance to represent a stack (highest merge tier, then level). */
@@ -85,7 +91,11 @@ export function groupOwnedMonsters(mainMonsters = [], ladderMonsters = []) {
         canMerge: nextCost != null && extras >= nextCost,
       };
     })
-    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    .sort((a, b) => {
+      const rarityDiff = templateRarityRank(b.templateId) - templateRarityRank(a.templateId);
+      if (rarityDiff !== 0) return rarityDiff;
+      return a.displayName.localeCompare(b.displayName);
+    });
 }
 
 function scaleStatRange(rng, ratio) {
