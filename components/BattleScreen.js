@@ -57,6 +57,9 @@ const RESULT_SFX_DELAY_MS = 450;
 const PLAYER_ID = 1;
 const CPU_ID = 2;
 
+/** Auto Level grind stops once the active monster reaches this level. */
+export const AUTO_LEVEL_GRIND_MAX = 40;
+
 function fighterToPhaserState(fighter, fallbackName) {
   const maxHp = fighter?.maxHp ?? fighter?.stats?.hp ?? 1;
   const maxMp = fighter?.maxMp ?? fighter?.stats?.mp ?? 0;
@@ -162,6 +165,19 @@ function pickCpuStrike(atk) {
   return { skill: physical, strikeKind: 'physical' };
 }
 
+/** Pick magic or basic for Auto Level — magic when affordable and MP ≥ 20%, else physical. */
+function pickAutoLevelStrike(atk) {
+  const physical = atk.skills?.physical ?? getPhysicalSkill(atk.monsterTemplateId);
+  const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId);
+  const affordable = magicList.filter((s) => canAffordSkill(atk, s));
+  const maxMp = atk.maxMp ?? atk.stats?.mp ?? 1;
+  const mpRatio = maxMp > 0 ? (atk.mp ?? 0) / maxMp : 0;
+  if (affordable.length > 0 && mpRatio >= 0.2) {
+    return { skill: affordable[affordable.length - 1], strikeKind: 'magic' };
+  }
+  return { skill: physical, strikeKind: 'physical' };
+}
+
 /** Highest-MP affordable magic skill for auto-cast (list order = strongest last). */
 function pickPlayerAutoMagic(atk) {
   const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId);
@@ -182,6 +198,8 @@ export default function BattleScreen({
   fighter2,
   onFinish,
   onClaimMainMiniBossChest,
+  autoLevelGrind = false,
+  onAutoLevelGrindChange,
   player1Name = '',
   player2Name = '',
   opponentIsAi = true,
@@ -251,7 +269,11 @@ export default function BattleScreen({
   const activeBattlerRef = useRef(PLAYER_ID);
   const phaserEventSeqRef = useRef(0);
   const autoMagicRef = useRef(false);
+  const autoAttackRef = useRef(false);
+  const autoLevelRef = useRef(false);
   const [autoMagicOn, setAutoMagicOn] = useState(false);
+  const [autoAttackOn, setAutoAttackOn] = useState(false);
+  const [autoLevelOn, setAutoLevelOn] = useState(false);
   const battlePhaseRef = useRef(battlePhase);
   const busyRef = useRef(busy);
   const isActionPlayingRef = useRef(isActionPlaying);
@@ -290,6 +312,47 @@ export default function BattleScreen({
   useEffect(() => {
     battleIntroRef.current = battleIntro;
   }, [battleIntro]);
+
+  useEffect(() => {
+    if (!autoLevelGrind) {
+      autoLevelRef.current = false;
+      setAutoLevelOn(false);
+      return;
+    }
+    if ((fighter1?.level ?? 1) >= AUTO_LEVEL_GRIND_MAX) {
+      onAutoLevelGrindChange?.(false);
+      return;
+    }
+    autoLevelRef.current = true;
+    setAutoLevelOn(true);
+    autoMagicRef.current = false;
+    autoAttackRef.current = false;
+    setAutoMagicOn(false);
+    setAutoAttackOn(false);
+    if (!battleIntroRef.current && battlePhaseRef.current === 'chooseAction' && opponentIsAi) {
+      schedule(200, () => scheduleAutoTurn());
+    }
+  }, [autoLevelGrind, fighter1?.level, opponentIsAi]);
+
+  useEffect(() => {
+    if (battleIntro || !autoLevelRef.current || !opponentIsAi) return;
+    if (battlePhase === 'chooseAction' && !busy && !isActionPlaying) {
+      schedule(150, () => scheduleAutoTurn());
+    }
+  }, [battleIntro, battlePhase, busy, isActionPlaying, autoLevelOn, opponentIsAi]);
+
+  useEffect(() => {
+    if (!autoLevelRef.current) return undefined;
+    if (mainChestPhase === 'ready' && !mainChestBusy) {
+      const t = setTimeout(() => handleMainChestPress(), 450);
+      return () => clearTimeout(t);
+    }
+    if (mainChestPhase === 'revealed' && mainChestDrop) {
+      const t = setTimeout(() => handleMainChestContinue(), 650);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [mainChestPhase, mainChestBusy, mainChestDrop]);
 
   useEffect(() => {
     unlockBattleAudio();
@@ -368,7 +431,9 @@ export default function BattleScreen({
 
   useEffect(() => () => {
     autoMagicRef.current = false;
+    autoAttackRef.current = false;
     setAutoMagicOn(false);
+    setAutoAttackOn(false);
     clearTimers();
     if (combatBannerTimerRef.current) clearTimeout(combatBannerTimerRef.current);
   }, []);
@@ -428,6 +493,7 @@ export default function BattleScreen({
         ...battleExtras,
         mode: battleExtras?.mode ?? 'onePlayer',
         mainMiniBoss: isMainMiniBoss,
+        autoLevelGrind: autoLevelRef.current,
         ...extras,
       },
     });
@@ -484,7 +550,8 @@ export default function BattleScreen({
   }
 
   function wrapUpBattle(winnerSide, np1, np2) {
-    stopAutoMagic();
+    stopAutoMagic(null, true);
+    stopAutoAttack(null, true);
     clearTimers();
     clearAttackEffects();
     setIsActionPlaying(false);
@@ -550,16 +617,97 @@ export default function BattleScreen({
     setBusy(false);
     setIsActionPlaying(false);
     showBanner(bannerOverride || ticked.message || 'Choose your move');
-    if (autoMagicRef.current && opponentIsAi && activeBattlerRef.current === PLAYER_ID) {
-      schedule(150, () => tryAutoMagicAttack());
+    if (opponentIsAi && activeBattlerRef.current === PLAYER_ID) {
+      schedule(150, () => scheduleAutoTurn());
     }
   }
 
-  function stopAutoMagic(banner) {
+  function scheduleAutoTurn() {
+    if (autoLevelRef.current) tryAutoLevelStrike();
+    else if (autoMagicRef.current) tryAutoMagicAttack();
+    else if (autoAttackRef.current) tryAutoAttackStrike();
+  }
+
+  function stopAutoLevel(banner, silent = false) {
+    if (!autoLevelRef.current) return;
+    autoLevelRef.current = false;
+    setAutoLevelOn(false);
+    onAutoLevelGrindChange?.(false);
+    if (banner && !silent) showBanner(banner);
+  }
+
+  function stopAutoMagic(banner, silent = false) {
     if (!autoMagicRef.current) return;
     autoMagicRef.current = false;
     setAutoMagicOn(false);
-    if (banner) showBanner(banner);
+    if (banner && !silent) showBanner(banner);
+  }
+
+  function stopAutoAttack(banner, silent = false) {
+    if (!autoAttackRef.current) return;
+    autoAttackRef.current = false;
+    setAutoAttackOn(false);
+    if (banner && !silent) showBanner(banner);
+  }
+
+  function stopAllAuto() {
+    stopAutoMagic(null, true);
+    stopAutoAttack(null, true);
+    stopAutoLevel(null, true);
+  }
+
+  function tryAutoLevelStrike() {
+    if (!autoLevelRef.current || !opponentIsAi) return;
+    if (
+      battleIntroRef.current ||
+      isActionPlayingRef.current ||
+      busyRef.current ||
+      battlePhaseRef.current !== 'chooseAction'
+    ) {
+      return;
+    }
+    if (activeBattlerRef.current !== PLAYER_ID) return;
+    const attacker = p1Ref.current;
+    if (!attacker) return;
+    if ((attacker.level ?? fighter1?.level ?? 1) >= AUTO_LEVEL_GRIND_MAX) {
+      stopAutoLevel(`Auto Level off — reached level ${AUTO_LEVEL_GRIND_MAX}`);
+      return;
+    }
+    const { skill, strikeKind } = pickAutoLevelStrike(attacker);
+    startBattleAudioFromInput();
+    runAttack({
+      attackerId: PLAYER_ID,
+      defenderId: CPU_ID,
+      bannerText: `${skill?.name ?? 'Attack'}!`,
+      skill,
+      strikeKind,
+      onComplete: strikeAftermath(runCpuCounter),
+    });
+  }
+
+  function tryAutoAttackStrike() {
+    if (!autoAttackRef.current || !opponentIsAi) return;
+    if (
+      battleIntroRef.current ||
+      isActionPlayingRef.current ||
+      busyRef.current ||
+      battlePhaseRef.current !== 'chooseAction'
+    ) {
+      return;
+    }
+    if (activeBattlerRef.current !== PLAYER_ID) return;
+    const attacker = p1Ref.current;
+    if (!attacker) return;
+    const skill = attacker.skills?.physical ?? getPhysicalSkill(attacker.monsterTemplateId);
+    startBattleAudioFromInput();
+    runAttack({
+      attackerId: PLAYER_ID,
+      defenderId: CPU_ID,
+      bannerText: `${skill?.name ?? 'Attack'}!`,
+      skill,
+      strikeKind: 'physical',
+      onComplete: strikeAftermath(runCpuCounter),
+    });
   }
 
   function tryAutoMagicAttack() {
@@ -591,6 +739,24 @@ export default function BattleScreen({
     });
   }
 
+  function toggleAutoAttack() {
+    tapUi();
+    if (autoAttackRef.current) {
+      stopAutoAttack('Auto basic off');
+      return;
+    }
+    if (!opponentIsAi) {
+      showBanner('Auto basic: vs CPU only');
+      return;
+    }
+    stopAutoLevel(null, true);
+    stopAutoMagic(null, true);
+    autoAttackRef.current = true;
+    setAutoAttackOn(true);
+    showBanner('Auto basic on');
+    schedule(120, () => tryAutoAttackStrike());
+  }
+
   function toggleAutoMagic() {
     tapUi();
     if (autoMagicRef.current) {
@@ -601,10 +767,35 @@ export default function BattleScreen({
       showBanner('Auto magic: vs CPU only');
       return;
     }
+    stopAutoLevel(null, true);
+    stopAutoAttack(null, true);
     autoMagicRef.current = true;
     setAutoMagicOn(true);
     showBanner('Auto magic on');
     schedule(120, () => tryAutoMagicAttack());
+  }
+
+  function toggleAutoLevel() {
+    tapUi();
+    if (autoLevelRef.current) {
+      stopAutoLevel('Auto Level off');
+      return;
+    }
+    if ((fighter1?.level ?? 1) >= AUTO_LEVEL_GRIND_MAX) {
+      showBanner(`Auto Level only works below level ${AUTO_LEVEL_GRIND_MAX}`);
+      return;
+    }
+    if (!opponentIsAi || battleExtras?.mode === 'monsterLadder') {
+      showBanner('Auto Level: main CPU battles only');
+      return;
+    }
+    stopAutoMagic(null, true);
+    stopAutoAttack(null, true);
+    autoLevelRef.current = true;
+    setAutoLevelOn(true);
+    onAutoLevelGrindChange?.(true);
+    showBanner(`Auto Level on — grinding to ${AUTO_LEVEL_GRIND_MAX}`);
+    schedule(120, () => tryAutoLevelStrike());
   }
 
   /** After a strike ends: CPU counter in 1P, pass turn in 2P local. */
@@ -1019,7 +1210,7 @@ export default function BattleScreen({
 
   function handleConfirmFlee() {
     tapUi();
-    stopAutoMagic();
+    stopAllAuto();
     setFleeConfirmOpen(false);
     const latestP1 = p1Ref.current ?? p1;
     const latestP2 = p2Ref.current ?? p2;
@@ -1027,7 +1218,7 @@ export default function BattleScreen({
       winner: CPU_ID,
       player1Snapshot: snapshotFight({ ...latestP1, hp: 0 }),
       player2Snapshot: snapshotFight(latestP2),
-      battleExtras: { ...battleExtras, fled: true, mainMiniBoss: isMainMiniBoss },
+      battleExtras: { ...battleExtras, fled: true, mainMiniBoss: isMainMiniBoss, autoLevelGrind: false },
     });
   }
 
@@ -1036,6 +1227,10 @@ export default function BattleScreen({
   const actionsEnabled = !battleIntro && !isActionPlaying && !busy && battlePhase === 'chooseAction';
   const runEnabled = !battleIntro && !isActionPlaying && !busy;
   const autoToggleEnabled = !battleIntro && opponentIsAi;
+  const autoLevelEligible =
+    opponentIsAi
+    && battleExtras?.mode !== 'monsterLadder'
+    && (fighter1?.level ?? 1) < AUTO_LEVEL_GRIND_MAX;
   const actingFighter = activeBattler === CPU_ID ? p2 : p1;
   const magicSkills =
     actingFighter?.skills?.magic ?? getMagicSkills(actingFighter?.monsterTemplateId ?? '');
@@ -1208,6 +1403,121 @@ export default function BattleScreen({
               </View>
             </View>
           ) : (
+            <>
+              {opponentIsAi ? (
+                <View style={[styles.autoRow, battleMobile && styles.autoRowMobile]}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.autoBtnOuter,
+                      styles.autoBtnOuterFlex,
+                      autoAttackOn && styles.autoBtnOuterAttackOn,
+                      pressed && autoToggleEnabled && styles.autoBtnPressed,
+                      !autoToggleEnabled && styles.disabledBtn,
+                    ]}
+                    disabled={!autoToggleEnabled}
+                    accessibilityRole="button"
+                    accessibilityLabel={autoAttackOn ? 'Stop auto basic' : 'Start auto basic'}
+                    onPress={toggleAutoAttack}
+                  >
+                    <View
+                      style={[
+                        styles.autoFace,
+                        styles.autoFaceAttack,
+                        battleMobile && styles.autoFaceMobile,
+                        autoAttackOn && styles.autoFaceAttackOn,
+                      ]}
+                      pointerEvents="none"
+                    >
+                      {autoAttackOn ? <View style={styles.autoFaceGlow} /> : null}
+                      <Text
+                        style={[
+                          styles.autoBtnTxt,
+                          styles.autoBtnTxtTri,
+                          battleMobile && styles.autoBtnTxtMobile,
+                          autoAttackOn && styles.autoBtnTxtOn,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        Auto Basic
+                      </Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.autoBtnOuter,
+                      styles.autoBtnOuterFlex,
+                      autoLevelOn && styles.autoBtnOuterLevelOn,
+                      pressed && autoToggleEnabled && autoLevelEligible && styles.autoBtnPressed,
+                      (!autoToggleEnabled || !autoLevelEligible) && styles.disabledBtn,
+                    ]}
+                    disabled={!autoToggleEnabled || !autoLevelEligible}
+                    accessibilityRole="button"
+                    accessibilityLabel={autoLevelOn ? 'Stop auto level' : 'Start auto level'}
+                    onPress={toggleAutoLevel}
+                  >
+                    <View
+                      style={[
+                        styles.autoFace,
+                        styles.autoFaceLevel,
+                        battleMobile && styles.autoFaceMobile,
+                        autoLevelOn && styles.autoFaceLevelOn,
+                        !autoLevelEligible && styles.autoFaceLevelDisabled,
+                      ]}
+                      pointerEvents="none"
+                    >
+                      {autoLevelOn ? <View style={styles.autoFaceGlow} /> : null}
+                      <Text
+                        style={[
+                          styles.autoBtnTxt,
+                          styles.autoBtnTxtTri,
+                          battleMobile && styles.autoBtnTxtMobile,
+                          autoLevelOn && styles.autoBtnTxtOn,
+                          !autoLevelEligible && styles.autoBtnTxtDisabled,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        Auto Level
+                      </Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.autoBtnOuter,
+                      styles.autoBtnOuterFlex,
+                      autoMagicOn && styles.autoBtnOuterMagicOn,
+                      pressed && autoToggleEnabled && styles.autoBtnPressed,
+                      !autoToggleEnabled && styles.disabledBtn,
+                    ]}
+                    disabled={!autoToggleEnabled}
+                    accessibilityRole="button"
+                    accessibilityLabel={autoMagicOn ? 'Stop auto magic' : 'Start auto magic'}
+                    onPress={toggleAutoMagic}
+                  >
+                    <View
+                      style={[
+                        styles.autoFace,
+                        styles.autoFaceMagic,
+                        battleMobile && styles.autoFaceMobile,
+                        autoMagicOn && styles.autoFaceMagicOn,
+                      ]}
+                      pointerEvents="none"
+                    >
+                      {autoMagicOn ? <View style={styles.autoFaceGlow} /> : null}
+                      <Text
+                        style={[
+                          styles.autoBtnTxt,
+                          styles.autoBtnTxtTri,
+                          battleMobile && styles.autoBtnTxtMobile,
+                          autoMagicOn && styles.autoBtnTxtOn,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        Auto Magic
+                      </Text>
+                    </View>
+                  </Pressable>
+                </View>
+              ) : null}
             <View style={[styles.menuRow, battleMobile && styles.menuRowMobile]}>
               <Pressable
                 style={({ pressed }) => [
@@ -1248,66 +1558,28 @@ export default function BattleScreen({
                   </Text>
                 </View>
               </Pressable>
-              <View style={[styles.runColumn, battleMobile && styles.runColumnMobile]}>
-                {opponentIsAi ? (
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.autoBtnOuter,
-                      autoMagicOn && styles.autoBtnOuterOn,
-                      pressed && autoToggleEnabled && styles.autoBtnPressed,
-                      !autoToggleEnabled && styles.disabledBtn,
-                    ]}
-                    disabled={!autoToggleEnabled}
-                    accessibilityRole="button"
-                    accessibilityLabel={autoMagicOn ? 'Stop auto magic' : 'Start auto magic'}
-                    onPress={() => {
-                      tapUi();
-                      toggleAutoMagic();
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.autoFace,
-                        battleMobile && styles.autoFaceMobile,
-                        autoMagicOn && styles.autoFaceOn,
-                      ]}
-                      pointerEvents="none"
-                    >
-                      {autoMagicOn ? <View style={styles.autoFaceGlow} /> : null}
-                      <Text
-                        style={[
-                          styles.autoBtnTxt,
-                          battleMobile && styles.autoBtnTxtMobile,
-                          autoMagicOn && styles.autoBtnTxtOn,
-                        ]}
-                      >
-                        Auto
-                      </Text>
-                    </View>
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.arcadeBtn,
-                    styles.runBtnOuter,
-                    battleMobile && styles.runBtnOuterMobile,
-                    pressed && runEnabled && styles.arcadeBtnPressed,
-                    !runEnabled && styles.disabledBtn,
-                  ]}
-                  disabled={!runEnabled}
-                  onPress={() => {
-                    tapUi();
-                    handleRun();
-                  }}
-                >
-                  <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.runFace]} pointerEvents="none">
-                    <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.runBtnTxt]}>
-                      Flee
-                    </Text>
-                  </View>
-                </Pressable>
-              </View>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.arcadeBtn,
+                  battleMobile && styles.arcadeBtnMobile,
+                  styles.runBtnOuter,
+                  pressed && runEnabled && styles.arcadeBtnPressed,
+                  !runEnabled && styles.disabledBtn,
+                ]}
+                disabled={!runEnabled}
+                onPress={() => {
+                  tapUi();
+                  handleRun();
+                }}
+              >
+                <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.runFace]} pointerEvents="none">
+                  <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.runBtnTxt]}>
+                    Flee
+                  </Text>
+                </View>
+              </Pressable>
             </View>
+            </>
           )}
         </View>
       </View>
@@ -1614,20 +1886,16 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 9,
     borderTopRightRadius: 9,
   },
-  runBtnOuter: { flex: 1, paddingBottom: 4, minWidth: 76 },
-  runBtnOuterMobile: { minWidth: 0, width: '100%' },
-  runColumn: {
-    flex: 0.92,
-    minWidth: 76,
+  runBtnOuter: { flex: 0.88, paddingBottom: 4 },
+  autoRow: {
+    flexDirection: 'row',
+    width: '100%',
     gap: 6,
-    alignItems: 'stretch',
-    justifyContent: 'flex-end',
+    marginBottom: 8,
   },
-  runColumnMobile: {
-    flex: 1,
-    minWidth: 0,
-    maxWidth: '33.33%',
+  autoRowMobile: {
     gap: 8,
+    marginBottom: 10,
   },
   autoBtnOuter: {
     paddingBottom: 3,
@@ -1635,9 +1903,27 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     opacity: 0.52,
   },
-  autoBtnOuterOn: {
+  autoBtnOuterFlex: {
+    flex: 1,
+    minWidth: 0,
+  },
+  autoBtnOuterAttackOn: {
+    opacity: 0.72,
+    shadowColor: '#ff6348',
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  autoBtnOuterMagicOn: {
     opacity: 0.72,
     shadowColor: '#e056fd',
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  autoBtnOuterLevelOn: {
+    opacity: 0.72,
+    shadowColor: '#00b894',
     shadowOpacity: 0.35,
     shadowRadius: 6,
     elevation: 4,
@@ -1651,23 +1937,53 @@ const styles = StyleSheet.create({
     minHeight: 34,
     borderRadius: 9,
     borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    overflow: 'hidden',
+  },
+  autoFaceAttack: {
+    borderColor: 'rgba(192, 57, 43, 0.38)',
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(146, 43, 33, 0.42)',
+    backgroundColor: 'rgba(255, 71, 87, 0.16)',
+  },
+  autoFaceMagic: {
     borderColor: 'rgba(108, 52, 131, 0.38)',
     borderBottomWidth: 2,
     borderBottomColor: 'rgba(91, 44, 111, 0.42)',
     backgroundColor: 'rgba(108, 92, 231, 0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    overflow: 'hidden',
+  },
+  autoFaceLevel: {
+    borderColor: 'rgba(0, 105, 92, 0.38)',
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(0, 77, 64, 0.42)',
+    backgroundColor: 'rgba(0, 184, 148, 0.16)',
+  },
+  autoFaceLevelDisabled: {
+    opacity: 0.45,
+    backgroundColor: 'rgba(60, 60, 60, 0.12)',
+    borderColor: 'rgba(80, 80, 80, 0.25)',
+    borderBottomColor: 'rgba(60, 60, 60, 0.3)',
   },
   autoFaceMobile: {
     minHeight: 38,
     borderRadius: 10,
   },
-  autoFaceOn: {
+  autoFaceAttackOn: {
+    backgroundColor: 'rgba(255, 71, 87, 0.3)',
+    borderColor: 'rgba(255, 200, 190, 0.45)',
+    borderBottomColor: 'rgba(192, 57, 43, 0.5)',
+  },
+  autoFaceMagicOn: {
     backgroundColor: 'rgba(155, 89, 182, 0.32)',
     borderColor: 'rgba(215, 189, 226, 0.45)',
     borderBottomColor: 'rgba(142, 68, 173, 0.5)',
+  },
+  autoFaceLevelOn: {
+    backgroundColor: 'rgba(0, 184, 148, 0.32)',
+    borderColor: 'rgba(178, 235, 242, 0.45)',
+    borderBottomColor: 'rgba(0, 121, 107, 0.5)',
   },
   autoFaceGlow: {
     position: 'absolute',
@@ -1686,11 +2002,18 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  autoBtnTxtTri: {
+    fontSize: 10,
+    letterSpacing: 0.2,
+  },
   autoBtnTxtMobile: {
-    fontSize: 13,
+    fontSize: 11,
   },
   autoBtnTxtOn: {
     color: 'rgba(255, 249, 255, 0.92)',
+  },
+  autoBtnTxtDisabled: {
+    color: 'rgba(180, 180, 190, 0.45)',
   },
   runFace: {
     backgroundColor: '#b8c5d6',

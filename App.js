@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { isMobileLayout as isLobbyMobileWidth } from './utils/responsive';
-import BattleScreen from './components/BattleScreen';
+import BattleScreen, { AUTO_LEVEL_GRIND_MAX } from './components/BattleScreen';
 import OnlineBattleScreen from './components/OnlineBattleScreen';
 import MonsterGearScreen from './components/MonsterGearScreen';
 import GearMartModal from './components/GearMartModal';
@@ -63,7 +63,7 @@ import {
   isRescueStagePlayable,
 } from './utils/monsterRescue/progress';
 import { formatRescueWeeklyResetHint } from './utils/monsterRescue/rescueWeeklyReset';
-import { getRescueStage } from './utils/monsterRescue/stages';
+import { getRescueStage, RESCUE_TOTAL_LEVELS } from './utils/monsterRescue/stages';
 import {
   formatStageLabel,
   getCurrentStage,
@@ -190,6 +190,7 @@ export default function App() {
   const [monsterMartOpen, setMonsterMartOpen] = useState(false);
   const [rewardTitle, setRewardTitle] = useState('');
   const [rewardSummary, setRewardSummary] = useState(null);
+  const [autoLevelGrind, setAutoLevelGrind] = useState(false);
   const [currentBattleMode, setCurrentBattleMode] = useState(null);
   const [setupActiveSlot, setSetupActiveSlot] = useState(1);
   const [setupP1Id, setSetupP1Id] = useState(null);
@@ -1182,6 +1183,32 @@ export default function App() {
     else playSound('lose');
   }
 
+  function exitMonsterRescueToHub() {
+    setRescueRewardPayload(null);
+    setPhase('monsterRescueHub');
+  }
+
+  function continueMonsterRescueAfterWin(stageId) {
+    const id = Math.floor(stageId || 1);
+    if (id >= RESCUE_TOTAL_LEVELS) {
+      showNotice('Monster Rescue', 'You cleared every stage this week! Great run.');
+      exitMonsterRescueToHub();
+      return;
+    }
+    const nextId = id + 1;
+    const profile = getPlayerProfile(gameData, setupP1ProfileId);
+    const rescue = getMonsterRescueState(profile);
+    if (isRescueStagePlayable(rescue, nextId)) {
+      startMonsterRescueStage(nextId);
+      return;
+    }
+    showNotice(
+      'Monster Rescue',
+      'The next stage is not available yet. Check the stage list for what you can play this week.',
+    );
+    exitMonsterRescueToHub();
+  }
+
   function returnToLadder() {
     setWinner(null);
     setPlayer1(null);
@@ -1536,8 +1563,25 @@ export default function App() {
     if (summary?.expP1?.levelsGained > 0 || summary?.expP2?.levelsGained > 0) {
       playSound('levelUp');
     }
+    const levelAfter = summary?.expP1?.level ?? 1;
+    if (autoLevelGrind || battleExtras?.autoLevelGrind) {
+      if (levelAfter >= AUTO_LEVEL_GRIND_MAX) {
+        setAutoLevelGrind(false);
+        showNotice('Auto Level', `Reached level ${AUTO_LEVEL_GRIND_MAX}! Auto Level stopped.`);
+      }
+    }
     setPhase('gameOver');
   }
+
+  useEffect(() => {
+    if (phase !== 'gameOver' || !autoLevelGrind || !rewardSummary) return;
+    if (rewardSummary.monsterLadder || rewardSummary.online) return;
+    if (gameMode !== 'onePlayer') return;
+    const level = rewardSummary?.expP1?.level ?? 1;
+    if (level >= AUTO_LEVEL_GRIND_MAX) return;
+    const t = setTimeout(() => playAgainFromReward(), 900);
+    return () => clearTimeout(t);
+  }, [phase, autoLevelGrind, rewardSummary?.expP1?.level, gameMode, rewardSummary?.monsterLadder, rewardSummary?.online]);
 
   const resetToMenu = useCallback(() => {
     if (gameMode === 'online') {
@@ -1553,6 +1597,7 @@ export default function App() {
     setPlayer1(null);
     setPlayer2(null);
     setRewardSummary(null);
+    setAutoLevelGrind(false);
     setCurrentBattleMode(null);
     if (gameMode === 'monsterLadder') setGameMode('onePlayer');
     setBattleKey((k) => k + 1);
@@ -1847,7 +1892,18 @@ export default function App() {
             stageLabel={getRescueStage(rescueRewardPayload.stageId).label}
             rewards={rescueRewardPayload.rewards}
             saveMessage={rescueRewardPayload.saveMessage}
-            onContinue={() => setPhase('monsterRescueHub')}
+            continueLabel={
+              rescueRewardPayload.won && rescueRewardPayload.stageId < RESCUE_TOTAL_LEVELS
+                ? `Next Stage · ${getRescueStage(rescueRewardPayload.stageId + 1).label}`
+                : 'Continue'
+            }
+            onContinue={() => {
+              if (rescueRewardPayload.won) {
+                continueMonsterRescueAfterWin(rescueRewardPayload.stageId);
+              } else {
+                exitMonsterRescueToHub();
+              }
+            }}
             onRetry={() => {
               if (isRescueStagePlayable(
                 getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)),
@@ -1855,9 +1911,10 @@ export default function App() {
               )) {
                 startMonsterRescueStage(rescueRewardPayload.stageId);
               } else {
-                setPhase('monsterRescueHub');
+                exitMonsterRescueToHub();
               }
             }}
+            onExit={exitMonsterRescueToHub}
           />
         ) : null}
 
@@ -1907,6 +1964,8 @@ export default function App() {
             fighter1={player1}
             fighter2={player2}
             onFinish={handleBattleFinish}
+            autoLevelGrind={autoLevelGrind}
+            onAutoLevelGrindChange={setAutoLevelGrind}
             onClaimMainMiniBossChest={currentBattleMode === 'onePlayer' ? handleClaimMainMiniBossChest : undefined}
             player1Name={
               gameData.players.find((p) => p.id === setupP1ProfileId)?.name ??

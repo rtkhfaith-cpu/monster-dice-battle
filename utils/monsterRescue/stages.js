@@ -1,3 +1,4 @@
+import { RESCUE_COLOR_COUNT } from './constants';
 import {
   dangerRowForLevel,
   gameTimeSecForLevel,
@@ -13,19 +14,18 @@ import { shapeLetterForLevel } from './openingShapes';
  * @typedef {{
  *   id: number,
  *   label: string,
- *   colorCount: number,
  *   bgIndex: number,
  * }} RescueThemeDef
  */
 
 /** Six arena themes — each has 10 sub-levels. */
 export const RESCUE_THEMES = [
-  { id: 1, label: 'Bubble Bay', colorCount: 4, bgIndex: 0 },
-  { id: 2, label: 'Coral Cave', colorCount: 4, bgIndex: 1 },
-  { id: 3, label: 'Misty Marsh', colorCount: 5, bgIndex: 2 },
-  { id: 4, label: 'Crystal Cliffs', colorCount: 5, bgIndex: 0 },
-  { id: 5, label: 'Starfall Shrine', colorCount: 6, bgIndex: 1 },
-  { id: 6, label: 'Neon Nest', colorCount: 6, bgIndex: 2 },
+  { id: 1, label: 'Bubble Bay', bgIndex: 0 },
+  { id: 2, label: 'Coral Cave', bgIndex: 1 },
+  { id: 3, label: 'Misty Marsh', bgIndex: 2 },
+  { id: 4, label: 'Crystal Cliffs', bgIndex: 0 },
+  { id: 5, label: 'Starfall Shrine', bgIndex: 1 },
+  { id: 6, label: 'Neon Nest', bgIndex: 2 },
 ];
 
 export const RESCUE_SUB_LEVELS = 10;
@@ -94,7 +94,7 @@ export function getRescueStage(levelId) {
     subLevel,
     label: `${theme.label} · ${formatRescueLabel(themeId, subLevel)}`,
     themeLabel: theme.label,
-    colorCount: theme.colorCount,
+    colorCount: RESCUE_COLOR_COUNT,
     fillRows: fillRowsForLevel(themeId, subLevel, id),
     rowPushEvery: rowPushEveryForLevel(id),
     gameTimeSec: gameTimeSecForLevel(id),

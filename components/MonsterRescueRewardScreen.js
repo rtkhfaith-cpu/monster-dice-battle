@@ -20,6 +20,8 @@ export default function MonsterRescueRewardScreen({
   saveMessage,
   onContinue,
   onRetry,
+  onExit,
+  continueLabel = 'Continue',
 }) {
   const r = rewards ?? {};
   const rewardName = rescueChestRewardName(r.chestDrop);
@@ -62,16 +64,14 @@ export default function MonsterRescueRewardScreen({
           style={({ pressed }) => [rescueUiStyles.primaryBtn, pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] }]}
           onPress={won ? onContinue : onRetry}
         >
-          <Text style={rescueUiStyles.primaryBtnText}>{won ? 'Continue' : 'Retry Stage'}</Text>
+          <Text style={rescueUiStyles.primaryBtnText}>{won ? continueLabel : 'Retry Stage'}</Text>
         </Pressable>
-        {!won ? (
-          <Pressable
-            style={({ pressed }) => [rescueUiStyles.secondaryBtn, pressed && { opacity: 0.88 }]}
-            onPress={onContinue}
-          >
-            <Text style={rescueUiStyles.secondaryBtnText}>Back to Stages</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          style={({ pressed }) => [rescueUiStyles.secondaryBtn, pressed && { opacity: 0.88 }]}
+          onPress={onExit}
+        >
+          <Text style={rescueUiStyles.secondaryBtnText}>{won ? 'Exit' : 'Back to Stages'}</Text>
+        </Pressable>
       </ScrollView>
     </RescueGameFrame>
   );

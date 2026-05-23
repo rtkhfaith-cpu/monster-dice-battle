@@ -1,11 +1,12 @@
-/** Bubble color indices — glossy jewel palette */
+/** Bubble colors used in every rescue stage (fixed — does not scale with level). */
+export const RESCUE_COLOR_COUNT = 4;
+
+/** Glossy jewel palette — length must match RESCUE_COLOR_COUNT */
 export const BUBBLE_COLORS = [
   0xff5c7a, // ruby
   0x2eecc8, // mint
   0xffdd57, // gold
   0xbf8cff, // violet
-  0x5eb8ff, // sapphire
-  0xff8ec8, // rose
 ];
 
 export const BUBBLE_TYPES = {
