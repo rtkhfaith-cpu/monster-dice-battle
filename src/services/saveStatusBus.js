@@ -1,4 +1,4 @@
-/** @typedef {'idle'|'local_saved'|'cloud_synced'|'cloud_failed'|'cloud_blocked'|'player_created'|'player_deleted'|'cloud_delete_failed'|'player_loaded'|'cloud_list_failed'} SaveStatus */
+/** @typedef {'idle'|'local_saved'|'cloud_synced'|'cloud_failed'|'cloud_blocked'|'session_superseded'|'player_created'|'player_deleted'|'cloud_delete_failed'|'player_loaded'|'cloud_list_failed'} SaveStatus */
 
 /** @type {SaveStatus} */
 let status = 'idle';

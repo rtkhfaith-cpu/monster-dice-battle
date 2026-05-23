@@ -105,6 +105,10 @@ import { loadGameSave, saveGameSave } from './src/services/saveService';
 import { listCloudPlayers } from './src/services/cloudSaveService';
 import { resolveProfileLoginWithCloud } from './src/services/profileCloudMerge';
 import { getStaleLocalDeviceMessage } from './src/services/saveConflict';
+import {
+  clearProfileSession,
+  SESSION_SUPERSEDED_MESSAGE,
+} from './utils/playerDeviceSession';
 import { commitProfileDeleted, commitSave, setCloudSyncProfileID } from './src/services/syncCoordinator';
 import { emitSaveStatus, subscribeSaveStatus } from './src/services/saveStatusBus';
 import ConfirmDialog from './components/ConfirmDialog';
@@ -703,11 +707,34 @@ export default function App() {
     void loadSaveApiConfig().then(() => handleFetchCloudPlayers());
   }, [handleFetchCloudPlayers]);
 
+  const forceLogoutActiveProfile = useCallback(async () => {
+    const profileId = setupP1ProfileId || activeProfileId;
+    if (profileId) {
+      unlockedProfileIdsRef.current.delete(profileId);
+      await clearProfileSession(profileId);
+    }
+    setKeyModal(null);
+    setKeyModalError('');
+    setSetupP1ProfileId(null);
+    setSetupP2ProfileId(null);
+    setSetupP2Id(null);
+    setQuestHubOpen(false);
+    if (gameData) {
+      const gd = cloneGameData(gameData);
+      gd.session = gd.session || {};
+      gd.session.activeProfileId = null;
+      setGameData(gd);
+    }
+    setPhase('menu');
+    showNotice('Signed out', SESSION_SUPERSEDED_MESSAGE);
+  }, [setupP1ProfileId, activeProfileId, gameData]);
+
   useEffect(() => {
     return subscribeSaveStatus((status) => {
       if (status === 'cloud_synced') void handleFetchCloudPlayers();
+      if (status === 'session_superseded') void forceLogoutActiveProfile();
     });
-  }, [handleFetchCloudPlayers]);
+  }, [handleFetchCloudPlayers, forceLogoutActiveProfile]);
 
   function closeKeyModal() {
     if (keyModalBusy) return;

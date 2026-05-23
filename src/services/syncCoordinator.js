@@ -68,6 +68,8 @@ export async function commitSave(opts) {
       gd = markProfileCloudSynced(gd, profileID);
     } else if (res.skipped) {
       /* API not configured — local only */
+    } else if (res.sessionSuperseded) {
+      result.sessionSuperseded = true;
     } else if (res.cloudNewer) {
       result.cloudBlocked = true;
       result.cloudBlockPayload = {
@@ -93,7 +95,8 @@ export async function commitSave(opts) {
   }
 
   if (reason === 'profile_created') emitSaveStatus('player_created');
-  if (result.cloudBlocked) emitSaveStatus('cloud_blocked');
+  if (result.sessionSuperseded) emitSaveStatus('session_superseded', 0);
+  else if (result.cloudBlocked) emitSaveStatus('cloud_blocked');
   else if (result.cloudSynced) emitSaveStatus('cloud_synced');
   else if (result.cloudFailed) emitSaveStatus('cloud_failed');
 

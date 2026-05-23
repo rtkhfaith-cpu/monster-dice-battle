@@ -9,6 +9,14 @@ import { getPlayerProfile } from '../../utils/gameStorage';
 import { isCloudUploadBlocked } from './saveConflict';
 import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
 import { trainerRankingFromCloudRow } from '../../utils/trainerRankings';
+import {
+  getDeviceId,
+  getProfileSession,
+  isCloudSessionNewerThanLocal,
+  isSessionSupersededError,
+  SESSION_SUPERSEDED_CODE,
+  SESSION_SUPERSEDED_MESSAGE,
+} from '../../utils/playerDeviceSession';
 
 function apiHostLabel(base) {
   if (!base) return '';
@@ -141,7 +149,16 @@ export async function saveCloudProfile(profile, opts = {}) {
     if (!res.ok) {
       const errText = await readApiError(res);
       if (DEV) console.warn('[cloud-save] POST /save failed', res.status, errText);
-      return { ok: false, error: errText };
+      if (isSessionSupersededError(res.status, errText)) {
+        return {
+          ok: false,
+          sessionSuperseded: true,
+          status: res.status,
+          error: SESSION_SUPERSEDED_MESSAGE,
+          code: SESSION_SUPERSEDED_CODE,
+        };
+      }
+      return { ok: false, error: errText, status: res.status };
     }
     return { ok: true };
   } catch (err) {
@@ -262,9 +279,12 @@ export async function listCloudPlayers() {
  * @param {string} playerKey
  * @returns {Promise<{ ok: boolean, data?: object, skipped?: boolean, error?: string, status?: number }>}
  */
-export async function loginCloudProfile(profileID, playerKey) {
+export async function loginCloudProfile(profileID, playerKey, session = null) {
   const base = await ensureBaseUrl();
   if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
+
+  const deviceId = session?.deviceId || (await getDeviceId());
+  const sessionToken = session?.sessionToken || null;
 
   try {
     const res = await apiRequest(base, '/login', {
@@ -273,6 +293,8 @@ export async function loginCloudProfile(profileID, playerKey) {
       body: JSON.stringify({
         profileID: String(profileID),
         playerKey: normalizePlayerKey(playerKey),
+        deviceId,
+        sessionToken,
       }),
     });
     if (res.status === 401) {
@@ -289,7 +311,22 @@ export async function loginCloudProfile(profileID, playerKey) {
     const body = await res.json();
     const data = extractCloudRecord(body);
     if (!data?.profileID) return { ok: false, error: 'Invalid login response' };
-    return { ok: true, data };
+    const serverSession = body?.sessionToken || data?.activeSession?.sessionToken;
+    if (serverSession && session) {
+      session.sessionToken = serverSession;
+      data.activeSession = {
+        deviceId: session.deviceId || deviceId,
+        sessionToken: serverSession,
+        issuedAt: data.activeSession?.issuedAt || session.issuedAt || new Date().toISOString(),
+      };
+    } else if (session) {
+      data.activeSession = {
+        deviceId: session.deviceId || deviceId,
+        sessionToken: session.sessionToken,
+        issuedAt: session.issuedAt || new Date().toISOString(),
+      };
+    }
+    return { ok: true, data, session };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] POST /login error', err?.message || err);
     return { ok: false, error: formatFetchError(err) };
@@ -308,7 +345,7 @@ export async function recallCloudProfile(profileID, playerKey, opts = {}) {
     return { ok: false, status: 400, error: 'Enter your 4-digit Player Key.' };
   }
 
-  const login = await loginCloudProfile(profileID, key);
+  const login = await loginCloudProfile(profileID, key, opts.session ?? null);
   if (login.status === 401) {
     const msg = login.error || 'Incorrect key. Please try again.';
     return { ok: false, status: 401, error: msg };
@@ -329,6 +366,14 @@ export async function recallCloudProfile(profileID, playerKey, opts = {}) {
       return { ok: false, status: 401, error: 'Incorrect key. Please try again.' };
     }
     if (loaded.ok && hasFullCloudPayload(loaded.data)) {
+      if (opts.session) {
+        loaded.session = opts.session;
+        loaded.data.activeSession = {
+          deviceId: opts.session.deviceId,
+          sessionToken: opts.session.sessionToken,
+          issuedAt: opts.session.issuedAt,
+        };
+      }
       return loaded;
     }
     if (loaded.ok && !hasFullCloudPayload(loaded.data)) {
@@ -446,6 +491,18 @@ export async function deleteCloudProfile(profileID, playerKey) {
  * @param {string} profileID
  * @param {object} [gameData] — optional; loads from disk if omitted
  */
+/**
+ * Push a fresh login session to cloud (claims this device as the active session).
+ * @param {string} profileID
+ * @param {object} gameData
+ * @param {import('../../utils/playerDeviceSession').ProfileLoginSession} session
+ */
+export async function pushLoginSessionToCloud(profileID, gameData, session) {
+  const cloud = toCloudProfile(gameData, profileID, session);
+  if (!cloud) return { ok: false, error: 'Profile not found locally' };
+  return saveCloudProfile(cloud, { allowNoKey: false });
+}
+
 export async function syncProfileToCloud(profileID, gameData = null, opts = {}) {
   const gd = gameData || (await loadGameSave());
   const profile = getPlayerProfile(gd, profileID);
@@ -456,25 +513,37 @@ export async function syncProfileToCloud(profileID, gameData = null, opts = {}) 
       error: 'Save could not sync: profile data looks invalid. Play normally or contact support.',
     };
   }
-  const cloud = toCloudProfile(gd, profileID);
+  const localSession = await getProfileSession(profileID);
+  const cloud = toCloudProfile(gd, profileID, localSession || profile?.activeSession || null);
   if (!cloud) return { ok: false, error: 'Profile not found locally' };
   if (!cloud.playerKey || normalizePlayerKey(cloud.playerKey).length !== 4) {
     return { ok: false, error: 'Set a Player Key on this profile before cloud sync' };
   }
 
   const key = normalizePlayerKey(cloud.playerKey);
-  if (!opts.force) {
-  const remote = await loadCloudProfileWithKey(profileID, key);
-  if (remote.ok && remote.data) {
-    if (isCloudUploadBlocked(gd, profileID, remote.data)) {
-      return {
-        ok: false,
-        cloudNewer: true,
-        cloudData: remote.data,
-        error: 'Cloud save is newer than this device. Load the cloud save before uploading.',
-      };
+  if (!opts.force && !opts.skipSessionCheck) {
+    const remote = await loadCloudProfileWithKey(profileID, key);
+    if (remote.ok && remote.data) {
+      if (
+        localSession
+        && isCloudSessionNewerThanLocal(localSession, remote.data.activeSession)
+      ) {
+        return {
+          ok: false,
+          sessionSuperseded: true,
+          error: SESSION_SUPERSEDED_MESSAGE,
+          code: SESSION_SUPERSEDED_CODE,
+        };
+      }
+      if (isCloudUploadBlocked(gd, profileID, remote.data)) {
+        return {
+          ok: false,
+          cloudNewer: true,
+          cloudData: remote.data,
+          error: 'Cloud save is newer than this device. Load the cloud save before uploading.',
+        };
+      }
     }
-  }
   }
 
   return saveCloudProfile(cloud);

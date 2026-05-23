@@ -10,7 +10,11 @@ import {
 } from '../../utils/gameStorage';
 import { normalizePlayerKey } from '../../utils/playerKey';
 import { applyCloudProfile } from './cloudSaveMapper';
-import { recallCloudProfile } from './cloudSaveService';
+import { pushLoginSessionToCloud, recallCloudProfile } from './cloudSaveService';
+import {
+  registerProfileLoginSession,
+  setProfileSession,
+} from '../../utils/playerDeviceSession';
 import {
   compareLocalAndCloudSave,
   getStaleLocalDeviceMessage,
@@ -30,16 +34,21 @@ export async function resolveProfileLoginWithCloud(gameData, profileId, playerKe
 
   const baseGd = gameData || cloneGameData({ players: [], session: {} });
   const localProfile = getPlayerProfile(baseGd, profileId);
-  const login = await recallCloudProfile(profileId, pin);
+  const session = await registerProfileLoginSession(profileId);
+  const login = await recallCloudProfile(profileId, pin, { session });
 
   if (!login.ok) {
     if (login.skipped && localProfile) {
+      await setProfileSession(profileId, session);
+      const lp = getPlayerProfile(baseGd, profileId);
+      if (lp) lp.activeSession = { ...session };
       return {
         ok: true,
         gameData: baseGd,
         profileId,
         resolution: 'local_only',
         usedCloud: false,
+        session,
       };
     }
     return {
@@ -81,7 +90,24 @@ export async function resolveProfileLoginWithCloud(gameData, profileId, playerKe
 
   const activeId = applied.id;
   next = setPlayerKeyForProfile(next, activeId, pin);
+  const resolvedSession = login.session || session;
+  if (resolvedSession) {
+    await setProfileSession(activeId, resolvedSession);
+    const appliedProfile = getPlayerProfile(next, activeId);
+    if (appliedProfile) {
+      appliedProfile.activeSession = { ...resolvedSession };
+    }
+  }
   next = enforceSingleActiveProfile(next, activeId);
+
+  if (resolvedSession) {
+    const push = await pushLoginSessionToCloud(activeId, next, resolvedSession);
+    if (!push.ok && !push.skipped && !push.sessionSuperseded) {
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.warn('[login] session claim sync failed', push.error);
+      }
+    }
+  }
 
   return {
     ok: true,

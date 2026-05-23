@@ -15,7 +15,7 @@ import { peakMonsterLevelFromRoster } from '../../utils/trainerRankings';
  * @param {object} gameData
  * @param {string} profileID
  */
-export function toCloudProfile(gameData, profileID) {
+export function toCloudProfile(gameData, profileID, sessionOverride = null) {
   const p = getPlayerProfile(gameData, profileID);
   if (!p) return null;
 
@@ -69,6 +69,16 @@ export function toCloudProfile(gameData, profileID) {
 
   if (playerKey.length === 4) {
     row.playerKey = playerKey;
+  }
+
+  const activeSession = sessionOverride || p.activeSession || null;
+  if (activeSession?.sessionToken) {
+    row.activeSession = {
+      deviceId: activeSession.deviceId,
+      sessionToken: activeSession.sessionToken,
+      issuedAt: activeSession.issuedAt || new Date().toISOString(),
+    };
+    row.sessionToken = activeSession.sessionToken;
   }
 
   return row;
@@ -164,6 +174,14 @@ export function applyCloudProfile(gameData, cloud) {
   }
   normalizeDailyLoginSpin(p);
   if (normalized.meta) p.meta = normalized.meta;
+
+  if (normalized.activeSession?.sessionToken) {
+    p.activeSession = {
+      deviceId: normalized.activeSession.deviceId,
+      sessionToken: normalized.activeSession.sessionToken,
+      issuedAt: normalized.activeSession.issuedAt,
+    };
+  }
 
   if (normalized.audioSettings && typeof normalized.audioSettings === 'object') {
     applyAudioSettings(normalized.audioSettings);
