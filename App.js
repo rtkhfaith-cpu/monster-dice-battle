@@ -261,7 +261,6 @@ export default function App() {
   const [appVersionState, setAppVersionState] = useState(Platform.OS === 'web' ? 'checking' : 'ok');
   const [liveAppVersion, setLiveAppVersion] = useState(null);
   const [cloudSyncDialog, setCloudSyncDialog] = useState(null);
-  const CLOUD_SYNC_LOADING_MESSAGE = 'Please wait, loading newer data to your device';
   const CLOUD_SYNC_DONE_MESSAGE = 'Uploading successful, you may continue';
 
   const checkAppVersion = useCallback(async () => {
@@ -295,7 +294,7 @@ export default function App() {
     setNoticeDialog({ title, message });
   }
 
-  const refreshCloudIfBehind = useCallback(async (gd, profileId, { quiet = false, force = false } = {}) => {
+  const refreshCloudIfBehind = useCallback(async (gd, profileId, { quiet = true, force = false } = {}) => {
     if (!gd || !profileId) return { gameData: gd, refreshed: false };
     const profile = getPlayerProfile(gd, profileId);
     const pin = normalizePlayerKey(profile?.pin || profile?.playerKey);
@@ -400,10 +399,6 @@ export default function App() {
       if (res.ok) {
         setGameData(res.gameData);
         await saveGameSave(res.gameData);
-        showNotice(
-          'Progress corrected',
-          CLOUD_SYNC_DONE_MESSAGE,
-        );
       }
       return;
     }
@@ -827,35 +822,32 @@ export default function App() {
     const profileId = dailySpinProfileIdRef.current;
     if (!gameData || !profileId || !segmentId) return null;
 
-    return withCloudFreshProfile(profileId, (freshGd) => {
-      const res = claimDailySpinPrize(freshGd, profileId, segmentId);
-      if (res.error) {
-        showNotice('Daily spin', res.error);
-        return null;
-      }
+    const res = claimDailySpinPrize(gameData, profileId, segmentId);
+    if (res.error) {
+      showNotice('Daily spin', res.error);
+      return null;
+    }
 
-      const applied = getPlayerProfile(res.gameData, profileId);
-      if (applied) repairPlayerProfileInventory(applied);
+    const applied = getPlayerProfile(res.gameData, profileId);
+    if (applied) repairPlayerProfileInventory(applied);
 
-      setGameData(res.gameData);
-      persistSave(res.gameData, 'daily_login_spin', profileId);
+    persistSave(res.gameData, 'daily_login_spin', profileId);
 
-      if (res.grant?.chestDrop) {
-        dailySpinPendingChestRef.current = { drop: res.grant.chestDrop };
-      } else if (res.grant?.message) {
-        const extra = res.grant.ladderShardsTotal != null ? ` Shards: ${res.grant.ladderShardsTotal}.` : '';
-        const inv = res.grant.chestInventory;
-        const invLine = inv
-          ? ` Stored chests — Gear x${inv.gear ?? 0}, Monster x${inv.monster ?? 0}.`
-          : '';
-        showNotice(
-          'Daily spin saved',
-          `${res.grant.message}.${extra}${invLine} Coins: ${getPlayerProfile(res.gameData, profileId)?.coins ?? '?'}.`,
-        );
-      }
+    if (res.grant?.chestDrop) {
+      dailySpinPendingChestRef.current = { drop: res.grant.chestDrop };
+    } else if (res.grant?.message) {
+      const extra = res.grant.ladderShardsTotal != null ? ` Shards: ${res.grant.ladderShardsTotal}.` : '';
+      const inv = res.grant.chestInventory;
+      const invLine = inv
+        ? ` Stored chests — Gear x${inv.gear ?? 0}, Monster x${inv.monster ?? 0}.`
+        : '';
+      showNotice(
+        'Daily spin saved',
+        `${res.grant.message}.${extra}${invLine} Coins: ${getPlayerProfile(res.gameData, profileId)?.coins ?? '?'}.`,
+      );
+    }
 
-      return { segment: res.segment, grant: res.grant };
-    });
+    return { segment: res.segment, grant: res.grant };
   }
 
   function applyProfileSelection(profileId, gd = gameData) {
@@ -1253,15 +1245,13 @@ export default function App() {
 
   function handleBuyGear(gearId) {
     if (!gameData || !gearMonsterId) return;
-    void withCloudFreshProfile(gearProfileId || setupP1ProfileId, (freshGd) => {
-      const res = buyGearForMonster(freshGd, gearProfileId || null, gearMonsterId, gearId);
-      if (res.error) {
-        showNotice('Monster Gear', res.error);
-        return;
-      }
-      persistSave(res.gameData, 'gear_bought', gearProfileId || null);
-      playSound('shop');
-    });
+    const res = buyGearForMonster(gameData, gearProfileId || null, gearMonsterId, gearId);
+    if (res.error) {
+      showNotice('Monster Gear', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gear_bought', gearProfileId || null);
+    playSound('shop');
   }
 
   function handleBuyGearMart(gearId) {
@@ -1278,41 +1268,35 @@ export default function App() {
 
   function handleEquipGear(gearId, slotIndex = null) {
     if (!gameData || !gearMonsterId) return;
-    void withCloudFreshProfile(gearProfileId || setupP1ProfileId, (freshGd) => {
-      const res = equipOwnedGear(freshGd, gearProfileId || null, gearMonsterId, gearId, slotIndex);
-      if (res.error) {
-        showNotice('Monster Gear', res.error);
-        return;
-      }
-      persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
-    });
+    const res = equipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId, slotIndex);
+    if (res.error) {
+      showNotice('Monster Gear', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
   }
 
   function handleUnequipGear(gearId, slotIndex = null) {
     if (!gameData || !gearMonsterId) return;
-    void withCloudFreshProfile(gearProfileId || setupP1ProfileId, (freshGd) => {
-      const res = unequipOwnedGear(freshGd, gearProfileId || null, gearMonsterId, gearId, slotIndex);
-      if (res.error) {
-        showNotice('Monster Gear', res.error);
-        return;
-      }
-      persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
-    });
+    const res = unequipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId, slotIndex);
+    if (res.error) {
+      showNotice('Monster Gear', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
   }
 
   function handleUnlockGearSlot() {
     if (!gameData || !gearMonsterId) return;
-    void withCloudFreshProfile(gearProfileId || setupP1ProfileId, (freshGd) => {
-      const res = unlockGearSlotForMonster(freshGd, gearProfileId || null, gearMonsterId);
-      if (res.error) {
-        showNotice('Unlock slot', res.error);
-        return;
-      }
-      persistSave(res.gameData, 'gear_slot_unlocked', gearProfileId || null);
-      if (res.newSlotCount) {
-        showNotice('Slot unlocked!', `This monster now has ${res.newSlotCount} gear slots.`);
-      }
-    });
+    const res = unlockGearSlotForMonster(gameData, gearProfileId || null, gearMonsterId);
+    if (res.error) {
+      showNotice('Unlock slot', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gear_slot_unlocked', gearProfileId || null);
+    if (res.newSlotCount) {
+      showNotice('Slot unlocked!', `This monster now has ${res.newSlotCount} gear slots.`);
+    }
   }
 
   function handleMergeMonster(primaryOwnedId) {
@@ -1420,23 +1404,21 @@ export default function App() {
   }
 
   function startMonsterRescueStage(stageId) {
-    void withCloudFreshProfile(setupP1ProfileId, (freshGd) => {
-      const profile = getPlayerProfile(freshGd, setupP1ProfileId);
-      const rescue = getMonsterRescueState(profile);
-      if (!isRescueStagePlayable(rescue, stageId)) {
-        showNotice(
-          'Monster Rescue',
-          'This stage is closed for this week. Chest stages stay locked after the reward; other cleared stages cannot be replayed. A new run starts Sunday 6:00 PM (Singapore).',
-        );
-        return;
-      }
-      if (freshGd !== gameData) setGameData(freshGd);
-      unlockAudio();
-      startRescueMusic();
-      setRescueStageId(stageId);
-      setRescueRewardPayload(null);
-      setPhase('monsterRescue');
-    });
+    if (!gameData || !setupP1ProfileId) return;
+    const profile = getPlayerProfile(gameData, setupP1ProfileId);
+    const rescue = getMonsterRescueState(profile);
+    if (!isRescueStagePlayable(rescue, stageId)) {
+      showNotice(
+        'Monster Rescue',
+        'This stage is closed for this week. Chest stages stay locked after the reward; other cleared stages cannot be replayed. A new run starts Sunday 6:00 PM (Singapore).',
+      );
+      return;
+    }
+    unlockAudio();
+    startRescueMusic();
+    setRescueStageId(stageId);
+    setRescueRewardPayload(null);
+    setPhase('monsterRescue');
   }
 
   async function handleMonsterRescueFinish(payload) {
@@ -1608,37 +1590,31 @@ export default function App() {
 
   function handleBuyLadderChest(type) {
     if (!gameData || !setupP1ProfileId) return;
-    void withCloudFreshProfile(setupP1ProfileId, (freshGd) => {
-      const res = buyMonsterLadderChest(freshGd, setupP1ProfileId, type);
-      if (res.error) {
-        showNotice('Monster Ladder', res.error);
-        return;
-      }
-      persistSave(res.gameData, 'ladder_chest_bought', setupP1ProfileId);
-      setGameData(res.gameData);
-      playSound('shop');
-    });
+    const res = buyMonsterLadderChest(gameData, setupP1ProfileId, type);
+    if (res.error) {
+      showNotice('Monster Ladder', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'ladder_chest_bought', setupP1ProfileId);
+    playSound('shop');
   }
 
   function handleOpenLadderChest(type) {
     if (!gameData || !setupP1ProfileId) return;
-    void withCloudFreshProfile(setupP1ProfileId, (freshGd) => {
-      const res = openMonsterLadderChest(freshGd, setupP1ProfileId, type);
-      if (res.error) {
-        showNotice('Monster Ladder', res.error);
-        return;
-      }
-      persistSave(res.gameData, 'ladder_chest_opened', setupP1ProfileId);
-      setGameData(res.gameData);
-      setLadderChestDrop(res.drop);
-      playSound('reward');
-      if (res.drop?.exchangedForShards && res.drop.shardsGained > 0) {
-        showNotice(
-          'Duplicate gear',
-          `${res.drop.name ?? 'Gear'} → +${res.drop.shardsGained} ladder shards (${getMonsterLadderState(getPlayerProfile(res.gameData, setupP1ProfileId))?.ladderShards ?? 0} total)`,
-        );
-      }
-    });
+    const res = openMonsterLadderChest(gameData, setupP1ProfileId, type);
+    if (res.error) {
+      showNotice('Monster Ladder', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'ladder_chest_opened', setupP1ProfileId);
+    setLadderChestDrop(res.drop);
+    playSound('reward');
+    if (res.drop?.exchangedForShards && res.drop.shardsGained > 0) {
+      showNotice(
+        'Duplicate gear',
+        `${res.drop.name ?? 'Gear'} → +${res.drop.shardsGained} ladder shards (${getMonsterLadderState(getPlayerProfile(res.gameData, setupP1ProfileId))?.ladderShards ?? 0} total)`,
+      );
+    }
   }
 
   function startMonsterLadderBattle() {
@@ -2033,7 +2009,7 @@ export default function App() {
       ]}
     >
       <StatusBar style="dark" />
-      <SyncStatusIndicator suppressRoutine={phase === 'battle' || phase === 'gameOver'} />
+      <SyncStatusIndicator suppressRoutine={phase === 'battle' || phase === 'gameOver' || phase === 'ladder'} />
       <PlayerKeyModal
         visible={!!keyModal}
         mode={keyModal?.mode ?? 'login'}
@@ -2070,16 +2046,6 @@ export default function App() {
             requiresKey: true,
           });
         }}
-      />
-      <ConfirmDialog
-        visible={cloudSyncDialog?.phase === 'loading'}
-        title="Cloud sync"
-        message={cloudSyncDialog?.message ?? CLOUD_SYNC_LOADING_MESSAGE}
-        confirmLabel="Loading…"
-        cancelLabel={null}
-        busy
-        onCancel={() => {}}
-        onConfirm={() => {}}
       />
       <ConfirmDialog
         visible={cloudSyncDialog?.phase === 'done'}
