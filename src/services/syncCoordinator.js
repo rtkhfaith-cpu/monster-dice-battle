@@ -75,6 +75,7 @@ export async function commitSave(opts) {
       result.cloudBlockPayload = {
         profileID,
         cloudData: res.cloudData,
+        comparison: res.comparison,
         error: res.error,
       };
     } else if (

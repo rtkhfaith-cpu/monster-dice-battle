@@ -17,9 +17,11 @@ import {
 } from '../../utils/playerDeviceSession';
 import {
   compareLocalAndCloudSave,
-  getStaleLocalDeviceMessage,
+  shouldApplyCloudOverLocal,
   shouldBlockStaleLocalLogin,
+  buildSaveConflictMessage,
 } from './saveConflict';
+import { loadCloudProfileWithKey } from './cloudSaveService';
 
 /**
  * @param {object} gameData
@@ -64,8 +66,8 @@ export async function resolveProfileLoginWithCloud(gameData, profileId, playerKe
   if (shouldBlockStaleLocalLogin(comparison, localProfile)) {
     return {
       ok: false,
-      staleLocalDevice: true,
-      error: getStaleLocalDeviceMessage(),
+      saveConflict: true,
+      error: buildSaveConflictMessage(comparison, localProfile?.name || 'Player'),
       comparison,
       cloudData,
       profileId,
@@ -77,7 +79,7 @@ export async function resolveProfileLoginWithCloud(gameData, profileId, playerKe
   let next = baseGd;
   let usedCloud = false;
 
-  if (!localProfile) {
+  if (!localProfile || shouldApplyCloudOverLocal(comparison)) {
     next = applyCloudProfile(baseGd, cloudData);
     usedCloud = true;
   }
@@ -149,4 +151,44 @@ export function applyLocalSaveChoice(gameData, profileId, playerKey) {
   if (pin.length === 4) next = setPlayerKeyForProfile(next, profileId, pin);
   next = enforceSingleActiveProfile(next, profileId);
   return { ok: true, gameData: next, profileId };
+}
+
+/**
+ * Pull cloud save when this device is behind (e.g. resumed tab with stale local data).
+ * @param {object} gameData
+ * @param {string} profileId
+ * @param {string} playerKey
+ */
+export async function refreshProfileFromCloudIfBehind(gameData, profileId, playerKey) {
+  const pin = normalizePlayerKey(playerKey);
+  if (pin.length !== 4 || !profileId) {
+    return { ok: true, gameData, refreshed: false };
+  }
+
+  const localProfile = getPlayerProfile(gameData, profileId);
+  const remote = await loadCloudProfileWithKey(profileId, pin);
+  if (!remote.ok || !remote.data) {
+    return { ok: remote.ok !== false, gameData, refreshed: false, error: remote.error };
+  }
+
+  const comparison = compareLocalAndCloudSave(localProfile, remote.data);
+  if (!shouldApplyCloudOverLocal(comparison)) {
+    return { ok: true, gameData, refreshed: false, comparison };
+  }
+
+  let next = applyCloudProfile(gameData, remote.data);
+  const applied = next.players?.find((p) => p.id === profileId || p.id === remote.data.profileID);
+  if (!applied) return { ok: false, error: 'Could not apply cloud save.' };
+  repairPlayerProfileInventory(applied);
+  const activeId = applied.id;
+  next = setPlayerKeyForProfile(next, activeId, pin);
+  next = enforceSingleActiveProfile(next, activeId);
+  return {
+    ok: true,
+    gameData: next,
+    refreshed: true,
+    profileId: activeId,
+    comparison,
+    cloudData: remote.data,
+  };
 }

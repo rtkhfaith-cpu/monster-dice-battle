@@ -113,24 +113,36 @@ export function buildSaveConflictMessage(comparison, playerName = 'Player') {
  * @param {string} profileId
  */
 /**
- * Block upload only when cloud was saved strictly later (login-style stale device).
- * Do not block on ties or peak mismatch — that caused false alarms during normal play.
+ * Block upload when cloud has newer time or higher progression than this device.
  */
 export function isCloudUploadBlocked(gameData, profileId, cloudRecord) {
   const local = getPlayerProfile(gameData, profileId);
   const comparison = compareLocalAndCloudSave(local, cloudRecord);
-  return comparison.reason === 'cloud_newer';
+  if (comparison.cloudPeak > comparison.localPeak) return true;
+  if (comparison.reason === 'cloud_newer') return true;
+  if (comparison.resolution === 'conflict') return true;
+  return false;
+}
+
+/** True when cloud should replace local (higher peak or clearly newer cloud save). */
+export function shouldApplyCloudOverLocal(comparison) {
+  if (!comparison) return false;
+  if (comparison.cloudPeak > comparison.localPeak) return true;
+  if (comparison.reason === 'cloud_newer') return true;
+  if (comparison.resolution === 'cloud') return true;
+  if (comparison.resolution === 'conflict') return true;
+  return false;
 }
 
 /**
- * True when this device has stale local progress vs cloud (login must fail).
- * Uses time, conflict, and peak level — not timestamp alone (autosave can bump local time).
+ * True when login needs a manual choice (device ahead of cloud — not stale cloud ahead).
  */
 export function shouldBlockStaleLocalLogin(comparison, localProfile) {
-  if (!localProfile) return false;
-  if (comparison.resolution === 'conflict') return true;
-  if (comparison.reason === 'cloud_newer') return true;
-  if (comparison.cloudPeak > comparison.localPeak) return true;
+  if (!localProfile || !comparison) return false;
+  if (comparison.cloudPeak > comparison.localPeak) return false;
+  if (comparison.localPeak > comparison.cloudPeak && comparison.localMs > comparison.cloudMs + TIME_SLACK_MS) {
+    return true;
+  }
   return false;
 }
 

@@ -103,8 +103,13 @@ import {
 } from './utils/gameStorage';
 import { loadGameSave, saveGameSave } from './src/services/saveService';
 import { listCloudPlayers } from './src/services/cloudSaveService';
-import { resolveProfileLoginWithCloud } from './src/services/profileCloudMerge';
-import { getStaleLocalDeviceMessage } from './src/services/saveConflict';
+import {
+  applyCloudSaveChoice,
+  applyLocalSaveChoice,
+  refreshProfileFromCloudIfBehind,
+  resolveProfileLoginWithCloud,
+} from './src/services/profileCloudMerge';
+import { buildSaveConflictMessage } from './src/services/saveConflict';
 import {
   clearProfileSession,
   SESSION_SUPERSEDED_MESSAGE,
@@ -119,6 +124,7 @@ import {
   verifyPlayerKeyForProfile,
 } from './utils/playerKey';
 import PlayerKeyModal from './components/PlayerKeyModal';
+import SaveConflictModal from './components/SaveConflictModal';
 import { loadSaveApiConfig } from './utils/saveApiConfig';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
@@ -225,9 +231,66 @@ export default function App() {
   const [rescueRewardPayload, setRescueRewardPayload] = useState(null);
   const [questHubOpen, setQuestHubOpen] = useState(false);
   const cloudMergeSessionRef = useRef(new Set());
+  const [saveConflict, setSaveConflict] = useState(null);
+  const [saveConflictBusy, setSaveConflictBusy] = useState(false);
+  const cloudRefreshInFlightRef = useRef(false);
 
   function showNotice(title, message) {
     setNoticeDialog({ title, message });
+  }
+
+  const refreshCloudIfBehind = useCallback(async (gd, profileId, { quiet = false } = {}) => {
+    if (!gd || !profileId || cloudRefreshInFlightRef.current) return gd;
+    const profile = getPlayerProfile(gd, profileId);
+    const pin = normalizePlayerKey(profile?.pin || profile?.playerKey);
+    if (pin.length !== 4) return gd;
+
+    cloudRefreshInFlightRef.current = true;
+    try {
+      const res = await refreshProfileFromCloudIfBehind(gd, profileId, pin);
+      if (res.refreshed && res.gameData) {
+        if (!quiet) {
+          showNotice(
+            'Cloud progress loaded',
+            `Peak Lv ${res.comparison?.cloudPeak ?? '?'} — this device was behind another login.`
+          );
+        }
+        await saveGameSave(res.gameData);
+        return res.gameData;
+      }
+      return gd;
+    } finally {
+      cloudRefreshInFlightRef.current = false;
+    }
+  }, []);
+
+  async function applyCloudBlockPayload(payload, gd = gameData) {
+    const profileID = payload?.profileID;
+    const cloudData = payload?.cloudData;
+    if (!gd || !profileID || !cloudData) return;
+
+    const profile = getPlayerProfile(gd, profileID);
+    const pin = normalizePlayerKey(profile?.pin || profile?.playerKey);
+    const comparison = payload?.comparison;
+    if (comparison?.cloudPeak > comparison?.localPeak) {
+      const res = applyCloudSaveChoice(gd, profileID, cloudData, pin);
+      if (res.ok) {
+        setGameData(res.gameData);
+        await saveGameSave(res.gameData);
+        showNotice(
+          'Progress corrected',
+          `Cloud save (peak Lv ${comparison.cloudPeak}) replaced older data on this device.`
+        );
+      }
+      return;
+    }
+
+    setSaveConflict({
+      profileId: profileID,
+      playerKey: pin,
+      cloudData,
+      message: buildSaveConflictMessage(comparison, profile?.name || 'Player'),
+    });
   }
 
   function syncSetupMonstersFromProfiles(gd, p1ProfileId, p2ProfileId, mode = gameMode) {
@@ -438,12 +501,13 @@ export default function App() {
     applyAudioSettings();
     initAudio();
     void loadSaveApiConfig();
-    loadGameSave().then((gd) => {
+    loadGameSave().then(async (gd) => {
       const activeId = gd.session?.activeProfileId ?? gd.players?.[0]?.id ?? null;
-      const normalized = activeId ? enforceSingleActiveProfile(gd, activeId) : gd;
+      let normalized = activeId ? enforceSingleActiveProfile(gd, activeId) : gd;
       if (activeId) {
         const profile = getPlayerProfile(normalized, activeId);
         if (profile) repairPlayerProfileInventory(profile);
+        normalized = await refreshCloudIfBehind(normalized, activeId, { quiet: true });
       }
       setGameData(normalized);
       setSetupP1ProfileId(activeId);
@@ -459,6 +523,20 @@ export default function App() {
   }, [activeProfileId]);
 
   useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const pid = setupP1ProfileId || gameData?.session?.activeProfileId;
+      if (!pid || !gameData) return;
+      void refreshCloudIfBehind(gameData, pid, { quiet: true }).then((next) => {
+        if (next && next !== gameData) setGameData(next);
+      });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [gameData, setupP1ProfileId, refreshCloudIfBehind]);
+
+  useEffect(() => {
     if (phase !== 'menu' || !gameData) return;
     const profileId = activeProfileId || setupP1ProfileId;
     if (!profileId) return;
@@ -472,9 +550,11 @@ export default function App() {
       gameData: nextGd,
       profileIDs,
       forceCloud: !!opts.forceCloud,
-    }).then((res) => {
+    }).then(async (res) => {
       if (res?.gameData) setGameData(res.gameData);
-      // Stale-device message is for login only — do not interrupt mid-game (see saveConflict.js).
+      if (res?.cloudBlocked && res.cloudBlockPayload) {
+        await applyCloudBlockPayload(res.cloudBlockPayload, res.gameData || nextGd);
+      }
     });
   }
   const slotProfileId =
@@ -619,10 +699,16 @@ export default function App() {
     if (!gameData || !profileId) return { ok: false };
     const res = await resolveProfileLoginWithCloud(gameData, profileId, playerKey);
     if (!res.ok) {
-      if (res.staleLocalDevice) {
-        setKeyModalError(res.error || getStaleLocalDeviceMessage());
+      if (res.saveConflict) {
+        setSaveConflict({
+          profileId: res.profileId,
+          playerKey,
+          cloudData: res.cloudData,
+          message: res.error,
+        });
+        return { ok: false, saveConflict: true };
       }
-      return { ok: false, error: res.error, staleLocalDevice: !!res.staleLocalDevice };
+      return { ok: false, error: res.error };
     }
 
     setGameData(res.gameData);
@@ -1651,6 +1737,49 @@ export default function App() {
     );
   }
 
+  async function handleSaveConflictUseCloud() {
+    if (!saveConflict || saveConflictBusy || !gameData) return;
+    setSaveConflictBusy(true);
+    try {
+      const res = applyCloudSaveChoice(
+        gameData,
+        saveConflict.profileId,
+        saveConflict.cloudData,
+        saveConflict.playerKey
+      );
+      if (!res.ok) {
+        showNotice('Cloud save', res.error || 'Could not load cloud save.');
+        return;
+      }
+      setGameData(res.gameData);
+      await saveGameSave(res.gameData);
+      persistSave(res.gameData, 'conflict_cloud', res.profileId, { forceCloud: true });
+      applyProfileSelection(res.profileId, res.gameData);
+      setSaveConflict(null);
+    } finally {
+      setSaveConflictBusy(false);
+    }
+  }
+
+  async function handleSaveConflictUseDevice() {
+    if (!saveConflict || saveConflictBusy || !gameData) return;
+    setSaveConflictBusy(true);
+    try {
+      const res = applyLocalSaveChoice(gameData, saveConflict.profileId, saveConflict.playerKey);
+      if (!res.ok) {
+        showNotice('Device save', res.error || 'Could not keep device save.');
+        return;
+      }
+      setGameData(res.gameData);
+      await saveGameSave(res.gameData);
+      persistSave(res.gameData, 'conflict_local', res.profileId, { forceCloud: true });
+      applyProfileSelection(res.profileId, res.gameData);
+      setSaveConflict(null);
+    } finally {
+      setSaveConflictBusy(false);
+    }
+  }
+
   if (isPhaserLab) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -1686,6 +1815,14 @@ export default function App() {
         busy={keyModalBusy}
         onCancel={closeKeyModal}
         onSubmit={handleKeyModalSubmit}
+      />
+      <SaveConflictModal
+        visible={!!saveConflict}
+        message={saveConflict?.message}
+        busy={saveConflictBusy}
+        onCancel={() => !saveConflictBusy && setSaveConflict(null)}
+        onUseCloud={handleSaveConflictUseCloud}
+        onUseDevice={handleSaveConflictUseDevice}
       />
       <ConfirmDialog
         visible={!!pendingDelete}

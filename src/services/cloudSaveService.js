@@ -6,7 +6,7 @@ import { normalizePlayerKey } from '../../utils/playerKey';
 import { loadGameSave, saveGameSave } from './saveService';
 import { profileBlockedForCloudSync } from '../../utils/profileIntegrity';
 import { getPlayerProfile } from '../../utils/gameStorage';
-import { isCloudUploadBlocked } from './saveConflict';
+import { isCloudUploadBlocked, compareLocalAndCloudSave } from './saveConflict';
 import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
 import { trainerRankingFromCloudRow } from '../../utils/trainerRankings';
 import {
@@ -536,11 +536,17 @@ export async function syncProfileToCloud(profileID, gameData = null, opts = {}) 
         };
       }
       if (isCloudUploadBlocked(gd, profileID, remote.data)) {
+        const comparison = compareLocalAndCloudSave(getPlayerProfile(gd, profileID), remote.data);
         return {
           ok: false,
           cloudNewer: true,
+          cloudBlocked: true,
+          comparison,
           cloudData: remote.data,
-          error: 'Cloud save is newer than this device. Load the cloud save before uploading.',
+          error:
+            comparison.cloudPeak > comparison.localPeak
+              ? `Cloud save is ahead (Lv ${comparison.cloudPeak} vs Lv ${comparison.localPeak}). Loading cloud progress.`
+              : 'Cloud save is newer than this device. Load the cloud save before uploading.',
         };
       }
     }
