@@ -10,6 +10,7 @@ import { normalizeMonsterRescue } from '../../utils/monsterRescue/progress';
 import { normalizeDailyLoginSpin } from '../../utils/dailyLoginSpin';
 import { clampMergeTier } from '../../utils/mergeSystem';
 import { peakMonsterLevelFromRoster } from '../../utils/trainerRankings';
+import { normalizeSyncActivity } from '../../utils/syncActivityLevel';
 
 /**
  * @param {object} gameData
@@ -44,6 +45,7 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
 
   const playerKey = normalizePlayerKey(p.pin || p.playerKey || '');
   const peak = peakMonsterLevelFromRoster(p.ownedMonsters);
+  const syncActivity = normalizeSyncActivity(p);
 
   const row = {
     profileID: String(profileID),
@@ -54,6 +56,9 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
     peakMonsterLevel: peak.level,
     peakMonsterTemplateId: peak.templateId,
     peakMonsterNickname: peak.nickname || '',
+    syncActivityLevel: syncActivity.level,
+    syncActivityExp: syncActivity.exp,
+    syncActivity: { level: syncActivity.level, exp: syncActivity.exp },
     gear: Array.isArray(p.cosmeticsOwned) ? p.cosmeticsOwned : [],
     equippedGear,
     unlockedGearSlots,
@@ -178,6 +183,19 @@ export function applyCloudProfile(gameData, cloud) {
   }
   normalizeDailyLoginSpin(p);
   if (normalized.meta) p.meta = normalized.meta;
+
+  if (normalized.syncActivity && typeof normalized.syncActivity === 'object') {
+    p.syncActivity = {
+      level: Math.floor(Number(normalized.syncActivity.level) || 0),
+      exp: Math.floor(Number(normalized.syncActivity.exp) || 0),
+    };
+  } else if (normalized.syncActivityLevel != null || normalized.syncActivityExp != null) {
+    p.syncActivity = {
+      level: Math.floor(Number(normalized.syncActivityLevel) || 0),
+      exp: Math.floor(Number(normalized.syncActivityExp) || 0),
+    };
+  }
+  normalizeSyncActivity(p);
 
   if (normalized.activeSession?.sessionToken) {
     p.activeSession = {

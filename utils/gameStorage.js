@@ -647,15 +647,16 @@ export function touchProfileUpdatedAt(gameData, profileId) {
 /** @param {object} gameData @param {string} profileId @param {string} cloudUpdatedAt */
 export function markProfileCloudObserved(gameData, profileId, cloudUpdatedAt) {
   if (!cloudUpdatedAt) return gameData;
-  const gd = cloneGameData(gameData);
-  const p = gd.players.find((x) => x.id === profileId);
-  if (!p) return gd;
+  const p = gameData.players?.find((x) => x.id === profileId);
+  if (!p) return gameData;
   const nextMs = Date.parse(cloudUpdatedAt);
   const prevMs = Date.parse(p.lastKnownCloudUpdatedAt || '');
-  if (!Number.isFinite(nextMs)) return gd;
-  if (!Number.isFinite(prevMs) || nextMs >= prevMs) {
-    p.lastKnownCloudUpdatedAt = cloudUpdatedAt;
-  }
+  if (!Number.isFinite(nextMs)) return gameData;
+  if (Number.isFinite(prevMs) && nextMs <= prevMs) return gameData;
+
+  const gd = cloneGameData(gameData);
+  const cloned = gd.players.find((x) => x.id === profileId);
+  if (cloned) cloned.lastKnownCloudUpdatedAt = cloudUpdatedAt;
   return gd;
 }
 

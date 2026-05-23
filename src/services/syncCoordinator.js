@@ -42,7 +42,13 @@ export async function commitSave(opts) {
   const { getPlayerProfile, markProfileCloudSynced, markProfileCloudObserved } = await import(
     '../../utils/gameStorage'
   );
-  /** Snapshots before any upload timestamp bump — used for cloud conflict checks. */
+  const { applySyncActivityForSave } = await import('../../utils/syncActivityLevel');
+
+  for (const profileID of targets) {
+    gd = applySyncActivityForSave(gd, profileID, { includeSaveAction: true });
+  }
+
+  /** Snapshots after sync-activity bump — used for cloud conflict checks. */
   const compareSnapshots = {};
   for (const profileID of targets) {
     const profile = getPlayerProfile(gd, profileID);

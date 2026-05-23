@@ -549,9 +549,11 @@ export async function syncProfileToCloud(profileID, gameData = null, opts = {}) 
           comparison,
           cloudData: remote.data,
           error:
-            comparison.cloudPeak > comparison.localPeak
-              ? `Cloud save is ahead (Lv ${comparison.cloudPeak} vs Lv ${comparison.localPeak}). Loading cloud progress.`
-              : 'Cloud save is newer than this device. Load the cloud save before uploading.',
+            comparison.cloudActivity > comparison.localActivity
+              ? `Cloud save is ahead (sync ${comparison.cloudActivity} vs ${comparison.localActivity}). Loading cloud progress.`
+              : comparison.cloudPeak > comparison.localPeak
+                ? `Cloud save is ahead (Lv ${comparison.cloudPeak} vs Lv ${comparison.localPeak}). Loading cloud progress.`
+                : 'Cloud save is newer than this device. Load the cloud save before uploading.',
         };
       }
     }

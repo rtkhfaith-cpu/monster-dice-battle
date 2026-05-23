@@ -117,6 +117,7 @@ import {
 import { commitProfileDeleted, commitSave, setCloudSyncProfileID } from './src/services/syncCoordinator';
 import { fetchLiveAppVersion, isAppVersionOutdated } from './src/services/appVersionCheck';
 import { BAKED_APP_VERSION } from './utils/bakedAppVersion';
+import { recordSyncClick } from './utils/syncActivityLevel';
 import { emitSaveStatus, subscribeSaveStatus } from './src/services/saveStatusBus';
 import ConfirmDialog from './components/ConfirmDialog';
 import {
@@ -238,8 +239,9 @@ export default function App() {
   const cloudRefreshInFlightRef = useRef(false);
   const [appVersionState, setAppVersionState] = useState(Platform.OS === 'web' ? 'checking' : 'ok');
   const [liveAppVersion, setLiveAppVersion] = useState(null);
-  const STALE_CLOUD_PLAY_MESSAGE =
-    'Your save was updated from another device. Try again.';
+  const [cloudSyncDialog, setCloudSyncDialog] = useState(null);
+  const CLOUD_SYNC_LOADING_MESSAGE = 'Please wait, loading newer data to your device';
+  const CLOUD_SYNC_DONE_MESSAGE = 'Uploading successful, you may continue';
 
   const checkAppVersion = useCallback(async () => {
     if (Platform.OS !== 'web') {
@@ -273,10 +275,10 @@ export default function App() {
   }
 
   const refreshCloudIfBehind = useCallback(async (gd, profileId, { quiet = false } = {}) => {
-    if (!gd || !profileId) return gd;
+    if (!gd || !profileId) return { gameData: gd, refreshed: false };
     const profile = getPlayerProfile(gd, profileId);
     const pin = normalizePlayerKey(profile?.pin || profile?.playerKey);
-    if (pin.length !== 4) return gd;
+    if (pin.length !== 4) return { gameData: gd, refreshed: false };
 
     while (cloudRefreshInFlightRef.current) {
       await new Promise((resolve) => setTimeout(resolve, 40));
@@ -286,18 +288,14 @@ export default function App() {
     try {
       const res = await refreshProfileFromCloudIfBehind(gd, profileId, pin);
       const nextGd = res.gameData ?? gd;
-      if (nextGd !== gd) {
+      const refreshed = !!res.refreshed;
+      if (nextGd !== gd || refreshed) {
         await saveGameSave(nextGd);
       }
-      if (res.refreshed && nextGd) {
-        if (!quiet) {
-          showNotice(
-            'Cloud progress loaded',
-            `Peak Lv ${res.comparison?.cloudPeak ?? '?'} — this device was behind another login.`,
-          );
-        }
+      if (refreshed && nextGd && !quiet) {
+        showNotice('Cloud sync', CLOUD_SYNC_DONE_MESSAGE);
       }
-      return nextGd;
+      return { gameData: nextGd, refreshed };
     } finally {
       cloudRefreshInFlightRef.current = false;
     }
@@ -311,14 +309,26 @@ export default function App() {
       const pin = normalizePlayerKey(profile?.pin || profile?.playerKey);
       if (pin.length !== 4) return onFresh(gameData);
 
-      const freshGd = await refreshCloudIfBehind(gameData, pid, { quiet: true });
-      if (freshGd !== gameData) {
-        setGameData(freshGd);
-        syncSetupMonstersFromProfiles(freshGd, pid, null, gameMode);
-        showNotice('Cloud progress loaded', STALE_CLOUD_PLAY_MESSAGE);
+      setCloudSyncDialog({ phase: 'loading', message: CLOUD_SYNC_LOADING_MESSAGE });
+      let refreshed = false;
+      try {
+        const result = await refreshCloudIfBehind(gameData, pid, { quiet: true });
+        refreshed = result.refreshed;
+        const freshGd = result.gameData;
+        if (freshGd !== gameData) {
+          setGameData(freshGd);
+          syncSetupMonstersFromProfiles(freshGd, pid, null, gameMode);
+        }
+        if (refreshed) {
+          setCloudSyncDialog({ phase: 'done', message: CLOUD_SYNC_DONE_MESSAGE });
+          return null;
+        }
+        setCloudSyncDialog(null);
+        return onFresh(freshGd);
+      } catch {
+        setCloudSyncDialog(null);
         return null;
       }
-      return onFresh(freshGd);
     },
     [gameData, setupP1ProfileId, gameMode, refreshCloudIfBehind],
   );
@@ -338,7 +348,7 @@ export default function App() {
         await saveGameSave(res.gameData);
         showNotice(
           'Progress corrected',
-          `Cloud save replaced older data on this device (peak Lv ${comparison.cloudPeak}).`,
+          CLOUD_SYNC_DONE_MESSAGE,
         );
       }
       return;
@@ -580,7 +590,7 @@ export default function App() {
       if (activeId) {
         const profile = getPlayerProfile(normalized, activeId);
         if (profile) repairPlayerProfileInventory(profile);
-        normalized = await refreshCloudIfBehind(normalized, activeId, { quiet: true });
+        normalized = (await refreshCloudIfBehind(normalized, activeId, { quiet: true })).gameData;
       }
       setGameData(normalized);
       setSetupP1ProfileId(activeId);
@@ -596,11 +606,22 @@ export default function App() {
   }, [activeProfileId]);
 
   useEffect(() => {
+    const profileId = activeProfileId || setupP1ProfileId;
+    if (!profileId) return undefined;
+    const onPointer = () => recordSyncClick(profileId);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.addEventListener('click', onPointer, { capture: true });
+      return () => document.removeEventListener('click', onPointer, { capture: true });
+    }
+    return undefined;
+  }, [activeProfileId, setupP1ProfileId]);
+
+  useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return undefined;
     const refreshActiveProfile = () => {
       const pid = setupP1ProfileId || gameData?.session?.activeProfileId;
       if (!pid || !gameData) return;
-      void refreshCloudIfBehind(gameData, pid, { quiet: true }).then((next) => {
+      void refreshCloudIfBehind(gameData, pid, { quiet: true }).then(({ gameData: next }) => {
         if (next && next !== gameData) setGameData(next);
       });
     };
@@ -623,11 +644,12 @@ export default function App() {
     if (phase !== 'menu' || !gameData) return;
     const profileId = activeProfileId || setupP1ProfileId;
     if (!profileId) return;
-    void refreshCloudIfBehind(gameData, profileId, { quiet: true }).then((next) => {
+    void refreshCloudIfBehind(gameData, profileId, { quiet: true }).then(({ gameData: next, refreshed }) => {
       if (next && next !== gameData) {
         setGameData(next);
         syncSetupMonstersFromProfiles(next, profileId, null, gameMode);
-      } else {
+      }
+      if (!refreshed) {
         tryOfferDailySpin(profileId, 'menu');
       }
     });
@@ -1997,6 +2019,25 @@ export default function App() {
             requiresKey: true,
           });
         }}
+      />
+      <ConfirmDialog
+        visible={cloudSyncDialog?.phase === 'loading'}
+        title="Cloud sync"
+        message={cloudSyncDialog?.message ?? CLOUD_SYNC_LOADING_MESSAGE}
+        confirmLabel="Loading…"
+        cancelLabel={null}
+        busy
+        onCancel={() => {}}
+        onConfirm={() => {}}
+      />
+      <ConfirmDialog
+        visible={cloudSyncDialog?.phase === 'done'}
+        title="Cloud sync"
+        message={cloudSyncDialog?.message ?? CLOUD_SYNC_DONE_MESSAGE}
+        confirmLabel="Continue"
+        cancelLabel={null}
+        onCancel={() => setCloudSyncDialog(null)}
+        onConfirm={() => setCloudSyncDialog(null)}
       />
       <ConfirmDialog
         visible={!!noticeDialog}
