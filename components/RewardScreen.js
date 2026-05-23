@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { chestDropTitle } from '../utils/mainBattleChest';
+import { compactGearIds } from '../utils/cosmetics';
 import { applyGearBonuses } from '../utils/gearStats';
 import { computeBattleStats } from '../utils/statsCalc';
 import { computeLadderBattleStats } from '../utils/monsterLadder/ladderStatsCalc';
@@ -16,7 +17,7 @@ function resolveStatsAtLevel(player, level) {
   if (!built?.stats) return null;
   const mergeTier = clampMergeTier(player?.mergeTier);
   const merged = scaleStatsByMergeTier(built.stats, mergeTier);
-  const gearIds = player?.equippedGear ?? [];
+  const gearIds = compactGearIds(player?.equippedGear ?? player?.monsterParts?.cosmetics);
   return applyGearBonuses(merged, gearIds).stats;
 }
 
@@ -71,8 +72,10 @@ function MonsterStatsPanel({ player, expPack }) {
   const leveledUp = levelsGained > 0;
 
   const { currentStats, prevStats } = useMemo(() => {
-    const cur = resolveStatsAtLevel(player, level) ?? player?.stats ?? null;
-    const prev = leveledUp ? resolveStatsAtLevel(player, prevLevel) : null;
+    const recalcCur = resolveStatsAtLevel(player, level);
+    const recalcPrev = leveledUp ? resolveStatsAtLevel(player, prevLevel) : null;
+    const cur = leveledUp ? recalcCur : (player?.stats ?? recalcCur);
+    const prev = leveledUp ? recalcPrev : null;
     return { currentStats: cur, prevStats: prev };
   }, [player, level, prevLevel, leveledUp]);
 

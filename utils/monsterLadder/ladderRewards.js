@@ -238,10 +238,10 @@ export function openLadderChestOnProfile(profile, type) {
   return { drop, ladderShardsTotal: mlFinal.ladderShards };
 }
 
-/** @param {object} profile @param {import('./ladderProgress').MonsterLadderState} ml @param {'gear'|'monster'} type */
-function resolveChestOpen(profile, ml, type) {
+/** @param {object} profile @param {import('./ladderProgress').MonsterLadderState} ml @param {'gear'|'monster'} type @param {Record<string, number>} [rateWeights] */
+function resolveChestOpen(profile, ml, type, rateWeights) {
   const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
-  const roll = rollChestDrop(type, ml.pity?.[pityKey] ?? 0);
+  const roll = rollChestDrop(type, ml.pity?.[pityKey] ?? 0, rateWeights);
   if (!roll?.id) return null;
 
   if (roll.kind === 'monster') {

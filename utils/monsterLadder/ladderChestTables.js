@@ -2,7 +2,7 @@ import { getChestMonstersByRarity } from '../chestMonsterPools';
 import { LADDER_PITY, LADDER_RARITY_ORDER, LADDER_RARITY_WEIGHTS } from './ladderConstants';
 import { getLadderGearByRarity } from './ladderGearCatalog';
 
-function rollRarity(pityCounter, chestType) {
+function rollRarity(pityCounter, chestType, rateWeights = LADDER_RARITY_WEIGHTS) {
   const epicGate = pityCounter > 0 && pityCounter % LADDER_PITY.epicPlusEvery === 0;
   const legGate = pityCounter > 0 && pityCounter % LADDER_PITY.legendaryPlusEvery === 0;
   const mythGate = pityCounter > 0 && pityCounter % LADDER_PITY.mythicEvery === 0;
@@ -11,10 +11,10 @@ function rollRarity(pityCounter, chestType) {
   if (legGate) return 'legendary';
   if (epicGate) return 'epic';
 
-  const total = LADDER_RARITY_ORDER.reduce((s, r) => s + LADDER_RARITY_WEIGHTS[r], 0);
+  const total = LADDER_RARITY_ORDER.reduce((s, r) => s + (rateWeights[r] ?? 0), 0);
   let roll = Math.random() * total;
   for (const r of LADDER_RARITY_ORDER) {
-    roll -= LADDER_RARITY_WEIGHTS[r];
+    roll -= rateWeights[r] ?? 0;
     if (roll <= 0) return r;
   }
   return 'common';
@@ -28,9 +28,11 @@ function pickFromPool(pool) {
 /**
  * @param {'gear'|'monster'} chestType
  * @param {number} pityCounter — opens since last pity reset for this chest type
+ * @param {Record<string, number>} [rateWeights]
  */
-export function rollChestDrop(chestType, pityCounter) {
-  const rarity = rollRarity(pityCounter + 1, chestType);
+export function rollChestDrop(chestType, pityCounter, rateWeights) {
+  const weights = rateWeights ?? LADDER_RARITY_WEIGHTS;
+  const rarity = rollRarity(pityCounter + 1, chestType, weights);
   const tryRarities = [rarity, ...LADDER_RARITY_ORDER.filter((r) => r !== rarity)];
   for (const r of tryRarities) {
     const pool = chestType === 'gear' ? getLadderGearByRarity(r) : getChestMonstersByRarity(r);

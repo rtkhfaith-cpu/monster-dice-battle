@@ -1,3 +1,5 @@
+import { CHEST_RARITY_RATES } from './chestRarityRates';
+
 export const LADDER_BALANCE = {
   /** High EXP, low ladder Gold (see rewards.js ladder payouts). */
   expMultiplier: 4,
@@ -7,13 +9,7 @@ export const LADDER_BALANCE = {
   /** Biweekly stage reset — first period starts this Sunday 6pm SG. */
   biweeklyEpochSunday: '2026-05-24',
   biweeklyPeriodDays: 14,
-  chestRates: {
-    common: 50,
-    rare: 30,
-    epic: 15,
-    legendary: 4,
-    mythic: 1,
-  },
+  chestRates: CHEST_RARITY_RATES,
   pity: {
     epicPlusEvery: 30,
     legendaryPlusEvery: 80,

@@ -69,7 +69,7 @@ function buildLadderRulesLines(ml) {
   const gearGoldCost = LADDER_CHEST_GOLD_COST.gear;
   const monShardCost = LADDER_CHEST_SHARD_COST.monster;
   const nextBiweekly = getNextLadderBiweeklyResetDate();
-  const rates = LADDER_RARITY_ORDER.map((r) => `${rarityLabel(r)} ${LADDER_RARITY_WEIGHTS[r]}%`).join(', ');
+  const rates = formatChestRateLine();
   const dupeShards = LADDER_RARITY_ORDER.map(
     (r) => `${rarityLabel(r)} ${LADDER_SHARDS_BY_RARITY[r]}`,
   ).join(' · ');
@@ -161,11 +161,15 @@ function rarityLabel(rarity) {
   return RARITY_UI[rarity]?.label ?? rarity;
 }
 
-function rarityPercent(rarity) {
-  const total = LADDER_RARITY_ORDER.reduce((sum, r) => sum + (LADDER_RARITY_WEIGHTS[r] ?? 0), 0);
+function rarityPercent(rarity, weights = LADDER_RARITY_WEIGHTS) {
+  const total = LADDER_RARITY_ORDER.reduce((sum, r) => sum + (weights[r] ?? 0), 0);
   if (!total) return '0%';
-  const pct = ((LADDER_RARITY_WEIGHTS[rarity] ?? 0) / total) * 100;
+  const pct = ((weights[rarity] ?? 0) / total) * 100;
   return `${Number.isInteger(pct) ? pct : pct.toFixed(1)}%`;
+}
+
+function formatChestRateLine(weights = LADDER_RARITY_WEIGHTS) {
+  return LADDER_RARITY_ORDER.map((r) => `${rarityLabel(r)} ${rarityPercent(r, weights)}`).join(' · ');
 }
 
 function formatStats(stats) {
@@ -312,7 +316,8 @@ function CodexMonsterCard({ templateId, onClose }) {
   );
 }
 
-function ChestOddsCard({ title, sub, type }) {
+function ChestOddsCard({ title, sub, type, rateWeights }) {
+  const weights = rateWeights ?? LADDER_RARITY_WEIGHTS;
   return (
     <View style={[styles.oddsCard, type === 'monster' && styles.oddsCardMonster]}>
       <View style={styles.oddsHeaderRow}>
@@ -333,12 +338,12 @@ function ChestOddsCard({ title, sub, type }) {
             <Text style={[styles.oddsRarity, { color: RARITY_TONE[rarity] ?? '#fff' }]}>
               {rarityLabel(rarity)}
             </Text>
-            <Text style={styles.oddsPercent}>{rarityPercent(rarity)}</Text>
+            <Text style={styles.oddsPercent}>{rarityPercent(rarity, weights)}</Text>
           </View>
         ))}
       </View>
       <Text style={styles.oddsFoot}>
-        Pity: Epic+ every {LADDER_PITY.epicPlusEvery}, Legendary+ every {LADDER_PITY.legendaryPlusEvery}, Mythic every {LADDER_PITY.mythicEvery}.
+        Same rates as above. Pity: Epic+ {LADDER_PITY.epicPlusEvery} · Legendary+ {LADDER_PITY.legendaryPlusEvery} · Mythic {LADDER_PITY.mythicEvery}.
       </Text>
     </View>
   );
@@ -369,14 +374,30 @@ function RewardsCodexOverlay({ onClose }) {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.codexScroll}>
           <Text style={styles.codexIntro}>
-            Beat Sub 5 Mini Bosses for Gear Chests. Beat Sub 10 Bosses for Monster Chests. Duplicates become ladder shards.
+            Beat Sub 5 Mini Bosses for Gear Chests. Beat Sub 10 Bosses for Monster Chests. Chest Exchange
+            purchases use the same rarity table. Duplicate ladder gear becomes shards.
           </Text>
 
-          <View style={styles.oddsGrid}>
-            <ChestOddsCard title="Gear Chest" sub="Drops ladder-exclusive gear" type="gear" />
-            <ChestOddsCard title="Monster Chest" sub="Drops ladder-exclusive monsters" type="monster" />
+          <View style={styles.codexRatesBlock}>
+            <Text style={styles.sectionTitle}>Drop rates (all chests)</Text>
+            <Text style={styles.codexRatesLine}>{formatChestRateLine()}</Text>
+            <Text style={styles.codexRatesSub}>
+              Applies to boss rewards, stored chests, and Chest Exchange ({LADDER_CHEST_GOLD_COST.gear} gold gear ·{' '}
+              {LADDER_CHEST_SHARD_COST.monster} shards monster).
+            </Text>
+            <Text style={styles.codexRatesSub}>
+              Pity (per chest type): Epic+ every {LADDER_PITY.epicPlusEvery} opens · Legendary+ every{' '}
+              {LADDER_PITY.legendaryPlusEvery} · Mythic every {LADDER_PITY.mythicEvery}. Best gate wins if several
+              match.
+            </Text>
           </View>
 
+          <View style={styles.oddsGrid}>
+            <ChestOddsCard title="Gear Chest" sub="Ladder-exclusive gear" type="gear" />
+            <ChestOddsCard title="Monster Chest" sub="Ladder-exclusive monsters" type="monster" />
+          </View>
+
+          <Text style={styles.sectionTitle}>Duplicate gear → shards</Text>
           <View style={styles.shardStrip}>
             {LADDER_RARITY_ORDER.map((rarity) => (
               <View key={rarity} style={styles.shardPill}>
@@ -1397,6 +1418,29 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 16,
     marginBottom: 10,
+  },
+  codexRatesBlock: {
+    marginBottom: 12,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(253, 230, 138, 0.35)',
+    backgroundColor: 'rgba(30, 27, 75, 0.55)',
+  },
+  codexRatesLine: {
+    color: '#fde68a',
+    fontSize: 12,
+    fontWeight: '900',
+    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  codexRatesSub: {
+    color: '#c4b5fd',
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 15,
+    marginTop: 4,
   },
   oddsGrid: {
     flexDirection: 'row',

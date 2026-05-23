@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, ImageBackground, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, ImageBackground, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import AnimatedMonster from './AnimatedMonster';
 import { expToAdvanceFrom } from '../utils/expLevel';
 import {
@@ -104,7 +104,6 @@ export default function RpgBattleArena({
   player1Label = 'You',
   player2Label = 'Foe',
   topHudExtra = null,
-  onRoundBadgePress = null,
   battleDim,
   shakeX,
   stageZoom,
@@ -253,34 +252,8 @@ export default function RpgBattleArena({
           </Text>
         </View>
       ) : null}
-      <View style={styles.roundBadgeWrap} pointerEvents="box-none">
-        {onRoundBadgePress && narrow ? (
-          <View style={styles.roundGhostRow} pointerEvents="box-none">
-            {[1, 2, 3].map((n) => (
-              <Pressable
-                key={n}
-                style={styles.roundGhostTap}
-                onPress={onRoundBadgePress}
-                accessibilityLabel="Auto magic toggle"
-                hitSlop={8}
-              />
-            ))}
-          </View>
-        ) : null}
-        {onRoundBadgePress ? (
-          <Pressable
-            style={styles.roundBadge}
-            onPress={onRoundBadgePress}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            accessibilityLabel="Round"
-          >
-            <Text style={styles.roundBadgeTxt}>{roundLabel}</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.roundBadge}>
-            <Text style={styles.roundBadgeTxt}>{roundLabel}</Text>
-          </View>
-        )}
+      <View style={styles.roundBadge}>
+        <Text style={styles.roundBadgeTxt}>{roundLabel}</Text>
       </View>
 
       {/* z-index 6: stats (above monsters) */}
@@ -827,27 +800,11 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 8,
   },
-  roundBadgeWrap: {
+  roundBadge: {
     position: 'absolute',
     top: '2%',
     right: '1.5%',
     zIndex: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  roundGhostRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    marginRight: 2,
-  },
-  roundGhostTap: {
-    width: 22,
-    height: 22,
-    opacity: 0.01,
-  },
-  roundBadge: {
     backgroundColor: 'rgba(26, 26, 46, 0.85)',
     borderWidth: 2,
     borderColor: 'rgba(255, 209, 102, 0.65)',

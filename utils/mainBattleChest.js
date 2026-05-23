@@ -1,4 +1,5 @@
 import { bossCoinsForEnemyLevel, bossExpForEnemyLevel } from '../src/gameBalance/rewards';
+import { CHEST_RARITY_RATES } from '../src/gameBalance/chestRarityRates';
 import { getChestMonstersByRarity } from './chestMonsterPools';
 import { GEAR_CATALOG, getGear } from './cosmetics';
 import { getAllowedCpuRarities } from './fighterFromOwned';
@@ -38,19 +39,13 @@ export const MAIN_MINI_BOSS_CHEST_ROWS = [
 ];
 
 /** Rarity weights for the 18% monster chest (not split by how many monsters exist per tier). */
-export const MAIN_MINI_BOSS_MONSTER_RARITY_WEIGHTS = {
-  common: 50,
-  rare: 30,
-  epic: 15,
-  legendary: 4,
-  mythic: 1,
-};
+export const MAIN_MINI_BOSS_MONSTER_RARITY_WEIGHTS = { ...CHEST_RARITY_RATES };
 
 export const MAIN_MINI_BOSS_MONSTER_RARITY_ROWS = [
   { levelRange: '1–15', rarities: 'Common only (100%)' },
-  { levelRange: '16–25', rarities: 'Common 62.5% · Rare 37.5%' },
-  { levelRange: '26–35', rarities: 'Common 52.6% · Rare 31.6% · Epic 15.8%' },
-  { levelRange: '36+', rarities: 'Common 50% · Rare 30% · Epic 15% · Legendary 4% · Mythic 1%' },
+  { levelRange: '16–25', rarities: 'Common 57.1% · Rare 42.9%' },
+  { levelRange: '26–35', rarities: 'Common 47.1% · Rare 35.3% · Epic 17.6%' },
+  { levelRange: '36+', rarities: 'Common 40% · Rare 30% · Epic 15% · Legendary 10% · Mythic 5%' },
 ];
 
 /**

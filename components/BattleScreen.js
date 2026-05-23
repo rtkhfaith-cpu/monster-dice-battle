@@ -46,7 +46,7 @@ import { getActionTiming } from '../utils/battleActionTiming';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { chestDropSubtitle, chestDropTitle } from '../utils/mainBattleChest';
 import { RARITY_UI } from '../utils/monsterTemplates';
-import { getGear } from '../utils/cosmetics';
+import { getGear, compactGearIds } from '../utils/cosmetics';
 import {
   gameSurfaceDataProps,
   WEB_DECORATIVE_IMAGE_PROPS,
@@ -117,6 +117,8 @@ function seedFighter(p) {
     isMainMiniBoss: !!p.isMainMiniBoss,
     isLadderMonster: !!p.isLadderMonster,
     ladderStageKind: p.ladderStageKind,
+    mergeTier: p.mergeTier ?? 0,
+    equippedGear: compactGearIds(p.equippedGear ?? p.monsterParts?.cosmetics),
   };
 }
 
@@ -124,6 +126,8 @@ function snapshotFight(f) {
   return {
     monsterParts: { ...f.monsterParts, cosmetics: [...(f.monsterParts?.cosmetics || [])] },
     stats: f.stats,
+    baseStats: f.baseStats,
+    gearBonuses: f.gearBonuses,
     hp: f.hp,
     maxHp: f.maxHp ?? f.stats?.hp,
     mp: f.mp,
@@ -142,6 +146,8 @@ function snapshotFight(f) {
     isAiOpponent: f.isAiOpponent,
     aiPowerRatio: f.aiPowerRatio,
     isLadderMonster: !!f.isLadderMonster,
+    mergeTier: f.mergeTier ?? 0,
+    equippedGear: compactGearIds(f.equippedGear ?? f.monsterParts?.cosmetics),
   };
 }
 
@@ -245,6 +251,7 @@ export default function BattleScreen({
   const activeBattlerRef = useRef(PLAYER_ID);
   const phaserEventSeqRef = useRef(0);
   const autoMagicRef = useRef(false);
+  const [autoMagicOn, setAutoMagicOn] = useState(false);
   const battlePhaseRef = useRef(battlePhase);
   const busyRef = useRef(busy);
   const isActionPlayingRef = useRef(isActionPlaying);
@@ -361,6 +368,7 @@ export default function BattleScreen({
 
   useEffect(() => () => {
     autoMagicRef.current = false;
+    setAutoMagicOn(false);
     clearTimers();
     if (combatBannerTimerRef.current) clearTimeout(combatBannerTimerRef.current);
   }, []);
@@ -550,6 +558,7 @@ export default function BattleScreen({
   function stopAutoMagic(banner) {
     if (!autoMagicRef.current) return;
     autoMagicRef.current = false;
+    setAutoMagicOn(false);
     if (banner) showBanner(banner);
   }
 
@@ -593,6 +602,7 @@ export default function BattleScreen({
       return;
     }
     autoMagicRef.current = true;
+    setAutoMagicOn(true);
     showBanner('Auto magic on');
     schedule(120, () => tryAutoMagicAttack());
   }
@@ -1025,6 +1035,7 @@ export default function BattleScreen({
   const p2Mood = moodFor(p2, p2Emotion);
   const actionsEnabled = !battleIntro && !isActionPlaying && !busy && battlePhase === 'chooseAction';
   const runEnabled = !battleIntro && !isActionPlaying && !busy;
+  const autoToggleEnabled = !battleIntro && opponentIsAi;
   const actingFighter = activeBattler === CPU_ID ? p2 : p1;
   const magicSkills =
     actingFighter?.skills?.magic ?? getMagicSkills(actingFighter?.monsterTemplateId ?? '');
@@ -1069,12 +1080,6 @@ export default function BattleScreen({
                 }}
                 height={phaserArenaHeight}
               />
-              <Pressable
-                style={styles.hiddenRoundAutoTap}
-                onPress={toggleAutoMagic}
-                accessibilityLabel="Auto magic toggle"
-                hitSlop={12}
-              />
             </>
           ) : (
             <>
@@ -1106,7 +1111,6 @@ export default function BattleScreen({
                 sicklyFlashP2={sicklyFlash === CPU_ID}
                 flyStrikeP1={flyStrikeP1}
                 flyStrikeP2={flyStrikeP2}
-                onRoundBadgePress={toggleAutoMagic}
               />
               {battlePhase === 'resolveAttack' && activeAttackEffect ? (
                 <BattleProjectileLayer
@@ -1244,26 +1248,65 @@ export default function BattleScreen({
                   </Text>
                 </View>
               </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.arcadeBtn,
-                  battleMobile && styles.arcadeBtnMobile,
-                  styles.runBtnOuter,
-                  pressed && runEnabled && styles.arcadeBtnPressed,
-                  !runEnabled && styles.disabledBtn,
-                ]}
-                disabled={!runEnabled}
-              onPress={() => {
-                tapUi();
-                handleRun();
-              }}
-            >
-                <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.runFace]} pointerEvents="none">
-                  <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.runBtnTxt]}>
-                    Flee
-                  </Text>
-                </View>
-              </Pressable>
+              <View style={[styles.runColumn, battleMobile && styles.runColumnMobile]}>
+                {opponentIsAi ? (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.autoBtnOuter,
+                      autoMagicOn && styles.autoBtnOuterOn,
+                      pressed && autoToggleEnabled && styles.autoBtnPressed,
+                      !autoToggleEnabled && styles.disabledBtn,
+                    ]}
+                    disabled={!autoToggleEnabled}
+                    accessibilityRole="button"
+                    accessibilityLabel={autoMagicOn ? 'Stop auto magic' : 'Start auto magic'}
+                    onPress={() => {
+                      tapUi();
+                      toggleAutoMagic();
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.autoFace,
+                        battleMobile && styles.autoFaceMobile,
+                        autoMagicOn && styles.autoFaceOn,
+                      ]}
+                      pointerEvents="none"
+                    >
+                      {autoMagicOn ? <View style={styles.autoFaceGlow} /> : null}
+                      <Text
+                        style={[
+                          styles.autoBtnTxt,
+                          battleMobile && styles.autoBtnTxtMobile,
+                          autoMagicOn && styles.autoBtnTxtOn,
+                        ]}
+                      >
+                        Auto
+                      </Text>
+                    </View>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.arcadeBtn,
+                    styles.runBtnOuter,
+                    battleMobile && styles.runBtnOuterMobile,
+                    pressed && runEnabled && styles.arcadeBtnPressed,
+                    !runEnabled && styles.disabledBtn,
+                  ]}
+                  disabled={!runEnabled}
+                  onPress={() => {
+                    tapUi();
+                    handleRun();
+                  }}
+                >
+                  <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.runFace]} pointerEvents="none">
+                    <Text style={[styles.arcadeBtnTxt, battleMobile && styles.arcadeBtnTxtMobile, styles.runBtnTxt]}>
+                      Flee
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
             </View>
           )}
         </View>
@@ -1360,15 +1403,6 @@ const styles = StyleSheet.create({
   },
   arenaField: { flex: 1, minHeight: 0, width: '100%', position: 'relative', overflow: 'visible' },
   arenaInner: { flex: 1, width: '100%', minHeight: 0 },
-  hiddenRoundAutoTap: {
-    position: 'absolute',
-    top: '2%',
-    right: '1.5%',
-    width: 88,
-    height: 32,
-    zIndex: 12,
-    opacity: 0.01,
-  },
   ladderStagePill: {
     position: 'absolute',
     top: '1.2%',
@@ -1580,7 +1614,84 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 9,
     borderTopRightRadius: 9,
   },
-  runBtnOuter: { flex: 0.88, paddingBottom: 4 },
+  runBtnOuter: { flex: 1, paddingBottom: 4, minWidth: 76 },
+  runBtnOuterMobile: { minWidth: 0, width: '100%' },
+  runColumn: {
+    flex: 0.92,
+    minWidth: 76,
+    gap: 6,
+    alignItems: 'stretch',
+    justifyContent: 'flex-end',
+  },
+  runColumnMobile: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: '33.33%',
+    gap: 8,
+  },
+  autoBtnOuter: {
+    paddingBottom: 3,
+    borderRadius: 10,
+    overflow: 'visible',
+    opacity: 0.52,
+  },
+  autoBtnOuterOn: {
+    opacity: 0.72,
+    shadowColor: '#e056fd',
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  autoBtnPressed: {
+    paddingBottom: 0,
+    transform: [{ translateY: 2 }],
+    opacity: 0.62,
+  },
+  autoFace: {
+    minHeight: 34,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: 'rgba(108, 52, 131, 0.38)',
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(91, 44, 111, 0.42)',
+    backgroundColor: 'rgba(108, 92, 231, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    overflow: 'hidden',
+  },
+  autoFaceMobile: {
+    minHeight: 38,
+    borderRadius: 10,
+  },
+  autoFaceOn: {
+    backgroundColor: 'rgba(155, 89, 182, 0.32)',
+    borderColor: 'rgba(215, 189, 226, 0.45)',
+    borderBottomColor: 'rgba(142, 68, 173, 0.5)',
+  },
+  autoFaceGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '45%',
+    backgroundColor: 'rgba(255,255,255, 0.14)',
+    borderTopLeftRadius: 7,
+    borderTopRightRadius: 7,
+  },
+  autoBtnTxt: {
+    color: 'rgba(232, 218, 239, 0.78)',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  autoBtnTxtMobile: {
+    fontSize: 13,
+  },
+  autoBtnTxtOn: {
+    color: 'rgba(255, 249, 255, 0.92)',
+  },
   runFace: {
     backgroundColor: '#b8c5d6',
     borderColor: '#7f8c9a',
