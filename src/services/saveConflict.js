@@ -111,7 +111,7 @@ export function compareLocalAndCloudSave(localProfile, cloudRecord) {
   if (localPeak > cloudPeak) {
     return { ...base, resolution: 'local', reason: 'tie_local_peak' };
   }
-  return { ...base, resolution: 'cloud', reason: 'tie_equal' };
+  return { ...base, resolution: 'local', reason: 'tie_equal' };
 }
 
 /** @param {ReturnType<typeof compareLocalAndCloudSave>} comparison */

@@ -116,4 +116,23 @@ assert.equal(
   true,
 );
 
+const syncedLocal = {
+  updatedAt: '2026-05-20T12:00:00.000Z',
+  lastCloudSyncedAt: '2026-05-20T12:00:00.000Z',
+  ownedMonsters: [{ level: 40 }],
+  coins: 5000,
+  syncActivity: { level: 0, exp: 5000 },
+};
+const syncedCloud = {
+  profileID: 'p1',
+  updatedAt: '2026-05-20T12:00:00.000Z',
+  peakMonsterLevel: 40,
+  coins: 5000,
+  syncActivity: { level: 0, exp: 5000 },
+};
+const equalComparison = compareLocalAndCloudSave(syncedLocal, syncedCloud);
+assert.equal(equalComparison.resolution, 'local');
+assert.equal(equalComparison.reason, 'tie_equal');
+assert.equal(shouldApplyCloudOverLocal(equalComparison, syncedLocal, syncedCloud), false);
+
 console.log('saveConflict.test.js: ok');

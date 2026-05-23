@@ -302,36 +302,66 @@ export default function App() {
   }, []);
 
   const withCloudFreshProfile = useCallback(
-    async (profileId, onFresh) => {
+    async (profileId, onFresh, options = {}) => {
+      const { blockOnRefresh = false } = options;
       const pid = profileId || setupP1ProfileId;
       if (!pid || !gameData) return null;
       const profile = getPlayerProfile(gameData, pid);
       const pin = normalizePlayerKey(profile?.pin || profile?.playerKey);
       if (pin.length !== 4) return onFresh(gameData);
 
-      setCloudSyncDialog({ phase: 'loading', message: CLOUD_SYNC_LOADING_MESSAGE });
-      let refreshed = false;
+      let loadingTimer = null;
+      if (blockOnRefresh) {
+        loadingTimer = setTimeout(() => {
+          setCloudSyncDialog({ phase: 'loading', message: CLOUD_SYNC_LOADING_MESSAGE });
+        }, 500);
+      }
+
       try {
         const result = await refreshCloudIfBehind(gameData, pid, { quiet: true });
-        refreshed = result.refreshed;
+        if (loadingTimer) clearTimeout(loadingTimer);
+        const refreshed = !!result.refreshed;
         const freshGd = result.gameData;
         if (freshGd !== gameData) {
           setGameData(freshGd);
           syncSetupMonstersFromProfiles(freshGd, pid, null, gameMode);
         }
-        if (refreshed) {
+        if (refreshed && blockOnRefresh) {
           setCloudSyncDialog({ phase: 'done', message: CLOUD_SYNC_DONE_MESSAGE });
           return null;
         }
         setCloudSyncDialog(null);
         return onFresh(freshGd);
       } catch {
+        if (loadingTimer) clearTimeout(loadingTimer);
         setCloudSyncDialog(null);
         return null;
       }
     },
     [gameData, setupP1ProfileId, gameMode, refreshCloudIfBehind],
   );
+
+  function shopProfileId() {
+    return slotProfileId || setupP1ProfileId || activeProfileId || null;
+  }
+
+  async function openMonsterMart() {
+    if (!gameData) return;
+    const pid = shopProfileId();
+    const fresh = await withCloudFreshProfile(pid, (gd) => gd, { blockOnRefresh: true });
+    if (!fresh) return;
+    playSound('shop');
+    setMonsterMartOpen(true);
+  }
+
+  async function openGearMart() {
+    if (!gameData) return;
+    const pid = shopProfileId();
+    const fresh = await withCloudFreshProfile(pid, (gd) => gd, { blockOnRefresh: true });
+    if (!fresh) return;
+    playSound('shop');
+    setGearMartOpen(true);
+  }
 
   async function applyCloudBlockPayload(payload, gd = gameData) {
     const profileID = payload?.profileID;
@@ -1145,30 +1175,28 @@ export default function App() {
 
   function tryBuyMonster(templateId, price) {
     if (!gameData) return;
-    void withCloudFreshProfile(slotProfileId, (freshGd) => {
-      const res = purchaseMonsterRow(freshGd, slotProfileId || null, templateId);
-      if (res.error) {
-        showNotice('Monster Mart', res.error);
-        return;
-      }
-      let nextGd = res.gameData;
-      const newOm = res.ownedMonster;
-      if (newOm?.id && slotProfileId) {
-        nextGd = setProfileSelectedMonster(nextGd, slotProfileId, newOm.id);
-        if (gameMode === 'onePlayer' || setupActiveSlot === 1) setSetupP1Id(newOm.id);
-        else setSetupP2Id(newOm.id);
-      } else if (newOm?.id && !setupP1Id) {
-        setSetupP1Id(newOm.id);
-      }
-      persistSave(nextGd, 'coins_changed', slotProfileId);
-      playSound('shop');
-      if (res.duplicate) {
-        showNotice(
-          'Monster Mart',
-          `Duplicate added for merging. You now own ×${res.ownedCount ?? 2} of this species.`,
-        );
-      }
-    });
+    const res = purchaseMonsterRow(gameData, slotProfileId || null, templateId);
+    if (res.error) {
+      showNotice('Monster Mart', res.error);
+      return;
+    }
+    let nextGd = res.gameData;
+    const newOm = res.ownedMonster;
+    if (newOm?.id && slotProfileId) {
+      nextGd = setProfileSelectedMonster(nextGd, slotProfileId, newOm.id);
+      if (gameMode === 'onePlayer' || setupActiveSlot === 1) setSetupP1Id(newOm.id);
+      else setSetupP2Id(newOm.id);
+    } else if (newOm?.id && !setupP1Id) {
+      setSetupP1Id(newOm.id);
+    }
+    persistSave(nextGd, 'coins_changed', slotProfileId);
+    playSound('shop');
+    if (res.duplicate) {
+      showNotice(
+        'Monster Mart',
+        `Duplicate added for merging. You now own ×${res.ownedCount ?? 2} of this species.`,
+      );
+    }
   }
 
   function fighterFromSetupId(ownedId, profileId) {
@@ -1208,15 +1236,13 @@ export default function App() {
   function handleBuyGearMart(gearId) {
     if (!gameData) return;
     const profileId = activeProfileId || setupP1ProfileId || null;
-    void withCloudFreshProfile(profileId, (freshGd) => {
-      const res = buyGearItem(freshGd, profileId, gearId);
-      if (res.error) {
-        showNotice('Gear Mart', res.error);
-        return;
-      }
-      persistSave(res.gameData, 'gear_bought', profileId);
-      playSound('shop');
-    });
+    const res = buyGearItem(gameData, profileId, gearId);
+    if (res.error) {
+      showNotice('Gear Mart', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gear_bought', profileId);
+    playSound('shop');
   }
 
   function handleEquipGear(gearId, slotIndex = null) {
@@ -1624,7 +1650,7 @@ export default function App() {
 
   async function beginBattle(p1Fighter, p2Fighter, modeOverride = gameMode) {
     const profileId = setupP1ProfileId || gameData?.session?.activeProfileId;
-    const fresh = await withCloudFreshProfile(profileId, (gd) => gd);
+    const fresh = await withCloudFreshProfile(profileId, (gd) => gd, { blockOnRefresh: true });
     if (!fresh) return;
 
     const arm = (p) => {
@@ -2061,10 +2087,7 @@ export default function App() {
               <>
                 <TouchableOpacity
                   style={styles.miniShop}
-                  onPress={() => {
-                    playSound('shop');
-                    setGearMartOpen(true);
-                  }}
+                  onPress={() => void openGearMart()}
                   accessibilityLabel="Gear mart"
                 >
                   <Text style={styles.miniShopTxt}>Gear Mart</Text>
@@ -2074,10 +2097,7 @@ export default function App() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.miniShop}
-                  onPress={() => {
-                    playSound('shop');
-                    setMonsterMartOpen(true);
-                  }}
+                  onPress={() => void openMonsterMart()}
                   accessibilityLabel="Monster mart"
                 >
                   <Text style={styles.miniShopTxt}>Monsters</Text>
@@ -2185,14 +2205,8 @@ export default function App() {
               }
             }}
             onOpenMonsterGearShop={openMonsterGearForActiveSlot}
-            onOpenGearMart={() => {
-              playSound('shop');
-              setGearMartOpen(true);
-            }}
-            onOpenMonsterMart={() => {
-              playSound('shop');
-              setMonsterMartOpen(true);
-            }}
+            onOpenGearMart={() => void openGearMart()}
+            onOpenMonsterMart={() => void openMonsterMart()}
             onOpenAudioSettings={() => setPhase('audioSettings')}
             onMergeMonster={handleMergeMonster}
             onEnsureLadderMonstersSync={handleEnsureLadderMonstersSync}
@@ -2406,7 +2420,7 @@ export default function App() {
                       }
                     }
               }
-              onOpenMonsterMart={rewardSummary?.monsterLadder ? undefined : () => setMonsterMartOpen(true)}
+              onOpenMonsterMart={rewardSummary?.monsterLadder ? undefined : () => void openMonsterMart()}
               onBackToHome={rewardSummary?.online ? undefined : rewardSummary?.monsterLadder ? returnToLadder : resetToMenu}
               backToHomeLabel={rewardSummary?.monsterLadder ? 'Monster Ladder map' : 'Back to Home'}
             />
@@ -2488,9 +2502,8 @@ export default function App() {
         onUnequip={handleUnequipGear}
         onUnlockSlot={handleUnlockGearSlot}
         onOpenGearMart={() => {
-          playSound('shop');
           setGearOpen(false);
-          setGearMartOpen(true);
+          void openGearMart();
         }}
       />
 
