@@ -94,14 +94,14 @@ export default function DailyLuckySpinModal({
       duration: 4400,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start(({ finished }) => {
+    }).start(async ({ finished }) => {
       rotationDeg.current = snapDeg;
       rotation.setValue(snapDeg);
       if (__DEV__ && !rotationMatchesPrizeIndex(snapDeg, idx, SEGMENT_DEG, segmentCount)) {
         console.warn('[DailySpin] needle/prize mismatch after snap', { segmentId, idx, snapDeg });
       }
       setSpinning(false);
-      const claimed = onClaimSpin?.(segmentId);
+      const claimed = await Promise.resolve(onClaimSpin?.(segmentId));
       const merged = claimed
         ? { ...claimed, segment: claimed.segment ?? segment }
         : null;

@@ -256,7 +256,6 @@ export function claimDailySpinPrize(gameData, profileId, segmentId) {
   normalizeDailyLoginSpin(profile);
   profile.dailyLoginSpin.rewardDayKey = getLadderRewardDayKey();
   profile.dailyLoginSpin.claimedAt = new Date().toISOString();
-  profile.updatedAt = profile.dailyLoginSpin.claimedAt;
 
   return {
     gameData: gd,

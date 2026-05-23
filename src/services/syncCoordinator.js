@@ -39,9 +39,14 @@ export async function commitSave(opts) {
   const targets = ids.length > 0 ? ids : fallback ? [fallback] : [];
 
   let gd = gameData;
-  const { touchProfileUpdatedAt, markProfileCloudSynced } = await import('../../utils/gameStorage');
+  const { getPlayerProfile, markProfileCloudSynced, markProfileCloudObserved } = await import(
+    '../../utils/gameStorage'
+  );
+  /** Snapshots before any upload timestamp bump — used for cloud conflict checks. */
+  const compareSnapshots = {};
   for (const profileID of targets) {
-    gd = touchProfileUpdatedAt(gd, profileID);
+    const profile = getPlayerProfile(gd, profileID);
+    if (profile) compareSnapshots[profileID] = profile;
   }
 
   await saveGameSave(gd);
@@ -62,10 +67,16 @@ export async function commitSave(opts) {
   if (targets.length === 0) return result;
 
   for (const profileID of targets) {
-    const res = await syncProfileToCloud(profileID, gd, { force: forceCloud });
+    const res = await syncProfileToCloud(profileID, gd, {
+      force: forceCloud,
+      compareProfile: compareSnapshots[profileID] ?? null,
+    });
+    if (res.observedCloudAt) {
+      gd = markProfileCloudObserved(gd, profileID, res.observedCloudAt);
+    }
     if (res.ok) {
       result.cloudSynced = true;
-      gd = markProfileCloudSynced(gd, profileID);
+      gd = markProfileCloudSynced(gd, profileID, res.syncedAt);
     } else if (res.skipped) {
       /* API not configured — local only */
     } else if (res.sessionSuperseded) {
@@ -89,6 +100,9 @@ export async function commitSave(opts) {
   }
 
   if (result.cloudSynced && gd !== gameData) {
+    await saveGameSave(gd);
+    result.gameData = gd;
+  } else if (gd !== gameData) {
     await saveGameSave(gd);
     result.gameData = gd;
   } else {

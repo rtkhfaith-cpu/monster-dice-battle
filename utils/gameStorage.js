@@ -644,12 +644,30 @@ export function touchProfileUpdatedAt(gameData, profileId) {
   return gd;
 }
 
+/** @param {object} gameData @param {string} profileId @param {string} cloudUpdatedAt */
+export function markProfileCloudObserved(gameData, profileId, cloudUpdatedAt) {
+  if (!cloudUpdatedAt) return gameData;
+  const gd = cloneGameData(gameData);
+  const p = gd.players.find((x) => x.id === profileId);
+  if (!p) return gd;
+  const nextMs = Date.parse(cloudUpdatedAt);
+  const prevMs = Date.parse(p.lastKnownCloudUpdatedAt || '');
+  if (!Number.isFinite(nextMs)) return gd;
+  if (!Number.isFinite(prevMs) || nextMs >= prevMs) {
+    p.lastKnownCloudUpdatedAt = cloudUpdatedAt;
+  }
+  return gd;
+}
+
 /** @param {object} gameData @param {string} profileId @param {string} [syncedAt] */
 export function markProfileCloudSynced(gameData, profileId, syncedAt = new Date().toISOString()) {
   const gd = cloneGameData(gameData);
   const p = gd.players.find((x) => x.id === profileId);
   if (!p) return gd;
   p.lastCloudSyncedAt = syncedAt;
+  p.lastKnownCloudUpdatedAt = syncedAt;
+  p.updatedAt = syncedAt;
+  if (!p.createdAt) p.createdAt = syncedAt;
   return gd;
 }
 

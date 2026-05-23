@@ -21,7 +21,7 @@ import {
   shouldBlockStaleLocalLogin,
   buildSaveConflictMessage,
 } from './saveConflict';
-import { loadCloudProfileWithKey } from './cloudSaveService';
+import { ensureProfileCloudFresh } from './cloudSyncGuard';
 
 /**
  * @param {object} gameData
@@ -79,7 +79,7 @@ export async function resolveProfileLoginWithCloud(gameData, profileId, playerKe
   let next = baseGd;
   let usedCloud = false;
 
-  if (!localProfile || shouldApplyCloudOverLocal(comparison)) {
+  if (!localProfile || shouldApplyCloudOverLocal(comparison, localProfile, cloudData)) {
     next = applyCloudProfile(baseGd, cloudData);
     usedCloud = true;
   }
@@ -160,35 +160,16 @@ export function applyLocalSaveChoice(gameData, profileId, playerKey) {
  * @param {string} playerKey
  */
 export async function refreshProfileFromCloudIfBehind(gameData, profileId, playerKey) {
-  const pin = normalizePlayerKey(playerKey);
-  if (pin.length !== 4 || !profileId) {
-    return { ok: true, gameData, refreshed: false };
-  }
-
-  const localProfile = getPlayerProfile(gameData, profileId);
-  const remote = await loadCloudProfileWithKey(profileId, pin);
-  if (!remote.ok || !remote.data) {
-    return { ok: remote.ok !== false, gameData, refreshed: false, error: remote.error };
-  }
-
-  const comparison = compareLocalAndCloudSave(localProfile, remote.data);
-  if (!shouldApplyCloudOverLocal(comparison)) {
-    return { ok: true, gameData, refreshed: false, comparison };
-  }
-
-  let next = applyCloudProfile(gameData, remote.data);
-  const applied = next.players?.find((p) => p.id === profileId || p.id === remote.data.profileID);
-  if (!applied) return { ok: false, error: 'Could not apply cloud save.' };
-  repairPlayerProfileInventory(applied);
-  const activeId = applied.id;
-  next = setPlayerKeyForProfile(next, activeId, pin);
-  next = enforceSingleActiveProfile(next, activeId);
+  const res = await ensureProfileCloudFresh(gameData, profileId, playerKey);
+  if (res.skipped) return { ok: true, gameData, refreshed: false };
+  if (!res.ok) return { ok: false, error: res.error, gameData: res.gameData ?? gameData };
   return {
     ok: true,
-    gameData: next,
-    refreshed: true,
-    profileId: activeId,
-    comparison,
-    cloudData: remote.data,
+    gameData: res.gameData,
+    refreshed: !!res.refreshed,
+    profileId: res.profileId ?? profileId,
+    comparison: res.comparison,
+    cloudData: res.cloudData,
+    error: res.error,
   };
 }

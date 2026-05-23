@@ -129,7 +129,11 @@ export function applyCloudProfile(gameData, cloud) {
     delete p.playerKeyHash;
   }
   if (normalized.createdAt) p.createdAt = normalized.createdAt;
-  if (normalized.updatedAt) p.updatedAt = normalized.updatedAt;
+  if (normalized.updatedAt) {
+    p.updatedAt = normalized.updatedAt;
+    p.lastCloudSyncedAt = normalized.updatedAt;
+    p.lastKnownCloudUpdatedAt = normalized.updatedAt;
+  }
   p.coins = typeof normalized.coins === 'number' ? normalized.coins : p.coins;
   p.selectedMonsterId = normalized.selectedMonsterId ?? p.selectedMonsterId;
 

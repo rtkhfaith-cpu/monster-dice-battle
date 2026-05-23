@@ -92,6 +92,7 @@ function buildLadderRulesLines(ml) {
 
     RULE_SECTION('Ladder shards'),
     `Shards are the currency for Monster Chests. Your balance: ${shards}. Buy a Monster Chest in Chest Exchange for ${monShardCost} shards.`,
+    'Monster chests drop ladder-exclusive monsters only (not main-roster shop monsters).',
     'How to earn shards: opening Gear or Monster chests and getting duplicate ladder gear converts to shards (new gear is kept). Monster duplicates do not give shards yet.',
     `Duplicate gear shards by rarity: ${dupeShards}.`,
 

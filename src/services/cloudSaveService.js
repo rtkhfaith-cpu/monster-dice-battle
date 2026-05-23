@@ -521,9 +521,11 @@ export async function syncProfileToCloud(profileID, gameData = null, opts = {}) 
   }
 
   const key = normalizePlayerKey(cloud.playerKey);
+  let observedCloudAt = null;
   if (!opts.force && !opts.skipSessionCheck) {
     const remote = await loadCloudProfileWithKey(profileID, key);
     if (remote.ok && remote.data) {
+      observedCloudAt = remote.data.updatedAt ?? null;
       if (
         localSession
         && isCloudSessionNewerThanLocal(localSession, remote.data.activeSession)
@@ -531,16 +533,19 @@ export async function syncProfileToCloud(profileID, gameData = null, opts = {}) 
         return {
           ok: false,
           sessionSuperseded: true,
+          observedCloudAt,
           error: SESSION_SUPERSEDED_MESSAGE,
           code: SESSION_SUPERSEDED_CODE,
         };
       }
-      if (isCloudUploadBlocked(gd, profileID, remote.data)) {
-        const comparison = compareLocalAndCloudSave(getPlayerProfile(gd, profileID), remote.data);
+      const compareProfile = opts.compareProfile ?? getPlayerProfile(gd, profileID);
+      if (isCloudUploadBlocked(gd, profileID, remote.data, { compareProfile })) {
+        const comparison = compareLocalAndCloudSave(compareProfile, remote.data);
         return {
           ok: false,
           cloudNewer: true,
           cloudBlocked: true,
+          observedCloudAt,
           comparison,
           cloudData: remote.data,
           error:
@@ -552,7 +557,16 @@ export async function syncProfileToCloud(profileID, gameData = null, opts = {}) 
     }
   }
 
-  return saveCloudProfile(cloud);
+  const touchGd = (await import('../../utils/gameStorage')).touchProfileUpdatedAt(gd, profileID);
+  const uploadCloud = toCloudProfile(
+    touchGd,
+    profileID,
+    localSession || profile?.activeSession || null,
+  );
+  if (!uploadCloud) return { ok: false, error: 'Profile not found locally' };
+  const saved = await saveCloudProfile(uploadCloud);
+  if (!saved.ok) return { ...saved, observedCloudAt };
+  return { ok: true, syncedAt: uploadCloud.updatedAt, observedCloudAt: uploadCloud.updatedAt };
 }
 
 /**
