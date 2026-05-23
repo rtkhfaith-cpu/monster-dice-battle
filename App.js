@@ -1287,17 +1287,14 @@ export default function App() {
   function handleMergeMonster(primaryOwnedId) {
     const mergeProfileId = activeProfileId || setupP1ProfileId;
     if (!gameData || !mergeProfileId || !primaryOwnedId) return;
-    void withCloudFreshProfile(mergeProfileId, (freshGd) => {
-      const res = mergeOwnedMonsters(freshGd, mergeProfileId, primaryOwnedId);
-      if (res.error) {
-        showNotice('Merge monsters', res.error);
-        return;
-      }
-      persistSave(res.gameData, 'monster_merged', mergeProfileId);
-      setGameData(res.gameData);
-      playSound('levelUp');
-      showNotice('Merge complete', `Now +${res.mergeTier} merge (used ${res.consumed} duplicate${res.consumed === 1 ? '' : 's'}).`);
-    });
+    const res = mergeOwnedMonsters(gameData, mergeProfileId, primaryOwnedId);
+    if (res.error) {
+      showNotice('Merge monsters', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'monster_merged', mergeProfileId);
+    playSound('levelUp');
+    showNotice('Merge complete', `Now +${res.mergeTier} merge (used ${res.consumed} duplicate${res.consumed === 1 ? '' : 's'}).`);
   }
 
   function handleEnsureLadderMonstersSync() {
@@ -1693,11 +1690,11 @@ export default function App() {
     setCurrentBattleMode(modeOverride);
     setBattleKey((k) => k + 1);
     setPhase('battle');
-    if (gameData) {
+    if (fresh) {
       const ids = [setupP1ProfileId, modeOverride === 'twoPlayer' ? setupP2ProfileId : null].filter(Boolean);
       // Battle start is only a local checkpoint; cloud sync here can race with
       // the post-battle reward save and overwrite newly earned coins.
-      void commitSave({ reason: 'battle_start', gameData, profileIDs: ids, skipCloud: true });
+      void commitSave({ reason: 'battle_start', gameData: fresh, profileIDs: ids, skipCloud: true });
     }
   }
 

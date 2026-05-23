@@ -95,7 +95,39 @@ assert.equal(
     laptopCloud,
     { compareProfile: snapshotBeforeUpload },
   ),
-  true,
+  false,
+);
+
+const postBattleLocal = {
+  updatedAt: '2026-05-20T10:00:00.000Z',
+  lastCloudSyncedAt: '2026-05-20T11:00:00.000Z',
+  lastKnownCloudUpdatedAt: '2026-05-20T11:00:00.000Z',
+  ownedMonsters: [{ level: 25 }],
+  coins: 30100,
+  syncActivity: { level: 0, exp: 30100 },
+};
+const postBattleCloud = {
+  profileID: 'p1',
+  updatedAt: '2026-05-20T11:00:00.000Z',
+  peakMonsterLevel: 25,
+  coins: 30058,
+  syncActivity: { level: 0, exp: 30058 },
+};
+const postBattleComparison = compareLocalAndCloudSave(postBattleLocal, postBattleCloud);
+assert.equal(postBattleComparison.resolution, 'local');
+assert.equal(postBattleComparison.reason, 'local_progress_ahead');
+assert.equal(
+  isCloudUploadBlocked(
+    { players: [{ id: 'p1', ...postBattleLocal }] },
+    'p1',
+    postBattleCloud,
+    { compareProfile: postBattleLocal },
+  ),
+  false,
+);
+assert.equal(
+  shouldApplyCloudOverLocal(postBattleComparison, postBattleLocal, postBattleCloud),
+  false,
 );
 
 const spinBumpedLocal = {

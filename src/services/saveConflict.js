@@ -92,7 +92,10 @@ export function compareLocalAndCloudSave(localProfile, cloudRecord) {
   }
 
   if (cloudMs > localMs + TIME_SLACK_MS) {
-    return { ...base, resolution: 'cloud', reason: 'cloud_newer' };
+    if (cloudProgressAhead(localProfile, cloudRecord)) {
+      return { ...base, resolution: 'cloud', reason: 'cloud_newer' };
+    }
+    return { ...base, resolution: 'local', reason: 'local_progress_ahead' };
   }
 
   if (localMs > cloudMs + TIME_SLACK_MS) {
@@ -155,6 +158,8 @@ export function cloudProgressDiverged(localProfile, cloudRecord) {
 export function isCloudUploadBlocked(gameData, profileId, cloudRecord, opts = {}) {
   const local = opts.compareProfile ?? getPlayerProfile(gameData, profileId);
   const comparison = compareLocalAndCloudSave(local, cloudRecord);
+  if (comparison.resolution === 'local') return false;
+
   if (cloudProgressAhead(local, cloudRecord)) return true;
   if (comparison.reason === 'cloud_newer') return true;
   if (comparison.resolution === 'conflict') return true;
@@ -170,6 +175,15 @@ export function isCloudUploadBlocked(gameData, profileId, cloudRecord, opts = {}
 
 export function shouldApplyCloudOverLocal(comparison, localProfile = null, cloudRecord = null) {
   if (!comparison) return false;
+  if (comparison.resolution === 'local') return false;
+  if (localProfile && cloudRecord) {
+    if (
+      syncActivityScore(localProfile) > cloudSyncActivityScore(cloudRecord)
+      && !cloudProgressAhead(localProfile, cloudRecord)
+    ) {
+      return false;
+    }
+  }
   if (localProfile && cloudRecord && cloudProgressAhead(localProfile, cloudRecord)) return true;
   if (comparison.reason === 'cloud_newer') return true;
   if (comparison.resolution === 'cloud') return true;
