@@ -181,6 +181,7 @@ export default function App() {
   const { width } = useWindowDimensions();
   const lobbyMobile = isLobbyMobileWidth(width);
   const [gameData, setGameData] = useState(null);
+  const gameDataRef = useRef(null);
   const [phase, setPhase] = useState('menu');
   const [isPhaserLab, setIsPhaserLab] = useState(() => (
     Platform.OS === 'web' && typeof window !== 'undefined' && window.location.hash === '#/phaser-lab'
@@ -237,6 +238,26 @@ export default function App() {
   const [saveConflict, setSaveConflict] = useState(null);
   const [saveConflictBusy, setSaveConflictBusy] = useState(false);
   const cloudRefreshInFlightRef = useRef(false);
+  /** Skip redundant cloud polls on the same device (e.g. mart sync then battle start). */
+  const lastCloudFreshAtRef = useRef(new Map());
+  const CLOUD_FRESH_COOLDOWN_MS = 30000;
+
+  function markProfileCloudFresh(profileId) {
+    if (profileId) lastCloudFreshAtRef.current.set(profileId, Date.now());
+  }
+
+  function shouldSkipCloudRefresh(profileId, { force = false } = {}) {
+    if (force || !profileId) return false;
+    const lastAt = lastCloudFreshAtRef.current.get(profileId);
+    return lastAt != null && Date.now() - lastAt < CLOUD_FRESH_COOLDOWN_MS;
+  }
+
+  function markCloudFreshForSave(profileIDs) {
+    const ids = Array.isArray(profileIDs) ? profileIDs : profileIDs ? [profileIDs] : [];
+    for (const id of ids) {
+      markProfileCloudFresh(id);
+    }
+  }
   const [appVersionState, setAppVersionState] = useState(Platform.OS === 'web' ? 'checking' : 'ok');
   const [liveAppVersion, setLiveAppVersion] = useState(null);
   const [cloudSyncDialog, setCloudSyncDialog] = useState(null);
@@ -274,14 +295,16 @@ export default function App() {
     setNoticeDialog({ title, message });
   }
 
-  const refreshCloudIfBehind = useCallback(async (gd, profileId, { quiet = false } = {}) => {
+  const refreshCloudIfBehind = useCallback(async (gd, profileId, { quiet = false, force = false } = {}) => {
     if (!gd || !profileId) return { gameData: gd, refreshed: false };
     const profile = getPlayerProfile(gd, profileId);
     const pin = normalizePlayerKey(profile?.pin || profile?.playerKey);
     if (pin.length !== 4) return { gameData: gd, refreshed: false };
-
-    while (cloudRefreshInFlightRef.current) {
-      await new Promise((resolve) => setTimeout(resolve, 40));
+    if (shouldSkipCloudRefresh(profileId, { force })) {
+      return { gameData: gd, refreshed: false };
+    }
+    if (cloudRefreshInFlightRef.current && !force) {
+      return { gameData: gd, refreshed: false };
     }
 
     cloudRefreshInFlightRef.current = true;
@@ -295,6 +318,7 @@ export default function App() {
       if (refreshed && nextGd && !quiet) {
         showNotice('Cloud sync', CLOUD_SYNC_DONE_MESSAGE);
       }
+      markProfileCloudFresh(profileId);
       return { gameData: nextGd, refreshed };
     } finally {
       cloudRefreshInFlightRef.current = false;
@@ -303,23 +327,18 @@ export default function App() {
 
   const withCloudFreshProfile = useCallback(
     async (profileId, onFresh, options = {}) => {
-      const { blockOnRefresh = false } = options;
+      const { blockOnRefresh = false, forceCloudCheck = false } = options;
       const pid = profileId || setupP1ProfileId;
       if (!pid || !gameData) return null;
       const profile = getPlayerProfile(gameData, pid);
       const pin = normalizePlayerKey(profile?.pin || profile?.playerKey);
       if (pin.length !== 4) return onFresh(gameData);
 
-      let loadingTimer = null;
-      if (blockOnRefresh) {
-        loadingTimer = setTimeout(() => {
-          setCloudSyncDialog({ phase: 'loading', message: CLOUD_SYNC_LOADING_MESSAGE });
-        }, 500);
-      }
-
       try {
-        const result = await refreshCloudIfBehind(gameData, pid, { quiet: true });
-        if (loadingTimer) clearTimeout(loadingTimer);
+        const result = await refreshCloudIfBehind(gameData, pid, {
+          quiet: true,
+          force: forceCloudCheck,
+        });
         const refreshed = !!result.refreshed;
         const freshGd = result.gameData;
         if (freshGd !== gameData) {
@@ -333,7 +352,6 @@ export default function App() {
         setCloudSyncDialog(null);
         return onFresh(freshGd);
       } catch {
-        if (loadingTimer) clearTimeout(loadingTimer);
         setCloudSyncDialog(null);
         return null;
       }
@@ -348,7 +366,10 @@ export default function App() {
   async function openMonsterMart() {
     if (!gameData) return;
     const pid = shopProfileId();
-    const fresh = await withCloudFreshProfile(pid, (gd) => gd, { blockOnRefresh: true });
+    const fresh = await withCloudFreshProfile(pid, (gd) => gd, {
+      blockOnRefresh: true,
+      forceCloudCheck: true,
+    });
     if (!fresh) return;
     playSound('shop');
     setMonsterMartOpen(true);
@@ -357,7 +378,10 @@ export default function App() {
   async function openGearMart() {
     if (!gameData) return;
     const pid = shopProfileId();
-    const fresh = await withCloudFreshProfile(pid, (gd) => gd, { blockOnRefresh: true });
+    const fresh = await withCloudFreshProfile(pid, (gd) => gd, {
+      blockOnRefresh: true,
+      forceCloudCheck: true,
+    });
     if (!fresh) return;
     playSound('shop');
     setGearMartOpen(true);
@@ -651,7 +675,7 @@ export default function App() {
     const refreshActiveProfile = () => {
       const pid = setupP1ProfileId || gameData?.session?.activeProfileId;
       if (!pid || !gameData) return;
-      void refreshCloudIfBehind(gameData, pid, { quiet: true }).then(({ gameData: next }) => {
+      void refreshCloudIfBehind(gameData, pid, { quiet: true, force: true }).then(({ gameData: next }) => {
         if (next && next !== gameData) setGameData(next);
       });
     };
@@ -671,11 +695,16 @@ export default function App() {
   }, [gameData, setupP1ProfileId, refreshCloudIfBehind]);
 
   useEffect(() => {
-    if (phase !== 'menu' || !gameData) return;
+    gameDataRef.current = gameData;
+  }, [gameData]);
+
+  useEffect(() => {
+    if (phase !== 'menu' || !gameDataRef.current) return;
     const profileId = activeProfileId || setupP1ProfileId;
     if (!profileId) return;
-    void refreshCloudIfBehind(gameData, profileId, { quiet: true }).then(({ gameData: next, refreshed }) => {
-      if (next && next !== gameData) {
+    const gd = gameDataRef.current;
+    void refreshCloudIfBehind(gd, profileId, { quiet: true }).then(({ gameData: next, refreshed }) => {
+      if (next && next !== gd) {
         setGameData(next);
         syncSetupMonstersFromProfiles(next, profileId, null, gameMode);
       }
@@ -683,9 +712,10 @@ export default function App() {
         tryOfferDailySpin(profileId, 'menu');
       }
     });
-  }, [phase, gameData, activeProfileId, setupP1ProfileId, refreshCloudIfBehind, gameMode]);
+  }, [phase, activeProfileId, setupP1ProfileId, refreshCloudIfBehind, gameMode]);
 
   function persistSave(nextGd, reason, profileIDs, opts = {}) {
+    markCloudFreshForSave(profileIDs);
     setGameData(nextGd);
     void commitSave({
       reason,
@@ -694,6 +724,7 @@ export default function App() {
       forceCloud: !!opts.forceCloud,
     }).then(async (res) => {
       if (res?.gameData) setGameData(res.gameData);
+      if (res?.cloudSynced) markCloudFreshForSave(profileIDs);
       if (res?.cloudBlocked && res.cloudBlockPayload) {
         await applyCloudBlockPayload(res.cloudBlockPayload, res.gameData || nextGd);
       }
@@ -1316,13 +1347,10 @@ export default function App() {
 
   function handleClaimMainMiniBossChest(payload) {
     if (!gameData || !setupP1ProfileId) return Promise.resolve(null);
-    return withCloudFreshProfile(setupP1ProfileId, (freshGd) => {
-      const res = claimMainBattleMiniBossChest(freshGd, setupP1ProfileId, payload);
-      if (res.error || !res.drop) return null;
-      setGameData(res.gameData);
-      void persistSave(res.gameData, 'main_mini_boss_chest', [setupP1ProfileId]);
-      return { drop: res.drop, gameData: res.gameData };
-    }).then((result) => result ?? null);
+    const res = claimMainBattleMiniBossChest(gameData, setupP1ProfileId, payload);
+    if (res.error || !res.drop) return Promise.resolve(null);
+    persistSave(res.gameData, 'main_mini_boss_chest', [setupP1ProfileId]);
+    return Promise.resolve({ drop: res.drop, gameData: res.gameData });
   }
 
   function startGameFromSetup(options = {}) {
@@ -1647,7 +1675,7 @@ export default function App() {
 
   async function beginBattle(p1Fighter, p2Fighter, modeOverride = gameMode) {
     const profileId = setupP1ProfileId || gameData?.session?.activeProfileId;
-    const fresh = await withCloudFreshProfile(profileId, (gd) => gd, { blockOnRefresh: true });
+    const fresh = await withCloudFreshProfile(profileId, (gd) => gd);
     if (!fresh) return;
 
     const arm = (p) => {
@@ -2005,7 +2033,7 @@ export default function App() {
       ]}
     >
       <StatusBar style="dark" />
-      <SyncStatusIndicator />
+      <SyncStatusIndicator suppressRoutine={phase === 'battle' || phase === 'gameOver'} />
       <PlayerKeyModal
         visible={!!keyModal}
         mode={keyModal?.mode ?? 'login'}
