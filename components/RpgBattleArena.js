@@ -790,10 +790,6 @@ const styles = StyleSheet.create({
   },
   turnBadgePassive: {
     zIndex: 22,
-    backgroundColor: 'rgba(40, 18, 64, 0.55)',
-    borderRadius: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
   },
   turnBadgeTxt: {
     fontFamily: FONT_BATTLE_COMMENT,

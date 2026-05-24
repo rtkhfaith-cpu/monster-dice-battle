@@ -1,29 +1,38 @@
 /**
- * Passive skill battle UI — center comments, float colors, and labels.
+ * Passive skill battle UI — labels, float colors, center comments.
+ * Popup keys match addPopup() in passiveResolver (e.g. BLOOD_DRAIN, not "BLOOD DRAIN").
  */
-import { POPUP_LABELS } from './passiveResolver';
 
 /** @typedef {'heal'|'poison'|'burn'|'reflect'|'info'} PassiveFloatKind */
 
 /** @type {Record<string, { label: string, floatKind: PassiveFloatKind, color: string }>} */
 export const PASSIVE_POPUP_DISPLAY = {
-  [POPUP_LABELS.BLOOD_DRAIN]: { label: 'Lifesteal', floatKind: 'heal', color: '#2ecc71' },
-  [POPUP_LABELS.POISONED]: { label: 'Poison', floatKind: 'poison', color: '#b565f7' },
-  [POPUP_LABELS.BURN]: { label: 'Burn', floatKind: 'burn', color: '#ff6b35' },
-  [POPUP_LABELS.REGEN]: { label: 'Regen', floatKind: 'heal', color: '#2ecc71' },
-  [POPUP_LABELS.REFLECT]: { label: 'Reflect', floatKind: 'reflect', color: '#f59e0b' },
-  [POPUP_LABELS.BARRIER]: { label: 'Barrier', floatKind: 'info', color: '#48cae4' },
-  [POPUP_LABELS.IRON_GUARD]: { label: 'Iron Guard', floatKind: 'info', color: '#48cae4' },
-  [POPUP_LABELS.RAGE_CORE]: { label: 'Rage Core', floatKind: 'info', color: '#ff4757' },
+  BLOOD_DRAIN: { label: 'Lifesteal', floatKind: 'heal', color: '#2ecc71' },
+  POISONED: { label: 'Poison', floatKind: 'poison', color: '#b565f7' },
+  BURN: { label: 'Burn', floatKind: 'burn', color: '#ff6b35' },
+  REGEN: { label: 'Regen', floatKind: 'heal', color: '#2ecc71' },
+  REFLECT: { label: 'Reflect', floatKind: 'reflect', color: '#f59e0b' },
+  BARRIER: { label: 'Barrier', floatKind: 'info', color: '#48cae4' },
+  IRON_GUARD: { label: 'Iron Guard', floatKind: 'info', color: '#48cae4' },
+  RAGE_CORE: { label: 'Rage Core', floatKind: 'info', color: '#ff4757' },
 };
 
-const PASSIVE_POPUP_KEYS = new Set(Object.keys(PASSIVE_POPUP_DISPLAY));
+/** Normalize popupsToShow entries to PASSIVE_POPUP_DISPLAY keys. */
+export function resolvePopupKey(raw) {
+  if (!raw) return null;
+  const key = String(raw).trim();
+  if (PASSIVE_POPUP_DISPLAY[key]) return key;
+  const underscored = key.replace(/\s+/g, '_').toUpperCase();
+  if (PASSIVE_POPUP_DISPLAY[underscored]) return underscored;
+  return null;
+}
 
-/** Center arena comment from passive popup keys (e.g. "Lifesteal · Poison"). */
+/** Center/banner comment (e.g. "Lifesteal · Poison"). */
 export function formatPassiveCenterComment(popupLabels = []) {
   const parts = (popupLabels || [])
-    .filter((key) => PASSIVE_POPUP_KEYS.has(key))
-    .map((key) => PASSIVE_POPUP_DISPLAY[key]?.label ?? key);
+    .map(resolvePopupKey)
+    .filter(Boolean)
+    .map((key) => PASSIVE_POPUP_DISPLAY[key].label);
   if (!parts.length) return null;
   return parts.join(' · ');
 }
@@ -43,14 +52,13 @@ export function isPassiveFeedbackMessage(msg) {
 export function buildFloatsFromAttackResolved(resolved, attackerId, defenderId) {
   const floats = [];
   if (!resolved) return floats;
-  const popups = new Set(resolved.popupsToShow || []);
 
-  if ((resolved.healing ?? 0) > 0 && popups.has(POPUP_LABELS.BLOOD_DRAIN)) {
+  if ((resolved.healing ?? 0) > 0) {
     floats.push({
       fighterId: attackerId,
       floatKind: 'heal',
       amount: resolved.healing,
-      label: PASSIVE_POPUP_DISPLAY[POPUP_LABELS.BLOOD_DRAIN].label,
+      label: PASSIVE_POPUP_DISPLAY.BLOOD_DRAIN.label,
     });
   }
   if ((resolved.reflectedDamage ?? 0) > 0) {
@@ -58,7 +66,7 @@ export function buildFloatsFromAttackResolved(resolved, attackerId, defenderId) 
       fighterId: attackerId,
       floatKind: 'reflect',
       amount: resolved.reflectedDamage,
-      label: PASSIVE_POPUP_DISPLAY[POPUP_LABELS.REFLECT].label,
+      label: PASSIVE_POPUP_DISPLAY.REFLECT.label,
     });
   }
   if (resolved.statusEffectsApplied?.includes('poison')) {
@@ -66,7 +74,7 @@ export function buildFloatsFromAttackResolved(resolved, attackerId, defenderId) 
       fighterId: defenderId,
       floatKind: 'poison',
       amount: 0,
-      label: PASSIVE_POPUP_DISPLAY[POPUP_LABELS.POISONED].label,
+      label: PASSIVE_POPUP_DISPLAY.POISONED.label,
       statusApplied: true,
     });
   }
@@ -75,7 +83,7 @@ export function buildFloatsFromAttackResolved(resolved, attackerId, defenderId) 
       fighterId: defenderId,
       floatKind: 'burn',
       amount: 0,
-      label: PASSIVE_POPUP_DISPLAY[POPUP_LABELS.BURN].label,
+      label: PASSIVE_POPUP_DISPLAY.BURN.label,
       statusApplied: true,
     });
   }
@@ -90,7 +98,7 @@ export function buildFloatFromRegen(fighterId, healing) {
       fighterId,
       floatKind: 'heal',
       amount: healing,
-      label: PASSIVE_POPUP_DISPLAY[POPUP_LABELS.REGEN].label,
+      label: PASSIVE_POPUP_DISPLAY.REGEN.label,
     },
   ];
 }
@@ -102,15 +110,15 @@ export function buildFloatFromRegen(fighterId, healing) {
 export function buildFloatFromDotTick(fighterId, ticked) {
   const dmg = ticked?.tickDamage ?? 0;
   if (dmg <= 0) return [];
-  const dotType = ticked.dotType ?? (ticked.popup === POPUP_LABELS.BURN ? 'burn' : 'poison');
-  const key = dotType === 'burn' ? POPUP_LABELS.BURN : POPUP_LABELS.POISONED;
-  const display = PASSIVE_POPUP_DISPLAY[key];
+  const dotType = ticked.dotType ?? (resolvePopupKey(ticked.popup) === 'BURN' ? 'burn' : 'poison');
+  const display =
+    dotType === 'burn' ? PASSIVE_POPUP_DISPLAY.BURN : PASSIVE_POPUP_DISPLAY.POISONED;
   return [
     {
       fighterId,
       floatKind: dotType === 'burn' ? 'burn' : 'poison',
       amount: dmg,
-      label: display?.label ?? (dotType === 'burn' ? 'Burn' : 'Poison'),
+      label: display.label,
     },
   ];
 }

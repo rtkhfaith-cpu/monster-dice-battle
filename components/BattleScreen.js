@@ -254,7 +254,6 @@ export default function BattleScreen({
   const [bannerCombatHighlight, setBannerCombatHighlight] = useState(false);
   const [bannerPassiveHighlight, setBannerPassiveHighlight] = useState(false);
   const [passiveFloatItems, setPassiveFloatItems] = useState([]);
-  const [passiveCenterComment, setPassiveCenterComment] = useState(null);
   const [busy, setBusy] = useState(false);
   const [isActionPlaying, setIsActionPlaying] = useState(false);
   const [currentEffect, setCurrentEffect] = useState(null);
@@ -450,19 +449,17 @@ export default function BattleScreen({
       passiveFloatTimerRef.current = null;
     }
     setPassiveFloatItems([]);
-    setPassiveCenterComment(null);
     setBannerPassiveHighlight(false);
   }
 
-  function presentPassiveFeedback({ floats = [], centerComment = null, bannerText = null }) {
-    if (!floats.length && !centerComment && !bannerText) return;
+  function presentPassiveFeedback({ floats = [], bannerText = null }) {
+    if (!floats.length && !bannerText) return;
     const seq = ++passiveFloatSeqRef.current;
     const tagged = floats.map((f, i) => ({ ...f, id: `pf-${seq}-${i}` }));
     if (tagged.length) {
       setPassiveFloatItems((prev) => [...prev, ...tagged]);
     }
-    if (centerComment) setPassiveCenterComment(centerComment);
-    const msg = bannerText ?? centerComment;
+    const msg = bannerText;
     if (msg) {
       if (combatBannerTimerRef.current) {
         clearTimeout(combatBannerTimerRef.current);
@@ -484,7 +481,7 @@ export default function BattleScreen({
     const center = formatPassiveCenterComment(resolved.popupsToShow);
     const floats = buildFloatsFromAttackResolved(resolved, attackerId, defenderId);
     if (!center && !floats.length) return;
-    presentPassiveFeedback({ floats, centerComment: center, bannerText: center });
+    presentPassiveFeedback({ floats, bannerText: center });
   }
 
   function applyTurnStartPassives(fighter, fighterId = PLAYER_ID) {
@@ -492,7 +489,7 @@ export default function BattleScreen({
     const floats = buildFloatFromRegen(fighterId, regen.healing ?? 0);
     const center = formatPassiveCenterComment(regen.popupsToShow);
     if (floats.length || center) {
-      presentPassiveFeedback({ floats, centerComment: center, bannerText: center ?? 'Regen' });
+      presentPassiveFeedback({ floats, bannerText: center ?? 'Regen' });
     }
     return regen.fighter;
   }
@@ -727,7 +724,6 @@ export default function BattleScreen({
     if (ticked.passiveFloats?.length || ticked.passiveCenter) {
       presentPassiveFeedback({
         floats: ticked.passiveFloats,
-        centerComment: ticked.passiveCenter,
         bannerText: ticked.passiveCenter || ticked.message,
       });
     } else {
@@ -1404,10 +1400,7 @@ export default function BattleScreen({
                 }}
                 height={phaserArenaHeight}
               />
-              <BattlePassiveFloatLayer
-                items={passiveFloatItems}
-                centerComment={passiveCenterComment}
-              />
+              <BattlePassiveFloatLayer items={passiveFloatItems} />
             </>
           ) : (
             <>
@@ -1448,10 +1441,7 @@ export default function BattleScreen({
                   sequenceControlled
                 />
               ) : null}
-              <BattlePassiveFloatLayer
-                items={passiveFloatItems}
-                centerComment={passiveCenterComment}
-              />
+              <BattlePassiveFloatLayer items={passiveFloatItems} />
             </>
           )}
           {battleExtras?.mode === 'monsterLadder' ? (

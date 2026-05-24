@@ -65,13 +65,13 @@ function PassiveFloatItem({ item, arenaW, arenaH }) {
 
 /**
  * Floating passive numbers (heal / poison / burn / reflect) over the RPG arena.
- * @param {{ items: Array<{ id: string, fighterId: 1|2, floatKind: string, amount: number, label: string }>, centerComment?: string|null }} props
+ * @param {{ items: Array<{ id: string, fighterId: 1|2, floatKind: string, amount: number, label: string }> }} props
  */
-export default function BattlePassiveFloatLayer({ items = [], centerComment = null }) {
+export default function BattlePassiveFloatLayer({ items = [] }) {
   const [arenaW, setArenaW] = useState(360);
   const [arenaH, setArenaH] = useState(360);
 
-  if (!items.length && !centerComment) return null;
+  if (!items.length) return null;
 
   return (
     <View
@@ -83,13 +83,6 @@ export default function BattlePassiveFloatLayer({ items = [], centerComment = nu
         if (height > 80) setArenaH(height);
       }}
     >
-      {centerComment ? (
-        <View style={[styles.centerComment, { top: arenaH * 0.38 }]}>
-          <Text style={styles.centerCommentTxt} numberOfLines={2}>
-            {centerComment}
-          </Text>
-        </View>
-      ) : null}
       {items.map((item) => (
         <PassiveFloatItem key={item.id} item={item} arenaW={arenaW} arenaH={arenaH} />
       ))}
@@ -102,29 +95,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 25,
     overflow: 'hidden',
-  },
-  centerComment: {
-    position: 'absolute',
-    left: '8%',
-    right: '8%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: fx(8),
-    paddingHorizontal: fx(12),
-    backgroundColor: 'rgba(26, 18, 48, 0.82)',
-    borderRadius: fx(12),
-    borderWidth: 2,
-    borderColor: 'rgba(181, 101, 247, 0.55)',
-  },
-  centerCommentTxt: {
-    fontWeight: '800',
-    fontSize: fx(17),
-    color: '#f3e8ff',
-    textAlign: 'center',
-    letterSpacing: 0.4,
-    textShadowColor: 'rgba(0,0,0,0.7)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   floatWrap: {
     position: 'absolute',
