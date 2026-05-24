@@ -102,6 +102,7 @@ export default function RpgBattleArena({
   round,
   turnBadge = '',
   turnBadgeCombatHighlight = false,
+  turnBadgePassiveHighlight = false,
   player1Label = 'You',
   player2Label = 'Foe',
   topHudExtra = null,
@@ -208,6 +209,7 @@ export default function RpgBattleArena({
   const roundLabel = narrow ? `R${round}` : `Round ${round}`;
   const turnShort = turnBadge || '';
   const combatCallout = !!turnBadgeCombatHighlight;
+  const passiveCallout = !!turnBadgePassiveHighlight;
   const battleGroundUri = useMemo(() => {
     if (mainMiniBossEncounter && GAME_ASSETS.battleGroundEncounter) {
       return GAME_ASSETS.battleGroundEncounter;
@@ -244,13 +246,18 @@ export default function RpgBattleArena({
         <View
           style={[
             styles.turnBadge,
-            { top: combatCallout ? L.combatTurnTop : L.turnTop },
+            { top: combatCallout ? L.combatTurnTop : passiveCallout ? L.combatTurnTop : L.turnTop },
             combatCallout && styles.turnBadgeCombat,
+            passiveCallout && styles.turnBadgePassive,
           ]}
           pointerEvents="none"
         >
           <Text
-            style={[styles.turnBadgeTxt, combatCallout && styles.turnBadgeTxtCombat]}
+            style={[
+              styles.turnBadgeTxt,
+              combatCallout && styles.turnBadgeTxtCombat,
+              passiveCallout && styles.turnBadgeTxtPassive,
+            ]}
             numberOfLines={3}
           >
             {turnShort}
@@ -781,6 +788,13 @@ const styles = StyleSheet.create({
   turnBadgeCombat: {
     zIndex: 22,
   },
+  turnBadgePassive: {
+    zIndex: 22,
+    backgroundColor: 'rgba(40, 18, 64, 0.55)',
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
   turnBadgeTxt: {
     fontFamily: FONT_BATTLE_COMMENT,
     fontWeight: '400',
@@ -804,6 +818,16 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(80, 40, 0, 0.95)',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 8,
+  },
+  turnBadgeTxtPassive: {
+    fontWeight: '800',
+    fontSize: 22,
+    lineHeight: 28,
+    color: '#e9d5ff',
+    letterSpacing: 0.6,
+    textShadowColor: 'rgba(60, 20, 100, 0.9)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   roundBadge: {
     position: 'absolute',

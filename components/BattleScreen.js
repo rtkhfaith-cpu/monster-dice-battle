@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { isMobileLayout } from '../utils/battleLayout';
 import BattleProjectileLayer from './BattleProjectileLayer';
+import BattlePassiveFloatLayer from './BattlePassiveFloatLayer';
 import PhaserBattleView from './PhaserBattleView';
 import RpgBattleArena from './RpgBattleArena';
 import { resolveAttackVisuals } from '../utils/battleProjectiles';
@@ -22,6 +23,12 @@ import {
   resolveAttackWithPassives,
   resolveStartOfTurnPassives,
 } from '../src/gameSystems/passiveResolver';
+import {
+  buildFloatFromDotTick,
+  buildFloatFromRegen,
+  buildFloatsFromAttackResolved,
+  formatPassiveCenterComment,
+} from '../src/gameSystems/passiveBattleFeedback';
 import { elementBannerText, ELEMENT_UI } from '../utils/elements';
 import {
   canAffordSkill,
@@ -245,6 +252,9 @@ export default function BattleScreen({
   const [p2, setP2] = useState(() => seedFighter(fighter2));
   const [bannerMessage, setBannerMessage] = useState('Choose your move');
   const [bannerCombatHighlight, setBannerCombatHighlight] = useState(false);
+  const [bannerPassiveHighlight, setBannerPassiveHighlight] = useState(false);
+  const [passiveFloatItems, setPassiveFloatItems] = useState([]);
+  const [passiveCenterComment, setPassiveCenterComment] = useState(null);
   const [busy, setBusy] = useState(false);
   const [isActionPlaying, setIsActionPlaying] = useState(false);
   const [currentEffect, setCurrentEffect] = useState(null);
@@ -280,6 +290,8 @@ export default function BattleScreen({
   const pendingStrikeRef = useRef(null);
   const actionSfxRef = useRef({ launch: false, dodge: false, impact: false });
   const combatBannerTimerRef = useRef(null);
+  const passiveFloatTimerRef = useRef(null);
+  const passiveFloatSeqRef = useRef(0);
   const p1Ref = useRef(p1);
   const p2Ref = useRef(p2);
   const activeBattlerRef = useRef(PLAYER_ID);
@@ -423,6 +435,7 @@ export default function BattleScreen({
     const combat = isCombatFeedbackMessage(msg);
     setBannerMessage(msg);
     setBannerCombatHighlight(combat);
+    setBannerPassiveHighlight(false);
     if (combat) {
       combatBannerTimerRef.current = setTimeout(() => {
         setBannerCombatHighlight(false);
@@ -431,10 +444,55 @@ export default function BattleScreen({
     }
   }, []);
 
-  function applyTurnStartPassives(fighter) {
+  function clearPassiveFeedbackVisuals() {
+    if (passiveFloatTimerRef.current) {
+      clearTimeout(passiveFloatTimerRef.current);
+      passiveFloatTimerRef.current = null;
+    }
+    setPassiveFloatItems([]);
+    setPassiveCenterComment(null);
+    setBannerPassiveHighlight(false);
+  }
+
+  function presentPassiveFeedback({ floats = [], centerComment = null, bannerText = null }) {
+    if (!floats.length && !centerComment && !bannerText) return;
+    const seq = ++passiveFloatSeqRef.current;
+    const tagged = floats.map((f, i) => ({ ...f, id: `pf-${seq}-${i}` }));
+    if (tagged.length) {
+      setPassiveFloatItems((prev) => [...prev, ...tagged]);
+    }
+    if (centerComment) setPassiveCenterComment(centerComment);
+    const msg = bannerText ?? centerComment;
+    if (msg) {
+      if (combatBannerTimerRef.current) {
+        clearTimeout(combatBannerTimerRef.current);
+        combatBannerTimerRef.current = null;
+      }
+      setBannerMessage(msg);
+      setBannerCombatHighlight(false);
+      setBannerPassiveHighlight(true);
+    }
+    if (passiveFloatTimerRef.current) clearTimeout(passiveFloatTimerRef.current);
+    passiveFloatTimerRef.current = setTimeout(() => {
+      clearPassiveFeedbackVisuals();
+      passiveFloatTimerRef.current = null;
+    }, 1600);
+  }
+
+  function presentPassiveFromAttack(resolved, attackerId, defenderId) {
+    if (!resolved) return;
+    const center = formatPassiveCenterComment(resolved.popupsToShow);
+    const floats = buildFloatsFromAttackResolved(resolved, attackerId, defenderId);
+    if (!center && !floats.length) return;
+    presentPassiveFeedback({ floats, centerComment: center, bannerText: center });
+  }
+
+  function applyTurnStartPassives(fighter, fighterId = PLAYER_ID) {
     const regen = resolveStartOfTurnPassives(fighter);
-    if (regen.popupsToShow?.length) {
-      showBanner(regen.popupsToShow.join(' · '));
+    const floats = buildFloatFromRegen(fighterId, regen.healing ?? 0);
+    const center = formatPassiveCenterComment(regen.popupsToShow);
+    if (floats.length || center) {
+      presentPassiveFeedback({ floats, centerComment: center, bannerText: center ?? 'Regen' });
     }
     return regen.fighter;
   }
@@ -462,6 +520,7 @@ export default function BattleScreen({
     setAutoAttackOn(false);
     clearTimers();
     if (combatBannerTimerRef.current) clearTimeout(combatBannerTimerRef.current);
+    if (passiveFloatTimerRef.current) clearTimeout(passiveFloatTimerRef.current);
   }, []);
 
   function clearAttackEffects() {
@@ -619,16 +678,27 @@ export default function BattleScreen({
     let a = np1;
     let b = np2;
     let msg = null;
+    const passiveFloats = [];
+    const dotPopups = [];
     const t1 = tickFighterStatus(a);
     a = t1.fighter;
     if (t1.message) msg = t1.message;
+    if (t1.tickDamage > 0) {
+      passiveFloats.push(...buildFloatFromDotTick(PLAYER_ID, t1));
+      if (t1.popup) dotPopups.push(t1.popup);
+    }
     const t2 = tickFighterStatus(b);
     b = t2.fighter;
     if (t2.message && !msg) msg = t2.message;
-    if (a.hp <= 0 || b.hp <= 0) {
-      return { np1: a, np2: b, ko: true, message: msg };
+    if (t2.tickDamage > 0) {
+      passiveFloats.push(...buildFloatFromDotTick(CPU_ID, t2));
+      if (t2.popup) dotPopups.push(t2.popup);
     }
-    return { np1: a, np2: b, ko: false, message: msg };
+    const passiveCenter = formatPassiveCenterComment(dotPopups);
+    if (a.hp <= 0 || b.hp <= 0) {
+      return { np1: a, np2: b, ko: true, message: msg, passiveFloats, passiveCenter };
+    }
+    return { np1: a, np2: b, ko: false, message: msg, passiveFloats, passiveCenter };
   }
 
   function endRound(np1, np2, bannerOverride) {
@@ -654,7 +724,15 @@ export default function BattleScreen({
     setMenuMode('main');
     setBusy(false);
     setIsActionPlaying(false);
-    showBanner(bannerOverride || ticked.message || 'Choose your move');
+    if (ticked.passiveFloats?.length || ticked.passiveCenter) {
+      presentPassiveFeedback({
+        floats: ticked.passiveFloats,
+        centerComment: ticked.passiveCenter,
+        bannerText: ticked.passiveCenter || ticked.message,
+      });
+    } else {
+      showBanner(bannerOverride || ticked.message || 'Choose your move');
+    }
     if (opponentIsAi && activeBattlerRef.current === PLAYER_ID) {
       schedule(150, () => scheduleAutoTurn());
     }
@@ -847,7 +925,7 @@ export default function BattleScreen({
       let rp1 = np1;
       let rp2 = np2;
       const turnFighter = next === PLAYER_ID ? np1 : np2;
-      const regenFighter = applyTurnStartPassives(turnFighter);
+      const regenFighter = applyTurnStartPassives(turnFighter, next);
       if (next === PLAYER_ID) rp1 = regenFighter;
       else rp2 = regenFighter;
       endRound(rp1, rp2, `${name}'s turn`);
@@ -980,9 +1058,6 @@ export default function BattleScreen({
     });
 
     const dmg = resolved.dodged ? 0 : resolved.damage;
-    if (resolved.popupsToShow?.length) {
-      showBanner(resolved.popupsToShow.join(' · '));
-    }
     const mpCost = strikeKind === 'magic' ? skill?.mpCost ?? 0 : 0;
     const timing = getActionTiming({
       strikeKind,
@@ -1161,9 +1236,10 @@ export default function BattleScreen({
       if (!resolved.dodged) {
         applyPendingHp();
         applyImpactVisuals(defenderId, { ...effectPayload, damage: dmg });
+        presentPassiveFromAttack(resolved, attackerId, defenderId);
         if (!resolved.critical && !resolved.weak && !resolved.defended && strikeKind === 'magic') {
           const elMsg = elementBannerText(resolved.elementRelation);
-          if (elMsg) showBanner(elMsg);
+          if (elMsg && !formatPassiveCenterComment(resolved.popupsToShow)) showBanner(elMsg);
         }
       }
     });
@@ -1173,7 +1249,7 @@ export default function BattleScreen({
 
   function runCpuCounter(np1, np2) {
     schedule(400, () => {
-      const cpu = applyTurnStartPassives(p2Ref.current);
+      const cpu = applyTurnStartPassives(p2Ref.current, CPU_ID);
       p2Ref.current = cpu;
       setP2(cpu);
       const { skill, strikeKind } = pickCpuStrike(cpu);
@@ -1328,6 +1404,10 @@ export default function BattleScreen({
                 }}
                 height={phaserArenaHeight}
               />
+              <BattlePassiveFloatLayer
+                items={passiveFloatItems}
+                centerComment={passiveCenterComment}
+              />
             </>
           ) : (
             <>
@@ -1346,6 +1426,7 @@ export default function BattleScreen({
                 round={round}
                 turnBadge={bannerMessage}
                 turnBadgeCombatHighlight={bannerCombatHighlight}
+                turnBadgePassiveHighlight={bannerPassiveHighlight}
                 player1Label={labelP1}
                 player2Label={labelCpu}
                 battleDim={battleDim}
@@ -1367,6 +1448,10 @@ export default function BattleScreen({
                   sequenceControlled
                 />
               ) : null}
+              <BattlePassiveFloatLayer
+                items={passiveFloatItems}
+                centerComment={passiveCenterComment}
+              />
             </>
           )}
           {battleExtras?.mode === 'monsterLadder' ? (

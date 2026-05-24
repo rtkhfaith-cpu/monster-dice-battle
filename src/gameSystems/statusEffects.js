@@ -86,6 +86,7 @@ export function tickDotStatus(fighter) {
   return {
     fighter: { ...fighter, hp, status: nextStatus },
     tickDamage,
+    dotType: s.type,
     message: s.type === 'poison' ? 'Poison hurts!' : 'Burn sizzles!',
     popup: s.type === 'poison' ? 'POISONED' : 'BURN',
     isDot: true,
