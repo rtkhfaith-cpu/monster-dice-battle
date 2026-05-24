@@ -66,7 +66,7 @@ export function getMainMiniBossMonsterRarityPercents(playerLevel) {
 }
 
 /** Mini boss stats = same template at level × this multiplier (vs normal CPU 0.9×). */
-export const MAIN_MINI_BOSS_STAT_MULT = 1.5;
+export const MAIN_MINI_BOSS_STAT_MULT = 1.2;
 
 export function normalizeMainBattleState(profile) {
   if (!profile) return;

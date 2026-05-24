@@ -1456,7 +1456,7 @@ export default function BattleScreen({
             <View style={[styles.ladderStagePill, styles.ladderStagePillBoss]} pointerEvents="none">
               <Text style={styles.ladderStagePillMain}>Mini Boss Encounter</Text>
               <Text style={styles.ladderStagePillBossTxt}>
-                50% stronger · Chest reward
+                20% stronger · Chest reward
                 {bossPassiveIntroLines.length > 0 ? ` · ${bossPassiveIntroLines.length} passive` : ''}
               </Text>
             </View>

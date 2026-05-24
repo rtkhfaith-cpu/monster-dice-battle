@@ -1,5 +1,8 @@
 import { LADDER_BALANCE } from './ladder';
 
+/** All monster EXP gains (battle, ladder, rescue, chests) are multiplied by this. */
+export const GLOBAL_EXP_GAIN_MULTIPLIER = 3;
+
 export const REWARD_BALANCE = {
   normalExpBase: 15,
   normalExpPerEnemyLevel: 3,
@@ -14,6 +17,13 @@ export const REWARD_BALANCE = {
   bigBossCoinMultiplier: 2,
   ladderCoinMultiplier: LADDER_BALANCE.coinMultiplier,
 };
+
+/** Scale positive EXP gains; losses and zero stay unchanged. */
+export function scaleExpGain(amount) {
+  const n = Math.floor(Number(amount) || 0);
+  if (n <= 0) return n;
+  return Math.max(1, Math.floor(n * GLOBAL_EXP_GAIN_MULTIPLIER));
+}
 
 export function normalExpForEnemyLevel(enemyLevel) {
   const lv = Math.max(1, Math.floor(enemyLevel || 1));

@@ -1,5 +1,5 @@
 import { addExperience, subtractExperience, expToAdvanceFrom, expWinForEnemyLevel, expLossPenalty } from '../expLevel';
-import { ladderCoinsForEnemyLevel } from '../../src/gameBalance/rewards';
+import { ladderCoinsForEnemyLevel, scaleExpGain } from '../../src/gameBalance/rewards';
 import { LADDER_CHEST_GOLD_COST, LADDER_CHEST_SHARD_COST, LADDER_EXP_MULTIPLIER } from './ladderConstants';
 import { grantChestMonsterToProfile } from '../chestMonsterGrant';
 import { grantGearToProfile } from '../gearDuplicateReward';
@@ -95,7 +95,7 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
 
   if (won) {
     const baseExp = expWinForEnemyLevel(payload.enemyLevel ?? stage.mainLevel * 3);
-    expDelta = Math.floor(baseExp * LADDER_EXP_MULTIPLIER);
+    expDelta = scaleExpGain(Math.floor(baseExp * LADDER_EXP_MULTIPLIER));
     ladderGoldGain = ladderCoinsForEnemyLevel(payload.enemyLevel ?? stage.mainLevel * 3, getStageKind(stage.subLevel));
   } else if (payload.outcome === 2) {
     expDelta = -Math.floor(expLossPenalty(1) * 0.5);

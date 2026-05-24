@@ -18,6 +18,7 @@ import {
   normalizeEquippedSlots,
 } from './gearSlots';
 import { expMultiplierFromGear } from './gearStats';
+import { scaleExpGain } from '../src/gameBalance/rewards';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { applyStageClear, markRescueChestClaimed, normalizeMonsterRescue } from './monsterRescue/progress';
@@ -929,7 +930,8 @@ function grantExpInWallet(wallet, ownedId, amount) {
   const prevFormTier = visualFormTierFromLevel(om.level);
   const prevLvl = om.level;
   const mult = expMultiplierFromGear(om.equippedGear || []);
-  const raw = Math.floor(amount * mult);
+  let raw = Math.floor(amount * mult);
+  if (raw > 0) raw = scaleExpGain(raw);
   let res;
   if (raw >= 0) {
     res = addExperience({ level: om.level, exp: om.exp }, raw);
