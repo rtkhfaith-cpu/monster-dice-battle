@@ -6,15 +6,15 @@ const MONSTER_ELEMENTS = {
   crocs_goblin: 'earth',
   iphone_warrior: 'metal',
   lunchbox_dragon: 'fire',
-  pencil_shark: 'water',
+  pencil_shark: 'wood',
   homework_troll: 'wood',
-  toilet_paper_ninja: 'wood',
-  schoolbag_golem: 'earth',
+  toilet_paper_ninja: 'water',
+  schoolbag_golem: 'metal',
   t_rex: 'fire',
   tablet_wizard: 'metal',
-  skibidi_bot: 'water',
-  bubble_tea_slime: 'water',
-  sixtyseven_rex: 'metal',
+  skibidi_bot: 'earth',
+  bubble_tea_slime: 'earth',
+  sixtyseven_rex: 'fire',
   goldzilla: 'metal',
 };
 const MONSTER_SKILL_SETS = {
@@ -66,7 +66,7 @@ const MONSTER_SKILL_SETS = {
   pencil_shark: {
     physical: { id: 'point_strike', name: 'Point Strike', kind: 'physical', effectType: 'normal', emoji: '✏️', power: 1 },
     magic: [
-      { id: 'ink_jet', name: 'Ink Jet', kind: 'magic', mpCost: 12, element: 'water', power: 1.22, effectType: 'water', emoji: '🖊️' },
+      { id: 'ink_jet', name: 'Ink Jet', kind: 'magic', mpCost: 12, element: 'wood', power: 1.22, effectType: 'normal', emoji: '🖊️' },
       { id: 'paper_cut', name: 'Paper Cut Fury', kind: 'magic', mpCost: 14, element: 'metal', power: 1.18, effectType: 'normal', emoji: '📄', status: { type: 'poison', chance: 0.3, turns: 2 } },
     ],
   },
@@ -80,14 +80,14 @@ const MONSTER_SKILL_SETS = {
   toilet_paper_ninja: {
     physical: { id: 'roll_whip', name: 'Roll Whip', kind: 'physical', effectType: 'toiletPaper', emoji: '🧻', power: 1 },
     magic: [
-      { id: 'tp_tornado', name: 'TP Tornado', kind: 'magic', mpCost: 12, element: 'wood', power: 1.2, effectType: 'toiletPaper', emoji: '🌪️' },
+      { id: 'tp_tornado', name: 'TP Tornado', kind: 'magic', mpCost: 12, element: 'water', power: 1.2, effectType: 'toiletPaper', emoji: '🌪️' },
       { id: 'clog_trap', name: 'Clog Trap', kind: 'magic', mpCost: 14, element: 'water', power: 1.15, effectType: 'water', emoji: '🚽', status: { type: 'defDown', chance: 0.4, turns: 2 } },
     ],
   },
   schoolbag_golem: {
     physical: { id: 'backpack_bash', name: 'Backpack Bash', kind: 'physical', effectType: 'normal', emoji: '🎒', power: 1 },
     magic: [
-      { id: 'heavy_books', name: 'Heavy Books', kind: 'magic', mpCost: 13, element: 'earth', power: 1.25, effectType: 'normal', emoji: '📖' },
+      { id: 'heavy_books', name: 'Heavy Books', kind: 'magic', mpCost: 13, element: 'metal', power: 1.25, effectType: 'normal', emoji: '📖' },
       { id: 'locker_slam', name: 'Locker Slam', kind: 'magic', mpCost: 15, element: 'metal', power: 1.2, effectType: 'normal', emoji: '🔐', status: { type: 'atkDown', chance: 0.35, turns: 2 } },
     ],
   },
@@ -109,30 +109,29 @@ const MONSTER_SKILL_SETS = {
   skibidi_bot: {
     physical: { id: 'flush_punch', name: 'Flush Punch', kind: 'physical', effectType: 'toiletPaper', emoji: '🚽', power: 1 },
     magic: [
-      { id: 'skibidi_beam', name: 'Skibidi Beam', kind: 'magic', mpCost: 14, element: 'water', power: 1.3, effectType: 'water', emoji: '🎵' },
+      { id: 'skibidi_beam', name: 'Skibidi Beam', kind: 'magic', mpCost: 14, element: 'earth', power: 1.3, effectType: 'normal', emoji: '🎵' },
       { id: 'camera_flash', name: 'Camera Flash', kind: 'magic', mpCost: 12, element: 'metal', power: 1.15, effectType: 'normal', emoji: '📸' },
     ],
   },
   bubble_tea_slime: {
-    physical: { id: 'boba_splash', name: 'Boba Splash', kind: 'physical', effectType: 'water', emoji: '🧋', power: 1 },
+    physical: { id: 'pearl_shield_bash', name: 'Pearl Shield Bash', kind: 'physical', effectType: 'normal', emoji: '🛡️', power: 1.05 },
     magic: [
-      { id: 'sugar_rush', name: 'Sugar Rush', kind: 'magic', mpCost: 11, element: 'water', power: 1.18, effectType: 'water', emoji: '🍬' },
-      { id: 'sticky_slime', name: 'Sticky Slime', kind: 'magic', mpCost: 14, element: 'water', power: 1.12, effectType: 'water', emoji: '🫧', status: { type: 'defDown', chance: 0.4, turns: 2 } },
+      { id: 'mud_pearl', name: 'Mud Pearl', kind: 'magic', mpCost: 13, element: 'earth', power: 1.15, effectType: 'normal', emoji: '🪨', status: { type: 'defUp', chance: 1, turns: 2 } },
+      { id: 'tidal_boba', name: 'Tidal Boba', kind: 'magic', mpCost: 16, element: 'water', power: 1.25, effectType: 'water', emoji: '🧋' },
     ],
   },
   sixtyseven_rex: {
-    physical: { id: 'mythic_claw', name: 'Mythic Claw', kind: 'physical', effectType: 'normal', emoji: '⚡', power: 1.08 },
+    physical: { id: 'mythic_claw', name: 'Mythic Claw', kind: 'physical', effectType: 'normal', emoji: '⚡', power: 1.18 },
     magic: [
-      { id: 'sixtyseven_blast', name: '67 Blast', kind: 'magic', mpCost: 15, element: 'metal', power: 1.35, effectType: 'magic67', emoji: '6️⃣' },
-      { id: 'golden_roar', name: 'Golden Roar', kind: 'magic', mpCost: 18, element: 'fire', power: 1.4, effectType: 'roar', emoji: '👑', status: { type: 'burn', chance: 0.45, turns: 2 } },
-      { id: 'hype_wave', name: 'Hype Wave', kind: 'magic', mpCost: 12, element: 'metal', power: 1.2, effectType: 'normal', emoji: '🌟' },
+      { id: 'ember_rush', name: 'Ember Rush', kind: 'magic', mpCost: 14, element: 'fire', power: 1.28, effectType: 'fire', emoji: '🔥' },
+      { id: 'vine_slam', name: 'Vine Slam', kind: 'magic', mpCost: 16, element: 'wood', power: 1.22, effectType: 'normal', emoji: '🌿' },
     ],
   },
   goldzilla: {
-    physical: { id: 'executive_slam', name: 'Executive Slam', kind: 'physical', effectType: 'normal', emoji: '💼', power: 1.13 },
+    physical: { id: 'executive_slam', name: 'Executive Slam', kind: 'physical', effectType: 'normal', emoji: '💼', power: 1.1 },
     magic: [
-      { id: 'golden_wall', name: 'Golden Wall', kind: 'magic', mpCost: 15, element: 'metal', power: 1.42, effectType: 'normal', emoji: '🧱', status: { type: 'defDown', chance: 0.4, turns: 2 } },
-      { id: 'billionaire_roar', name: 'Billionaire Roar', kind: 'magic', mpCost: 18, element: 'fire', power: 1.47, effectType: 'roar', emoji: '💰', status: { type: 'burn', chance: 0.45, turns: 2 } },
+      { id: 'golden_wall', name: 'Golden Wall', kind: 'magic', mpCost: 15, element: 'metal', power: 1.38, effectType: 'normal', emoji: '🧱', status: { type: 'defDown', chance: 0.4, turns: 2 } },
+      { id: 'market_quake', name: 'Market Quake', kind: 'magic', mpCost: 17, element: 'earth', power: 1.4, effectType: 'normal', emoji: '📉' },
     ],
   },
 };

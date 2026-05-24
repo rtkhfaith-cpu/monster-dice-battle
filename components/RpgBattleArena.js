@@ -10,6 +10,7 @@ import {
   getStrictLayout,
   isBossEncounter,
   playerBossEncounterScale,
+  battleTemplateDisplayScale,
 } from '../utils/battleLayout';
 import { ELEMENT_UI } from '../utils/elements';
 import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
@@ -156,8 +157,12 @@ export default function RpgBattleArena({
   const L = useMemo(() => getStrictLayout(width, height), [width, height]);
   const stageKind = enemyStageKind ?? p2?.ladderStageKind;
   const placement = useMemo(() => getMonsterPlacement(stageKind, L, width), [stageKind, L, width]);
-  const p1MonsterSize = Math.round(L.p1Monster * playerBossEncounterScale(stageKind));
-  const p2MonsterSize = Math.round(L.p2Monster * enemyBossDisplayScale(stageKind));
+  const p1MonsterSize = Math.round(
+    L.p1Monster * playerBossEncounterScale(stageKind) * battleTemplateDisplayScale(p1?.monsterTemplateId),
+  );
+  const p2MonsterSize = Math.round(
+    L.p2Monster * enemyBossDisplayScale(stageKind) * battleTemplateDisplayScale(p2?.monsterTemplateId),
+  );
   const bossFight = isBossEncounter(stageKind);
   const feetNudge = useMemo(
     () => getBossFeetNudges(stageKind, p1MonsterSize, p2MonsterSize),

@@ -41,9 +41,24 @@ import {
   setMonsterLadderState,
 } from './monsterLadder/ladderProfile';
 import { clampMergeTier, mergeCostForNextTier, pickPrimaryInstance } from './mergeSystem';
-import { getOwnedRoster, rosterInstancesForTemplate, rosterSpeciesKey } from './rosterInventory';
+import {
+  defaultBattleMonsterId,
+  getOwnedRoster,
+  resolveBattleMonsterId,
+  rosterInstancesForTemplate,
+  rosterSpeciesKey,
+} from './rosterInventory';
 import { assertShopGearPurchase, assertShopMonsterPurchase } from './shopGuards';
-import { gearShopPrice, monsterShopPrice } from '../src/gameBalance/shop';
+import { gearShopPrice, monsterShopPrice, passiveBookShopPrice } from '../src/gameBalance/shop';
+import {
+  ensurePassiveInventory,
+  equipPassiveSkill,
+  grantPassiveSkillBook,
+  removeEquippedPassive,
+} from '../src/gameSystems/passiveInventory';
+import { getPassiveSkillDef } from '../src/gameSystems/passiveSkills';
+import { applyPassiveSkillBookDrop } from './passiveSkillChest';
+import { mainBattleChestDuplicateGold } from './mainBattleChest';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
@@ -219,6 +234,7 @@ function normalizeOwnedMonster(om) {
   }
   if (!Array.isArray(om.equippedLadderGear)) om.equippedLadderGear = [];
   om.mergeTier = clampMergeTier(om.mergeTier);
+  if (!Array.isArray(om.equippedPassives)) om.equippedPassives = [];
   const reconciled = reconcileMonsterLevelExp({ level: om.level, exp: om.exp });
   om.level = reconciled.level;
   om.exp = reconciled.exp;
@@ -350,15 +366,20 @@ function normalizePlayerProfile(p) {
   if (!Array.isArray(p.cosmeticEquippedP2)) p.cosmeticEquippedP2 = [];
   normalizeWalletMonsters(p);
   if (p.selectedMonsterId && !p.ownedMonsters.some((om) => om.id === p.selectedMonsterId)) {
-    p.selectedMonsterId = p.ownedMonsters[0]?.id ?? null;
+    p.selectedMonsterId = defaultBattleMonsterId(p);
+  } else if (p.selectedMonsterId) {
+    p.selectedMonsterId = resolveBattleMonsterId(p.ownedMonsters, p.selectedMonsterId);
   }
-  if (!p.selectedMonsterId && p.ownedMonsters[0]) p.selectedMonsterId = p.ownedMonsters[0].id;
+  if (!p.selectedMonsterId && p.ownedMonsters.length) {
+    p.selectedMonsterId = defaultBattleMonsterId(p);
+  }
   if (!p.battleProgress) p.battleProgress = defaultBattleProgress();
   if (!p.meta) p.meta = defaultProfileMeta();
   normalizeMainBattleState(p);
   p.monsterLadder = normalizeMonsterLadder(p.monsterLadder, p.ladderProgress);
   p.monsterRescue = normalizeMonsterRescue(p.monsterRescue);
   normalizeDailyLoginSpin(p);
+  ensurePassiveInventory(p);
   consolidatePlayerMonstersToMain(p);
   delete p.ladderProgress;
   sanitizePlayerProfile(p);
@@ -394,7 +415,7 @@ export function applyMonsterRescueStageResult(gameData, profileId, stageId, runS
     const chestDrop = chest.chestDrop ?? null;
     gd.players[idx] = next;
 
-    const ownedId = next.selectedMonsterId || next.ownedMonsters?.[0]?.id;
+    const ownedId = defaultBattleMonsterId(next);
     const expPack = grantExpInWallet(next, ownedId, rewards.exp);
     gd.players[idx] = next;
     return {
@@ -411,7 +432,7 @@ export function applyMonsterRescueStageResult(gameData, profileId, stageId, runS
   }
 
   profile.coins += rewards.coins;
-  const ownedId = profile.selectedMonsterId || profile.ownedMonsters?.[0]?.id;
+  const ownedId = defaultBattleMonsterId(profile);
   const expPack = grantExpInWallet(profile, ownedId, rewards.exp);
   const idx = gd.players.findIndex((p) => p.id === profileId);
   if (idx >= 0) gd.players[idx] = profile;
@@ -698,7 +719,9 @@ export function setProfileSelectedMonster(gameData, profileId, ownedMonsterId) {
   const p = gd.players.find((x) => x.id === profileId);
   if (!p) return gd;
   if (ownedMonsterId && !p.ownedMonsters.some((om) => om.id === ownedMonsterId)) return gd;
-  p.selectedMonsterId = ownedMonsterId || null;
+  p.selectedMonsterId = ownedMonsterId
+    ? resolveBattleMonsterId(p.ownedMonsters, ownedMonsterId)
+    : null;
   return gd;
 }
 
@@ -887,7 +910,8 @@ function grantExpInWallet(wallet, ownedId, amount) {
       expDelta: 0,
     };
   }
-  const om = wallet.ownedMonsters.find((x) => x.id === ownedId);
+  const battleId = resolveBattleMonsterId(wallet.ownedMonsters, ownedId);
+  const om = wallet.ownedMonsters.find((x) => x.id === battleId);
   if (!om) {
     return {
       levelsGained: 0,
@@ -1165,9 +1189,54 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
       applied.ownedCount = countOwnedMonsterTemplate(wallet, drop.id);
       applied.ownedId = granted.ownedId;
     }
+  } else if (drop.kind === 'skill_book') {
+    const grant = applyPassiveSkillBookDrop(profile, drop, 'mini_boss_chest');
+    applied.skillBook = grant.book;
+    applied.duplicate = !grant.ok && grant.duplicate;
+    if (!grant.ok && grant.duplicate) {
+      const bonus = mainBattleChestDuplicateGold(payload.enemyLevel ?? 1);
+      wallet.coins += bonus;
+      applied.kind = 'gold';
+      applied.amount = bonus;
+      applied.label = `+${bonus} coins (duplicate passive)`;
+    }
   }
 
   return { gameData: gd, drop: applied };
+}
+
+export function buyPassiveSkillBook(gameData, profileId, skillId, rarity) {
+  const gd = cloneGameData(gameData);
+  const wallet = walletForProfile(gd, profileId);
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const def = getPassiveSkillDef(skillId);
+  if (!def) return { gameData: gd, error: 'Unknown passive skill' };
+  const price = passiveBookShopPrice(rarity);
+  if (price == null) return { gameData: gd, error: 'This book is not sold here.' };
+  if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
+  const grant = grantPassiveSkillBook(wallet, skillId, rarity, 'shop');
+  if (!grant.ok) return { gameData: gd, error: grant.error || 'Cannot buy book' };
+  wallet.coins -= price;
+  wallet.updatedAt = new Date().toISOString();
+  return { gameData: gd, book: grant.book, price };
+}
+
+export function equipPassiveSkillOnMonster(gameData, profileId, monsterId, bookInstanceId) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const res = equipPassiveSkill(profile, monsterId, bookInstanceId);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd, equipped: res.equipped, slots: res.slots };
+}
+
+export function removePassiveFromMonster(gameData, profileId, monsterId, skillId) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const res = removeEquippedPassive(profile, monsterId, skillId);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd };
 }
 
 /**

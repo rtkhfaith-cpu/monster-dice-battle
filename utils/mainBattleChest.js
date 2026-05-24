@@ -5,6 +5,7 @@ import { GEAR_CATALOG, getGear } from './cosmetics';
 import { getAllowedCpuRarities } from './fighterFromOwned';
 import { profileOwnsMonsterTemplate } from './monsterLadder/ladderProfile';
 import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
+import { rollPassiveSkillBookDrop } from './passiveSkillChest';
 
 /** 20% chance for a main-menu CPU battle to spawn a catalog mini boss (testing). */
 export const MAIN_MINI_BOSS_CHANCE = 0.2;
@@ -204,28 +205,25 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
   const lvl = Math.max(1, Math.floor(enemyLevel || 1));
   const roll = Math.random();
 
-  if (roll < 0.28) {
+  if (roll < 0.05) {
     const amount = miniBossCoinPayout(lvl);
-    const bossCoins = bossCoinsForEnemyLevel(lvl, 'miniBoss');
     return {
       kind: 'gold',
       amount,
-      label: `${amount} coins`,
-      rarity: amount >= bossCoins * 1.35 ? 'rare' : 'common',
+      label: `${amount} bonus coins`,
+      rarity: 'rare',
     };
   }
 
-  if (roll < 0.56) {
+  if (roll < 0.3) {
+    const book = rollPassiveSkillBookDrop('miniBoss', profile);
+    if (book && book.kind === 'skill_book') return book;
     const amount = miniBossExpPayout(lvl);
     return { kind: 'exp', amount, label: `${amount} bonus EXP`, rarity: 'rare' };
   }
 
-  if (roll < 0.82) {
-    const gear = pickChestGear();
-    if (!gear) {
-      const amount = miniBossCoinPayout(lvl);
-      return { kind: 'gold', amount, label: `${amount} coins`, rarity: 'common' };
-    }
+  const gear = pickChestGear();
+  if (gear) {
     const premium = (gear.price ?? 0) > 85;
     return {
       kind: 'gear',
@@ -237,7 +235,8 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
     };
   }
 
-  return pickChestMonster(profile, lvl);
+  const amount = miniBossCoinPayout(lvl);
+  return { kind: 'gold', amount, label: `${amount} coins`, rarity: 'common' };
 }
 
 /** Coins when chest gear is already owned. */
@@ -249,6 +248,7 @@ export function mainBattleChestDuplicateGold(enemyLevel = 1) {
 
 export function chestDropTitle(drop) {
   if (!drop) return 'Chest reward';
+  if (drop.kind === 'skill_book') return `Passive Skill Book: ${drop.name ?? drop.skillId}`;
   if (drop.kind === 'gold') return `${drop.amount} coins`;
   if (drop.kind === 'exp') return `${drop.amount} bonus EXP`;
   if (drop.kind === 'gear') {
@@ -260,6 +260,8 @@ export function chestDropTitle(drop) {
 
 export function chestDropSubtitle(drop) {
   if (!drop) return '';
+  if (drop.kind === 'skill_book') return 'Passive Skill Book Acquired!';
+  if (drop.kind === 'skill_book_duplicate') return 'You already know this passive — converted to bonus coins';
   if (drop.kind === 'gold') return 'Gold from the chest';
   if (drop.kind === 'exp') return 'Experience for your fighter';
   if (drop.kind === 'gear') {

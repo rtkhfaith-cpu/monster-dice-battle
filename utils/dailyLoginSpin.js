@@ -8,6 +8,7 @@ import {
 } from './monsterLadder/ladderProfile';
 import { openLadderChestOnProfile } from './monsterLadder/ladderRewards';
 import { cloneGameData, getPlayerProfile } from './gameStorage';
+import { tryLuckySpinSkillBook, applyPassiveSkillBookDrop } from './passiveSkillChest';
 
 /** @typedef {'coins'|'shards'|'gear_chest'|'monster_chest'|'mythic_monster'} DailySpinKind */
 
@@ -139,6 +140,17 @@ export function dailySpinSegmentIndex(segmentId) {
   return Math.max(0, DAILY_SPIN_SEGMENTS.findIndex((s) => s.id === segmentId));
 }
 
+function maybeGrantBonusSkillBook(profile, result) {
+  const book = tryLuckySpinSkillBook(profile);
+  if (!book || book.kind !== 'skill_book') return result;
+  const grant = applyPassiveSkillBookDrop(profile, book, 'lucky_spin');
+  if (grant.ok && grant.book) {
+    result.skillBook = grant.book;
+    result.message = `${result.message} · Passive Skill Book: ${book.name}!`;
+  }
+  return result;
+}
+
 /** @param {object} profile @param {DailySpinSegment} segment */
 export function applyDailySpinPrizeToProfile(profile, segment) {
   const result = {
@@ -159,7 +171,7 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
     profile.coins = (profile.coins ?? 0) + amt;
     result.coinsTotal = profile.coins;
     result.message = `+${amt} coins`;
-    return result;
+    return maybeGrantBonusSkillBook(profile, result);
   }
 
   const ml = getMonsterLadderState(profile);
@@ -170,7 +182,7 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
     setMonsterLadderState(profile, ml);
     result.ladderShardsTotal = ml.ladderShards;
     result.message = `+${amt} ladder shards`;
-    return result;
+    return maybeGrantBonusSkillBook(profile, result);
   }
 
   if (segment.kind === 'gear_chest' || segment.kind === 'monster_chest') {
@@ -185,7 +197,7 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
     if (opened.error) {
       result.message = `${chestType === 'gear' ? 'Gear' : 'Monster'} chest could not open — try Monster Ladder`;
     }
-    return result;
+    return maybeGrantBonusSkillBook(profile, result);
   }
 
   if (segment.kind === 'mythic_monster') {
@@ -198,7 +210,7 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
       result.message = opened.drop
         ? formatChestDropMessage(opened.drop, 'monster')
         : 'Mythic chest opened';
-      return result;
+      return maybeGrantBonusSkillBook(profile, result);
     }
     const granted = grantChestMonsterToProfile(profile, pick);
     if (!granted) {
@@ -209,7 +221,7 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
       result.message = opened.drop
         ? formatChestDropMessage(opened.drop, 'monster')
         : 'Mythic chest opened';
-      return result;
+      return maybeGrantBonusSkillBook(profile, result);
     }
     const mlAfter = getMonsterLadderState(profile);
     if (!mlAfter.activeMonsterId) mlAfter.activeMonsterId = granted.ownedId;
@@ -226,10 +238,10 @@ export function applyDailySpinPrizeToProfile(profile, segment) {
       rarity: 'mythic',
       duplicate: granted.duplicate,
     };
-    return result;
+    return maybeGrantBonusSkillBook(profile, result);
   }
 
-  return result;
+  return maybeGrantBonusSkillBook(profile, result);
 }
 
 /**

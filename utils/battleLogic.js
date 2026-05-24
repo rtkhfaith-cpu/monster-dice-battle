@@ -1,9 +1,10 @@
 import { randInt } from './random';
-import { getElementRelation } from './elements';
+import { getElementRelation, resolveMagicElementRelation } from './elements';
 import { applyStatus, statusStatMultiplier } from './statusEffects';
 import { getLadderGear } from './monsterLadder/ladderGearCatalog';
 import {
   COMBAT_BALANCE,
+  applyCombatDamageModifiers,
   dodgeChance,
   elementalDamageMultiplier,
   randomVariance as balancedVariance,
@@ -76,6 +77,24 @@ function ladderEffectPct(fighter, type, predicate = null) {
     .reduce((sum, fx) => sum + (typeof fx.value === 'number' ? fx.value : 0), 0);
 }
 
+function defenderElementPair(defender, defElementOverride) {
+  const els = Array.isArray(defender?.elements) ? defender.elements : [];
+  const primary = defElementOverride ?? defender?.element ?? els[0] ?? 'earth';
+  const secondary = els[1] && els[1] !== primary ? els[1] : null;
+  return { primary, secondary };
+}
+
+function magicElementRelation(attacker, defender, atkElement, defElementOverride) {
+  const def = defenderElementPair(defender, defElementOverride);
+  return resolveMagicElementRelation({
+    attackerTemplateId: attacker?.monsterTemplateId,
+    defenderTemplateId: defender?.monsterTemplateId,
+    atkElement,
+    defPrimary: def.primary,
+    defSecondary: def.secondary,
+  });
+}
+
 /** How much defense shaves off incoming power (0–0.75). */
 function defenseMitigationRatio(defStat, attackPower) {
   const d = Math.max(0, defStat);
@@ -124,7 +143,12 @@ export function resolvePhysicalBattleDamage({ attacker, defender, skill = null }
     raw *= 0.75;
   }
 
-  const damage = Math.max(1, Math.round(raw));
+  const damage = applyCombatDamageModifiers(raw, {
+    attacker,
+    defender,
+    strikeKind: 'physical',
+    elementRelation: 'neutral',
+  });
   // Defense is baked into damage — do not flag every mitigated hit as "Blocked" UI.
   const defended = false;
 
@@ -158,7 +182,7 @@ export function resolveMagicBattleDamage({
   const extraMiss = ladderEffectPct(defender, 'enemyMissMagicChance');
   if (rollAttackAvoided(attacker, defender, true) || rollPercentChance(extraMiss)) {
     const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';
-    const dEl = defElement ?? defender?.element ?? 'earth';
+    const def = defenderElementPair(defender, defElement);
     return {
       damage: 0,
       critical: false,
@@ -166,9 +190,9 @@ export function resolveMagicBattleDamage({
       defended: false,
       dodged: true,
       strikeKind: 'magic',
-      elementRelation: getElementRelation(aEl, dEl),
+      elementRelation: magicElementRelation(attacker, defender, aEl, def.primary),
       atkElement: aEl,
-      defElement: dEl,
+      defElement: def.primary,
     };
   }
 
@@ -176,11 +200,12 @@ export function resolveMagicBattleDamage({
   const defMult = statusStatMultiplier(defender, 'def');
 
   const baseMagic = statMid(attacker?.stats?.magic, 10) * powerMult;
-  const defStat = statMid(defender?.stats?.def, 5) * defMult;
+  const mdFallback = statMid(defender?.stats?.def, 5);
+  const defStat = statMid(defender?.stats?.magicDef, mdFallback) * defMult;
 
   const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';
-  const dEl = defElement ?? defender?.element ?? 'earth';
-  const elementRelation = getElementRelation(aEl, dEl);
+  const def = defenderElementPair(defender, defElement);
+  const elementRelation = magicElementRelation(attacker, defender, aEl, def.primary);
   const elementalModifier = elementalDamageMultiplier(elementRelation);
 
   let raw = (baseMagic - defStat * COMBAT_BALANCE.magicDefenseScalar) * balancedVariance() * elementalModifier;
@@ -201,7 +226,12 @@ export function resolveMagicBattleDamage({
     raw *= 0.75;
   }
 
-  const damage = Math.max(1, Math.round(raw));
+  const damage = applyCombatDamageModifiers(raw, {
+    attacker,
+    defender,
+    strikeKind: 'magic',
+    elementRelation,
+  });
   const defended = false;
 
   return {
@@ -213,7 +243,7 @@ export function resolveMagicBattleDamage({
     strikeKind: 'magic',
     elementRelation,
     atkElement: aEl,
-    defElement: dEl,
+    defElement: def.primary,
   };
 }
 

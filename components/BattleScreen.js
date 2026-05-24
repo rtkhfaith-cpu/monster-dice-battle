@@ -16,11 +16,12 @@ import PhaserBattleView from './PhaserBattleView';
 import RpgBattleArena from './RpgBattleArena';
 import { resolveAttackVisuals } from '../utils/battleProjectiles';
 import { playSound, playSoundForSkill } from '../utils/sounds';
+import { maybeApplySkillStatus } from '../utils/battleLogic';
+import { tickDotStatus } from '../src/gameSystems/statusEffects';
 import {
-  maybeApplySkillStatus,
-  resolveMagicBattleDamage,
-  resolvePhysicalBattleDamage,
-} from '../utils/battleLogic';
+  resolveAttackWithPassives,
+  resolveStartOfTurnPassives,
+} from '../src/gameSystems/passiveResolver';
 import { elementBannerText, ELEMENT_UI } from '../utils/elements';
 import {
   canAffordSkill,
@@ -582,14 +583,21 @@ export default function BattleScreen({
     });
   }
 
+  function tickFighterStatus(fighter) {
+    if (fighter?.status?.dotMaxHpPct != null) {
+      return tickDotStatus(fighter);
+    }
+    return tickStatus(fighter);
+  }
+
   function tickBothStatuses(np1, np2) {
     let a = np1;
     let b = np2;
     let msg = null;
-    const t1 = tickStatus(a);
+    const t1 = tickFighterStatus(a);
     a = t1.fighter;
     if (t1.message) msg = t1.message;
-    const t2 = tickStatus(b);
+    const t2 = tickFighterStatus(b);
     b = t2.fighter;
     if (t2.message && !msg) msg = t2.message;
     if (a.hp <= 0 || b.hp <= 0) {
@@ -806,7 +814,14 @@ export default function BattleScreen({
       const next = prev === PLAYER_ID ? CPU_ID : PLAYER_ID;
       setActiveBattler(next);
       const name = next === PLAYER_ID ? labelP1 : labelCpu;
-      endRound(np1, np2, `${name}'s turn`);
+      let rp1 = np1;
+      let rp2 = np2;
+      const turnFighter = next === PLAYER_ID ? np1 : np2;
+      const regen = resolveStartOfTurnPassives(turnFighter);
+      if (regen.popupsToShow?.length) showBanner(regen.popupsToShow[0]);
+      if (next === PLAYER_ID) rp1 = regen.fighter;
+      else rp2 = regen.fighter;
+      endRound(rp1, rp2, `${name}'s turn`);
     };
   }
 
@@ -926,18 +941,19 @@ export default function BattleScreen({
       return;
     }
 
-    const resolved =
-      strikeKind === 'magic'
-        ? resolveMagicBattleDamage({
-            attacker: atk,
-            defender: def,
-            skill,
-            atkElement: skill?.element ?? atk.element,
-            defElement: def.element,
-          })
-        : resolvePhysicalBattleDamage({ attacker: atk, defender: def, skill });
+    const resolved = resolveAttackWithPassives({
+      attacker: atk,
+      defender: def,
+      skill,
+      strikeKind,
+      atkElement: skill?.element ?? atk.element,
+      defElement: def.element,
+    });
 
     const dmg = resolved.dodged ? 0 : resolved.damage;
+    if (resolved.popupsToShow?.length) {
+      showBanner(resolved.popupsToShow.join(' · '));
+    }
     const mpCost = strikeKind === 'magic' ? skill?.mpCost ?? 0 : 0;
     const timing = getActionTiming({
       strikeKind,
@@ -973,20 +989,26 @@ export default function BattleScreen({
     if (attackerId === PLAYER_ID) p1Ref.current = mpSpentAtk;
     else p2Ref.current = mpSpentAtk;
 
-    let nextDef = resolved.dodged ? { ...def } : { ...def, hp: Math.max(0, def.hp - dmg) };
+    let nextAtk = resolved.attacker ?? mpSpentAtk;
+    let nextDef = resolved.defender ?? def;
+    if (resolved.dodged) {
+      nextDef = { ...def };
+    } else if (!resolved.defender) {
+      nextDef = { ...def, hp: Math.max(0, def.hp - dmg) };
+    }
     if (dmg > 0 && strikeKind === 'magic' && !resolved.dodged) {
       nextDef = maybeApplySkillStatus(nextDef, skill);
     }
 
     const np1After =
       attackerId === PLAYER_ID
-        ? mpSpentAtk
+        ? nextAtk
         : defenderId === PLAYER_ID
           ? nextDef
           : { ...curP1 };
     const np2After =
       attackerId === CPU_ID
-        ? mpSpentAtk
+        ? nextAtk
         : defenderId === CPU_ID
           ? nextDef
           : { ...curP2 };

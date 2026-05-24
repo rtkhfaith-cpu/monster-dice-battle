@@ -12,6 +12,21 @@ function battleCommentTopPct(base) {
 /** All battle-screen monster sprites (RN arena + Phaser lab). */
 export const BATTLE_MONSTER_SIZE_MULT = 0.7;
 
+/**
+ * Per-template battle sprite scale (idle.png art padding varies).
+ * 1 = default; 1.2 = 20% larger than current battle size.
+ */
+export const BATTLE_TEMPLATE_DISPLAY_SCALE = {
+  core_feed_beast: 1.2,
+};
+
+/** @param {string|null|undefined} templateId */
+export function battleTemplateDisplayScale(templateId) {
+  if (!templateId) return 1;
+  const s = BATTLE_TEMPLATE_DISPLAY_SCALE[templateId];
+  return typeof s === 'number' && s > 0 ? s : 1;
+}
+
 /** Enemy sprite scale vs normal fighter size during boss encounters */
 export const BOSS_DISPLAY_SCALE = {
   /** Was 1.2; +30% for mini boss encounter presence */

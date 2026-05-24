@@ -44,3 +44,42 @@ export function gearShopPrice(gear) {
   if ((gear.bonuses?.expPct ?? 0) > 0) return Math.max(base, 120);
   return base;
 }
+
+/** Passive skill book mart pricing. */
+export const PASSIVE_BOOK_SHOP_RANGES = {
+  rare: [500, 900],
+  epic: [2000, 4000],
+  legendary: [10000, 12000],
+};
+
+/**
+ * @param {'rare'|'epic'|'legendary'|'mythic'} rarity
+ * @param {{ eventShop?: boolean, seed?: string }} [opts]
+ */
+export function passiveBookShopPrice(rarity, opts = {}) {
+  if (rarity === 'mythic') return null;
+  if (rarity === 'legendary' && !opts.eventShop) return null;
+  const range = PASSIVE_BOOK_SHOP_RANGES[rarity];
+  if (!range) return null;
+  const [min, max] = range;
+  if (opts.seed) {
+    let h = 0;
+    for (let i = 0; i < opts.seed.length; i++) h = (h * 31 + opts.seed.charCodeAt(i)) | 0;
+    const t = Math.abs(h) % (max - min + 1);
+    return min + t;
+  }
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+/** Shop stock: rare always; epic ~35% daily rotation; legendary event-only. */
+export function passiveBookShopOffers(skillId, profileId = '') {
+  const offers = [{ rarity: 'rare', price: passiveBookShopPrice('rare', { seed: `${profileId}_${skillId}_rare` }) }];
+  const epicRoll = (profileId + skillId).length % 3 === 0;
+  if (epicRoll) {
+    offers.push({
+      rarity: 'epic',
+      price: passiveBookShopPrice('epic', { seed: `${profileId}_${skillId}_epic` }),
+    });
+  }
+  return offers;
+}

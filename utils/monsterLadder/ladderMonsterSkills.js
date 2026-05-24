@@ -33,8 +33,8 @@ export const LADDER_MONSTER_SKILL_SETS = {
   nugget_dragon: {
     physical: phys('crispy_bite', 'Crispy Bite', '🍗', 1),
     magic: [
-      mag('sauce_fireball', 'Sauce Fireball', '🔥', 'fire', 12, 1.25, 'fire'),
-      mag('oil_splash', 'Oil Splash', '🛢️', 'fire', 15, 1.2, 'fire'),
+      mag('vine_grease', 'Vine Grease', '🌿', 'wood', 12, 1.25, 'normal'),
+      mag('oil_splash', 'Oil Splash', '🛢️', 'earth', 15, 1.2, 'normal'),
     ],
   },
   bubble_tea_hydra: {
@@ -84,8 +84,8 @@ export const LADDER_MONSTER_SKILL_SETS = {
     physical: phys('viral_touch', 'Viral Touch', '👼', 0.95),
     magic: [
       mag('auto_heal', 'Auto-Heal', '💚', 'water', 14, 1, 'normal', { type: 'heal', chance: 1, turns: 1 }),
-      mag('viral_blessing', 'Viral Blessing', '✨', 'metal', 13, 1.1, 'normal', { type: 'atkUp', chance: 1, turns: 2 }),
-      mag('rewrite_fate', 'Rewrite Fate', '📱', 'metal', 20, 1.4, 'magic67'),
+      mag('viral_blessing', 'Viral Blessing', '✨', 'metal', 13, 1.15, 'normal', { type: 'atkUp', chance: 1, turns: 2 }),
+      mag('rewrite_fate', 'Rewrite Fate', '📱', 'water', 20, 1.45, 'magic67'),
     ],
   },
   trash_panda_ronin: {
@@ -106,34 +106,34 @@ export const LADDER_MONSTER_SKILL_SETS = {
     physical: phys('mist_whisker', 'Mist Whisker', '🐟', 1),
     magic: [
       mag('rain_heal', 'Rain Heal', '🌧️', 'water', 13, 1, 'water', { type: 'heal', chance: 1, turns: 1 }),
-      mag('thunder_drizzle', 'Thunder Drizzle', '⚡', 'water', 15, 1.22, 'water'),
+      mag('thunder_drizzle', 'Thunder Drizzle', '⚡', 'wood', 15, 1.22, 'normal'),
     ],
   },
   keyboard_golem: {
     physical: phys('delete_punch', 'Delete Punch', '⌨️', 1.05),
     magic: [
-      mag('ctrl_smash', 'Ctrl Smash', '💥', 'metal', 14, 1.25, 'normal'),
+      mag('ctrl_smash', 'Ctrl Smash', '💥', 'wood', 14, 1.25, 'normal'),
       mag('alt_block', 'Alt Block', '🛡️', 'metal', 11, 1, 'normal', { type: 'defUp', chance: 1, turns: 2 }),
     ],
   },
   noodle_basilisk: {
     physical: phys('spicy_stare', 'Spicy Stare', '🍜', 1),
     magic: [
-      mag('broth_bind', 'Broth Bind', '🥣', 'fire', 13, 1.2, 'fire', { type: 'stun', chance: 0.2, turns: 1 }),
-      mag('noodle_venom', 'Noodle Venom', '🐍', 'wood', 17, 1.35, 'poison', { type: 'poison', chance: 0.45, turns: 3 }),
+      mag('broth_bind', 'Broth Bind', '🥣', 'wood', 13, 1.2, 'normal', { type: 'stun', chance: 0.2, turns: 1 }),
+      mag('noodle_venom', 'Noodle Venom', '🐍', 'fire', 17, 1.35, 'poison', { type: 'poison', chance: 0.45, turns: 3 }),
     ],
   },
   sneaker_shark: {
     physical: phys('sole_dash', 'Sole Dash', '👟', 1.1),
     magic: [
-      mag('aqua_bite', 'Aqua Bite', '🦈', 'water', 12, 1.22, 'water'),
-      mag('lace_whip', 'Lace Whip', '👟', 'water', 14, 1.18, 'normal'),
+      mag('heat_dash', 'Heat Dash', '🔥', 'fire', 12, 1.22, 'fire'),
+      mag('lace_whip', 'Lace Whip', '👟', 'metal', 14, 1.18, 'normal'),
     ],
   },
   battery_bat: {
     physical: phys('drain_bite', 'Drain Bite', '🦇', 1),
     magic: [
-      mag('power_flap', 'Power Flap', '🔋', 'metal', 12, 1.15, 'magic67'),
+      mag('power_flap', 'Power Flap', '💧', 'water', 12, 1.15, 'water'),
       mag('low_battery_curse', 'Low Battery Curse', '🪫', 'metal', 14, 1.1, 'normal', { type: 'mpDown', chance: 0.4, turns: 2 }),
     ],
   },
@@ -155,7 +155,7 @@ export const LADDER_MONSTER_SKILL_SETS = {
     physical: phys('popcorn_slash', 'Popcorn Slash', '🍿', 1.1),
     magic: [
       mag('heat_ray', 'Heat Ray', '🔥', 'fire', 14, 1.32, 'fire'),
-      mag('reheat_beam', 'Reheat Beam', '♨️', 'fire', 18, 1.42, 'fire'),
+      mag('reheat_beam', 'Reheat Beam', '♨️', 'metal', 18, 1.42, 'magic67'),
     ],
   },
   traffic_cone_cyclops: {
@@ -182,15 +182,15 @@ export const LADDER_MONSTER_SKILL_SETS = {
   blackout_bunny: {
     physical: phys('static_hop', 'Static Hop', '🐰', 1),
     magic: [
-      mag('lights_out', 'Lights Out', '🌑', 'metal', 13, 1.15, 'normal', { type: 'stun', chance: 0.28, turns: 1 }),
-      mag('shadow_zap', 'Shadow Zap', '⚡', 'metal', 16, 1.3, 'magic67'),
+      mag('lights_out', 'Lights Out', '🌑', 'water', 13, 1.15, 'water', { type: 'stun', chance: 0.28, turns: 1 }),
+      mag('shadow_zap', 'Shadow Zap', '⚡', 'earth', 16, 1.3, 'normal'),
     ],
   },
   core_feed_beast: {
-    physical: phys('trend_devour', 'Trend Devour', '📱', 1.1),
+    physical: phys('trend_devour', 'Trend Devour', '📱', 1.05),
     magic: [
-      mag('doomscroll_beam', 'Doomscroll Beam', '📜', 'metal', 18, 1.45, 'magic67'),
-      mag('feed_collapse', 'Feed Collapse', '💀', 'metal', 22, 1.55, 'magic67'),
+      mag('doomscroll_beam', 'Doomscroll Beam', '📜', 'wood', 18, 1.48, 'magic67'),
+      mag('feed_collapse', 'Feed Collapse', '💀', 'fire', 22, 1.58, 'magic67', { type: 'burn', chance: 0.35, turns: 2 }),
     ],
   },
 };

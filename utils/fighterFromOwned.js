@@ -3,6 +3,7 @@ import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { MONSTER_LEVEL_MAX, expToAdvanceFrom } from './expLevel';
 import { applyGearBonuses } from './gearStats';
 import { compactGearIds, resolveFighterElement } from './cosmetics';
+import { getTemplateElements } from './elements';
 import { mergeMonsterParts } from './gameStorage';
 import { getMonsterSkillSet } from './monsterSkills';
 import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
@@ -51,6 +52,7 @@ export function fighterFromOwned(owned) {
     gearSlotCount: owned.gearSlotCount,
   };
   const element = resolveFighterElement(owned.templateId, gearIds);
+  const elements = getTemplateElements(owned.templateId);
   const skills = getMonsterSkillSet(owned.templateId);
 
   return {
@@ -70,8 +72,11 @@ export function fighterFromOwned(owned) {
     battleExp: owned.exp ?? 0,
     battleExpToNext: expToAdvanceFrom(owned.level ?? 1),
     element,
+    elements,
     skills,
     status: null,
+    equippedPassives: Array.isArray(owned.equippedPassives) ? [...owned.equippedPassives] : [],
+    passiveBattleState: { barrierConsumed: false, rageCoreShown: false },
   };
 }
 
@@ -117,9 +122,12 @@ function fighterFromLadderOwnedInMainInventory(owned, tpl) {
     battleExp: owned.exp ?? 0,
     battleExpToNext: expToAdvanceFrom(owned.level ?? 1),
     element: tpl.element,
+    elements: Array.isArray(tpl.elements) && tpl.elements.length ? [...tpl.elements] : [tpl.element],
     skills: getLadderMonsterSkillSet(owned.templateId),
     isLadderMonster: true,
     status: null,
+    equippedPassives: Array.isArray(owned.equippedPassives) ? [...owned.equippedPassives] : [],
+    passiveBattleState: { barrierConsumed: false, rageCoreShown: false },
   };
 }
 

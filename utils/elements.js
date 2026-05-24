@@ -24,7 +24,39 @@ export const ELEMENT_UI = {
   metal: { label: 'Metal', emoji: '⚙️', color: '#95a5a6' },
 };
 
-/** Default element per monster template */
+/** Mythic roster — each has two elements; MYTHIC_BEATS is the counter ring. */
+export const MYTHIC_IDS = /** @type {const} */ ([
+  'sixtyseven_rex',
+  'core_feed_beast',
+  'goldzilla',
+  'algorithm_angel',
+  'bubble_tea_slime',
+]);
+
+/** @type {Record<string, [ElementId, ElementId]>} */
+export const MYTHIC_ELEMENTS = {
+  /** Physical brawler — Fire / Wood */
+  sixtyseven_rex: ['fire', 'wood'],
+  /** Magic nuker — Wood / Fire */
+  core_feed_beast: ['wood', 'fire'],
+  /** All-rounder — Metal / Earth */
+  goldzilla: ['metal', 'earth'],
+  /** Mage — Water / Metal */
+  algorithm_angel: ['water', 'metal'],
+  /** Tank — Earth / Water */
+  bubble_tea_slime: ['earth', 'water'],
+};
+
+/** Mythic vs mythic: attacker id → defender id it counters */
+export const MYTHIC_BEATS = {
+  sixtyseven_rex: 'core_feed_beast',
+  core_feed_beast: 'goldzilla',
+  goldzilla: 'algorithm_angel',
+  algorithm_angel: 'bubble_tea_slime',
+  bubble_tea_slime: 'sixtyseven_rex',
+};
+
+/** Default element per monster template (primary element) */
 export const MONSTER_ELEMENTS = {
   cockroachsaurus: 'earth',
   chickenzilla: 'fire',
@@ -32,21 +64,36 @@ export const MONSTER_ELEMENTS = {
   crocs_goblin: 'earth',
   iphone_warrior: 'metal',
   lunchbox_dragon: 'fire',
-  pencil_shark: 'water',
+  pencil_shark: 'wood',
   homework_troll: 'wood',
-  toilet_paper_ninja: 'wood',
-  schoolbag_golem: 'earth',
+  toilet_paper_ninja: 'water',
+  schoolbag_golem: 'metal',
   t_rex: 'fire',
   tablet_wizard: 'metal',
-  skibidi_bot: 'water',
-  bubble_tea_slime: 'water',
-  sixtyseven_rex: 'metal',
+  skibidi_bot: 'earth',
+  bubble_tea_slime: 'earth',
+  sixtyseven_rex: 'fire',
   goldzilla: 'metal',
 };
 
 /** @param {string} templateId */
 export function getTemplateElement(templateId) {
+  const dual = MYTHIC_ELEMENTS[templateId];
+  if (dual) return dual[0];
   return MONSTER_ELEMENTS[templateId] ?? 'earth';
+}
+
+/** @param {string} templateId @returns {ElementId[]} */
+export function getTemplateElements(templateId) {
+  const dual = MYTHIC_ELEMENTS[templateId];
+  if (dual) return [...dual];
+  const single = MONSTER_ELEMENTS[templateId];
+  return single ? [single] : ['earth'];
+}
+
+/** @param {string} templateId */
+export function isMythicTemplate(templateId) {
+  return MYTHIC_IDS.includes(templateId);
 }
 
 /** @param {ElementId|string|null|undefined} el */
@@ -66,6 +113,55 @@ export function getElementRelation(attackerEl, defenderEl) {
   if (BEATS[a] === d) return 'advantage';
   if (BEATS[d] === a) return 'disadvantage';
   return 'neutral';
+}
+
+/**
+ * Dual-element defense: advantage if skill beats either element; disadvantage only if weak to both.
+ * @param {ElementId|string} atkElement
+ * @param {ElementId|string} defPrimary
+ * @param {ElementId|string|null|undefined} defSecondary
+ */
+export function getDualElementRelation(atkElement, defPrimary, defSecondary) {
+  const r1 = getElementRelation(atkElement, defPrimary);
+  const r2 = defSecondary ? getElementRelation(atkElement, defSecondary) : 'neutral';
+  if (r1 === 'advantage' || r2 === 'advantage') return 'advantage';
+  if (r1 === 'disadvantage' && r2 === 'disadvantage') return 'disadvantage';
+  if (r1 === 'disadvantage' || r2 === 'disadvantage') return 'disadvantage';
+  return 'neutral';
+}
+
+/**
+ * @param {string|null|undefined} attackerTemplateId
+ * @param {string|null|undefined} defenderTemplateId
+ */
+export function getMythicRivalRelation(attackerTemplateId, defenderTemplateId) {
+  if (!attackerTemplateId || !defenderTemplateId) return 'neutral';
+  if (!MYTHIC_IDS.includes(attackerTemplateId) || !MYTHIC_IDS.includes(defenderTemplateId)) {
+    return 'neutral';
+  }
+  if (MYTHIC_BEATS[attackerTemplateId] === defenderTemplateId) return 'advantage';
+  if (MYTHIC_BEATS[defenderTemplateId] === attackerTemplateId) return 'disadvantage';
+  return 'neutral';
+}
+
+/**
+ * Magic matchup: mythic rivalry first, then dual-element cycle.
+ * @param {{
+ *   attackerTemplateId?: string,
+ *   defenderTemplateId?: string,
+ *   atkElement?: string,
+ *   defPrimary?: string,
+ *   defSecondary?: string,
+ * }} opts
+ */
+export function resolveMagicElementRelation(opts) {
+  const rival = getMythicRivalRelation(opts.attackerTemplateId, opts.defenderTemplateId);
+  if (rival !== 'neutral') return rival;
+  return getDualElementRelation(
+    opts.atkElement ?? 'earth',
+    opts.defPrimary ?? 'earth',
+    opts.defSecondary,
+  );
 }
 
 /** Magic damage multiplier from element matchup */

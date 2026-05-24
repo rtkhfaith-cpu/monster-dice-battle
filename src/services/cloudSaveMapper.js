@@ -34,6 +34,7 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
     equippedGear: Array.isArray(om.equippedGear) ? om.equippedGear : [],
     gearSlotCount: om.gearSlotCount ?? DEFAULT_GEAR_SLOTS,
     unlockedVisualTags: Array.isArray(om.unlockedVisualTags) ? om.unlockedVisualTags : [],
+    equippedPassives: Array.isArray(om.equippedPassives) ? om.equippedPassives : [],
   }));
 
   const equippedGear = {};
@@ -62,6 +63,11 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
     gear: Array.isArray(p.cosmeticsOwned) ? p.cosmeticsOwned : [],
     equippedGear,
     unlockedGearSlots,
+    passiveSkillBooksOwned: Array.isArray(p.passiveSkillBooksOwned) ? p.passiveSkillBooksOwned : [],
+    equippedPassiveSkills: p.equippedPassiveSkills ?? {},
+    passiveSkillBookDropHistory: Array.isArray(p.passiveSkillBookDropHistory)
+      ? p.passiveSkillBookDropHistory.slice(-50)
+      : [],
     audioSettings: loadAudioSettings(),
     battleProgress: p.battleProgress ?? { totalBattles: 0, winStreak: 0, lossStreak: 0 },
     monsterLadder: p.monsterLadder ?? null,
@@ -165,7 +171,19 @@ export function applyCloudProfile(gameData, cloud) {
     equippedGear: equippedMap[om.id] ?? om.equippedGear ?? [],
     gearSlotCount: slotsMap[om.id] ?? om.gearSlotCount ?? DEFAULT_GEAR_SLOTS,
     unlockedVisualTags: om.unlockedVisualTags ?? [],
+    equippedPassives: om.equippedPassives ?? [],
   }));
+
+  p.passiveSkillBooksOwned = Array.isArray(normalized.passiveSkillBooksOwned)
+    ? normalized.passiveSkillBooksOwned
+    : [];
+  p.equippedPassiveSkills =
+    normalized.equippedPassiveSkills && typeof normalized.equippedPassiveSkills === 'object'
+      ? normalized.equippedPassiveSkills
+      : {};
+  p.passiveSkillBookDropHistory = Array.isArray(normalized.passiveSkillBookDropHistory)
+    ? normalized.passiveSkillBookDropHistory
+    : [];
 
   if (normalized.battleProgress) p.battleProgress = normalized.battleProgress;
   if (normalized.monsterLadder) p.monsterLadder = normalized.monsterLadder;

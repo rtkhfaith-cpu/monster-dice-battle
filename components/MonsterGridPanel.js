@@ -7,6 +7,7 @@ import { visualFormTierFromLevel } from '../utils/evolution';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
+import { getBattleRoster, resolveBattleMonsterId } from '../utils/rosterInventory';
 import { gamePanelStyle } from '../utils/artDirection';
 import { LOBBY } from '../utils/gameTheme';
 
@@ -23,8 +24,16 @@ export default function MonsterGridPanel({
   embedInScroll = false,
   isMobile = false,
 }) {
-  const monsters = wallet?.ownedMonsters ?? [];
+  const fullRoster = wallet?.ownedMonsters ?? [];
+  const monsters = React.useMemo(() => getBattleRoster(wallet), [fullRoster]);
   const is1P = gameMode === 'onePlayer';
+
+  const resolvedP1Id = selectedP1Id
+    ? resolveBattleMonsterId(fullRoster, selectedP1Id)
+    : null;
+  const resolvedP2Id = selectedP2Id
+    ? resolveBattleMonsterId(fullRoster, selectedP2Id)
+    : null;
   const previewSize = isMobile ? 58 : 72;
   const GridWrap = embedInScroll ? View : ScrollView;
   const gridWrapProps = embedInScroll
@@ -66,16 +75,18 @@ export default function MonsterGridPanel({
             const f = fighterFromOwned(om);
             const t = getMonsterTemplate(om.templateId) ?? getLadderMonsterTemplate(om.templateId);
             if (!f || !t) return null;
-            const picked = is1P ? selectedP1Id === om.id : selectedP1Id === om.id || selectedP2Id === om.id;
+            const picked = is1P
+              ? resolvedP1Id === om.id
+              : resolvedP1Id === om.id || resolvedP2Id === om.id;
             const tag = is1P
               ? picked
                 ? 'Selected'
                 : null
-              : selectedP1Id === om.id && selectedP2Id === om.id
+              : resolvedP1Id === om.id && resolvedP2Id === om.id
                 ? 'Player 1 & 2'
-                : selectedP1Id === om.id
+                : resolvedP1Id === om.id
                   ? 'Player 1'
-                  : selectedP2Id === om.id
+                  : resolvedP2Id === om.id
                     ? 'Player 2'
                     : null;
             const expNeed = expToAdvanceFrom(om.level);

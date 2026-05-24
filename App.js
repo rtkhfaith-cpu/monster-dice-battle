@@ -83,7 +83,10 @@ import {
   claimMainBattleMiniBossChest,
   buyGearForMonster,
   buyGearItem,
+  buyPassiveSkillBook,
   buyMonster as purchaseMonsterRow,
+  equipPassiveSkillOnMonster,
+  removePassiveFromMonster,
   cloneGameData,
   createPlayerProfile,
   enforceSingleActiveProfile,
@@ -118,6 +121,11 @@ import { commitProfileDeleted, commitSave, setCloudSyncProfileID } from './src/s
 import { fetchLiveAppVersion, isAppVersionOutdated } from './src/services/appVersionCheck';
 import { BAKED_APP_VERSION } from './utils/bakedAppVersion';
 import { recordSyncClick } from './utils/syncActivityLevel';
+import {
+  defaultBattleMonsterId,
+  getBattleRoster,
+  resolveBattleMonsterId,
+} from './utils/rosterInventory';
 import { emitSaveStatus, subscribeSaveStatus } from './src/services/saveStatusBus';
 import ConfirmDialog from './components/ConfirmDialog';
 import {
@@ -167,7 +175,8 @@ function buildEncourageLines(gameData, winner, summary) {
   const lines = [];
   lines.push('One more battle?');
   const w = activeWallet(gameData);
-  const owned = w.ownedMonsters?.[0];
+  const ownedId = defaultBattleMonsterId(w);
+  const owned = ownedId ? w.ownedMonsters?.find((m) => m.id === ownedId) : null;
   if (owned) {
     const t = getMonsterTemplate(owned.templateId);
     const need = summary?.expP1?.expToNext;
@@ -413,14 +422,18 @@ export default function App() {
 
   function syncSetupMonstersFromProfiles(gd, p1ProfileId, p2ProfileId, mode = gameMode) {
     const w1 = walletForProfile(gd, p1ProfileId);
-    const m1 = w1.selectedMonsterId || w1.ownedMonsters?.[0]?.id || null;
-    setSetupP1Id(m1);
+    setSetupP1Id(defaultBattleMonsterId(w1));
     if (mode === 'onePlayer') {
       setSetupP2Id(null);
       return;
     }
     const w2 = walletForProfile(gd, p2ProfileId);
-    const m2 = w2.selectedMonsterId || w2.ownedMonsters?.[1]?.id || w2.ownedMonsters?.[0]?.id || null;
+    const battle2 = getBattleRoster(w2);
+    let m2 = w2.selectedMonsterId
+      ? resolveBattleMonsterId(w2.ownedMonsters ?? [], w2.selectedMonsterId)
+      : null;
+    if (!m2 && battle2.length > 1) m2 = battle2[1].id;
+    else if (!m2) m2 = battle2[0]?.id ?? null;
     setSetupP2Id(m2);
   }
 
@@ -746,7 +759,12 @@ export default function App() {
   const coins = wallet?.coins ?? 0;
   const cosmeticsOwned = wallet?.cosmeticsOwned ?? [];
   const gearOwnedMonster = useMemo(
-    () => wallet?.ownedMonsters?.find((x) => x.id === gearMonsterId) ?? null,
+    () => {
+      const roster = wallet?.ownedMonsters;
+      if (!gearMonsterId || !roster?.length) return null;
+      const battleId = resolveBattleMonsterId(roster, gearMonsterId);
+      return roster.find((x) => x.id === battleId) ?? null;
+    },
     [wallet, gearMonsterId],
   );
   const gearProfileId = useMemo(() => {
@@ -859,7 +877,7 @@ export default function App() {
     setSetupP2Id(null);
     setSetupActiveSlot(1);
     const w = walletForProfile(next, profileId);
-    setSetupP1Id(w.selectedMonsterId || w.ownedMonsters?.[0]?.id || null);
+    setSetupP1Id(defaultBattleMonsterId(w));
     setGameData(next);
     persistSave(next, 'profile_selected', profileId);
     tryOfferDailySpin(profileId, 'login');
@@ -1205,12 +1223,19 @@ export default function App() {
     }
     let nextGd = res.gameData;
     const newOm = res.ownedMonster;
-    if (newOm?.id && slotProfileId) {
-      nextGd = setProfileSelectedMonster(nextGd, slotProfileId, newOm.id);
-      if (gameMode === 'onePlayer' || setupActiveSlot === 1) setSetupP1Id(newOm.id);
-      else setSetupP2Id(newOm.id);
-    } else if (newOm?.id && !setupP1Id) {
-      setSetupP1Id(newOm.id);
+    const buyWallet = slotProfileId
+      ? getPlayerProfile(nextGd, slotProfileId)
+      : nextGd.guest;
+    const battleId =
+      newOm?.id && buyWallet?.ownedMonsters
+        ? resolveBattleMonsterId(buyWallet.ownedMonsters, newOm.id)
+        : null;
+    if (battleId && slotProfileId) {
+      nextGd = setProfileSelectedMonster(nextGd, slotProfileId, battleId);
+      if (gameMode === 'onePlayer' || setupActiveSlot === 1) setSetupP1Id(battleId);
+      else setSetupP2Id(battleId);
+    } else if (battleId && !setupP1Id) {
+      setSetupP1Id(battleId);
     }
     persistSave(nextGd, 'coins_changed', slotProfileId);
     playSound('shop');
@@ -1224,7 +1249,9 @@ export default function App() {
 
   function fighterFromSetupId(ownedId, profileId) {
     const w = walletForProfile(gameData, profileId);
-    const om = w.ownedMonsters.find((x) => x.id === ownedId);
+    const roster = w.ownedMonsters ?? [];
+    const battleId = resolveBattleMonsterId(roster, ownedId);
+    const om = roster.find((x) => x.id === battleId);
     if (!om) return null;
     return fighterFromOwned(om);
   }
@@ -1259,11 +1286,46 @@ export default function App() {
     const profileId = activeProfileId || setupP1ProfileId || null;
     const res = buyGearItem(gameData, profileId, gearId);
     if (res.error) {
-      showNotice('Gear Mart', res.error);
+      showNotice('Gear & Skill Shop', res.error);
       return;
     }
     persistSave(res.gameData, 'gear_bought', profileId);
     playSound('shop');
+  }
+
+  function handleBuyPassiveSkillBook(skillId, rarity) {
+    if (!gameData) return;
+    const profileId = activeProfileId || setupP1ProfileId || null;
+    const res = buyPassiveSkillBook(gameData, profileId, skillId, rarity);
+    if (res.error) {
+      showNotice('Passive Skill Book', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'passive_book_bought', profileId);
+    playSound('shop');
+    showNotice('Passive Skill Book Acquired!', `${res.book?.skillName ?? skillId} (${rarity}) added to inventory.`);
+  }
+
+  function handleEquipPassiveBook(bookInstanceId) {
+    if (!gameData || !gearMonsterId) return;
+    const res = equipPassiveSkillOnMonster(gameData, gearProfileId || null, gearMonsterId, bookInstanceId);
+    if (res.error) {
+      showNotice('Passive Skill', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'passive_equipped', gearProfileId || null);
+    showNotice('Passive equipped', 'Skill book consumed — passive is now permanent on this monster.');
+  }
+
+  function handleRemovePassive(skillId) {
+    if (!gameData || !gearMonsterId) return;
+    const res = removePassiveFromMonster(gameData, gearProfileId || null, gearMonsterId, skillId);
+    if (res.error) {
+      showNotice('Passive Skill', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'passive_removed', gearProfileId || null);
+    showNotice('Passive removed', 'The skill was deleted (book is not returned).');
   }
 
   function handleEquipGear(gearId, slotIndex = null) {
@@ -2081,7 +2143,7 @@ export default function App() {
                   onPress={() => void openGearMart()}
                   accessibilityLabel="Gear mart"
                 >
-                  <Text style={styles.miniShopTxt}>Gear Mart</Text>
+                  <Text style={styles.miniShopTxt}>Gear & Skill Shop</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.miniShop} onPress={openMonsterGearForActiveSlot} accessibilityLabel="Monster gear">
                   <Text style={styles.miniShopTxt}>Equip</Text>
@@ -2295,9 +2357,9 @@ export default function App() {
             onStartBattle={startMonsterLadderBattle}
             onOpenCollection={() => setLadderCollectionOpen(true)}
             onOpenGear={() => {
-              const id = setupP1Id || wallet.ownedMonsters?.[0]?.id;
+              const id = setupP1Id || defaultBattleMonsterId(wallet);
               if (id) {
-                setGearMonsterId(id);
+                setGearMonsterId(resolveBattleMonsterId(wallet?.ownedMonsters ?? [], id) ?? id);
                 setGearOpen(true);
               }
             }}
@@ -2404,9 +2466,9 @@ export default function App() {
                 rewardSummary?.monsterLadder
                   ? undefined
                   : () => {
-                      const id = setupP1Id || wallet.ownedMonsters?.[0]?.id;
+                      const id = setupP1Id || defaultBattleMonsterId(wallet);
                       if (id) {
-                        setGearMonsterId(id);
+                        setGearMonsterId(resolveBattleMonsterId(wallet?.ownedMonsters ?? [], id) ?? id);
                         setGearOpen(true);
                       }
                     }
@@ -2487,11 +2549,14 @@ export default function App() {
         coins={coins}
         ownedGearIds={cosmeticsOwned}
         ownedMonster={gearOwnedMonster}
+        profile={gearProfileId ? getPlayerProfile(gameData, gearProfileId) : null}
         onClose={() => setGearOpen(false)}
         onBuy={handleBuyGear}
         onEquip={handleEquipGear}
         onUnequip={handleUnequipGear}
         onUnlockSlot={handleUnlockGearSlot}
+        onEquipPassiveBook={handleEquipPassiveBook}
+        onRemovePassive={handleRemovePassive}
         onOpenGearMart={() => {
           setGearOpen(false);
           void openGearMart();
@@ -2502,8 +2567,11 @@ export default function App() {
         visible={gearMartOpen}
         coins={coins}
         ownedGearIds={cosmeticsOwned}
+        profileId={activeProfileId || setupP1ProfileId || ''}
+        profile={activeProfileId ? getPlayerProfile(gameData, activeProfileId) : null}
         onClose={() => setGearMartOpen(false)}
         onBuy={handleBuyGearMart}
+        onBuyPassiveBook={handleBuyPassiveSkillBook}
       />
 
       <MonsterMarketModal

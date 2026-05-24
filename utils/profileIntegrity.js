@@ -7,6 +7,9 @@ import { getGear } from './cosmetics';
 import { MONSTER_LEVEL_MAX, reconcileMonsterLevelExp } from './expLevel';
 import { getMonsterTemplate } from './monsterTemplates';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
+import { defaultBattleMonsterId, resolveBattleMonsterId } from './rosterInventory';
+import { ensurePassiveInventory } from '../src/gameSystems/passiveInventory';
+import { getPassiveSkillDef } from '../src/gameSystems/passiveSkills';
 
 /** Soft cap — legitimate play should stay far below this. */
 export const PROFILE_COINS_SOFT_CAP = 250_000;
@@ -107,9 +110,22 @@ export function sanitizePlayerProfile(profile, opts = {}) {
   });
 
   if (profile.selectedMonsterId && !profile.ownedMonsters.some((m) => m.id === profile.selectedMonsterId)) {
-    profile.selectedMonsterId = profile.ownedMonsters[0]?.id ?? null;
+    profile.selectedMonsterId = defaultBattleMonsterId(profile);
     issues.push('selected_monster_reset');
+  } else if (profile.selectedMonsterId) {
+    profile.selectedMonsterId = resolveBattleMonsterId(profile.ownedMonsters, profile.selectedMonsterId);
   }
+
+  ensurePassiveInventory(profile);
+  profile.passiveSkillBooksOwned = (profile.passiveSkillBooksOwned || []).filter((b) =>
+    getPassiveSkillDef(b?.skillId),
+  );
+  const seenSkills = new Set();
+  profile.passiveSkillBooksOwned = profile.passiveSkillBooksOwned.filter((b) => {
+    if (seenSkills.has(b.skillId)) return false;
+    seenSkills.add(b.skillId);
+    return true;
+  });
 
   const gearBefore = (profile.cosmeticsOwned || []).length;
   profile.cosmeticsOwned = (profile.cosmeticsOwned || []).filter((id) => {

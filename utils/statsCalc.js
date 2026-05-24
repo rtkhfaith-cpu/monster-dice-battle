@@ -1,5 +1,6 @@
 import { evolutionStageFromLevel } from './evolution';
 import { getMonsterTemplate, MONSTER_CATALOG } from './monsterTemplates';
+import { highLevelHpBonus, offensiveStatSteps } from '../src/gameBalance/combat';
 import { baseSpeedForRole, growthForRole } from '../src/gameBalance/monsters';
 
 /** Flat rarity bumps — keeps commons playable while highs feel premium */
@@ -45,15 +46,15 @@ export function computeBattleStats(templateId, level) {
 
   const hpGain = Math.round((roleGrowth.hp ?? g.hpPerLevel ?? 4) * L);
   const mpGain = Math.round((roleGrowth.mp ?? g.mpPerLevel ?? 1) * L);
-  const atkSteps = Math.floor((roleGrowth.attack ?? 2) * L);
-  const magSteps = Math.floor((roleGrowth.magic ?? 2) * L);
+  const atkSteps = offensiveStatSteps(roleGrowth.attack ?? 2, lv);
+  const magSteps = offensiveStatSteps(roleGrowth.magic ?? 2, lv);
   const defSteps = Math.floor((roleGrowth.defense ?? 2) * L);
   const mdSteps = Math.floor((roleGrowth.defense ?? 2) * L);
   const speedSteps = Math.floor((roleGrowth.speed ?? 2) * L);
   const critSteps = Math.floor(L / Math.max(1, g.criticalEveryLevels ?? 6));
   const dodgeSteps = Math.floor(L / Math.max(1, g.dodgeEveryLevels ?? 7));
 
-  let hp = b.hp + hpGain;
+  let hp = b.hp + hpGain + highLevelHpBonus(lv);
   let mp = b.mp + mpGain;
   let atkMin = b.attackMin + atkSteps;
   let atkMax = b.attackMax + atkSteps;

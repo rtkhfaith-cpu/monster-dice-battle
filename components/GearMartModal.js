@@ -6,6 +6,7 @@ import {
   formatGearBonusLines,
 } from '../utils/cosmetics';
 import { gearShopPrice } from '../src/gameBalance/shop';
+import PassiveSkillBookShop from './PassiveSkillBookShop';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -32,7 +33,17 @@ function gearMatchesFilter(g, filter) {
 /**
  * Standalone gear shop — buy items into profile inventory.
  */
-export default function GearMartModal({ visible, coins, ownedGearIds, onClose, onBuy }) {
+export default function GearMartModal({
+  visible,
+  coins,
+  ownedGearIds,
+  profileId,
+  profile,
+  onClose,
+  onBuy,
+  onBuyPassiveBook,
+}) {
+  const [shopTab, setShopTab] = useState('gear');
   const [filterCat, setFilterCat] = useState('all');
   const [detailGear, setDetailGear] = useState(null);
   const ownedSet = useMemo(() => new Set(ownedGearIds || []), [ownedGearIds]);
@@ -45,10 +56,38 @@ export default function GearMartModal({ visible, coins, ownedGearIds, onClose, o
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <Text style={styles.title}>Gear Mart</Text>
-          <Text style={styles.sub}>Buy gear for your profile, then equip it on monsters</Text>
+          <Text style={styles.title}>Gear & Skill Shop</Text>
+          <Text style={styles.sub}>Gear for your profile · Passive books consumed on equip</Text>
           <Text style={styles.coins}>Coins: {coins ?? 0}</Text>
 
+          <View style={styles.tabRow}>
+            <TouchableOpacity
+              style={[styles.shopTab, shopTab === 'gear' && styles.shopTabOn]}
+              onPress={() => setShopTab('gear')}
+            >
+              <Text style={[styles.shopTabTxt, shopTab === 'gear' && styles.shopTabTxtOn]}>Gear</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.shopTab, shopTab === 'skills' && styles.shopTabOn]}
+              onPress={() => setShopTab('skills')}
+            >
+              <Text style={[styles.shopTabTxt, shopTab === 'skills' && styles.shopTabTxtOn]}>
+                Passive Skill Books
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {shopTab === 'skills' ? (
+            <PassiveSkillBookShop
+              coins={coins}
+              profileId={profileId}
+              profile={profile}
+              onBuy={onBuyPassiveBook}
+            />
+          ) : null}
+
+          {shopTab === 'gear' ? (
+          <>
           <View style={styles.filterRow}>
             {FILTERS.map((filter) => (
               <TouchableOpacity
@@ -100,6 +139,8 @@ export default function GearMartModal({ visible, coins, ownedGearIds, onClose, o
               );
             })}
           </ScrollView>
+          </>
+          ) : null}
 
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
             <Text style={styles.closeTxt}>Close</Text>
@@ -151,6 +192,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 18,
   },
+  tabRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  shopTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(30,41,59,0.9)',
+    alignItems: 'center',
+  },
+  shopTabOn: { backgroundColor: '#4f46e5' },
+  shopTabTxt: { color: '#94a3b8', fontWeight: '700', fontSize: 12 },
+  shopTabTxtOn: { color: '#fff' },
   title: {
     fontSize: 22,
     fontWeight: '900',

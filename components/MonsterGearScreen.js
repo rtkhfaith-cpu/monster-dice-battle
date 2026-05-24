@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import {
@@ -15,6 +15,7 @@ import {
   normalizeEquippedSlots,
 } from '../utils/gearSlots';
 import { useReadableType } from '../utils/readableType';
+import MonsterPassivePanel from './MonsterPassivePanel';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -47,6 +48,91 @@ function StatBlock({ label, base, bonus, total, type }) {
       {showBonus ? <Text style={styles.statBonus}> (+{bonus})</Text> : null}
       <Text style={styles.statTotal}> = {total}</Text>
     </Text>
+  );
+}
+
+function gearEquippedSlotLabel(slots, gearId, activeSlot) {
+  const idx = slots.findIndex((id) => id === gearId);
+  if (idx < 0) return null;
+  if (idx === activeSlot) return 'Equipped here';
+  return `In slot ${idx + 1}`;
+}
+
+function SlotGearPicker({
+  slotIndex,
+  slots,
+  ownedGear,
+  onSelect,
+  onClear,
+  onClose,
+  type,
+}) {
+  const currentId = slots[slotIndex];
+
+  return (
+    <View style={styles.pickerPanel}>
+      <View style={styles.pickerHdr}>
+        <Text style={[styles.pickerTitle, { fontSize: type.stat }]}>
+          Slot {slotIndex + 1} — choose gear
+        </Text>
+        <TouchableOpacity style={styles.pickerCloseBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={styles.pickerCloseTxt}>×</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={styles.pickerScroll}
+        contentContainerStyle={styles.pickerScrollContent}
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
+      >
+        {currentId ? (
+          <TouchableOpacity style={[styles.pickerOption, styles.pickerOptionClear]} onPress={onClear}>
+            <Text style={styles.pickerOptionEmoji}>—</Text>
+            <View style={styles.pickerOptionBody}>
+              <Text style={[styles.pickerOptionName, { fontSize: type.stat }]}>Empty slot</Text>
+              <Text style={[styles.pickerOptionStats, { fontSize: type.statSm }]}>Remove current gear</Text>
+            </View>
+          </TouchableOpacity>
+        ) : null}
+
+        {ownedGear.length === 0 ? (
+          <Text style={[styles.pickerEmpty, { fontSize: type.statSm }]}>
+            No gear owned yet. Open Gear Mart to buy items.
+          </Text>
+        ) : (
+          ownedGear.map((g) => {
+            const bonusLines = formatGearBonusLines(g);
+            const slotLabel = gearEquippedSlotLabel(slots, g.id, slotIndex);
+            const isCurrent = g.id === currentId;
+            return (
+              <TouchableOpacity
+                key={g.id}
+                style={[styles.pickerOption, isCurrent && styles.pickerOptionActive]}
+                onPress={() => onSelect(g.id)}
+                activeOpacity={0.86}
+              >
+                <Text style={styles.pickerOptionEmoji}>{g.emoji}</Text>
+                <View style={styles.pickerOptionBody}>
+                  <Text style={[styles.pickerOptionName, { fontSize: type.stat }]}>{g.name}</Text>
+                  <Text style={[styles.pickerOptionMeta, { fontSize: type.statSm }]}>
+                    {GEAR_CATEGORY_LABELS[g.category] ?? g.category}
+                    {slotLabel ? ` · ${slotLabel}` : ''}
+                  </Text>
+                  {bonusLines.map((line) => (
+                    <Text key={`${g.id}-${line}`} style={[styles.pickerOptionStats, { fontSize: type.statSm }]}>
+                      {line}
+                    </Text>
+                  ))}
+                </View>
+                {isCurrent ? <Text style={styles.pickerCheck}>✓</Text> : null}
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -115,6 +201,9 @@ export default function MonsterGearScreen({
   onUnequip,
   onUnlockSlot,
   onOpenGearMart,
+  profile,
+  onEquipPassiveBook,
+  onRemovePassive,
 }) {
   const type = useReadableType();
   const ownedSet = useMemo(() => new Set(ownedGearIds || []), [ownedGearIds]);
@@ -122,6 +211,14 @@ export default function MonsterGearScreen({
   const [filterCat, setFilterCat] = useState('all');
   const [tab, setTab] = useState('equip');
   const [detailGear, setDetailGear] = useState(null);
+
+  useEffect(() => {
+    if (!visible) setSelectedSlot(null);
+  }, [visible]);
+
+  useEffect(() => {
+    if (tab !== 'equip') setSelectedSlot(null);
+  }, [tab]);
 
   const unlockedSlots = getUnlockedSlotCount(ownedMonster);
   const slots = normalizeEquippedSlots(ownedMonster?.equippedGear, unlockedSlots);
@@ -136,13 +233,32 @@ export default function MonsterGearScreen({
   }, [filterCat]);
 
   const ownedCatalog = useMemo(
-    () => (ownedGearIds || []).map((id) => getGear(id)).filter(Boolean),
+    () =>
+      (ownedGearIds || [])
+        .map((id) => getGear(id))
+        .filter(Boolean)
+        .sort((a, b) => a.name.localeCompare(b.name)),
     [ownedGearIds],
   );
 
-  function handleEquip(gearId) {
-    if (typeof selectedSlot === 'number') onEquip?.(gearId, selectedSlot);
+  function handleEquip(gearId, slotIndex = selectedSlot) {
+    if (typeof slotIndex === 'number') onEquip?.(gearId, slotIndex);
     else onEquip?.(gearId);
+    setSelectedSlot(null);
+  }
+
+  function handleClearSlot(slotIndex) {
+    const gearId = slots[slotIndex];
+    if (gearId) onUnequip?.(gearId, slotIndex);
+    setSelectedSlot(null);
+  }
+
+  function handleSlotPress(i, locked, costForThis) {
+    if (locked) {
+      if (costForThis) onUnlockSlot?.();
+      return;
+    }
+    setSelectedSlot((prev) => (prev === i ? null : i));
   }
 
   return (
@@ -163,7 +279,7 @@ export default function MonsterGearScreen({
               style={[styles.tabBtn, tab === 'shop' && styles.tabOn]}
               onPress={() => setTab('shop')}
             >
-              <Text style={[styles.tabTxt, tab === 'shop' && styles.tabTxtOn]}>Gear Mart</Text>
+              <Text style={[styles.tabTxt, tab === 'shop' && styles.tabTxtOn]}>Gear & Skill Shop</Text>
             </TouchableOpacity>
           </View>
 
@@ -182,7 +298,7 @@ export default function MonsterGearScreen({
                     <View style={styles.previewMeta}>
                       <Text style={[styles.monName, { fontSize: type.stat }]}>{fighter.displayName}</Text>
                       <Text style={[styles.slotHint, { fontSize: type.statSm }]}>
-                        Tap a slot below, then equip from your owned gear
+                        Tap a slot to pick gear from a list with stats
                       </Text>
                     </View>
                   </View>
@@ -226,7 +342,7 @@ export default function MonsterGearScreen({
                           g ? styles.slotFilled : styles.slotEmpty,
                           isSelected && styles.slotSelected,
                         ]}
-                        onPress={() => setSelectedSlot(i)}
+                        onPress={() => handleSlotPress(i, false, null)}
                         onLongPress={() => g && onUnequip?.(g.id, i)}
                       >
                         {g ? (
@@ -247,6 +363,28 @@ export default function MonsterGearScreen({
                   })}
                 </View>
 
+                {ownedMonster ? (
+                  <MonsterPassivePanel
+                    monster={ownedMonster}
+                    profile={profile}
+                    onEquipBook={onEquipPassiveBook}
+                    onRemovePassive={onRemovePassive}
+                    onOpenSkillShop={onOpenGearMart}
+                  />
+                ) : null}
+
+                {typeof selectedSlot === 'number' && selectedSlot < unlockedSlots ? (
+                  <SlotGearPicker
+                    slotIndex={selectedSlot}
+                    slots={slots}
+                    ownedGear={ownedCatalog}
+                    onSelect={(gearId) => handleEquip(gearId, selectedSlot)}
+                    onClear={() => handleClearSlot(selectedSlot)}
+                    onClose={() => setSelectedSlot(null)}
+                    type={type}
+                  />
+                ) : null}
+
                 {base && total && bonus ? (
                   <View style={styles.statsBox}>
                     <Text style={[styles.statsHdr, { fontSize: type.stat }]}>Battle stats (live)</Text>
@@ -259,31 +397,28 @@ export default function MonsterGearScreen({
                       total={`${total.attack.min}–${total.attack.max}`}
                       type={type}
                     />
+                    <StatBlock
+                      label="Magic"
+                      base={`${base.magic.min}–${base.magic.max}`}
+                      bonus={bonus.magicMin || bonus.magicMax ? `+${bonus.magicMin}/${bonus.magicMax}` : 0}
+                      total={`${total.magic.min}–${total.magic.max}`}
+                      type={type}
+                    />
+                    <StatBlock
+                      label="Defense"
+                      base={`${base.def.min}–${base.def.max}`}
+                      bonus={bonus.defMin || bonus.defMax ? `+${bonus.defMin}/${bonus.defMax}` : 0}
+                      total={`${total.def.min}–${total.def.max}`}
+                      type={type}
+                    />
                   </View>
                 ) : null}
 
-                <Text style={styles.sectionHdr}>Your owned gear</Text>
                 {ownedCatalog.length === 0 ? (
                   <Text style={styles.emptyShop}>
                     No gear yet. Open the Gear Mart tab or lobby Gear Mart to buy items.
                   </Text>
-                ) : (
-                  ownedCatalog.map((g) => (
-                    <GearShopRow
-                      key={g.id}
-                      g={g}
-                      have
-                      worn={slots.includes(g.id)}
-                      afford={false}
-                      selectedSlot={selectedSlot}
-                      slotsFull={slots}
-                      onEquip={handleEquip}
-                      onUnequip={onUnequip}
-                      onDetails={setDetailGear}
-                      type={type}
-                    />
-                  ))
-                )}
+                ) : null}
               </>
             ) : (
               <>
@@ -469,6 +604,61 @@ const styles = StyleSheet.create({
   statBonus: { fontWeight: '900', color: '#86efac' },
   statTotal: { fontWeight: '900', color: '#fcd34d' },
   sectionHdr: { fontWeight: '900', fontSize: 14, color: '#ffe08a', marginBottom: 8, marginTop: 4, textTransform: 'uppercase' },
+  pickerPanel: {
+    marginBottom: 12,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#fcd34d',
+    backgroundColor: 'rgba(10, 22, 42, 0.96)',
+    overflow: 'hidden',
+    ...(Platform.OS === 'web' ? { zIndex: 20 } : {}),
+  },
+  pickerHdr: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,224,138,0.25)',
+    backgroundColor: 'rgba(92, 57, 143, 0.45)',
+  },
+  pickerTitle: { fontWeight: '900', color: '#fff4cf', flex: 1 },
+  pickerCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(127, 29, 29, 0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerCloseTxt: { color: '#fff', fontWeight: '900', fontSize: 18, lineHeight: 20 },
+  pickerScroll: {
+    maxHeight: 240,
+    ...(Platform.OS === 'web' ? { overflowY: 'auto' } : {}),
+  },
+  pickerScrollContent: { padding: 8, paddingBottom: 12 },
+  pickerEmpty: { fontWeight: '800', color: '#94a3b8', textAlign: 'center', padding: 16, lineHeight: 20 },
+  pickerOption: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.22)',
+    backgroundColor: 'rgba(14, 28, 52, 0.88)',
+    marginBottom: 6,
+    gap: 8,
+  },
+  pickerOptionActive: { borderColor: '#86efac', backgroundColor: 'rgba(18, 53, 40, 0.55)' },
+  pickerOptionClear: { borderStyle: 'dashed', borderColor: 'rgba(248, 113, 113, 0.45)' },
+  pickerOptionEmoji: { fontSize: 28, width: 36, textAlign: 'center' },
+  pickerOptionBody: { flex: 1, minWidth: 0 },
+  pickerOptionName: { fontWeight: '900', color: '#fff4cf' },
+  pickerOptionMeta: { fontWeight: '800', color: '#c4b5fd', marginTop: 2 },
+  pickerOptionStats: { fontWeight: '800', color: '#86efac', marginTop: 3, lineHeight: 18 },
+  pickerCheck: { fontWeight: '900', fontSize: 18, color: '#86efac', marginTop: 4 },
   emptyShop: { fontWeight: '800', color: '#bfdbfe', marginBottom: 12, lineHeight: 20 },
   shopHint: { fontWeight: '800', color: '#bfdbfe', marginBottom: 10, lineHeight: 20 },
   openMartBtn: {

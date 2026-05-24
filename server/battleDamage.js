@@ -68,6 +68,13 @@ function defenseMitigationRatio(defStat, attackPower) {
   return Math.min(0.75, d / (d + a * 0.65 + 14));
 }
 
+function outgoingDamageLevelFactor(level) {
+  const lv = Math.max(1, Math.floor(level ?? 1));
+  if (lv <= 30) return 1;
+  const t = (lv - 30) / 70;
+  return 1 - t * 0.22;
+}
+
 function resolvePhysicalBattleDamage({ attacker, defender, skill = null }) {
   if (rollAttackAvoided(attacker, defender, false)) {
     return {
@@ -90,6 +97,7 @@ function resolvePhysicalBattleDamage({ attacker, defender, skill = null }) {
   const attackPower = baseAttack + levelBonus;
   const mit = defenseMitigationRatio(defStat, attackPower);
   let raw = attackPower * randomVariance * (1 - mit);
+  raw *= outgoingDamageLevelFactor(Math.max(attacker?.level ?? 1, defender?.level ?? 1));
 
   let critical = false;
   let weak = false;
@@ -137,7 +145,8 @@ function resolveMagicBattleDamage({
   const powerMult = skill?.power ?? 1.2;
   const baseMagic = statMid(attacker?.stats?.magic, 10) * powerMult;
   const levelBonus = (attacker?.level ?? 1) * 1.8;
-  const defStat = statMid(defender?.stats?.magicDef, 5);
+  const mdFallback = statMid(defender?.stats?.def, 5);
+  const defStat = statMid(defender?.stats?.magicDef, mdFallback);
   const randomVariance = 0.88 + Math.random() * 0.28;
 
   const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';
@@ -148,6 +157,7 @@ function resolveMagicBattleDamage({
   const attackPower = baseMagic * 1.35 + levelBonus;
   const mit = defenseMitigationRatio(defStat, attackPower);
   let raw = attackPower * randomVariance * elementalModifier * (1 - mit);
+  raw *= outgoingDamageLevelFactor(Math.max(attacker?.level ?? 1, defender?.level ?? 1));
 
   let critical = false;
   let weak = false;

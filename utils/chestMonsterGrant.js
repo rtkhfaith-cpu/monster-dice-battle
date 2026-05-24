@@ -3,6 +3,7 @@
  */
 
 import { generateOwnedMonster } from './gameStorage';
+import { resolveBattleMonsterId } from './rosterInventory';
 import { getMonsterTemplate } from './monsterTemplates';
 import {
   grantLadderMonsterToProfile,
@@ -24,7 +25,9 @@ export function grantChestMonsterToProfile(profile, pick) {
     const om = generateOwnedMonster(pick.id);
     if (!Array.isArray(profile.ownedMonsters)) profile.ownedMonsters = [];
     profile.ownedMonsters.push(om);
-    if (!profile.selectedMonsterId) profile.selectedMonsterId = om.id;
+    const battleId = resolveBattleMonsterId(profile.ownedMonsters, om.id);
+    if (!profile.selectedMonsterId) profile.selectedMonsterId = battleId;
+    else if (!duplicate) profile.selectedMonsterId = battleId;
     return { ownedId: om.id, duplicate };
   }
 

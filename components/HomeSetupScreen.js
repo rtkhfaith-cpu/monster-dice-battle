@@ -17,6 +17,11 @@ import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { normalizePlayerKey } from '../utils/playerKey';
 import { playUiSfx } from '../utils/sounds';
 import { groupOwnedMonsters, MAX_MERGE_TIER } from '../utils/mergeSystem';
+import {
+  defaultBattleMonsterId,
+  pickBattleInstance,
+  resolveBattleMonsterId,
+} from '../utils/rosterInventory';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
 import { gameSurfaceDataProps, WEB_GAME_TOUCH_STYLE } from '../utils/webGameTouch';
 import TrainerRankingsModal from './TrainerRankingsModal';
@@ -153,14 +158,14 @@ export default function HomeSetupScreen({
   const monsterGroups = useMemo(
     () => groupOwnedMonsters(monsters).map((group) => ({
       ...group,
-      battlePrimary: group.primary,
+      battlePrimary: pickBattleInstance(group.instances),
     })),
     [monsters],
   );
-  const effectiveP1Id =
-    selectedP1Id && monsters.some((m) => m.id === selectedP1Id)
-      ? selectedP1Id
-      : monsters[0]?.id ?? null;
+  const effectiveP1Id = defaultBattleMonsterId({
+    ownedMonsters: monsters,
+    selectedMonsterId: selectedP1Id,
+  });
   const canStart = !!effectiveP1Id;
   const multiplayerHandler = onEnterMultiplayer || onOpenOnlineLobby;
   const playerName = activeProfile?.name || slotProfileName || 'Trainer';
@@ -637,7 +642,7 @@ export default function HomeSetupScreen({
                 onPress={pressWithSound(multiplayerHandler)}
               />
               <FantasyButton label="Monster Mart" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
-              <FantasyButton label="Gear Mart" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
+              <FantasyButton label="Gear & Skill Shop" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
               <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonFive} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
               <FantasyButton label="Login" icon="🔑" style={styles.menuButtonSix} onPress={pressWithSound(openLoginModal)} />
             </View>
