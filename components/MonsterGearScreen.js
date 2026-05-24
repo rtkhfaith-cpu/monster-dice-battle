@@ -66,22 +66,25 @@ function SlotGearPicker({
   onClear,
   onClose,
   type,
+  embedded = false,
 }) {
   const currentId = slots[slotIndex];
 
   return (
-    <View style={styles.pickerPanel}>
-      <View style={styles.pickerHdr}>
-        <Text style={[styles.pickerTitle, { fontSize: type.stat }]}>
-          Slot {slotIndex + 1} — choose gear
-        </Text>
-        <TouchableOpacity style={styles.pickerCloseBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={styles.pickerCloseTxt}>×</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.pickerPanel, embedded && styles.pickerPanelEmbedded]}>
+      {!embedded ? (
+        <View style={styles.pickerHdr}>
+          <Text style={[styles.pickerTitle, { fontSize: type.stat }]}>
+            Slot {slotIndex + 1} — choose gear
+          </Text>
+          <TouchableOpacity style={styles.pickerCloseBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.pickerCloseTxt}>×</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <ScrollView
-        style={styles.pickerScroll}
+        style={[styles.pickerScroll, embedded && styles.pickerScrollEmbedded]}
         contentContainerStyle={styles.pickerScrollContent}
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
@@ -298,7 +301,7 @@ export default function MonsterGearScreen({
                     <View style={styles.previewMeta}>
                       <Text style={[styles.monName, { fontSize: type.stat }]}>{fighter.displayName}</Text>
                       <Text style={[styles.slotHint, { fontSize: type.statSm }]}>
-                        Tap a slot to pick gear from a list with stats
+                        Tap a slot — the gear list opens inside that slot
                       </Text>
                     </View>
                   </View>
@@ -319,7 +322,7 @@ export default function MonsterGearScreen({
                       return (
                         <TouchableOpacity
                           key={`slot-${i}`}
-                          style={[styles.slotCell, styles.slotLocked]}
+                          style={[styles.slotBox, styles.slotLocked, styles.slotHead]}
                           disabled={!costForThis}
                           onPress={() => costForThis && onUnlockSlot?.()}
                         >
@@ -335,30 +338,56 @@ export default function MonsterGearScreen({
                     }
 
                     return (
-                      <TouchableOpacity
+                      <View
                         key={`slot-${i}`}
                         style={[
-                          styles.slotCell,
-                          g ? styles.slotFilled : styles.slotEmpty,
-                          isSelected && styles.slotSelected,
+                          styles.slotBox,
+                          g ? styles.slotBoxFilled : styles.slotBoxEmpty,
+                          isSelected && styles.slotBoxOpen,
                         ]}
-                        onPress={() => handleSlotPress(i, false, null)}
-                        onLongPress={() => g && onUnequip?.(g.id, i)}
                       >
-                        {g ? (
-                          <>
-                            <Text style={styles.slotEmoji}>{g.emoji}</Text>
-                            <Text style={styles.slotGearName} numberOfLines={1}>
-                              {g.name}
-                            </Text>
-                          </>
-                        ) : (
-                          <>
-                            <Text style={styles.emptyPlus}>+</Text>
-                            <Text style={styles.slotNum}>Slot {i + 1}</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.slotHead, isSelected && styles.slotHeadSelected]}
+                          onPress={() => handleSlotPress(i, false, null)}
+                          onLongPress={() => g && onUnequip?.(g.id, i)}
+                          activeOpacity={0.88}
+                        >
+                          {g ? (
+                            <>
+                              <Text style={styles.slotEmoji}>{g.emoji}</Text>
+                              <Text style={styles.slotGearName} numberOfLines={isSelected ? 2 : 1}>
+                                {g.name}
+                              </Text>
+                              {!isSelected ? (
+                                <Text style={styles.slotNum}>Slot {i + 1}</Text>
+                              ) : (
+                                <Text style={styles.slotTapClose}>Tap to close</Text>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <Text style={styles.emptyPlus}>+</Text>
+                              <Text style={styles.slotNum}>Slot {i + 1}</Text>
+                              {isSelected ? (
+                                <Text style={styles.slotTapClose}>Pick gear below</Text>
+                              ) : null}
+                            </>
+                          )}
+                        </TouchableOpacity>
+
+                        {isSelected ? (
+                          <SlotGearPicker
+                            embedded
+                            slotIndex={i}
+                            slots={slots}
+                            ownedGear={ownedCatalog}
+                            onSelect={(gearId) => handleEquip(gearId, i)}
+                            onClear={() => handleClearSlot(i)}
+                            onClose={() => setSelectedSlot(null)}
+                            type={type}
+                          />
+                        ) : null}
+                      </View>
                     );
                   })}
                 </View>
@@ -370,18 +399,6 @@ export default function MonsterGearScreen({
                     onEquipBook={onEquipPassiveBook}
                     onRemovePassive={onRemovePassive}
                     onOpenSkillShop={onOpenGearMart}
-                  />
-                ) : null}
-
-                {typeof selectedSlot === 'number' && selectedSlot < unlockedSlots ? (
-                  <SlotGearPicker
-                    slotIndex={selectedSlot}
-                    slots={slots}
-                    ownedGear={ownedCatalog}
-                    onSelect={(gearId) => handleEquip(gearId, selectedSlot)}
-                    onClear={() => handleClearSlot(selectedSlot)}
-                    onClose={() => setSelectedSlot(null)}
-                    type={type}
                   />
                 ) : null}
 
@@ -564,24 +581,40 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 12,
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  slotCell: {
+  slotBox: {
     width: '31%',
-    minHeight: 80,
+    minWidth: 96,
     borderRadius: 12,
     borderWidth: 2,
-    padding: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  slotEmpty: {
+  slotBoxOpen: {
+    width: '100%',
+    minWidth: '100%',
+    borderColor: '#fcd34d',
+    backgroundColor: 'rgba(255, 224, 138, 0.08)',
+    zIndex: 5,
+    ...(Platform.OS === 'web' ? { position: 'relative' } : {}),
+  },
+  slotBoxEmpty: {
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderColor: 'rgba(255,224,138,0.32)',
     borderStyle: 'dashed',
   },
-  slotFilled: { backgroundColor: 'rgba(18, 53, 40, 0.72)', borderColor: '#86efac' },
-  slotSelected: { borderColor: '#fcd34d', backgroundColor: 'rgba(255, 224, 138, 0.16)' },
+  slotBoxFilled: { backgroundColor: 'rgba(18, 53, 40, 0.72)', borderColor: '#86efac' },
+  slotHead: {
+    minHeight: 80,
+    padding: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  slotHeadSelected: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,224,138,0.35)',
+    backgroundColor: 'rgba(92, 57, 143, 0.35)',
+  },
   slotLocked: { backgroundColor: 'rgba(0,0,0,0.24)', borderColor: '#475569', opacity: 0.9 },
   lockIcon: { fontSize: 20 },
   slotNum: { fontWeight: '900', fontSize: 10, color: '#cbd5e1', marginTop: 2 },
@@ -590,6 +623,7 @@ const styles = StyleSheet.create({
   slotEmoji: { fontSize: 24 },
   slotGearName: { fontWeight: '900', fontSize: 9, color: '#fff4cf', textAlign: 'center' },
   emptyPlus: { fontSize: 26, color: '#64748b' },
+  slotTapClose: { fontWeight: '800', fontSize: 9, color: '#fcd34d', marginTop: 4, textAlign: 'center' },
   statsBox: {
     backgroundColor: 'rgba(7, 17, 32, 0.72)',
     borderRadius: 14,
@@ -612,6 +646,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10, 22, 42, 0.96)',
     overflow: 'hidden',
     ...(Platform.OS === 'web' ? { zIndex: 20 } : {}),
+  },
+  pickerPanelEmbedded: {
+    marginBottom: 0,
+    borderWidth: 0,
+    borderRadius: 0,
+    backgroundColor: 'rgba(8, 18, 36, 0.98)',
   },
   pickerHdr: {
     flexDirection: 'row',
@@ -637,19 +677,23 @@ const styles = StyleSheet.create({
     maxHeight: 240,
     ...(Platform.OS === 'web' ? { overflowY: 'auto' } : {}),
   },
+  pickerScrollEmbedded: {
+    maxHeight: 200,
+    width: '100%',
+  },
   pickerScrollContent: { padding: 8, paddingBottom: 12 },
   pickerEmpty: { fontWeight: '800', color: '#94a3b8', textAlign: 'center', padding: 16, lineHeight: 20 },
   pickerOption: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,224,138,0.22)',
     backgroundColor: 'rgba(14, 28, 52, 0.88)',
     marginBottom: 6,
-    gap: 8,
+    gap: 6,
   },
   pickerOptionActive: { borderColor: '#86efac', backgroundColor: 'rgba(18, 53, 40, 0.55)' },
   pickerOptionClear: { borderStyle: 'dashed', borderColor: 'rgba(248, 113, 113, 0.45)' },

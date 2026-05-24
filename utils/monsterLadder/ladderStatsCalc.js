@@ -1,7 +1,7 @@
 import { evolutionStageFromLevel, visualFormTierFromLevel } from '../evolution';
 import { evolutionFormForMonster } from '../monsterEvolutionForms';
 import { RARITY_FLAT } from '../statsCalc';
-import { highLevelHpBonus, offensiveStatSteps } from '../../src/gameBalance/combat';
+import { battleMpPool, highLevelHpBonus, offensiveStatSteps } from '../../src/gameBalance/combat';
 import { getLadderMonsterTemplate } from './ladderMonsterCatalog';
 import { baseSpeedForRole, growthForRole } from '../../src/gameBalance/monsters';
 
@@ -61,6 +61,8 @@ export function computeLadderBattleStats(templateId, level) {
   const form = evolutionFormForMonster(templateId, visualTier);
 
   const agility = Math.max(1, Math.round(speed));
+  mp = battleMpPool(lv, t.role, t.rarity);
+
   return {
     stats: {
       hp,

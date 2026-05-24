@@ -53,6 +53,7 @@ import {
   WEB_DECORATIVE_IMAGE_PROPS,
   WEB_GAME_TOUCH_STYLE,
 } from '../utils/webGameTouch';
+import { formatBossPassiveIntroLines } from '../src/gameSystems/bossPassives';
 
 const RESULT_SFX_DELAY_MS = 450;
 const PLAYER_ID = 1;
@@ -123,7 +124,17 @@ function seedFighter(p) {
     ladderStageKind: p.ladderStageKind,
     mergeTier: p.mergeTier ?? 0,
     equippedGear: compactGearIds(p.equippedGear ?? p.monsterParts?.cosmetics),
+    equippedPassives: Array.isArray(p.equippedPassives) ? [...p.equippedPassives] : [],
+    passiveBattleState: p.passiveBattleState
+      ? { ...p.passiveBattleState }
+      : { barrierConsumed: false, rageCoreShown: false },
   };
+}
+
+function mergeAttackerAfterStrike({ resolved, mpSpentAtk, atk }) {
+  if (resolved.dodged) return mpSpentAtk;
+  const fromResolver = resolved.attacker ?? atk;
+  return { ...fromResolver, mp: mpSpentAtk.mp };
 }
 
 function snapshotFight(f) {
@@ -215,6 +226,10 @@ export default function BattleScreen({
   const ladderStageLabel = battleExtras?.ladderStageLabel ?? '';
   const isMainMiniBoss = !!(battleExtras?.mainMiniBoss ?? fighter2?.isMainMiniBoss);
   const bossStageBanner = ladderStageBanner(ladderStageKind);
+  const bossPassiveIntroLines = useMemo(
+    () => formatBossPassiveIntroLines(fighter2),
+    [fighter2],
+  );
   const ladderStagePillLabel =
     battleExtras?.mode === 'monsterLadder'
       ? [ladderStageLabel || `Level ${ladderFloor ?? ''}`, ladderBossName].filter(Boolean).join(' · ')
@@ -369,12 +384,14 @@ export default function BattleScreen({
       stageKind: ladderStageKind,
       title: ladderIntroTitle(ladderStageKind),
     });
+    const baseMs = ladderStageKind === 'bigBoss' ? 1250 : 900;
+    const introMs = baseMs + (bossPassiveIntroLines.length > 0 ? 450 : 0);
     const t = setTimeout(() => {
       setBattleIntro(false);
       setBusy(false);
-    }, ladderStageKind === 'bigBoss' ? 1250 : 900);
+    }, introMs);
     return () => clearTimeout(t);
-  }, [bossStageBanner, isMainMiniBoss, ladderStageKind]);
+  }, [bossStageBanner, isMainMiniBoss, ladderStageKind, bossPassiveIntroLines.length]);
 
   useEffect(() => {
     if (!usePhaserBattleRenderer || phaserFailed || isActionPlaying || busy) return;
@@ -413,6 +430,14 @@ export default function BattleScreen({
       }, COMBAT_FEEDBACK_MS);
     }
   }, []);
+
+  function applyTurnStartPassives(fighter) {
+    const regen = resolveStartOfTurnPassives(fighter);
+    if (regen.popupsToShow?.length) {
+      showBanner(regen.popupsToShow.join(' · '));
+    }
+    return regen.fighter;
+  }
 
   function clearTimers() {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -607,7 +632,12 @@ export default function BattleScreen({
   }
 
   function endRound(np1, np2, bannerOverride) {
-    const ticked = tickBothStatuses(np1, np2);
+    let roundP1 = np1;
+    let roundP2 = np2;
+    if (opponentIsAi) {
+      roundP1 = applyTurnStartPassives(roundP1);
+    }
+    const ticked = tickBothStatuses(roundP1, roundP2);
     if (ticked.ko) {
       if (ticked.np1.hp <= 0) wrapUpBattle(CPU_ID, ticked.np1, ticked.np2);
       else wrapUpBattle(PLAYER_ID, ticked.np1, ticked.np2);
@@ -817,10 +847,9 @@ export default function BattleScreen({
       let rp1 = np1;
       let rp2 = np2;
       const turnFighter = next === PLAYER_ID ? np1 : np2;
-      const regen = resolveStartOfTurnPassives(turnFighter);
-      if (regen.popupsToShow?.length) showBanner(regen.popupsToShow[0]);
-      if (next === PLAYER_ID) rp1 = regen.fighter;
-      else rp2 = regen.fighter;
+      const regenFighter = applyTurnStartPassives(turnFighter);
+      if (next === PLAYER_ID) rp1 = regenFighter;
+      else rp2 = regenFighter;
       endRound(rp1, rp2, `${name}'s turn`);
     };
   }
@@ -989,7 +1018,7 @@ export default function BattleScreen({
     if (attackerId === PLAYER_ID) p1Ref.current = mpSpentAtk;
     else p2Ref.current = mpSpentAtk;
 
-    let nextAtk = resolved.attacker ?? mpSpentAtk;
+    let nextAtk = mergeAttackerAfterStrike({ resolved, mpSpentAtk, atk });
     let nextDef = resolved.defender ?? def;
     if (resolved.dodged) {
       nextDef = { ...def };
@@ -1144,7 +1173,9 @@ export default function BattleScreen({
 
   function runCpuCounter(np1, np2) {
     schedule(400, () => {
-      const cpu = p2Ref.current;
+      const cpu = applyTurnStartPassives(p2Ref.current);
+      p2Ref.current = cpu;
+      setP2(cpu);
       const { skill, strikeKind } = pickCpuStrike(cpu);
       runAttack({
         attackerId: CPU_ID,
@@ -1349,7 +1380,10 @@ export default function BattleScreen({
           {battleExtras?.mode !== 'monsterLadder' && isMainMiniBoss ? (
             <View style={[styles.ladderStagePill, styles.ladderStagePillBoss]} pointerEvents="none">
               <Text style={styles.ladderStagePillMain}>Mini Boss Encounter</Text>
-              <Text style={styles.ladderStagePillBossTxt}>50% stronger · Chest reward</Text>
+              <Text style={styles.ladderStagePillBossTxt}>
+                50% stronger · Chest reward
+                {bossPassiveIntroLines.length > 0 ? ` · ${bossPassiveIntroLines.length} passive` : ''}
+              </Text>
             </View>
           ) : null}
           {battleIntro && bossStageBanner ? (
@@ -1370,6 +1404,16 @@ export default function BattleScreen({
                 {ladderIntroTitle(ladderStageKind)}
               </Text>
               <Text style={styles.bossIntroSub}>{bossStageBanner}</Text>
+              {bossPassiveIntroLines.length > 0 ? (
+                <View style={styles.bossIntroPassives}>
+                  <Text style={styles.bossIntroPassivesTitle}>Boss passives</Text>
+                  {bossPassiveIntroLines.map((line) => (
+                    <Text key={line.key} style={styles.bossIntroPassiveLine}>
+                      {line.text}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ) : null}
           </View>
@@ -1754,6 +1798,33 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 15,
     letterSpacing: 1,
+  },
+  bossIntroPassives: {
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(250, 204, 21, 0.45)',
+    maxWidth: 320,
+    width: '100%',
+  },
+  bossIntroPassivesTitle: {
+    color: '#94a3b8',
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  bossIntroPassiveLine: {
+    color: '#e2e8f0',
+    fontWeight: '700',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 3,
   },
   actionDock: {
     flexShrink: 0,

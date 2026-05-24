@@ -19,6 +19,10 @@ import {
 } from './mainBattleChest';
 import { getPlayerProfile } from './gameStorage';
 import { clampMergeTier, scaleStatsByMergeTier } from './mergeSystem';
+import {
+  BOSS_PASSIVE_BATTLE_STATE,
+  buildBossEquippedPassives,
+} from '../src/gameSystems/bossPassives';
 
 /**
  * Build runtime fighter object used by BattleScreen from persisted owned monster row.
@@ -209,6 +213,14 @@ export function buildAiFighter(humanFighter, gameData = null, profileId = null, 
   const ratio = isMainMiniBoss ? MAIN_MINI_BOSS_STAT_MULT : 0.9;
   const scaled = scaleStatsBundle(f.stats, ratio);
 
+  const equippedPassives = isMainMiniBoss
+    ? buildBossEquippedPassives({
+        stageKind: 'miniBoss',
+        encounterRarity: 'epic',
+        seedKey: `main_mini_${tplId}`,
+      })
+    : f.equippedPassives;
+
   return {
     ...f,
     stats: scaled,
@@ -223,5 +235,7 @@ export function buildAiFighter(humanFighter, gameData = null, profileId = null, 
     ladderStageKind: isMainMiniBoss ? 'miniBoss' : undefined,
     aiPowerRatio: ratio,
     humanPowerScoreSnapshot: null,
+    equippedPassives,
+    passiveBattleState: { ...BOSS_PASSIVE_BATTLE_STATE },
   };
 }

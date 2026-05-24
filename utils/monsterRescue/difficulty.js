@@ -15,17 +15,30 @@ function lerpInt(t, from, to) {
   return Math.round(lerp(t, from, to));
 }
 
-/** Shots between ceiling row pushes — eases from 30 (Lv1) down to 7 (Lv60). */
+/** Shots between ceiling row pushes — early game eases 30 → 16; late game 20 → 14. */
 export const ROW_PUSH_MOVES_BASE = 30;
-export const ROW_PUSH_MOVES_MIN = 7;
+/** Early/mid floor (levels 1–35). */
+export const ROW_PUSH_MOVES_MID_MIN = 16;
+/** Late-game floor (levels 36–60) — was 7 globally; 14 keeps theme 5+ fair. */
+export const ROW_PUSH_MOVES_LATE_MIN = 14;
+export const ROW_PUSH_MOVES_LATE_START = 20;
 
 /**
- * Shots before a new top row pushes the stack down (lower = harder).
+ * Shots before a new top row pushes the stack down (higher = easier).
+ * Two-phase curve: gentle ramp in themes 1–4, softer late-game ceiling than old 30→7 linear.
  * @param {number} levelId 1–60
  */
 export function rowPushEveryForLevel(levelId) {
-  const t = rescueLevelProgress(levelId);
-  return Math.max(ROW_PUSH_MOVES_MIN, lerpInt(t, 30, ROW_PUSH_MOVES_MIN));
+  const id = Math.max(1, Math.min(MAX_LEVEL, Math.floor(levelId || 1)));
+  if (id <= 35) {
+    const tEarly = (id - 1) / 34;
+    return Math.max(ROW_PUSH_MOVES_MID_MIN, lerpInt(tEarly, ROW_PUSH_MOVES_BASE, ROW_PUSH_MOVES_MID_MIN));
+  }
+  const tLate = (id - 36) / (MAX_LEVEL - 36);
+  return Math.max(
+    ROW_PUSH_MOVES_LATE_MIN,
+    lerpInt(tLate, ROW_PUSH_MOVES_LATE_START, ROW_PUSH_MOVES_LATE_MIN),
+  );
 }
 
 /**

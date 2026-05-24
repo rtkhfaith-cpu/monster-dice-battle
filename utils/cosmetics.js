@@ -42,33 +42,37 @@ import { getLadderGear } from './monsterLadder/ladderGearCatalog';
  * }} GearDef
  */
 
+/**
+ * Gear bonus numbers map to battle % via gearStats (hp/mp = %, atk/def min+max → %, crit/dodge = flat points).
+ * Tuned for battleMpPool (~30–92 MP): MP items use 10–15 so one extra cast matters.
+ */
 /** @type {GearDef[]} */
 export const GEAR_CATALOG = [
-  // —— Stat gear ——
-  { id: 'crown', name: 'Royal Crown', price: 50, emoji: '👑', category: 'stat', bonuses: { hp: 5, defMax: 1 } },
-  { id: 'wizard', name: 'Wizard Hat', price: 60, emoji: '🧙', category: 'stat', bonuses: { mp: 5, magicMin: 1, magicMax: 1 } },
-  { id: 'sunglasses', name: 'Cool Shades', price: 40, emoji: '🕶️', category: 'stat', bonuses: { dodgePct: 2, critPct: 1 } },
-  { id: 'cape', name: 'Hero Cape', price: 45, emoji: '🦸', category: 'stat', bonuses: { hp: 5, defMin: 1, defMax: 1 } },
-  { id: 'boxing', name: 'Boxing Gloves', price: 55, emoji: '🥊', category: 'stat', bonuses: { attackMin: 1, attackMax: 2 } },
-  { id: 'sockNecklace', name: 'Sock Necklace', price: 30, emoji: '🧿', category: 'stat', bonuses: { critPct: 2, expPct: 5 } },
-  { id: 'hpCharm', name: 'HP Charm', price: 42, emoji: '❤️', category: 'stat', bonuses: { hp: 8 } },
-  { id: 'mpOrb', name: 'MP Orb', price: 48, emoji: '🔮', category: 'stat', bonuses: { mp: 8 } },
-  { id: 'powerBand', name: 'Power Band', price: 52, emoji: '💪', category: 'stat', bonuses: { attackMin: 2, attackMax: 1 } },
-  { id: 'guardBadge', name: 'Guard Badge', price: 50, emoji: '🛡️', category: 'stat', bonuses: { defMin: 1, defMax: 2, magicDefMin: 1 } },
-  // —— Element gear ——
-  { id: 'fireAura', name: 'Fire Aura', price: 80, emoji: '🔥', category: 'element', bonuses: { attackMin: 1, magicMin: 1 }, element: 'fire', elementMode: 'enhance' },
-  { id: 'fireCore', name: 'Fire Core', price: 90, emoji: '🔥', category: 'element', bonuses: { mp: 4, magicMin: 1 }, element: 'fire', elementMode: 'override' },
-  { id: 'waterShell', name: 'Water Shell', price: 85, emoji: '💧', category: 'element', bonuses: { hp: 6, magicDefMin: 1 }, element: 'water', elementMode: 'override' },
-  { id: 'metalPlate', name: 'Metal Plate', price: 95, emoji: '⚙️', category: 'element', bonuses: { defMin: 1, defMax: 2 }, element: 'metal', elementMode: 'override' },
-  { id: 'woodCharm', name: 'Wood Charm', price: 70, emoji: '🌿', category: 'element', bonuses: { hp: 4, mp: 2 }, element: 'wood', elementMode: 'enhance' },
-  { id: 'earthRune', name: 'Earth Rune', price: 75, emoji: '🪨', category: 'element', bonuses: { defMin: 1, hp: 4 }, element: 'earth', elementMode: 'enhance' },
-  // —— Fun / meme gear ——
-  { id: 'tpCape', name: 'TP Cape', price: 35, emoji: '🧻', category: 'fun', bonuses: { hp: 3, dodgePct: 1 } },
-  { id: 'toiletLid', name: 'Toilet Lid Shield', price: 38, emoji: '🚽', category: 'fun', bonuses: { defMin: 2, defMax: 1 } },
-  { id: 'slippers', name: 'Slippers of Speed', price: 44, emoji: '🩴', category: 'fun', bonuses: { dodgePct: 4 } },
-  { id: 'durianHelm', name: 'Durian Helmet', price: 46, emoji: '🥭', category: 'fun', bonuses: { hp: 4, attackMin: 1 } },
-  { id: 'smellySocks', name: 'Smelly Socks', price: 32, emoji: '🧦', category: 'fun', bonuses: { attackMin: 1, critPct: 1 } },
-  { id: 'rubberDuck', name: 'Lucky Rubber Duck', price: 28, emoji: '🦆', category: 'fun', bonuses: { expPct: 8, mp: 2 } },
+  // —— Stat gear (best-in-slot for raw stats) ——
+  { id: 'crown', name: 'Royal Crown', price: 50, emoji: '👑', category: 'stat', bonuses: { hp: 8, defMax: 1 } },
+  { id: 'wizard', name: 'Wizard Hat', price: 60, emoji: '🧙', category: 'stat', bonuses: { mp: 12, magicMin: 1, magicMax: 1 } },
+  { id: 'sunglasses', name: 'Cool Shades', price: 40, emoji: '🕶️', category: 'stat', bonuses: { critPct: 3, dodgePct: 1 } },
+  { id: 'cape', name: 'Hero Cape', price: 45, emoji: '🦸', category: 'stat', bonuses: { hp: 6, defMin: 1, defMax: 1 } },
+  { id: 'boxing', name: 'Boxing Gloves', price: 55, emoji: '🥊', category: 'stat', bonuses: { attackMin: 2, attackMax: 2 } },
+  { id: 'sockNecklace', name: 'Sock Necklace', price: 30, emoji: '🧿', category: 'stat', bonuses: { critPct: 2, expPct: 8 } },
+  { id: 'hpCharm', name: 'HP Charm', price: 42, emoji: '❤️', category: 'stat', bonuses: { hp: 10 } },
+  { id: 'mpOrb', name: 'MP Orb', price: 48, emoji: '🔮', category: 'stat', bonuses: { mp: 15 } },
+  { id: 'powerBand', name: 'Power Band', price: 52, emoji: '💪', category: 'stat', bonuses: { attackMin: 2, attackMax: 2 } },
+  { id: 'guardBadge', name: 'Guard Badge', price: 50, emoji: '🛡️', category: 'stat', bonuses: { defMin: 2, defMax: 2, magicDefMin: 1 } },
+  // —— Element gear (override = element swap; stats slightly below pure BIS) ——
+  { id: 'fireAura', name: 'Fire Aura', price: 80, emoji: '🔥', category: 'element', bonuses: { attackMin: 1, attackMax: 1, magicMin: 1 }, element: 'fire', elementMode: 'enhance' },
+  { id: 'fireCore', name: 'Fire Core', price: 90, emoji: '🔥', category: 'element', bonuses: { mp: 10, magicMin: 2, magicMax: 1 }, element: 'fire', elementMode: 'override' },
+  { id: 'waterShell', name: 'Water Shell', price: 85, emoji: '💧', category: 'element', bonuses: { hp: 10, magicDefMin: 1, magicDefMax: 1 }, element: 'water', elementMode: 'override' },
+  { id: 'metalPlate', name: 'Metal Plate', price: 95, emoji: '⚙️', category: 'element', bonuses: { defMin: 2, defMax: 2, hp: 5 }, element: 'metal', elementMode: 'override' },
+  { id: 'woodCharm', name: 'Wood Charm', price: 70, emoji: '🌿', category: 'element', bonuses: { hp: 6, mp: 10 }, element: 'wood', elementMode: 'enhance' },
+  { id: 'earthRune', name: 'Earth Rune', price: 75, emoji: '🪨', category: 'element', bonuses: { defMin: 2, defMax: 1, hp: 6 }, element: 'earth', elementMode: 'enhance' },
+  // —— Fun / meme (niche picks — not full BIS, but usable) ——
+  { id: 'tpCape', name: 'TP Cape', price: 35, emoji: '🧻', category: 'fun', bonuses: { hp: 4, dodgePct: 2 } },
+  { id: 'toiletLid', name: 'Toilet Lid Shield', price: 38, emoji: '🚽', category: 'fun', bonuses: { defMin: 2, defMax: 2, hp: 3 } },
+  { id: 'slippers', name: 'Slippers of Speed', price: 44, emoji: '🩴', category: 'fun', bonuses: { dodgePct: 3, agility: 2 } },
+  { id: 'durianHelm', name: 'Durian Helmet', price: 46, emoji: '🥭', category: 'fun', bonuses: { hp: 5, attackMin: 1, attackMax: 1 } },
+  { id: 'smellySocks', name: 'Smelly Socks', price: 32, emoji: '🧦', category: 'fun', bonuses: { attackMin: 2, critPct: 1 } },
+  { id: 'rubberDuck', name: 'Lucky Rubber Duck', price: 28, emoji: '🦆', category: 'fun', bonuses: { expPct: 10, mp: 6 } },
 ];
 
 export const GEAR_CATEGORY_LABELS = {

@@ -334,9 +334,12 @@ export function resolveStartOfTurnPassives(fighter) {
     }
   }
 
+  const healingApplied =
+    regenPassive && f.hp > (fighter.hp ?? 0) ? f.hp - (fighter.hp ?? 0) : 0;
+
   return {
     fighter: f,
-    healing: 0,
+    healing: healingApplied,
     popupsToShow: pickTopPopups(popups),
     battleLogEntries,
   };

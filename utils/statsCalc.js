@@ -1,6 +1,6 @@
 import { evolutionStageFromLevel } from './evolution';
 import { getMonsterTemplate, MONSTER_CATALOG } from './monsterTemplates';
-import { highLevelHpBonus, offensiveStatSteps } from '../src/gameBalance/combat';
+import { battleMpPool, highLevelHpBonus, offensiveStatSteps } from '../src/gameBalance/combat';
 import { baseSpeedForRole, growthForRole } from '../src/gameBalance/monsters';
 
 /** Flat rarity bumps — keeps commons playable while highs feel premium */
@@ -105,6 +105,8 @@ export function computeBattleStats(templateId, level) {
   const magicDef = clampRange(mdMin, mdMax);
 
   const agility = Math.max(1, Math.round(speed));
+  mp = battleMpPool(lv, t.role, t.rarity);
+
   const stats = {
     hp,
     mp,

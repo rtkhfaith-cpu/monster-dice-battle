@@ -592,7 +592,7 @@ export const MONSTER_CATALOG = [
     price: 500,
     rarity: 'mythic',
     role: 'brawler',
-    description: 'Mythic physical bruiser — Fire / Wood. Counters Core Feed Beast.',
+    description: 'Mythic physical bruiser — Metal / Fire. Counters Core Feed Beast.',
     baseStats: {
       hp: 252,
       mp: 118,

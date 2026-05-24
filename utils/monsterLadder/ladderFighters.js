@@ -9,6 +9,10 @@ import { getActiveLadderBattler, mergeLadderMonsterParts } from './ladderProfile
 import { fighterFromOwned } from '../fighterFromOwned';
 import { getStageKind, cpuPowerForStage, decodeStage } from './stages';
 import { getLadderGear } from './ladderGearCatalog';
+import {
+  BOSS_PASSIVE_BATTLE_STATE,
+  buildBossEquippedPassives,
+} from '../../src/gameSystems/bossPassives';
 
 function rarityForStage(mainLevel, subLevel, kind) {
   if (kind === 'miniBoss') return 'epic';
@@ -203,6 +207,15 @@ export function buildLadderEnemyFighter(stageIndex, playerRef) {
   if (!built) return null;
   const tpl = getLadderMonsterTemplate(templateId);
 
+  const isBossStage = kind === 'miniBoss' || kind === 'bigBoss';
+  const equippedPassives = isBossStage
+    ? buildBossEquippedPassives({
+        stageKind: kind,
+        encounterRarity,
+        seedKey: `ladder_${stageIndex}_${templateId}`,
+      })
+    : [];
+
   return {
     monsterParts: mergeLadderMonsterParts(templateId),
     stats: scaleStatsBundle(built.stats, ratio),
@@ -226,5 +239,7 @@ export function buildLadderEnemyFighter(stageIndex, playerRef) {
     ladderStageKind: kind,
     ladderThemeName: theme.name,
     ladderBossName: displayName,
+    equippedPassives,
+    passiveBattleState: { ...BOSS_PASSIVE_BATTLE_STATE },
   };
 }

@@ -84,6 +84,50 @@ export function outgoingDamageLevelFactor(level) {
   return 1 - t * 0.22;
 }
 
+/** Tighter MP pools — magic costs ~10–18; ~4–7 casts per battle at typical levels. */
+export const MP_PACING = {
+  min: 30,
+  max: 92,
+  base: 22,
+  perLevel: 1.35,
+};
+
+const ROLE_MP_BONUS = {
+  tank: 0,
+  brawler: 2,
+  attacker: 2,
+  mage: 12,
+  balanced: 4,
+  speedster: 5,
+  support: 8,
+  debuffer: 6,
+  trickster: 6,
+  mythic: 6,
+  tank_mage: 5,
+};
+
+const RARITY_MP_BONUS = {
+  common: 0,
+  rare: 3,
+  epic: 7,
+  legendary: 11,
+  mythic: 14,
+};
+
+/**
+ * Battle MP cap — replaces inflated template MP growth so mana runs out in normal fights.
+ * @param {number} level
+ * @param {string} [role]
+ * @param {string} [rarity]
+ */
+export function battleMpPool(level, role = 'balanced', rarity = 'common') {
+  const lv = Math.max(1, Math.floor(level ?? 1));
+  const roleBonus = ROLE_MP_BONUS[role] ?? ROLE_MP_BONUS.balanced;
+  const rarityBonus = RARITY_MP_BONUS[rarity] ?? 0;
+  const raw = MP_PACING.base + Math.floor(lv * MP_PACING.perLevel) + roleBonus + rarityBonus;
+  return clamp(raw, MP_PACING.min, MP_PACING.max);
+}
+
 /**
  * Final damage — passives will hook here later.
  * @param {number} raw

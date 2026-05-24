@@ -116,10 +116,11 @@ export const MONSTER_SKILL_SETS = {
     ],
   },
   sixtyseven_rex: {
-    physical: { id: 'mythic_claw', name: 'Mythic Claw', kind: 'physical', effectType: 'normal', emoji: '⚡', power: 1.18 },
+    physical: { id: 'mythic_claw', name: 'Mythic Claw', kind: 'physical', effectType: 'normal', emoji: '⚡', power: 1.08 },
     magic: [
-      { id: 'ember_rush', name: 'Ember Rush', kind: 'magic', mpCost: 14, element: 'fire', power: 1.28, effectType: 'fire', emoji: '🔥' },
-      { id: 'vine_slam', name: 'Vine Slam', kind: 'magic', mpCost: 16, element: 'wood', power: 1.22, effectType: 'normal', emoji: '🌿' },
+      { id: 'sixtyseven_blast', name: '67 Blast', kind: 'magic', mpCost: 15, element: 'metal', power: 1.35, effectType: 'magic67', emoji: '6️⃣' },
+      { id: 'golden_roar', name: 'Golden Roar', kind: 'magic', mpCost: 18, element: 'fire', power: 1.4, effectType: 'roar', emoji: '👑', status: { type: 'burn', chance: 0.45, turns: 2 } },
+      { id: 'hype_wave', name: 'Hype Wave', kind: 'magic', mpCost: 12, element: 'metal', power: 1.2, effectType: 'normal', emoji: '🌟' },
     ],
   },
   goldzilla: {

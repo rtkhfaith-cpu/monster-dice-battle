@@ -35,8 +35,8 @@ export const MYTHIC_IDS = /** @type {const} */ ([
 
 /** @type {Record<string, [ElementId, ElementId]>} */
 export const MYTHIC_ELEMENTS = {
-  /** Physical brawler — Fire / Wood */
-  sixtyseven_rex: ['fire', 'wood'],
+  /** Mythic bruiser — Metal / Fire (67 meme kit) */
+  sixtyseven_rex: ['metal', 'fire'],
   /** Magic nuker — Wood / Fire */
   core_feed_beast: ['wood', 'fire'],
   /** All-rounder — Metal / Earth */
@@ -72,7 +72,7 @@ export const MONSTER_ELEMENTS = {
   tablet_wizard: 'metal',
   skibidi_bot: 'earth',
   bubble_tea_slime: 'earth',
-  sixtyseven_rex: 'fire',
+  sixtyseven_rex: 'metal',
   goldzilla: 'metal',
 };
 
