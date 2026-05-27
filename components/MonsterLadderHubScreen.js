@@ -664,6 +664,14 @@ export default function MonsterLadderHubScreen({
                 <Text style={styles.fighterMeta}>
                   Lv {activeFighter?.level ?? '—'} · {rarityUi?.label ?? rarity}
                 </Text>
+                {activeFighter?.equippedPet ? (
+                  <Text style={styles.fighterPet}>
+                    Pet: {activeFighter.equippedPet.emoji} {activeFighter.equippedPet.name} · Lv{' '}
+                    {activeFighter.equippedPet.level ?? 1}
+                  </Text>
+                ) : (
+                  <Text style={styles.fighterPetMuted}>No pet — tap Monster Gear → Pets</Text>
+                )}
                 <Text style={styles.fighterRegion} numberOfLines={1}>
                   {featuredTpl?.name ?? 'Ladder'} region
                 </Text>
@@ -984,6 +992,18 @@ const styles = StyleSheet.create({
     color: '#c8b6ff',
     fontSize: 11,
     fontWeight: '900',
+    marginTop: 2,
+  },
+  fighterPet: {
+    color: '#93c5fd',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  fighterPetMuted: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '700',
     marginTop: 2,
   },
   fighterRegion: {

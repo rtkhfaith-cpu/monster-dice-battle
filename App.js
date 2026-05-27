@@ -1751,6 +1751,18 @@ export default function App() {
     }
   }
 
+  function openLadderMonsterGear() {
+    if (!gameData || !setupP1ProfileId) return;
+    const profile = getPlayerProfile(gameData, setupP1ProfileId);
+    const battler = getActiveLadderBattler(profile, setupP1Id);
+    if (!battler?.id) {
+      showNotice('Monster Gear', 'Pick a ladder monster first.');
+      return;
+    }
+    setGearMonsterId(battler.id);
+    setGearOpen(true);
+  }
+
   function startMonsterLadderBattle() {
     if (!setupP1ProfileId || !gameData) {
       showNotice('Monster Ladder', 'Select a player profile first.');
@@ -1768,7 +1780,7 @@ export default function App() {
       showNotice('Monster Ladder', 'Own at least one monster on the home screen or in Collection.');
       return;
     }
-    const f1 = fighterForLadderBattle(owned);
+    const f1 = fighterFromActiveLadder(profile, setupP1Id);
     if (!f1) {
       showNotice('Monster Ladder', 'Could not build your ladder fighter.');
       return;
@@ -1903,7 +1915,13 @@ export default function App() {
       if (summary?.chestDrop) {
         setLadderChestDrop(summary.chestDrop);
         setLadderChestKicker(
-          summary.chestDrop.kind === 'gear' ? 'Mini Boss Gear Chest' : 'Boss Monster Chest',
+          summary.chestDrop.kind === 'pet'
+            ? 'Mythic Pet Drop'
+            : summary.chestDrop.kind === 'pet_exp_dust'
+              ? 'Pet EXP Dust'
+              : summary.chestDrop.kind === 'gear'
+                ? 'Mini Boss Gear Chest'
+                : 'Boss Monster Chest',
         );
         setLadderChestAutoReveal(true);
         playSound('reward');
@@ -2428,13 +2446,7 @@ export default function App() {
             onBack={returnToQuestPicker}
             onStartBattle={startMonsterLadderBattle}
             onOpenCollection={() => setLadderCollectionOpen(true)}
-            onOpenGear={() => {
-              const id = setupP1Id || defaultBattleMonsterId(wallet);
-              if (id) {
-                setGearMonsterId(resolveBattleMonsterId(wallet?.ownedMonsters ?? [], id) ?? id);
-                setGearOpen(true);
-              }
-            }}
+            onOpenGear={openLadderMonsterGear}
             chestGoldCost={LADDER_CHEST_GOLD_COST.gear}
             chestShardCost={LADDER_CHEST_SHARD_COST.monster}
             onBuyChest={handleBuyLadderChest}
@@ -2536,7 +2548,7 @@ export default function App() {
               onPlayAgain={playAgainFromReward}
               onOpenMonsterGear={
                 rewardSummary?.monsterLadder
-                  ? undefined
+                  ? openLadderMonsterGear
                   : () => {
                       const id = setupP1Id || defaultBattleMonsterId(wallet);
                       if (id) {

@@ -3,6 +3,7 @@ import { Animated, Easing, Image, Modal, Platform, StyleSheet, Text, TouchableOp
 import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderGear } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
+import { chestDropSubtitle, chestDropTitle } from '../utils/mainBattleChest';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
 import { RESCUE_COLORS } from './monsterRescue/rescueUiTheme';
@@ -13,8 +14,29 @@ function rarityLabel(rarity) {
 
 function rewardName(drop) {
   if (!drop) return 'No chest reward';
+  if (drop.kind === 'pet' || drop.kind === 'pet_exp_dust') return chestDropTitle(drop);
   if (drop.kind === 'gear') return getLadderGear(drop.id)?.name ?? drop.name ?? drop.id;
   return getLadderMonsterTemplate(drop.id)?.name ?? drop.name ?? drop.id;
+}
+
+function rewardTypeLabel(drop) {
+  if (drop?.kind === 'pet') return 'Mythic pet companion';
+  if (drop?.kind === 'pet_exp_dust') return 'Pet EXP dust';
+  if (drop?.kind === 'gear') return 'Ladder gear';
+  return 'Ladder monster';
+}
+
+function duplicateMessage(drop) {
+  if (drop?.kind === 'pet') {
+    const sub = chestDropSubtitle(drop);
+    return sub || 'Duplicate pet.';
+  }
+  if (drop?.kind === 'pet_exp_dust') return chestDropSubtitle(drop);
+  if (drop.exchangedForShards || drop.shardsGained > 0) {
+    return `Duplicate converted into +${drop.shardsGained ?? 0} ladder shards.`;
+  }
+  if (drop.kind === 'gear') return `Extra copy stored. Owned x${drop.quantity ?? 2}.`;
+  return 'Duplicate stored for merging later.';
 }
 
 export default function MonsterLadderChestRevealModal({
@@ -41,7 +63,7 @@ export default function MonsterLadderChestRevealModal({
       tension: 42,
       useNativeDriver,
     }).start();
-  }, [visible, drop?.id, drop?.kind, autoReveal, chestDropY, revealOpacity, useNativeDriver]);
+  }, [visible, drop?.id, drop?.petId, drop?.kind, drop?.amount, autoReveal, chestDropY, revealOpacity, useNativeDriver]);
 
   useEffect(() => {
     if (!opened) {
@@ -95,23 +117,15 @@ export default function MonsterLadderChestRevealModal({
                 {rarityLabel(drop.rarity)}
               </Text>
               <Text style={styles.name}>{rewardName(drop)}</Text>
-              <Text style={styles.type}>
-                {drop.kind === 'gear' ? 'Ladder gear' : 'Ladder monster'}
-              </Text>
+              <Text style={styles.type}>{rewardTypeLabel(drop)}</Text>
               {duplicate ? (
-                drop.exchangedForShards || drop.shardsGained > 0 ? (
-                  <Text style={styles.duplicate}>
-                    Duplicate converted into +{drop.shardsGained ?? 0} ladder shards.
-                  </Text>
-                ) : drop.kind === 'gear' ? (
-                  <Text style={styles.duplicate}>Extra copy stored. Owned x{drop.quantity ?? 2}.</Text>
-                ) : (
-                  <Text style={styles.duplicate}>
-                    Duplicate stored for merging later.
-                  </Text>
-                )
+                <Text style={styles.duplicate}>{duplicateMessage(drop)}</Text>
               ) : (
-                <Text style={styles.newItem}>Added to your collection.</Text>
+                <Text style={styles.newItem}>
+                  {drop.kind === 'pet_exp_dust'
+                    ? 'Added to your pet EXP dust.'
+                    : 'Added to your collection.'}
+                </Text>
               )}
               {(drop.rarity === 'legendary' || drop.rarity === 'mythic') ? (
                 <Text style={styles.dramatic}>

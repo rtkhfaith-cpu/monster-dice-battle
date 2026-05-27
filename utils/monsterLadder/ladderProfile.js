@@ -2,7 +2,7 @@ import { DEFAULT_GEAR_SLOTS } from '../gearSlots';
 import { applyMonsterTheme } from '../monsterThemes';
 import { getLadderMonsterTemplate } from './ladderMonsterCatalog';
 import { resolveLadderTemplateId } from './ladderMonsterMigrate';
-import { countOwnedSpecies, rosterSpeciesKey } from '../rosterInventory';
+import { countOwnedSpecies, resolveBattleMonsterId, rosterSpeciesKey } from '../rosterInventory';
 import { normalizeMonsterLadder } from './ladderProgress';
 
 function uid(prefix) {
@@ -77,7 +77,8 @@ export function getActiveLadderBattler(profile, setupP1Id = null) {
   if (ml.activeBattlerPinned && activeRow) return activeRow;
 
   if (setupP1Id) {
-    const fromSetup = main.find((m) => m.id === setupP1Id);
+    const battleId = resolveBattleMonsterId(main, setupP1Id);
+    const fromSetup = battleId ? main.find((m) => m.id === battleId) : null;
     if (fromSetup) return fromSetup;
   }
   if (activeRow) return activeRow;

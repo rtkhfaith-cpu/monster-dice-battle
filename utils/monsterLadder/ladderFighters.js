@@ -118,15 +118,15 @@ function scaleStatsBundle(stats, ratio) {
 }
 
 /** Build battle fighter from a main-roster owned row. */
-export function fighterForLadderBattle(owned) {
+export function fighterForLadderBattle(owned, profile = null) {
   if (!owned) return null;
-  return fighterFromOwned(owned);
+  return fighterFromOwned(owned, profile);
 }
 
 /** @param {object} profile @param {string|null} [setupP1Id] */
 export function fighterFromActiveLadder(profile, setupP1Id = null) {
   const owned = getActiveLadderBattler(profile, setupP1Id);
-  return owned ? fighterForLadderBattle(owned) : null;
+  return owned ? fighterForLadderBattle(owned, profile) : null;
 }
 
 /**

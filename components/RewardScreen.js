@@ -219,9 +219,15 @@ export default function RewardScreen({
     extras.push(`+${ladderBonusCoins} ladder gold`);
   }
   if (monsterLadder && chestDrop) {
-    extras.push(
-      `${chestDrop.kind === 'gear' ? 'Gear' : 'Monster'} chest${chestDrop.duplicate ? ' (shards)' : ''}`,
-    );
+    const chestLabel =
+      chestDrop.kind === 'pet'
+        ? 'Mythic pet'
+        : chestDrop.kind === 'pet_exp_dust'
+          ? 'Pet EXP dust'
+          : chestDrop.kind === 'gear'
+            ? 'Gear'
+            : 'Monster';
+    extras.push(`${chestLabel} chest${chestDrop.duplicate ? ' (duplicate)' : ''}`);
   }
   if (monsterLadder && chestBlocked) extras.push('Daily chest claimed');
   if (!monsterLadder && mainChestDrop) {
