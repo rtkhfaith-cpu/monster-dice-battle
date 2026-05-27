@@ -1083,7 +1083,7 @@ export default function BattleScreen({
     setBusy(false);
   }
 
-  /** Recover stuck turn state (HMR, cleared timers, or interrupted animation). */
+  /** Recover stuck resolveAttack with no pending strike (HMR / cleared timers). */
   useEffect(() => {
     if (battlePhase !== 'resolveAttack' || pendingStrikeRef.current) return undefined;
     const t = setTimeout(() => {
@@ -1092,7 +1092,7 @@ export default function BattleScreen({
         battlePhaseRef.current = 'chooseAction';
         setBattlePhase('chooseAction');
       }
-    }, 400);
+    }, 800);
     return () => clearTimeout(t);
   }, [battlePhase]);
 
@@ -1111,6 +1111,9 @@ export default function BattleScreen({
   }, [busy, isActionPlaying]);
 
   function playerCanAct() {
+    if (pendingStrikeRef.current && battlePhase !== 'resolveAttack') {
+      pendingStrikeRef.current = null;
+    }
     return (
       !battleIntro
       && !isActionPlaying
@@ -1163,6 +1166,25 @@ export default function BattleScreen({
     }
   }
 
+  function canStartAttack(skipBusyCheck) {
+    if (skipBusyCheck) return true;
+    if (isActionPlaying || busy) return false;
+    if (pendingStrikeRef.current && battlePhase !== 'resolveAttack') {
+      pendingStrikeRef.current = null;
+    }
+    if (pendingStrikeRef.current) return false;
+    if (isActionPlayingRef.current || busyRef.current) {
+      const staleLocks = !isActionPlaying && !busy && !pendingStrikeRef.current;
+      if (staleLocks) {
+        isActionPlayingRef.current = false;
+        busyRef.current = false;
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+
   function runAttack({
     attackerId,
     defenderId,
@@ -1173,7 +1195,7 @@ export default function BattleScreen({
     superBomb = false,
     skipBusyCheck = false,
   }) {
-    if (!skipBusyCheck && (isActionPlayingRef.current || busyRef.current)) return;
+    if (!canStartAttack(skipBusyCheck)) return;
     isActionPlayingRef.current = true;
     busyRef.current = true;
     setIsActionPlaying(true);
@@ -1185,6 +1207,7 @@ export default function BattleScreen({
     const atk = attackerId === PLAYER_ID ? curP1 : curP2;
     const def = defenderId === PLAYER_ID ? curP1 : curP2;
     if (!atk || !def) {
+      showBanner('Attack failed — fighters not loaded.');
       releaseActionLocks();
       battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
@@ -1241,11 +1264,8 @@ export default function BattleScreen({
     if (attackerId === PLAYER_ID && strikeKind === 'magic') {
       playerUsedMagicRef.current = true;
     }
-    battlePhaseRef.current = 'resolveAttack';
-    setBattlePhase('resolveAttack');
     setMenuMode('main');
     clearAttackEffects();
-    showBanner(bannerText || skill?.name || 'Attack');
 
     if (attackerId === PLAYER_ID) {
       setP2Pose('idle');
@@ -1345,6 +1365,10 @@ export default function BattleScreen({
       safetyId,
       onComplete,
     };
+
+    battlePhaseRef.current = 'resolveAttack';
+    setBattlePhase('resolveAttack');
+    showBanner(bannerText || skill?.name || 'Attack');
 
     emitPhaserActionResult({
       attackerId,
