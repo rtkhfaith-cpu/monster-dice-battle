@@ -62,6 +62,19 @@ function rollAttackAvoided(attacker, defender, magic = false) {
   return rollAutoDodge(attacker, defender, magic);
 }
 
+/** Mirror of client `statusStatMultiplier` — atkDown/defDown apply 0.85x. */
+function statusStatMultiplier(fighter, statKind) {
+  const dict =
+    fighter?.statuses && typeof fighter.statuses === 'object'
+      ? fighter.statuses
+      : fighter?.status?.type
+      ? { [fighter.status.type]: fighter.status }
+      : {};
+  if (statKind === 'attack' && (dict.atkDown?.turnsLeft ?? 0) > 0) return 0.85;
+  if (statKind === 'def' && (dict.defDown?.turnsLeft ?? 0) > 0) return 0.85;
+  return 1;
+}
+
 function defenseMitigationRatio(defStat, attackPower) {
   const d = Math.max(0, defStat);
   const a = Math.max(1, attackPower);
@@ -89,9 +102,11 @@ function resolvePhysicalBattleDamage({ attacker, defender, skill = null }) {
   }
 
   const powerMult = skill?.power ?? 1;
-  const baseAttack = statMid(attacker?.stats?.attack, 10) * powerMult;
+  const atkMult = statusStatMultiplier(attacker, 'attack');
+  const defMult = statusStatMultiplier(defender, 'def');
+  const baseAttack = statMid(attacker?.stats?.attack, 10) * powerMult * atkMult;
   const levelBonus = (attacker?.level ?? 1) * 1.5;
-  const defStat = statMid(defender?.stats?.def, 5);
+  const defStat = statMid(defender?.stats?.def, 5) * defMult;
   const randomVariance = 0.85 + Math.random() * 0.3;
 
   const attackPower = baseAttack + levelBonus;
@@ -143,10 +158,12 @@ function resolveMagicBattleDamage({
   }
 
   const powerMult = skill?.power ?? 1.2;
-  const baseMagic = statMid(attacker?.stats?.magic, 10) * powerMult;
+  const atkMult = statusStatMultiplier(attacker, 'attack');
+  const defMult = statusStatMultiplier(defender, 'def');
+  const baseMagic = statMid(attacker?.stats?.magic, 10) * powerMult * atkMult;
   const levelBonus = (attacker?.level ?? 1) * 1.8;
   const mdFallback = statMid(defender?.stats?.def, 5);
-  const defStat = statMid(defender?.stats?.magicDef, mdFallback);
+  const defStat = statMid(defender?.stats?.magicDef, mdFallback) * defMult;
   const randomVariance = 0.88 + Math.random() * 0.28;
 
   const aEl = atkElement ?? skill?.element ?? attacker?.element ?? 'earth';

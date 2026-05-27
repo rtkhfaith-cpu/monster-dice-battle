@@ -260,12 +260,21 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
       if (st.type && st.chance && Math.random() < st.chance) {
         if (!def.statuses) def.statuses = {};
         const cur = def.statuses[st.type];
-        def.statuses[st.type] = {
+        // Match client `applyStatus` defaults so DoT ticks and stat-debuff multipliers
+        // behave the same in multiplayer as singleplayer.
+        const next = {
           type: st.type,
           turnsLeft: Math.max(cur?.turnsLeft ?? 0, st.turns ?? 2),
           potency: 1,
         };
-        def.status = def.statuses[st.type];
+        if (st.type === 'poison' || st.type === 'burn') {
+          next.dotMaxHpPct = st.dotMaxHpPct ?? cur?.dotMaxHpPct ?? 2;
+          if (st.type === 'burn') {
+            next.healReductionPct = st.healReductionPct ?? cur?.healReductionPct ?? 0;
+          }
+        }
+        def.statuses[st.type] = next;
+        def.status = next;
         pushLog(battle, `${def.displayName || 'Defender'} got ${st.type}!`);
       }
     }
