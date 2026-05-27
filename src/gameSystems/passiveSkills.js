@@ -43,12 +43,12 @@ export const PASSIVE_SKILLS = {
     trigger: 'afterDamageDealt',
     random: false,
     scaling: {
-      rare: { lifestealPct: 5 },
-      epic: { lifestealPct: 8 },
-      legendary: { lifestealPct: 10 },
-      mythic: { lifestealPct: 15 },
+      rare: { healMaxHpPct: 4 },
+      epic: { healMaxHpPct: 6 },
+      legendary: { healMaxHpPct: 9 },
+      mythic: { healMaxHpPct: 13 },
     },
-    description: (r) => `Heal ${getPassiveEffect(PASSIVE_SKILL_IDS.BLOOD_DRAIN, r).lifestealPct}% of damage dealt.`,
+    description: (r) => `On hit: heal ${getPassiveEffect(PASSIVE_SKILL_IDS.BLOOD_DRAIN, r).healMaxHpPct}% of your max HP.`,
   },
   [PASSIVE_SKILL_IDS.MIRROR_SHELL]: {
     id: PASSIVE_SKILL_IDS.MIRROR_SHELL,
@@ -57,12 +57,12 @@ export const PASSIVE_SKILLS = {
     trigger: 'afterDamageReceived',
     random: false,
     scaling: {
-      rare: { reflectPct: 8 },
-      epic: { reflectPct: 12 },
-      legendary: { reflectPct: 15 },
-      mythic: { reflectPct: 20 },
+      rare: { reflectAtkPct: 25 },
+      epic: { reflectAtkPct: 40 },
+      legendary: { reflectAtkPct: 55 },
+      mythic: { reflectAtkPct: 75 },
     },
-    description: (r) => `Reflect ${getPassiveEffect(PASSIVE_SKILL_IDS.MIRROR_SHELL, r).reflectPct}% of direct damage received.`,
+    description: (r) => `When hit: reflect ${getPassiveEffect(PASSIVE_SKILL_IDS.MIRROR_SHELL, r).reflectAtkPct}% of your best attack stat as damage.`,
   },
   [PASSIVE_SKILL_IDS.REGENERATION_AURA]: {
     id: PASSIVE_SKILL_IDS.REGENERATION_AURA,
@@ -71,10 +71,10 @@ export const PASSIVE_SKILLS = {
     trigger: 'startOfTurn',
     random: false,
     scaling: {
-      rare: { healMaxHpPct: 2 },
-      epic: { healMaxHpPct: 3 },
-      legendary: { healMaxHpPct: 4 },
-      mythic: { healMaxHpPct: 5 },
+      rare: { healMaxHpPct: 5 },
+      epic: { healMaxHpPct: 7 },
+      legendary: { healMaxHpPct: 10 },
+      mythic: { healMaxHpPct: 14 },
     },
     description: (r) => `Recover ${getPassiveEffect(PASSIVE_SKILL_IDS.REGENERATION_AURA, r).healMaxHpPct}% max HP at start of turn.`,
   },
@@ -84,16 +84,16 @@ export const PASSIVE_SKILLS = {
     effectType: 'poison',
     trigger: 'afterDamageDealt',
     random: true,
-    procChance: 20,
+    procChance: 35,
     scaling: {
-      rare: { dotMaxHpPct: 2, turns: 2 },
-      epic: { dotMaxHpPct: 3, turns: 3 },
-      legendary: { dotMaxHpPct: 5, turns: 3 },
-      mythic: { dotMaxHpPct: 6, turns: 4 },
+      rare: { dotMaxHpPct: 4, turns: 2 },
+      epic: { dotMaxHpPct: 6, turns: 3 },
+      legendary: { dotMaxHpPct: 8, turns: 3 },
+      mythic: { dotMaxHpPct: 10, turns: 4 },
     },
     description: (r) => {
       const e = getPassiveEffect(PASSIVE_SKILL_IDS.TOXIC_FANG, r);
-      return `20% chance to poison (${e.dotMaxHpPct}% max HP/turn, ${e.turns} turns).`;
+      return `35% chance to poison (${e.dotMaxHpPct}% max HP/turn, ${e.turns} turns).`;
     },
   },
   [PASSIVE_SKILL_IDS.INFERNO_CURSE]: {
@@ -102,16 +102,16 @@ export const PASSIVE_SKILLS = {
     effectType: 'burn',
     trigger: 'afterDamageDealt',
     random: true,
-    procChance: 20,
+    procChance: 35,
     scaling: {
-      rare: { dotMaxHpPct: 2, healReductionPct: 20, turns: 2 },
-      epic: { dotMaxHpPct: 3, healReductionPct: 30, turns: 3 },
-      legendary: { dotMaxHpPct: 4, healReductionPct: 50, turns: 3 },
-      mythic: { dotMaxHpPct: 5, healReductionPct: 70, turns: 4 },
+      rare: { dotMaxHpPct: 4, healReductionPct: 30, turns: 2 },
+      epic: { dotMaxHpPct: 5, healReductionPct: 45, turns: 3 },
+      legendary: { dotMaxHpPct: 7, healReductionPct: 60, turns: 3 },
+      mythic: { dotMaxHpPct: 9, healReductionPct: 80, turns: 4 },
     },
     description: (r) => {
       const e = getPassiveEffect(PASSIVE_SKILL_IDS.INFERNO_CURSE, r);
-      return `20% chance to burn (${e.dotMaxHpPct}% max HP/turn, −${e.healReductionPct}% healing, ${e.turns} turns).`;
+      return `35% chance to burn (${e.dotMaxHpPct}% max HP/turn, −${e.healReductionPct}% healing, ${e.turns} turns).`;
     },
   },
   [PASSIVE_SKILL_IDS.PHANTOM_STEP]: {
@@ -121,10 +121,10 @@ export const PASSIVE_SKILLS = {
     trigger: 'beforeDamage',
     random: true,
     scaling: {
-      rare: { dodgeBonusPct: 5 },
-      epic: { dodgeBonusPct: 8 },
-      legendary: { dodgeBonusPct: 10 },
-      mythic: { dodgeBonusPct: 12 },
+      rare: { dodgeBonusPct: 8 },
+      epic: { dodgeBonusPct: 12 },
+      legendary: { dodgeBonusPct: 16 },
+      mythic: { dodgeBonusPct: 20 },
     },
     description: (r) => `+${getPassiveEffect(PASSIVE_SKILL_IDS.PHANTOM_STEP, r).dodgeBonusPct}% dodge chance.`,
   },
@@ -135,10 +135,10 @@ export const PASSIVE_SKILLS = {
     trigger: 'duringDamageCalc',
     random: false,
     scaling: {
-      rare: { critBonusPct: 5 },
-      epic: { critBonusPct: 8 },
-      legendary: { critBonusPct: 12 },
-      mythic: { critBonusPct: 15 },
+      rare: { critBonusPct: 10 },
+      epic: { critBonusPct: 15 },
+      legendary: { critBonusPct: 20 },
+      mythic: { critBonusPct: 28 },
     },
     description: (r) => `+${getPassiveEffect(PASSIVE_SKILL_IDS.FATAL_INSTINCT, r).critBonusPct}% critical hit chance.`,
   },
@@ -149,10 +149,10 @@ export const PASSIVE_SKILLS = {
     trigger: 'duringDamageCalc',
     random: false,
     scaling: {
-      rare: { atkBonusPct: 10, hpThresholdPct: 50 },
-      epic: { atkBonusPct: 15, hpThresholdPct: 50 },
-      legendary: { atkBonusPct: 20, hpThresholdPct: 40 },
-      mythic: { atkBonusPct: 30, hpThresholdPct: 30 },
+      rare: { atkBonusPct: 20, hpThresholdPct: 50 },
+      epic: { atkBonusPct: 30, hpThresholdPct: 50 },
+      legendary: { atkBonusPct: 40, hpThresholdPct: 40 },
+      mythic: { atkBonusPct: 55, hpThresholdPct: 30 },
     },
     description: (r) => {
       const e = getPassiveEffect(PASSIVE_SKILL_IDS.RAGE_CORE, r);
@@ -166,10 +166,10 @@ export const PASSIVE_SKILLS = {
     trigger: 'duringDamageCalc',
     random: false,
     scaling: {
-      rare: { critDamageReductionPct: 15 },
-      epic: { critDamageReductionPct: 25 },
-      legendary: { critDamageReductionPct: 40 },
-      mythic: { critDamageReductionPct: 50 },
+      rare: { critDamageReductionPct: 25 },
+      epic: { critDamageReductionPct: 40 },
+      legendary: { critDamageReductionPct: 55 },
+      mythic: { critDamageReductionPct: 70 },
     },
     description: (r) => `Reduce critical damage taken by ${getPassiveEffect(PASSIVE_SKILL_IDS.IRON_GUARD, r).critDamageReductionPct}%.`,
   },
@@ -180,20 +180,20 @@ export const PASSIVE_SKILLS = {
     trigger: 'duringDamageCalc',
     random: false,
     scaling: {
-      rare: { damageReductionPct: 20 },
-      epic: { damageReductionPct: 30 },
-      legendary: { damageReductionPct: 50 },
-      mythic: { damageReductionPct: 70 },
+      rare: { damageReductionPct: 30 },
+      epic: { damageReductionPct: 45 },
+      legendary: { damageReductionPct: 60 },
+      mythic: { damageReductionPct: 80 },
     },
     description: (r) => `First direct hit reduced by ${getPassiveEffect(PASSIVE_SKILL_IDS.MANA_BARRIER, r).damageReductionPct}%.`,
   },
 };
 
 export const PASSIVE_CAPS = {
-  dodgePct: 35,
-  critPct: 50,
-  lifestealPct: 20,
-  reflectPct: 25,
+  dodgePct: 40,
+  critPct: 60,
+  healOnHitMaxHpPct: 15,
+  reflectAtkPct: 80,
   healReductionPct: 80,
 };
 

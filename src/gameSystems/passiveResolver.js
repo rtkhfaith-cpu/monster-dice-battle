@@ -15,6 +15,7 @@ import {
   PASSIVE_POPUP_PRIORITY,
   PASSIVE_SKILL_IDS,
   getPassiveEffect,
+  getPassiveSkillDef,
 } from './passiveSkills';
 import {
   applyDotStatus,
@@ -234,14 +235,15 @@ export function resolveAttackWithPassives({
   if (damage > 0) {
     def = { ...def, hp: Math.max(0, def.hp - damage) };
 
-    const lsPct = Math.min(
-      PASSIVE_CAPS.lifestealPct,
-      sumPassive(atk, PASSIVE_SKILL_IDS.BLOOD_DRAIN, 'lifestealPct'),
+    const healHpPct = Math.min(
+      PASSIVE_CAPS.healOnHitMaxHpPct,
+      sumPassive(atk, PASSIVE_SKILL_IDS.BLOOD_DRAIN, 'healMaxHpPct'),
     );
-    if (lsPct > 0) {
-      healing = clampHeal((damage * lsPct) / 100 * healingMultiplier(atk), atk);
+    if (healHpPct > 0) {
+      const atkMaxHp = atk.maxHp ?? atk.stats?.hp ?? 100;
+      healing = clampHeal(Math.round((atkMaxHp * healHpPct) / 100) * healingMultiplier(atk), atk);
       if (healing > 0) {
-        atk = { ...atk, hp: Math.min(atk.maxHp ?? atk.stats?.hp ?? 100, atk.hp + healing) };
+        atk = { ...atk, hp: Math.min(atkMaxHp, atk.hp + healing) };
         addPopup(popups, 'BLOOD_DRAIN');
         battleLogEntries.push(
           `${atk.displayName ?? 'Attacker'} restored ${healing} HP with Blood Drain.`,
@@ -250,7 +252,7 @@ export function resolveAttackWithPassives({
     }
 
     const toxic = passivesOf(atk).find((p) => p.skillId === PASSIVE_SKILL_IDS.TOXIC_FANG);
-    if (toxic && rollPercentChance(20)) {
+    if (toxic && rollPercentChance(getPassiveSkillDef(PASSIVE_SKILL_IDS.TOXIC_FANG)?.procChance ?? 35)) {
       const e = getPassiveEffect(toxic.skillId, toxic.rarity);
       def = applyDotStatus(def, 'poison', { dotMaxHpPct: e.dotMaxHpPct, turns: e.turns });
       statusEffectsApplied.push('poison');
@@ -259,7 +261,7 @@ export function resolveAttackWithPassives({
     }
 
     const inferno = passivesOf(atk).find((p) => p.skillId === PASSIVE_SKILL_IDS.INFERNO_CURSE);
-    if (inferno && rollPercentChance(20)) {
+    if (inferno && rollPercentChance(getPassiveSkillDef(PASSIVE_SKILL_IDS.INFERNO_CURSE)?.procChance ?? 35)) {
       const e = getPassiveEffect(inferno.skillId, inferno.rarity);
       def = applyDotStatus(def, 'burn', {
         dotMaxHpPct: e.dotMaxHpPct,
@@ -271,12 +273,15 @@ export function resolveAttackWithPassives({
       battleLogEntries.push(`${def.displayName ?? 'Target'} was burned.`);
     }
 
-    const reflectPct = Math.min(
-      PASSIVE_CAPS.reflectPct,
-      sumPassive(def, PASSIVE_SKILL_IDS.MIRROR_SHELL, 'reflectPct'),
+    const reflectAtkPct = Math.min(
+      PASSIVE_CAPS.reflectAtkPct,
+      sumPassive(def, PASSIVE_SKILL_IDS.MIRROR_SHELL, 'reflectAtkPct'),
     );
-    if (reflectPct > 0) {
-      reflectedDamage = Math.max(1, Math.round((damage * reflectPct) / 100));
+    if (reflectAtkPct > 0) {
+      const defAtk = def.stats?.attack?.max ?? def.stats?.attack ?? 10;
+      const defMag = def.stats?.magic?.max ?? def.stats?.magic ?? 0;
+      const bestAtk = Math.max(defAtk, defMag);
+      reflectedDamage = Math.max(1, Math.round((bestAtk * reflectAtkPct) / 100));
       atk = { ...atk, hp: Math.max(0, atk.hp - reflectedDamage) };
       addPopup(popups, 'REFLECT');
       battleLogEntries.push(`Mirror Shell reflected ${reflectedDamage} damage.`);
