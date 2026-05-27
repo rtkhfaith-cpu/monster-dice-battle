@@ -14,6 +14,8 @@ import {
   setMonsterLadderState,
 } from './ladderProfile';
 import { cloneGameData, getPlayerProfile } from '../gameStorage';
+import { applyPetChestDrop, rollPetChestDrop, rollPetExpDustDrop } from '../petChest';
+import { awardPetExpToEquippedMonster } from '../../src/gameSystems/petInventory';
 
 function ensureChestInventory(ml) {
   if (!ml.chestInventory || typeof ml.chestInventory !== 'object') {
@@ -120,6 +122,12 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
     };
   }
 
+  let petExpPack = null;
+  if (won && payload.ownedMonsterId && expDelta > 0) {
+    const petExp = Math.max(2, Math.floor(expDelta * 0.35));
+    petExpPack = awardPetExpToEquippedMonster(profile, payload.ownedMonsterId, petExp);
+  }
+
   if (ladderGoldGain > 0) ml.ladderGold += ladderGoldGain;
 
   let chestDrop = null;
@@ -164,6 +172,7 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
       chestBlocked,
       shardsGained: chestDrop?.shardsGained ?? 0,
       ladderShardsTotal: mlFinal.ladderShards,
+      petExpPack,
     },
   };
 }
@@ -240,6 +249,23 @@ export function openLadderChestOnProfile(profile, type) {
 
 /** @param {object} profile @param {import('./ladderProgress').MonsterLadderState} ml @param {'gear'|'monster'} type @param {Record<string, number>} [rateWeights] */
 function resolveChestOpen(profile, ml, type, rateWeights) {
+  const chestKind = type === 'gear' ? 'ladder' : 'boss';
+  const petDrop = rollPetChestDrop(chestKind, profile);
+  if (petDrop) {
+    const applied = applyPetChestDrop(profile, petDrop);
+    return {
+      ...petDrop,
+      duplicate: applied.duplicate,
+      petExpDust: applied.petExpDust ?? 0,
+    };
+  }
+
+  const dustDrop = rollPetExpDustDrop('ladder');
+  if (dustDrop) {
+    applyPetChestDrop(profile, dustDrop);
+    return dustDrop;
+  }
+
   const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
   const roll = rollChestDrop(type, ml.pity?.[pityKey] ?? 0, rateWeights);
   if (!roll?.id) return null;

@@ -1,6 +1,7 @@
 /**
  * Server-side passive skill resolution (CJS) — mirrors client passiveResolver.
  */
+const { getPetCritBonus } = require('./petCombat');
 
 function rollPercentChance(pct) {
   return Math.random() * 100 < Math.max(0, Math.min(100, pct));
@@ -186,6 +187,16 @@ function applyPassivesToStrike(resolved, atk, def, strikeKind) {
     critical = true;
     damage = Math.max(1, Math.round(damage * CAPS.critMultiplier));
     log.push('Fatal Instinct — critical hit!');
+  }
+
+  if (!critical) {
+    const petCrit = getPetCritBonus(a);
+    if (petCrit > 0 && rollPercentChance(petCrit)) {
+      critical = true;
+      damage = Math.max(1, Math.round(damage * CAPS.critMultiplier));
+      const pet = a.equippedPet;
+      log.push(pet ? `${pet.emoji} ${pet.name} — pet critical!` : 'Pet critical hit!');
+    }
   }
 
   const defState = ensureBattleState(d);

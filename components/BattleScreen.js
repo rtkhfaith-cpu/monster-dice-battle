@@ -23,6 +23,7 @@ import {
   resolveAttackWithPassives,
   resolveStartOfTurnPassives,
 } from '../src/gameSystems/passiveResolver';
+import { resolvePetOnAttackHit, resolvePetStartOfTurn } from '../src/gameSystems/petCombat';
 import {
   buildFloatFromDotTick,
   buildFloatFromRegen,
@@ -137,6 +138,12 @@ function seedFighter(p) {
     passiveBattleState: p.passiveBattleState
       ? { ...p.passiveBattleState }
       : { barrierConsumed: false, rageCoreShown: false },
+    equippedPet: p.equippedPet ? { ...p.equippedPet } : null,
+    petBonuses: p.petBonuses ? { ...p.petBonuses } : { hp: 0, atk: 0, def: 0, spd: 0 },
+    petCombatModifiers: p.petCombatModifiers ? { ...p.petCombatModifiers } : null,
+    petBattleState: p.petBattleState
+      ? { ...p.petBattleState }
+      : { turnCounter: 0, shieldHp: 0, lastHealTurn: 0 },
   };
 }
 
@@ -489,13 +496,18 @@ export default function BattleScreen({
   }
 
   function applyTurnStartPassives(fighter, fighterId = PLAYER_ID) {
-    const regen = resolveStartOfTurnPassives(fighter);
-    const floats = buildFloatFromRegen(fighterId, regen.healing ?? 0);
+    let f = fighter;
+    const regen = resolveStartOfTurnPassives(f);
+    f = regen.fighter;
+    const petTurn = resolvePetStartOfTurn(f);
+    f = petTurn.fighter;
+    const floats = buildFloatFromRegen(fighterId, (regen.healing ?? 0) + (petTurn.healing ?? 0));
     const center = formatPassiveCenterComment(regen.popupsToShow);
-    if (floats.length || center) {
-      presentPassiveFeedback({ floats, bannerText: center ?? 'Regen' });
+    const petBanner = petTurn.log?.[0];
+    if (floats.length || center || petBanner) {
+      presentPassiveFeedback({ floats, bannerText: petBanner || center || 'Regen' });
     }
-    return regen.fighter;
+    return f;
   }
 
   function clearTimers() {
@@ -1132,6 +1144,14 @@ export default function BattleScreen({
     }
     if (dmg > 0 && strikeKind === 'magic' && !resolved.dodged) {
       nextDef = maybeApplySkillStatus(nextDef, skill);
+    }
+    if (dmg > 0 && !resolved.dodged) {
+      const petHit = resolvePetOnAttackHit(nextAtk, nextDef, { damageDealt: dmg });
+      nextAtk = petHit.attacker;
+      nextDef = petHit.defender;
+      if (petHit.log?.length) {
+        showBanner(petHit.log[0]);
+      }
     }
 
     const np1After =

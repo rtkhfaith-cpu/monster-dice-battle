@@ -55,6 +55,11 @@ function fighterFromServer(f) {
     level: f.level ?? 1,
     skills: f.skills ?? null,
     status: f.status ?? null,
+    statuses: f.statuses ?? {},
+    equippedPet: f.equippedPet ?? null,
+    petBonuses: f.petBonuses ?? null,
+    petCombatModifiers: f.petCombatModifiers ?? null,
+    petBattleState: f.petBattleState ?? { turnCounter: 0, shieldHp: 0 },
   };
 }
 

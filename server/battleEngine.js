@@ -4,6 +4,13 @@
 const { resolvePhysicalBattleDamage, resolveMagicBattleDamage } = require('./battleDamage');
 const { getPhysicalSkill, getMagicSkills, canAffordSkill } = require('./battleSkills');
 const { applyPassivesToStrike, rollPhantomDodge, resolveStartOfTurn } = require('./passiveResolver');
+const {
+  getPetDodgeBonus,
+  resolvePetStartOfTurn,
+  resolvePetOnAttackHit,
+  resolvePetOnDefenderHit,
+  absorbDamageWithPetShield,
+} = require('./petCombat');
 
 const { getSkillAnimMeta } = require('../utils/skillAnimRegistry');
 const { getProjectile, getCloudEmojis } = require('../utils/battleProjectilesData');
@@ -25,6 +32,7 @@ function createBattle(fighterP1, fighterP2) {
     f.status = null;
     if (!f.passiveBattleState) f.passiveBattleState = { barrierConsumed: false };
     if (!Array.isArray(f.equippedPassives)) f.equippedPassives = [];
+    if (!f.petBattleState) f.petBattleState = { turnCounter: 0, shieldHp: 0, lastHealTurn: 0 };
   }
 
   return {
@@ -215,12 +223,37 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
   }
 
   if (!resolved.dodged) {
+    const petDodge = getPetDodgeBonus(def);
+    if (petDodge > 0 && Math.random() * 100 < petDodge) {
+      resolved.dodged = true;
+      resolved.damage = 0;
+    }
+  }
+
+  if (!resolved.dodged) {
+    const shielded = absorbDamageWithPetShield(def, resolved.damage);
+    def = shielded.defender;
+    resolved.damage = shielded.damage;
+
     const passive = applyPassivesToStrike(resolved, atk, def, strikeKind);
     atk = passive.attacker;
     def = passive.defender;
     resolved.damage = passive.damage;
     resolved.critical = passive.critical;
     for (const line of passive.log) pushLog(battle, line);
+
+    if (resolved.damage > 0) {
+      const defHit = resolvePetOnDefenderHit(atk, def, { damage: resolved.damage });
+      atk = defHit.attacker;
+      def = defHit.defender;
+      resolved.damage = defHit.damage;
+      for (const line of defHit.log) pushLog(battle, line);
+
+      const petHit = resolvePetOnAttackHit(atk, def, { damageDealt: resolved.damage });
+      atk = petHit.attacker;
+      def = petHit.defender;
+      for (const line of petHit.log) pushLog(battle, line);
+    }
 
     if (resolved.damage > 0 && strikeKind === 'magic' && skill?.status) {
       const st = skill.status;
@@ -276,9 +309,13 @@ function endTurnAfterResolve(battle) {
   battle.round += 1;
 
   const nextId = battle.activePlayerId;
-  const sot = resolveStartOfTurn(fighterAt(battle, nextId));
-  setFighter(battle, nextId, sot.fighter);
+  let nextFighter = fighterAt(battle, nextId);
+  const sot = resolveStartOfTurn(nextFighter);
+  nextFighter = sot.fighter;
   for (const line of sot.log) pushLog(battle, line);
+  const petSot = resolvePetStartOfTurn(nextFighter);
+  setFighter(battle, nextId, petSot.fighter);
+  for (const line of petSot.log) pushLog(battle, line);
 
   checkWinner(battle);
   if (battle.winner) return { ok: true, battle };

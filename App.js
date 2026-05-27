@@ -84,9 +84,13 @@ import {
   buyGearForMonster,
   buyGearItem,
   buyPassiveSkillBook,
+  buyPetForProfile,
   buyMonster as purchaseMonsterRow,
   equipPassiveSkillOnMonster,
+  equipPetForMonster,
+  spendPetExpDustForProfile,
   removePassiveFromMonster,
+  unequipPetForMonster,
   cloneGameData,
   createPlayerProfile,
   enforceSingleActiveProfile,
@@ -1253,7 +1257,8 @@ export default function App() {
     const battleId = resolveBattleMonsterId(roster, ownedId);
     const om = roster.find((x) => x.id === battleId);
     if (!om) return null;
-    return fighterFromOwned(om);
+    const prof = getPlayerProfile(gameData, profileId);
+    return fighterFromOwned(om, prof);
   }
 
   function openMonsterGear(slot) {
@@ -1326,6 +1331,64 @@ export default function App() {
     }
     persistSave(res.gameData, 'passive_removed', gearProfileId || null);
     showNotice('Passive removed', 'The skill was deleted (book is not returned).');
+  }
+
+  function handleBuyPet(petId) {
+    if (!gameData) return;
+    const profileId = activeProfileId || setupP1ProfileId || null;
+    const res = buyPetForProfile(gameData, profileId, petId);
+    if (res.error) {
+      showNotice('Pet Shop', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'pet_bought', profileId);
+    playSound('shop');
+    if (res.duplicate) {
+      showNotice('Duplicate pet', `Converted to pet EXP dust (+${res.petExpDust ?? 0}).`);
+    } else {
+      showNotice('Pet acquired!', `${res.pet?.name ?? petId} added to your collection.`);
+    }
+  }
+
+  function handleEquipPet(petInstanceId) {
+    if (!gameData || !gearMonsterId) return;
+    const res = equipPetForMonster(gameData, gearProfileId || null, gearMonsterId, petInstanceId);
+    if (res.error) {
+      showNotice('Pet', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'pet_equipped', gearProfileId || null);
+    showNotice('Pet equipped', `${res.pet?.emoji ?? ''} ${res.pet?.name ?? 'Pet'} is now with this monster.`);
+  }
+
+  function handleUnequipPet() {
+    if (!gameData || !gearMonsterId) return;
+    const res = unequipPetForMonster(gameData, gearProfileId || null, gearMonsterId);
+    if (res.error) {
+      showNotice('Pet', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'pet_unequipped', gearProfileId || null);
+    showNotice('Pet unequipped', 'Pet removed from this monster.');
+  }
+
+  function handleSpendPetDust(petInstanceId, dustAmount = 50) {
+    if (!gameData || !gearProfileId) return;
+    const res = spendPetExpDustForProfile(
+      gameData,
+      gearProfileId,
+      petInstanceId,
+      dustAmount,
+    );
+    if (res.error) {
+      showNotice('Pet EXP', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'pet_exp_dust', gearProfileId);
+    const msg = res.leveledUp
+      ? `${res.pet?.name} leveled up to Lv ${res.pet?.level}!`
+      : `+${res.expGained} pet EXP applied.`;
+    showNotice('Pet EXP dust', msg);
   }
 
   function handleEquipGear(gearId, slotIndex = null) {
@@ -2143,7 +2206,7 @@ export default function App() {
                   onPress={() => void openGearMart()}
                   accessibilityLabel="Gear mart"
                 >
-                  <Text style={styles.miniShopTxt}>Gear & Skill Shop</Text>
+                  <Text style={styles.miniShopTxt}>Shop</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.miniShop} onPress={openMonsterGearForActiveSlot} accessibilityLabel="Monster gear">
                   <Text style={styles.miniShopTxt}>Equip</Text>
@@ -2557,6 +2620,9 @@ export default function App() {
         onUnlockSlot={handleUnlockGearSlot}
         onEquipPassiveBook={handleEquipPassiveBook}
         onRemovePassive={handleRemovePassive}
+        onEquipPet={handleEquipPet}
+        onUnequipPet={handleUnequipPet}
+        onSpendPetDust={handleSpendPetDust}
         onOpenGearMart={() => {
           setGearOpen(false);
           void openGearMart();
@@ -2572,6 +2638,7 @@ export default function App() {
         onClose={() => setGearMartOpen(false)}
         onBuy={handleBuyGearMart}
         onBuyPassiveBook={handleBuyPassiveSkillBook}
+        onBuyPet={handleBuyPet}
       />
 
       <MonsterMarketModal

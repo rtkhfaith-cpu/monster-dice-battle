@@ -22,6 +22,7 @@ import {
   healingMultiplier,
   isDotDamageContext,
 } from './statusEffects';
+import { getPetCritBonus, getPetDodgeBonus } from './petCombat';
 
 const POPUP_LABELS = {
   DODGED: 'DODGED',
@@ -82,7 +83,8 @@ function rollDodge(attacker, defender, magic, phantomBonus = 0) {
     bossKind: attacker?.ladderStageKind ?? null,
   });
   pct += phantomBonus;
-  pct = clamp(pct, COMBAT_BALANCE.dodgeMin, PASSIVE_CAPS.dodgePct);
+  pct += getPetDodgeBonus(def);
+  pct = clamp(pct, COMBAT_BALANCE.dodgeMin, PASSIVE_CAPS.dodgePct + 15);
   return rollPercentChance(pct);
 }
 
@@ -194,6 +196,9 @@ export function resolveAttackWithPassives({
   }
 
   let critical = rollPercentChance(effectiveCritChance(atk));
+  if (!critical && getPetCritBonus(atk) > 0) {
+    critical = rollPercentChance(getPetCritBonus(atk));
+  }
   let weak = false;
   if (critical) {
     addPopup(popups, 'CRITICAL');

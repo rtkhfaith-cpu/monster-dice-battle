@@ -8,6 +8,7 @@ import {
   getGear,
 } from '../utils/cosmetics';
 import { fighterFromOwned } from '../utils/fighterFromOwned';
+import PetEquipPanel from './PetEquipPanel';
 import {
   MAX_GEAR_SLOTS,
   getUnlockedSlotCount,
@@ -218,6 +219,9 @@ export default function MonsterGearScreen({
   profile,
   onEquipPassiveBook,
   onRemovePassive,
+  onEquipPet,
+  onUnequipPet,
+  onSpendPetDust,
 }) {
   const type = useReadableType();
   const ownedSet = useMemo(() => new Set(ownedGearIds || []), [ownedGearIds]);
@@ -237,7 +241,7 @@ export default function MonsterGearScreen({
   const unlockedSlots = getUnlockedSlotCount(ownedMonster);
   const slots = normalizeEquippedSlots(ownedMonster?.equippedGear, unlockedSlots);
   const unlockCost = nextSlotUnlockCost(ownedMonster);
-  const fighter = ownedMonster ? fighterFromOwned(ownedMonster) : null;
+  const fighter = ownedMonster ? fighterFromOwned(ownedMonster, profile) : null;
   const bonus = fighter?.gearBonuses;
   const base = fighter?.baseStats;
   const total = fighter?.stats;
@@ -290,10 +294,16 @@ export default function MonsterGearScreen({
               <Text style={[styles.tabTxt, tab === 'equip' && styles.tabTxtOn]}>Equip</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.tabBtn, tab === 'pets' && styles.tabOn]}
+              onPress={() => setTab('pets')}
+            >
+              <Text style={[styles.tabTxt, tab === 'pets' && styles.tabTxtOn]}>Pets</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.tabBtn, tab === 'shop' && styles.tabOn]}
               onPress={() => setTab('shop')}
             >
-              <Text style={[styles.tabTxt, tab === 'shop' && styles.tabTxtOn]}>Gear & Skill Shop</Text>
+              <Text style={[styles.tabTxt, tab === 'shop' && styles.tabTxtOn]}>Shop</Text>
             </TouchableOpacity>
           </View>
 
@@ -442,12 +452,32 @@ export default function MonsterGearScreen({
                   </View>
                 ) : null}
 
+                {fighter?.petBonuses && fighter.equippedPet ? (
+                  <View style={styles.petStatBox}>
+                    <Text style={styles.petStatTitle}>
+                      Pet: {fighter.equippedPet.emoji} {fighter.equippedPet.name} (Lv {fighter.equippedPet.level})
+                    </Text>
+                    <Text style={styles.petStatLine}>
+                      HP +{fighter.petBonuses.hp} · ATK +{fighter.petBonuses.atk} · DEF +{fighter.petBonuses.def} · SPD +{fighter.petBonuses.spd}
+                    </Text>
+                  </View>
+                ) : null}
+
                 {ownedCatalog.length === 0 ? (
                   <Text style={styles.emptyShop}>
                     No gear yet. Open the Gear Mart tab or lobby Gear Mart to buy items.
                   </Text>
                 ) : null}
               </>
+            ) : tab === 'pets' ? (
+              <PetEquipPanel
+                profile={profile}
+                monsterId={ownedMonster?.id}
+                monsterName={fighter?.displayName ?? 'Monster'}
+                onEquip={(instanceId) => onEquipPet?.(instanceId)}
+                onUnequip={() => onUnequipPet?.()}
+                onSpendDust={(instanceId, amount) => onSpendPetDust?.(instanceId, amount)}
+              />
             ) : (
               <>
                 <Text style={styles.shopHint}>
@@ -725,6 +755,16 @@ const styles = StyleSheet.create({
   pickerOptionMeta: { fontWeight: '800', color: '#c4b5fd', marginTop: 2 },
   pickerOptionStats: { fontWeight: '800', color: '#86efac', marginTop: 3, lineHeight: 18 },
   pickerCheck: { fontWeight: '900', fontSize: 18, color: '#86efac', marginTop: 4 },
+  petStatBox: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.35)',
+  },
+  petStatTitle: { fontWeight: '800', color: '#93c5fd', fontSize: 12 },
+  petStatLine: { color: '#cbd5e1', fontSize: 11, marginTop: 4 },
   emptyShop: { fontWeight: '800', color: '#bfdbfe', marginBottom: 12, lineHeight: 20 },
   shopHint: { fontWeight: '800', color: '#bfdbfe', marginBottom: 10, lineHeight: 20 },
   openMartBtn: {

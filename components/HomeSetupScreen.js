@@ -642,7 +642,7 @@ export default function HomeSetupScreen({
                 onPress={pressWithSound(multiplayerHandler)}
               />
               <FantasyButton label="Monster Mart" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
-              <FantasyButton label="Gear & Skill Shop" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
+              <FantasyButton label="Shop" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
               <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonFive} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
               <FantasyButton label="Login" icon="🔑" style={styles.menuButtonSix} onPress={pressWithSound(openLoginModal)} />
             </View>

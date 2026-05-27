@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, ImageBackground, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import AnimatedMonster from './AnimatedMonster';
+import PetCompanionBadge from './PetCompanionBadge';
 import { expToAdvanceFrom } from '../utils/expLevel';
 import {
   debugBattleMonsterLayout,
@@ -305,6 +306,7 @@ export default function RpgBattleArena({
         ]}
       >
         <View style={styles.monsterWrap}>
+          <PetCompanionBadge pet={p1?.equippedPet} side="left" />
           {defenderFlashP1 || sicklyFlashP1 ? (
             <Animated.View
               pointerEvents="none"
@@ -357,6 +359,7 @@ export default function RpgBattleArena({
         ]}
       >
         <View style={styles.monsterWrap}>
+          <PetCompanionBadge pet={p2?.equippedPet} side="right" />
           {defenderFlashP2 || sicklyFlashP2 ? (
             <Animated.View
               pointerEvents="none"

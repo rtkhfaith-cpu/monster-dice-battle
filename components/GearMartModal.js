@@ -7,6 +7,7 @@ import {
 } from '../utils/cosmetics';
 import { gearShopPrice } from '../src/gameBalance/shop';
 import PassiveSkillBookShop from './PassiveSkillBookShop';
+import PetShop from './PetShop';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -42,6 +43,7 @@ export default function GearMartModal({
   onClose,
   onBuy,
   onBuyPassiveBook,
+  onBuyPet,
 }) {
   const [shopTab, setShopTab] = useState('gear');
   const [filterCat, setFilterCat] = useState('all');
@@ -56,8 +58,8 @@ export default function GearMartModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <Text style={styles.title}>Gear & Skill Shop</Text>
-          <Text style={styles.sub}>Gear for your profile · Passive books consumed on equip</Text>
+          <Text style={styles.title}>Shop</Text>
+          <Text style={styles.sub}>Gear · Passive skill books · Pets</Text>
           <Text style={styles.coins}>Coins: {coins ?? 0}</Text>
 
           <View style={styles.tabRow}>
@@ -71,9 +73,13 @@ export default function GearMartModal({
               style={[styles.shopTab, shopTab === 'skills' && styles.shopTabOn]}
               onPress={() => setShopTab('skills')}
             >
-              <Text style={[styles.shopTabTxt, shopTab === 'skills' && styles.shopTabTxtOn]}>
-                Passive Skill Books
-              </Text>
+              <Text style={[styles.shopTabTxt, shopTab === 'skills' && styles.shopTabTxtOn]}>Skills</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.shopTab, shopTab === 'pets' && styles.shopTabOn]}
+              onPress={() => setShopTab('pets')}
+            >
+              <Text style={[styles.shopTabTxt, shopTab === 'pets' && styles.shopTabTxtOn]}>Pets</Text>
             </TouchableOpacity>
           </View>
 
@@ -85,6 +91,8 @@ export default function GearMartModal({
               onBuy={onBuyPassiveBook}
             />
           ) : null}
+
+          {shopTab === 'pets' ? <PetShop coins={coins} onBuy={onBuyPet} /> : null}
 
           {shopTab === 'gear' ? (
           <>

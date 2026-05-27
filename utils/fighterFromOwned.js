@@ -23,15 +23,46 @@ import {
   BOSS_PASSIVE_BATTLE_STATE,
   buildBossEquippedPassives,
 } from '../src/gameSystems/bossPassives';
+import { applyPetStatBonuses, buildPetCombatModifiers } from '../src/gameSystems/petBonuses';
+import { findOwnedPet, petBattleSnapshot, petEquippedToMonster } from '../src/gameSystems/petInventory';
+
+function resolveEquippedPet(profile, owned) {
+  if (!profile || !owned) return null;
+  let row = owned.equippedPetInstanceId
+    ? findOwnedPet(profile, owned.equippedPetInstanceId)
+    : petEquippedToMonster(profile, owned.id);
+  return petBattleSnapshot(row);
+}
+
+function attachPetToFighter(base, profile, owned) {
+  const equippedPet = resolveEquippedPet(profile, owned);
+  let stats = base.stats;
+  let petBonuses = { hp: 0, atk: 0, def: 0, spd: 0 };
+  if (equippedPet?.currentStats) {
+    const applied = applyPetStatBonuses(stats, equippedPet.currentStats);
+    stats = applied.stats;
+    petBonuses = applied.petBonuses;
+  }
+  return {
+    ...base,
+    stats,
+    petBonuses,
+    baseStats: base.baseStats ?? base.stats,
+    equippedPet,
+    petCombatModifiers: buildPetCombatModifiers(equippedPet),
+    petBattleState: { turnCounter: 0, shieldHp: 0, lastHealTurn: 0 },
+  };
+}
 
 /**
  * Build runtime fighter object used by BattleScreen from persisted owned monster row.
  * @param {{ id: string, templateId: string, nickname?: string, level: number, exp?: number, monsterParts: object }} owned
+ * @param {object|null} [profile] Player profile for equipped pet lookup
  */
-export function fighterFromOwned(owned) {
+export function fighterFromOwned(owned, profile = null) {
   const tpl = getMonsterTemplate(owned.templateId);
   const ladderTpl = tpl ? null : getLadderMonsterTemplate(owned.templateId);
-  if (!tpl && ladderTpl) return fighterFromLadderOwnedInMainInventory(owned, ladderTpl);
+  if (!tpl && ladderTpl) return fighterFromLadderOwnedInMainInventory(owned, ladderTpl, profile);
   const built = computeBattleStats(owned.templateId, owned.level);
   if (!built || !tpl) return null;
   const st = evolutionStageFromLevel(owned.level);
@@ -59,32 +90,37 @@ export function fighterFromOwned(owned) {
   const elements = getTemplateElements(owned.templateId);
   const skills = getMonsterSkillSet(owned.templateId);
 
-  return {
-    monsterParts: parts,
-    stats: finalStats,
-    baseStats: mergedBase,
-    gearBonuses,
-    equippedGear: gearIds,
-    monsterTemplateId: owned.templateId,
-    ownedMonsterId: owned.id,
-    mergeTier,
-    superNeedThreshold: built.meta.superNeedThreshold,
-    displayName: owned.nickname || tpl.name,
-    rarity: tpl.rarity,
-    role: tpl.role,
-    level: owned.level ?? 1,
-    battleExp: owned.exp ?? 0,
-    battleExpToNext: expToAdvanceFrom(owned.level ?? 1),
-    element,
-    elements,
-    skills,
-    status: null,
-    equippedPassives: Array.isArray(owned.equippedPassives) ? [...owned.equippedPassives] : [],
-    passiveBattleState: { barrierConsumed: false, rageCoreShown: false },
-  };
+  return attachPetToFighter(
+    {
+      monsterParts: parts,
+      stats: finalStats,
+      baseStats: mergedBase,
+      gearBonuses,
+      equippedGear: gearIds,
+      monsterTemplateId: owned.templateId,
+      ownedMonsterId: owned.id,
+      mergeTier,
+      superNeedThreshold: built.meta.superNeedThreshold,
+      displayName: owned.nickname || tpl.name,
+      rarity: tpl.rarity,
+      role: tpl.role,
+      level: owned.level ?? 1,
+      battleExp: owned.exp ?? 0,
+      battleExpToNext: expToAdvanceFrom(owned.level ?? 1),
+      element,
+      elements,
+      skills,
+      status: null,
+      statuses: {},
+      equippedPassives: Array.isArray(owned.equippedPassives) ? [...owned.equippedPassives] : [],
+      passiveBattleState: { barrierConsumed: false, rageCoreShown: false },
+    },
+    profile,
+    owned,
+  );
 }
 
-function fighterFromLadderOwnedInMainInventory(owned, tpl) {
+function fighterFromLadderOwnedInMainInventory(owned, tpl, profile = null) {
   const built = computeLadderBattleStats(owned.templateId, owned.level);
   if (!built || !tpl) return null;
   const st = evolutionStageFromLevel(owned.level);
@@ -109,30 +145,35 @@ function fighterFromLadderOwnedInMainInventory(owned, tpl) {
     ladderPremium: true,
   };
 
-  return {
-    monsterParts: parts,
-    stats: finalStats,
-    baseStats: mergedBase,
-    gearBonuses,
-    equippedGear: gearIds,
-    monsterTemplateId: owned.templateId,
-    ownedMonsterId: owned.id,
-    mergeTier,
-    superNeedThreshold: 3,
-    displayName: owned.nickname || tpl.name,
-    rarity: tpl.rarity,
-    role: tpl.role,
-    level: owned.level ?? 1,
-    battleExp: owned.exp ?? 0,
-    battleExpToNext: expToAdvanceFrom(owned.level ?? 1),
-    element: tpl.element,
-    elements: Array.isArray(tpl.elements) && tpl.elements.length ? [...tpl.elements] : [tpl.element],
-    skills: getLadderMonsterSkillSet(owned.templateId),
-    isLadderMonster: true,
-    status: null,
-    equippedPassives: Array.isArray(owned.equippedPassives) ? [...owned.equippedPassives] : [],
-    passiveBattleState: { barrierConsumed: false, rageCoreShown: false },
-  };
+  return attachPetToFighter(
+    {
+      monsterParts: parts,
+      stats: finalStats,
+      baseStats: mergedBase,
+      gearBonuses,
+      equippedGear: gearIds,
+      monsterTemplateId: owned.templateId,
+      ownedMonsterId: owned.id,
+      mergeTier,
+      superNeedThreshold: 3,
+      displayName: owned.nickname || tpl.name,
+      rarity: tpl.rarity,
+      role: tpl.role,
+      level: owned.level ?? 1,
+      battleExp: owned.exp ?? 0,
+      battleExpToNext: expToAdvanceFrom(owned.level ?? 1),
+      element: tpl.element,
+      elements: Array.isArray(tpl.elements) && tpl.elements.length ? [...tpl.elements] : [tpl.element],
+      skills: getLadderMonsterSkillSet(owned.templateId),
+      isLadderMonster: true,
+      status: null,
+      statuses: {},
+      equippedPassives: Array.isArray(owned.equippedPassives) ? [...owned.equippedPassives] : [],
+      passiveBattleState: { barrierConsumed: false, rageCoreShown: false },
+    },
+    profile,
+    owned,
+  );
 }
 
 function scaleStatRange(rng, ratio) {

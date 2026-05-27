@@ -57,6 +57,17 @@ import {
   grantPassiveSkillBook,
   removeEquippedPassive,
 } from '../src/gameSystems/passiveInventory';
+import {
+  awardPetExpToEquippedMonster,
+  ensurePetInventory,
+  equipPetOnMonster,
+  getCoinBonusPctForMonster,
+  grantPet,
+  spendPetExpDustOnPet,
+  unequipPetFromMonster,
+} from '../src/gameSystems/petInventory';
+import { applyPetChestDrop } from './petChest';
+import { getPetDef } from '../src/gameSystems/pets';
 import { getPassiveSkillDef } from '../src/gameSystems/passiveSkills';
 import { applyPassiveSkillBookDrop } from './passiveSkillChest';
 import { mainBattleChestDuplicateGold } from './mainBattleChest';
@@ -236,6 +247,9 @@ function normalizeOwnedMonster(om) {
   if (!Array.isArray(om.equippedLadderGear)) om.equippedLadderGear = [];
   om.mergeTier = clampMergeTier(om.mergeTier);
   if (!Array.isArray(om.equippedPassives)) om.equippedPassives = [];
+  if (om.equippedPetInstanceId != null && typeof om.equippedPetInstanceId !== 'string') {
+    om.equippedPetInstanceId = null;
+  }
   const reconciled = reconcileMonsterLevelExp({ level: om.level, exp: om.exp });
   om.level = reconciled.level;
   om.exp = reconciled.exp;
@@ -354,6 +368,7 @@ export function repairPlayerProfileInventory(profile) {
   if (!profile) return false;
   profile.monsterLadder = normalizeMonsterLadder(profile.monsterLadder, profile.ladderProgress);
   normalizeDailyLoginSpin(profile);
+  ensurePetInventory(profile);
   return consolidatePlayerMonstersToMain(profile);
 }
 
@@ -381,6 +396,8 @@ function normalizePlayerProfile(p) {
   p.monsterRescue = normalizeMonsterRescue(p.monsterRescue);
   normalizeDailyLoginSpin(p);
   ensurePassiveInventory(p);
+  ensurePetInventory(p);
+  if (typeof p.petExpDust !== 'number') p.petExpDust = 0;
   consolidatePlayerMonstersToMain(p);
   delete p.ladderProgress;
   sanitizePlayerProfile(p);
@@ -418,12 +435,18 @@ export function applyMonsterRescueStageResult(gameData, profileId, stageId, runS
 
     const ownedId = defaultBattleMonsterId(next);
     const expPack = grantExpInWallet(next, ownedId, rewards.exp);
+    const petExpPack = awardPetExpToEquippedMonster(
+      next,
+      ownedId,
+      Math.max(2, Math.floor((rewards.exp || 0) * 0.3)),
+    );
     gd.players[idx] = next;
     return {
       gameData: gd,
       rewards: {
         ...rewards,
         expPack,
+        petExpPack,
         won: true,
         chestAwarded: chest.chestAwarded,
         chestBlocked: chest.chestBlocked,
@@ -1021,7 +1044,13 @@ export function awardBattleRewards(gameData, payload) {
     const cpuLvl = Math.max(1, Math.floor(oppLevelForP1 || p1Lvl));
 
     if (payload.outcome === 1) {
-      const winCoins = coinWinForEnemyLevel(cpuLvl);
+      let winCoins = coinWinForEnemyLevel(cpuLvl);
+      if (profileP1 && payload.p1OwnedId) {
+        const bonusPct = getCoinBonusPctForMonster(profileP1, payload.p1OwnedId);
+        if (bonusPct > 0) {
+          winCoins += Math.floor((winCoins * bonusPct) / 100);
+        }
+      }
       walletP1.coins += winCoins;
       coinsP1 = winCoins;
       coinsAwarded = winCoins;
@@ -1088,6 +1117,27 @@ export function awardBattleRewards(gameData, payload) {
     ? grantExpInWallet(walletP2, payload.p2OwnedId, expP2)
     : grantExpInWallet(walletP1, payload.p2OwnedId, expP2);
 
+  let petExpP1 = null;
+  let petExpP2 = null;
+  if (profileP1 && payload.p1OwnedId) {
+    const amt =
+      payload.outcome === 1
+        ? Math.max(3, Math.floor(Math.abs(expP1) * 0.28))
+        : payload.outcome === 'draw'
+          ? 2
+          : 1;
+    petExpP1 = awardPetExpToEquippedMonster(profileP1, payload.p1OwnedId, amt);
+  }
+  if (profileP2 && payload.p2OwnedId && payload.mode === 'twoPlayer') {
+    const amt =
+      payload.outcome === 2
+        ? Math.max(3, Math.floor(Math.abs(expP2) * 0.28))
+        : payload.outcome === 'draw'
+          ? 2
+          : 1;
+    petExpP2 = awardPetExpToEquippedMonster(profileP2, payload.p2OwnedId, amt);
+  }
+
   gd.battleSummary.totalBattles += 1;
 
   if (payload.mode === 'onePlayer' && profileP1) {
@@ -1146,6 +1196,8 @@ export function awardBattleRewards(gameData, payload) {
       bonusUnderdog,
       expP1: r1,
       expP2: r2,
+      petExpP1,
+      petExpP2,
       mainChestDrop,
     },
   };
@@ -1202,6 +1254,12 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
       applied.amount = bonus;
       applied.label = `+${bonus} coins (duplicate passive)`;
     }
+  } else if (drop.kind === 'pet' || drop.kind === 'pet_exp_dust') {
+    const grant = applyPetChestDrop(profile, drop);
+    applied.duplicate = grant.duplicate;
+    applied.petExpDust = grant.petExpDust ?? drop.amount;
+    applied.petExpDustTotal = profile.petExpDust;
+    applied.pet = grant.pet;
   }
 
   return { gameData: gd, drop: applied };
@@ -1239,6 +1297,62 @@ export function removePassiveFromMonster(gameData, profileId, monsterId, skillId
   const res = removeEquippedPassive(profile, monsterId, skillId);
   if (!res.ok) return { gameData: gd, error: res.error };
   return { gameData: gd };
+}
+
+export function buyPetForProfile(gameData, profileId, petId) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const def = getPetDef(petId);
+  if (!def) return { gameData: gd, error: 'Unknown pet' };
+  if (def.shopPrice == null) return { gameData: gd, error: 'This pet is not sold in the shop.' };
+  if (profile.coins < def.shopPrice) return { gameData: gd, error: 'Not enough coins' };
+  const grant = grantPet(profile, petId, { source: 'shop' });
+  if (!grant.ok) return { gameData: gd, error: grant.error || 'Cannot buy pet' };
+  profile.coins -= def.shopPrice;
+  profile.updatedAt = new Date().toISOString();
+  return {
+    gameData: gd,
+    pet: grant.pet,
+    duplicate: grant.duplicate,
+    petExpDust: grant.petExpDust,
+    price: def.shopPrice,
+  };
+}
+
+export function equipPetForMonster(gameData, profileId, monsterId, petInstanceId) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const res = equipPetOnMonster(profile, monsterId, petInstanceId);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd, pet: res.pet };
+}
+
+export function unequipPetForMonster(gameData, profileId, monsterId) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const res = unequipPetFromMonster(profile, monsterId);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd, pet: res.pet };
+}
+
+export function spendPetExpDustForProfile(gameData, profileId, petInstanceId, dustAmount = 50) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const res = spendPetExpDustOnPet(profile, petInstanceId, dustAmount);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  profile.updatedAt = new Date().toISOString();
+  return {
+    gameData: gd,
+    pet: res.pet,
+    dustSpent: res.dustSpent,
+    expGained: res.expGained,
+    leveledUp: res.leveledUp,
+    petExpDustTotal: res.petExpDustTotal,
+  };
 }
 
 /**

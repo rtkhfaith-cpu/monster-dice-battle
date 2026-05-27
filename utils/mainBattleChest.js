@@ -6,6 +6,7 @@ import { getAllowedCpuRarities } from './fighterFromOwned';
 import { profileOwnsMonsterTemplate } from './monsterLadder/ladderProfile';
 import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
 import { rollPassiveSkillBookDrop } from './passiveSkillChest';
+import { rollPetChestDrop, rollPetExpDustDrop } from './petChest';
 
 /** 20% chance for a main-menu CPU battle to spawn a catalog mini boss (testing). */
 export const MAIN_MINI_BOSS_CHANCE = 0.2;
@@ -203,6 +204,13 @@ function pickChestGear() {
  */
 export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
   const lvl = Math.max(1, Math.floor(enemyLevel || 1));
+
+  const petDrop = rollPetChestDrop('miniBoss', profile);
+  if (petDrop) return petDrop;
+
+  const dustDrop = rollPetExpDustDrop('miniBoss');
+  if (dustDrop) return dustDrop;
+
   const roll = Math.random();
 
   if (roll < 0.05) {
@@ -248,6 +256,8 @@ export function mainBattleChestDuplicateGold(enemyLevel = 1) {
 
 export function chestDropTitle(drop) {
   if (!drop) return 'Chest reward';
+  if (drop.kind === 'pet') return drop.label ?? `${drop.emoji ?? ''} ${drop.name ?? 'Pet'}`.trim();
+  if (drop.kind === 'pet_exp_dust') return drop.label ?? `+${drop.amount} Pet EXP Dust`;
   if (drop.kind === 'skill_book') return `Passive Skill Book: ${drop.name ?? drop.skillId}`;
   if (drop.kind === 'gold') return `${drop.amount} coins`;
   if (drop.kind === 'exp') return `${drop.amount} bonus EXP`;
@@ -260,6 +270,11 @@ export function chestDropTitle(drop) {
 
 export function chestDropSubtitle(drop) {
   if (!drop) return '';
+  if (drop.kind === 'pet') {
+    if (drop.duplicate) return `Duplicate → +${drop.petExpDust ?? 0} pet EXP dust`;
+    return 'Mythic pet joined your collection!';
+  }
+  if (drop.kind === 'pet_exp_dust') return 'Spend on pets in Monster Gear → Pets';
   if (drop.kind === 'skill_book') return 'Passive Skill Book Acquired!';
   if (drop.kind === 'skill_book_duplicate') return 'You already know this passive — converted to bonus coins';
   if (drop.kind === 'gold') return 'Gold from the chest';

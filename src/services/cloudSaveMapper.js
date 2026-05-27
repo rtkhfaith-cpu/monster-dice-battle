@@ -68,6 +68,8 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
     passiveSkillBookDropHistory: Array.isArray(p.passiveSkillBookDropHistory)
       ? p.passiveSkillBookDropHistory.slice(-50)
       : [],
+    ownedPets: Array.isArray(p.ownedPets) ? p.ownedPets : [],
+    petExpDust: typeof p.petExpDust === 'number' ? p.petExpDust : 0,
     audioSettings: loadAudioSettings(),
     battleProgress: p.battleProgress ?? { totalBattles: 0, winStreak: 0, lossStreak: 0 },
     monsterLadder: p.monsterLadder ?? null,
@@ -184,6 +186,8 @@ export function applyCloudProfile(gameData, cloud) {
   p.passiveSkillBookDropHistory = Array.isArray(normalized.passiveSkillBookDropHistory)
     ? normalized.passiveSkillBookDropHistory
     : [];
+  p.ownedPets = Array.isArray(normalized.ownedPets) ? normalized.ownedPets : [];
+  p.petExpDust = typeof normalized.petExpDust === 'number' ? normalized.petExpDust : 0;
 
   if (normalized.battleProgress) p.battleProgress = normalized.battleProgress;
   if (normalized.monsterLadder) p.monsterLadder = normalized.monsterLadder;
