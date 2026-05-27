@@ -71,15 +71,10 @@ export function passiveBookShopPrice(rarity, opts = {}) {
   return min + Math.floor(Math.random() * (max - min + 1));
 }
 
-/** Shop stock: rare always; epic ~35% daily rotation; legendary event-only. */
+/** Shop stock: rare + epic always; legendary event-only. */
 export function passiveBookShopOffers(skillId, profileId = '') {
-  const offers = [{ rarity: 'rare', price: passiveBookShopPrice('rare', { seed: `${profileId}_${skillId}_rare` }) }];
-  const epicRoll = (profileId + skillId).length % 3 === 0;
-  if (epicRoll) {
-    offers.push({
-      rarity: 'epic',
-      price: passiveBookShopPrice('epic', { seed: `${profileId}_${skillId}_epic` }),
-    });
-  }
-  return offers;
+  return [
+    { rarity: 'rare', price: passiveBookShopPrice('rare', { seed: `${profileId}_${skillId}_rare` }) },
+    { rarity: 'epic', price: passiveBookShopPrice('epic', { seed: `${profileId}_${skillId}_epic` }) },
+  ];
 }
