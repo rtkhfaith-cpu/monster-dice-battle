@@ -54,6 +54,7 @@ export function createMonsterRescueScene(Phaser) {
       this.isAiming = false;
       this.aimDragMoved = false;
       this.aimAngleTarget = -Math.PI / 2;
+      this._lastPushWarnMoves = null;
     }
 
     init(data) {
@@ -83,6 +84,7 @@ export function createMonsterRescueScene(Phaser) {
       this.timeRemainingMs = this.gameTimeLimitMs;
       this.moveTimeLimitMs = (this.stageDef.moveTimeSec ?? 15) * 1000;
       this.moveDeadlineMs = 0;
+      this._lastPushWarnMoves = null;
 
       const { displayFillRows, ...layout } = computeRescueLayout(w, h, this.stageDef.fillRows);
       this.layout = layout;
@@ -325,6 +327,7 @@ export function createMonsterRescueScene(Phaser) {
       const summary = this.rewardManager.getSummary();
       const interval = this.stageDef.rowPushEvery ?? ROW_PUSH_MOVES_BASE;
       const untilPush = Math.max(0, interval - this.movesSinceRowPush);
+      this._maybeWarnUpcomingPush(untilPush);
       this.puzzleHud.update({
         combo: this.comboManager.combo,
         stageLabel: `${this.stageDef.label}`,
@@ -335,6 +338,21 @@ export function createMonsterRescueScene(Phaser) {
         movesUntilPush: untilPush,
         rowPushEvery: interval,
       });
+    }
+
+    _maybeWarnUpcomingPush(untilPush) {
+      if (this.gameOver || this.isShooting) return;
+      // Warn once per countdown state so it does not spam every HUD refresh.
+      if (untilPush === this._lastPushWarnMoves) return;
+      if (untilPush === 2) {
+        this._lastPushWarnMoves = 2;
+        this.cameras?.main?.shake?.(120, 0.003);
+      } else if (untilPush === 1) {
+        this._lastPushWarnMoves = 1;
+        this.cameras?.main?.shake?.(170, 0.0045);
+      } else if (untilPush > 2) {
+        this._lastPushWarnMoves = null;
+      }
     }
 
     _playFrameBounds() {

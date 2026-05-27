@@ -314,6 +314,7 @@ export default function BattleScreen({
   const actionLockedRef = useRef(false);
   const battleIntroRef = useRef(battleIntro);
   const playerUsedMagicRef = useRef(false);
+  const queuedPlayerActionRef = useRef(null);
 
   useEffect(() => {
     p1Ref.current = p1;
@@ -1071,6 +1072,40 @@ export default function BattleScreen({
     return !battleIntro && !actionLocked && battlePhase === 'chooseAction';
   }
 
+  function canQueuePlayerAttack() {
+    return !battleIntroRef.current && activeBattlerRef.current === PLAYER_ID;
+  }
+
+  function queuePlayerAttack() {
+    if (!canQueuePlayerAttack()) return false;
+    queuedPlayerActionRef.current = { type: 'basic' };
+    showBanner('Attack queued...');
+    return true;
+  }
+
+  function flushQueuedPlayerAction() {
+    const queued = queuedPlayerActionRef.current;
+    if (!queued) return false;
+    if (
+      battleIntroRef.current
+      || actionLockedRef.current
+      || battlePhaseRef.current !== 'chooseAction'
+      || activeBattlerRef.current !== PLAYER_ID
+    ) {
+      return false;
+    }
+    queuedPlayerActionRef.current = null;
+    if (queued.type === 'basic') {
+      handleFight();
+      return true;
+    }
+    return false;
+  }
+
+  useEffect(() => {
+    flushQueuedPlayerAction();
+  }, [battleIntro, actionLocked, battlePhase, activeBattler]);
+
   function finishActionSequence() {
     const pending = pendingStrikeRef.current;
     if (!pending) return;
@@ -1436,7 +1471,10 @@ export default function BattleScreen({
   }
 
   function handleFight() {
-    if (!playerCanAct()) return;
+    if (!playerCanAct()) {
+      queuePlayerAttack();
+      return;
+    }
     const curP1 = p1Ref.current ?? p1;
     const curP2 = p2Ref.current ?? p2;
     if (!curP1?.stats || !curP2?.stats) {

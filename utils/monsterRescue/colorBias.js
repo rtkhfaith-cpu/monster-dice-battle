@@ -14,6 +14,16 @@ function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function pickWeightedFromBoardColors(onScreenColors, colorCount) {
+  const pool = [];
+  for (const c of onScreenColors || []) {
+    if (typeof c !== 'number' || c < 0 || c >= colorCount) continue;
+    pool.push(c);
+  }
+  if (!pool.length) return null;
+  return pickRandom(pool);
+}
+
 /** Distinct color indices currently on the board (sorted unique). */
 export function normalizeBoardColors(onScreenColors, colorCount) {
   const seen = new Set();
@@ -32,17 +42,17 @@ export function normalizeBoardColors(onScreenColors, colorCount) {
 export function chanceToPickFromBoardColors(uniqueOnBoard, levelId) {
   const n = uniqueOnBoard.length;
   if (n === 0) return 0;
-  if (n === 1) return 0.93;
-  if (n === 2) return 0.86;
+  if (n === 1) return 0.97;
+  if (n === 2) return 0.92;
   const levelBias = onScreenColorBiasForLevel(levelId);
-  if (n === 3) return Math.max(levelBias, 0.78);
+  if (n === 3) return Math.max(levelBias, 0.84);
   return onScreenColorBiasForLevel(levelId);
 }
 
 /** 0–1 chance that a new bubble uses a color already on the board (eases off over 60 levels). */
 export function onScreenColorBiasForLevel(levelId) {
   const t = rescueLevelProgress(clampLevel(levelId));
-  return lerp(t, 0.88, 0.1);
+  return lerp(t, 0.93, 0.16);
 }
 
 /** Chance push-row colors are off-screen / harder to match (ramps up gradually). */
@@ -57,7 +67,8 @@ function pickFromBoardOrRandom(colorCount, onScreenColors, levelId) {
     return Math.floor(Math.random() * colorCount);
   }
   if (Math.random() < chanceToPickFromBoardColors(unique, levelId)) {
-    return pickRandom(unique);
+    const weighted = pickWeightedFromBoardColors(onScreenColors, colorCount);
+    return weighted == null ? pickRandom(unique) : weighted;
   }
   return Math.floor(Math.random() * colorCount);
 }
