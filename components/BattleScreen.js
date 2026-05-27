@@ -1018,7 +1018,9 @@ export default function BattleScreen({
     strikeKind: strikeKindIn,
     superBomb = false,
   }) {
-    if (isActionPlaying) return;
+    if (isActionPlayingRef.current || busyRef.current) return;
+    isActionPlayingRef.current = true;
+    busyRef.current = true;
 
     const curP1 = p1Ref.current;
     const curP2 = p2Ref.current;
@@ -1037,6 +1039,8 @@ export default function BattleScreen({
     if (strikeKind === 'magic' && !canAffordSkill(atk, skill)) {
       if (autoMagicRef.current) stopAutoMagic('Auto magic off — no MP');
       else showBanner('Not enough MP!');
+      isActionPlayingRef.current = false;
+      busyRef.current = false;
       setBusy(false);
       setIsActionPlaying(false);
       setBattlePhase('chooseAction');
@@ -1271,7 +1275,7 @@ export default function BattleScreen({
   }
 
   function handleFight() {
-    if (isActionPlaying || busy || battlePhase !== 'chooseAction') return;
+    if (isActionPlayingRef.current || busyRef.current || battlePhase !== 'chooseAction') return;
     startBattleAudioFromInput();
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     const skill = attacker?.skills?.physical ?? getPhysicalSkill(attacker?.monsterTemplateId);
@@ -1291,21 +1295,21 @@ export default function BattleScreen({
   }
 
   function handleMagicOpen() {
-    if (isActionPlaying || busy || battlePhase !== 'chooseAction') return;
+    if (isActionPlayingRef.current || busyRef.current || battlePhase !== 'chooseAction') return;
     tapUi();
     setMenuMode('magic');
     showBanner('Pick a magic skill');
   }
 
   function handleMagicBack() {
-    if (isActionPlaying || busy) return;
+    if (isActionPlayingRef.current || busyRef.current) return;
     tapUi();
     setMenuMode('main');
     showBanner('Choose your move');
   }
 
   function handleMagicSkill(skill) {
-    if (isActionPlaying || busy || battlePhase !== 'chooseAction' || !skill) return;
+    if (isActionPlayingRef.current || busyRef.current || battlePhase !== 'chooseAction' || !skill) return;
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     if (!canAffordSkill(attacker, skill)) {
       showBanner('Not enough MP!');
@@ -1323,7 +1327,7 @@ export default function BattleScreen({
   }
 
   function handleRun() {
-    if (isActionPlaying || busy) return;
+    if (isActionPlayingRef.current || busyRef.current) return;
     tapUi();
     setFleeConfirmOpen(true);
   }

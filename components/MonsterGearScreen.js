@@ -109,19 +109,30 @@ function SlotGearPicker({
             const bonusLines = formatGearBonusLines(g);
             const slotLabel = gearEquippedSlotLabel(slots, g.id, slotIndex);
             const isCurrent = g.id === currentId;
+            const isElsewhere = slotLabel && !isCurrent;
             return (
               <TouchableOpacity
                 key={g.id}
-                style={[styles.pickerOption, isCurrent && styles.pickerOptionActive]}
+                style={[
+                  styles.pickerOption,
+                  isCurrent && styles.pickerOptionActive,
+                  isElsewhere && styles.pickerOptionElsewhere,
+                ]}
                 onPress={() => onSelect(g.id)}
                 activeOpacity={0.86}
               >
                 <Text style={styles.pickerOptionEmoji}>{g.emoji}</Text>
                 <View style={styles.pickerOptionBody}>
-                  <Text style={[styles.pickerOptionName, { fontSize: type.stat }]}>{g.name}</Text>
+                  <View style={styles.pickerNameRow}>
+                    <Text style={[styles.pickerOptionName, { fontSize: type.stat }]}>{g.name}</Text>
+                    {isElsewhere ? (
+                      <View style={styles.equippedBadge}>
+                        <Text style={styles.equippedBadgeTxt}>{slotLabel}</Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <Text style={[styles.pickerOptionMeta, { fontSize: type.statSm }]}>
                     {GEAR_CATEGORY_LABELS[g.category] ?? g.category}
-                    {slotLabel ? ` · ${slotLabel}` : ''}
                   </Text>
                   {bonusLines.map((line) => (
                     <Text key={`${g.id}-${line}`} style={[styles.pickerOptionStats, { fontSize: type.statSm }]}>
@@ -696,6 +707,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pickerOptionActive: { borderColor: '#86efac', backgroundColor: 'rgba(18, 53, 40, 0.55)' },
+  pickerOptionElsewhere: { borderColor: 'rgba(251, 191, 36, 0.45)', backgroundColor: 'rgba(120, 83, 12, 0.22)' },
+  pickerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  equippedBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(251, 191, 36, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.55)',
+  },
+  equippedBadgeTxt: { fontWeight: '900', fontSize: 9, color: '#fcd34d', textTransform: 'uppercase' },
   pickerOptionClear: { borderStyle: 'dashed', borderColor: 'rgba(248, 113, 113, 0.45)' },
   pickerOptionEmoji: { fontSize: 28, width: 36, textAlign: 'center' },
   pickerOptionBody: { flex: 1, minWidth: 0 },

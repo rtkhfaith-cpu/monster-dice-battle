@@ -90,6 +90,7 @@ export function createMonsterRescueScene(Phaser) {
       this._drawBackdrop(w, h, layout);
       this._drawPlayFrame(layout);
       this.dangerY = layout.clusterBottom + layout.cellH * 2;
+      this._computeDangerRow();
 
       this.comboManager = new ComboManager(this);
       this.rewardManager = new RewardManager(this);
@@ -307,6 +308,13 @@ export function createMonsterRescueScene(Phaser) {
           1
         );
       }
+
+      const dangerRow = this._effectiveDangerRow ?? this.stageDef.dangerRow ?? 10;
+      if (this.bubbleSystem.getModel().lowestOccupiedRow() >= dangerRow) {
+        this._checkEnd();
+        if (this.gameOver) return true;
+      }
+
       await this.bubbleSystem.clearFloatingAfterPush(this.comboManager, this.rewardManager);
       this.game.events.emit('rescue:rowPush');
       this.cameras?.main?.shake?.(80, 0.004);
@@ -675,12 +683,27 @@ export function createMonsterRescueScene(Phaser) {
       return best;
     }
 
+    /**
+     * Compute the danger row from layout so it matches the visual shooter zone.
+     * Bubbles at or below this row trigger game over.
+     */
+    _computeDangerRow() {
+      const { originY, cellH, shooterZoneTop } = this.layout;
+      if (!originY || !cellH || !shooterZoneTop) {
+        this._effectiveDangerRow = this.stageDef.dangerRow ?? 10;
+        return;
+      }
+      const maxVisualRow = Math.floor((shooterZoneTop - originY) / cellH);
+      const stageDanger = this.stageDef.dangerRow ?? 10;
+      this._effectiveDangerRow = Math.min(stageDanger, Math.max(0, maxVisualRow));
+    }
+
     _checkEnd() {
       const summary = this.rewardManager.getSummary();
       const cleared = this.bubbleSystem.getModel().isCleared();
       const won = cleared;
       const timeUp = this.timeRemainingMs <= 0 && !won;
-      const dangerRow = this.stageDef.dangerRow ?? 10;
+      const dangerRow = this._effectiveDangerRow ?? this.stageDef.dangerRow ?? 10;
       const danger = this.bubbleSystem.getModel().lowestOccupiedRow() >= dangerRow;
       if (won || timeUp || danger) {
         this.gameOver = true;
@@ -708,6 +731,7 @@ export function createMonsterRescueScene(Phaser) {
       this.shooterX = w / 2;
       this.shooterY = layout.shooterY;
       this.dangerY = layout.clusterBottom + layout.cellH * 2;
+      this._computeDangerRow();
       this.bubbleSystem.layout = layout;
       this.bubbleSystem.bubbleRadius = layout.bubbleRadius;
       this.bubbleSystem.rebuildSprites();
