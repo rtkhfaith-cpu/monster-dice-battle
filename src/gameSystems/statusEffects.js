@@ -23,9 +23,10 @@ function dotStrength(status) {
 export function applyDotStatus(fighter, type, { dotMaxHpPct, turns, healReductionPct = 0 }) {
   if (!fighter) return fighter;
   const dict = { ...normalizeStatuses(fighter) };
+  const turnCount = Math.max(1, Math.floor(turns ?? 2));
   const next = {
     type,
-    turnsLeft: Math.max(1, turns),
+    turnsLeft: turnCount,
     potency: 1,
     dotMaxHpPct,
     healReductionPct: type === 'burn' ? healReductionPct : 0,

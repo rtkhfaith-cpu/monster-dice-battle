@@ -2,6 +2,7 @@
  * Server-side passive skill resolution (CJS) — mirrors client passiveResolver.
  */
 const { getPetCritBonus } = require('./petCombat');
+const { getStatuses, applyDot } = require('./dotStatus');
 
 function rollPercentChance(pct) {
   return Math.random() * 100 < Math.max(0, Math.min(100, pct));
@@ -133,27 +134,6 @@ function effectiveCritChance(atk) {
 function clampHeal(amount, f) {
   const maxHp = f.maxHp ?? f.stats?.hp ?? 100;
   return Math.min(Math.max(0, maxHp - f.hp), Math.max(0, Math.round(amount)));
-}
-
-function getStatuses(f) {
-  if (f.statuses && typeof f.statuses === 'object') return f.statuses;
-  const s = f.status;
-  if (s && s.type && (s.turnsLeft ?? 0) > 0) return { [s.type]: s };
-  return {};
-}
-
-function applyDot(fighter, type, params) {
-  const f = { ...fighter };
-  const dict = { ...getStatuses(f) };
-  dict[type] = {
-    type,
-    dotMaxHpPct: params.dotMaxHpPct ?? 0,
-    turnsLeft: params.turns ?? 2,
-    healReductionPct: params.healReductionPct ?? 0,
-  };
-  f.statuses = dict;
-  f.status = dict[type];
-  return f;
 }
 
 function healingMultiplier(f) {

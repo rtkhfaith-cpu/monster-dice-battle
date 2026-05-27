@@ -682,12 +682,11 @@ export default function BattleScreen({
 
   function tickFighterStatus(fighter) {
     const dot = tickDotStatus(fighter);
-    const afterDot = dot.fighter;
-    const legacy = tickStatus(afterDot);
+    const debuffs = tickStatus(dot.fighter);
     return {
-      fighter: legacy.fighter,
-      tickDamage: (dot.tickDamage ?? 0) + (legacy.tickDamage ?? 0),
-      message: dot.message || legacy.message,
+      fighter: debuffs.fighter,
+      tickDamage: dot.tickDamage ?? 0,
+      message: dot.message || null,
       popup: dot.popup || null,
       isDot: dot.isDot || false,
     };
@@ -1028,6 +1027,13 @@ export default function BattleScreen({
     );
   }
 
+  function releaseActionLocks() {
+    isActionPlayingRef.current = false;
+    busyRef.current = false;
+    setIsActionPlaying(false);
+    setBusy(false);
+  }
+
   function finishActionSequence() {
     const pending = pendingStrikeRef.current;
     if (!pending) return;
@@ -1035,16 +1041,27 @@ export default function BattleScreen({
     if (pending.safetyId) clearTimeout(pending.safetyId);
     clearAttackEffects();
     resetPoses();
+
+    if (pending.np1After && pending.np2After) {
+      setP1(pending.np1After);
+      setP2(pending.np2After);
+      p1Ref.current = pending.np1After;
+      p2Ref.current = pending.np2After;
+    }
+
     isActionPlayingRef.current = false;
     setIsActionPlaying(false);
+    setBattlePhase('chooseAction');
 
     if (pending.onDone) {
-      setBattlePhase('chooseAction');
-      pending.onDone(pending.np1After, pending.np2After);
+      try {
+        pending.onDone(pending.np1After, pending.np2After);
+      } catch (err) {
+        console.warn('[battle] post-attack callback failed', err);
+        releaseActionLocks();
+      }
     } else {
-      busyRef.current = false;
-      setBusy(false);
-      setBattlePhase('chooseAction');
+      releaseActionLocks();
     }
   }
 
@@ -1065,7 +1082,11 @@ export default function BattleScreen({
     const curP2 = p2Ref.current;
     const atk = attackerId === PLAYER_ID ? curP1 : curP2;
     const def = defenderId === PLAYER_ID ? curP1 : curP2;
-    if (!atk || !def) return;
+    if (!atk || !def) {
+      releaseActionLocks();
+      setBattlePhase('chooseAction');
+      return;
+    }
 
     const strikeKind =
       strikeKindIn ?? (skillIn?.kind === 'magic' ? 'magic' : 'physical');
@@ -1078,25 +1099,30 @@ export default function BattleScreen({
     if (strikeKind === 'magic' && !canAffordSkill(atk, skill)) {
       if (autoMagicRef.current) stopAutoMagic('Auto magic off — no MP');
       else showBanner('Not enough MP!');
-      isActionPlayingRef.current = false;
-      busyRef.current = false;
-      setBusy(false);
-      setIsActionPlaying(false);
+      releaseActionLocks();
       setBattlePhase('chooseAction');
       setMenuMode(autoMagicRef.current ? 'main' : 'magic');
       return;
     }
 
-    const resolved = resolveAttackWithPassives({
-      attacker: atk,
-      defender: def,
-      skill,
-      strikeKind,
-      atkElement: skill?.element ?? atk.element,
-      defElement: def.element,
-    });
+    let resolved;
+    try {
+      resolved = resolveAttackWithPassives({
+        attacker: atk,
+        defender: def,
+        skill,
+        strikeKind,
+        atkElement: skill?.element ?? atk.element,
+        defElement: def.element,
+      });
+    } catch (err) {
+      console.warn('[battle] attack resolution failed', err);
+      releaseActionLocks();
+      setBattlePhase('chooseAction');
+      return;
+    }
 
-    const dmg = resolved.dodged ? 0 : resolved.damage;
+    const dmg = resolved.dodged ? 0 : (resolved.damage ?? 0);
     const mpCost = strikeKind === 'magic' ? skill?.mpCost ?? 0 : 0;
     const timing = getActionTiming({
       strikeKind,
@@ -1299,20 +1325,32 @@ export default function BattleScreen({
 
   function runCpuCounter(np1, np2) {
     schedule(400, () => {
-      const cpu = applyTurnStartPassives(p2Ref.current, CPU_ID);
-      p2Ref.current = cpu;
-      setP2(cpu);
-      const { skill, strikeKind } = pickCpuStrike(cpu);
-      isActionPlayingRef.current = false;
-      busyRef.current = false;
-      runAttack({
-        attackerId: CPU_ID,
-        defenderId: PLAYER_ID,
-        bannerText: strikeKind === 'magic' ? `CPU used ${skill.name}!` : 'CPU attacks!',
-        skill,
-        strikeKind,
-        onComplete: null,
-      });
+      try {
+        if (np1 && np2) {
+          p1Ref.current = np1;
+          p2Ref.current = np2;
+          setP1(np1);
+          setP2(np2);
+        }
+        const cpu = applyTurnStartPassives(p2Ref.current, CPU_ID);
+        p2Ref.current = cpu;
+        setP2(cpu);
+        const { skill, strikeKind } = pickCpuStrike(cpu);
+        releaseActionLocks();
+        runAttack({
+          attackerId: CPU_ID,
+          defenderId: PLAYER_ID,
+          bannerText: strikeKind === 'magic' ? `CPU used ${skill.name}!` : 'CPU attacks!',
+          skill,
+          strikeKind,
+          onComplete: null,
+        });
+      } catch (err) {
+        console.warn('[battle] CPU counter failed', err);
+        releaseActionLocks();
+        setBattlePhase('chooseAction');
+        endRound(p1Ref.current, p2Ref.current, 'Choose your move');
+      }
     });
   }
 

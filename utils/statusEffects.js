@@ -42,39 +42,31 @@ export function applyStatus(fighter, type, turns = 2, potency = 1) {
   return { ...fighter, statuses: dict, status: dict[type] };
 }
 
-/** Tick ALL active statuses at end of round. */
+/**
+ * Tick atkDown / defDown duration only.
+ * Poison and burn are handled by tickDotStatus (src/gameSystems/statusEffects.js).
+ */
 export function tickStatus(fighter) {
-  const dict = normalizeStatuses(fighter);
-  let totalDamage = 0;
-  const messages = [];
-  const nextDict = {};
+  const dict = { ...normalizeStatuses(fighter) };
+  const nextDict = { ...dict };
 
-  for (const type of ALL_TYPES) {
-    const s = dict[type];
+  for (const type of ['atkDown', 'defDown']) {
+    const s = nextDict[type];
     if (!s || (s.turnsLeft ?? 0) <= 0) continue;
-
-    let dmg = 0;
-    if (type === 'poison' || type === 'burn') {
-      const pct = type === 'poison' ? 0.05 : 0.04;
-      dmg = Math.max(2, Math.round((fighter.maxHp ?? fighter.stats?.hp ?? 100) * pct * (s.potency || 1)));
-      messages.push(type === 'poison' ? 'Poison hurts!' : 'Burn sizzles!');
-    }
-    totalDamage += dmg;
-
     const next = s.turnsLeft - 1;
     if (next > 0) nextDict[type] = { ...s, turnsLeft: next };
+    else delete nextDict[type];
   }
 
   const hasAny = Object.keys(nextDict).length > 0;
   return {
     fighter: {
       ...fighter,
-      hp: Math.max(0, fighter.hp - totalDamage),
       statuses: hasAny ? nextDict : {},
       status: hasAny ? Object.values(nextDict)[0] : null,
     },
-    tickDamage: totalDamage,
-    message: messages[0] || null,
+    tickDamage: 0,
+    message: null,
   };
 }
 

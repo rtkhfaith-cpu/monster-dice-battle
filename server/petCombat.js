@@ -2,6 +2,7 @@
  * Server-side pet combat (CJS) — mirrors src/gameSystems/petCombat.js
  */
 const { getPetSkillEffect } = require('./petSkills');
+const { applyDot } = require('./dotStatus');
 
 function rollPct(chance) {
   return Math.random() * 100 < Math.max(0, Math.min(100, chance));
@@ -81,28 +82,22 @@ function resolvePetOnAttackHit(attacker, defender, { damageDealt = 0 } = {}) {
     if (skillType === 'poison_bite') {
       const e = getPetSkillEffect('poison_bite', pet.rarity);
       if (rollPct(e.chancePct ?? 0)) {
-        if (!def.statuses) def.statuses = {};
-        def.statuses.poison = {
-          type: 'poison',
-          turnsLeft: e.turns ?? 2,
+        def = applyDot(def, 'poison', {
           dotMaxHpPct: e.dotMaxHpPct ?? 5,
+          turns: e.turns ?? 2,
           source: 'pet',
-        };
-        def.status = def.statuses.poison;
+        });
         log.push(`${pet.emoji} ${pet.name} triggered Poison Bite!`);
       }
     }
     if (skillType === 'fire_aura') {
       const e = getPetSkillEffect('fire_aura', pet.rarity);
       if (rollPct(e.chancePct ?? 0)) {
-        if (!def.statuses) def.statuses = {};
-        def.statuses.burn = {
-          type: 'burn',
-          turnsLeft: e.turns ?? 2,
+        def = applyDot(def, 'burn', {
           dotMaxHpPct: e.dotMaxHpPct ?? 6,
+          turns: e.turns ?? 2,
           source: 'pet',
-        };
-        def.status = def.statuses.burn;
+        });
         log.push(`${pet.emoji} ${pet.name} triggered Fire Aura!`);
       }
     }
