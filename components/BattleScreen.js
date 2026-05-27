@@ -264,8 +264,7 @@ export default function BattleScreen({
   const [bannerCombatHighlight, setBannerCombatHighlight] = useState(false);
   const [bannerPassiveHighlight, setBannerPassiveHighlight] = useState(false);
   const [passiveFloatItems, setPassiveFloatItems] = useState([]);
-  const [busy, setBusy] = useState(false);
-  const [isActionPlaying, setIsActionPlaying] = useState(false);
+  const [actionLocked, setActionLocked] = useState(false);
   const [currentEffect, setCurrentEffect] = useState(null);
   const [activeAttackEffect, setActiveAttackEffect] = useState(null);
   const [defendGlowP1, setDefendGlowP1] = useState(false);
@@ -312,12 +311,9 @@ export default function BattleScreen({
   const [autoAttackOn, setAutoAttackOn] = useState(false);
   const [autoLevelOn, setAutoLevelOn] = useState(false);
   const battlePhaseRef = useRef(battlePhase);
-  const busyRef = useRef(busy);
-  const isActionPlayingRef = useRef(isActionPlaying);
+  const actionLockedRef = useRef(false);
   const battleIntroRef = useRef(battleIntro);
   const playerUsedMagicRef = useRef(false);
-  const cpuTurnPendingRef = useRef(false);
-  const [cpuTurnPending, setCpuTurnPending] = useState(false);
 
   useEffect(() => {
     p1Ref.current = p1;
@@ -385,10 +381,10 @@ export default function BattleScreen({
 
   useEffect(() => {
     if (battleIntro || !autoLevelRef.current || !opponentIsAi) return;
-    if (battlePhase === 'chooseAction' && !busy && !isActionPlaying) {
+    if (battlePhase === 'chooseAction' && !actionLocked) {
       schedule(150, () => scheduleAutoTurn());
     }
-  }, [battleIntro, battlePhase, busy, isActionPlaying, autoLevelOn, opponentIsAi]);
+  }, [battleIntro, battlePhase, actionLocked, autoLevelOn, opponentIsAi]);
 
   useEffect(() => {
     if (!autoLevelRef.current) return undefined;
@@ -404,17 +400,12 @@ export default function BattleScreen({
   }, [mainChestPhase, mainChestBusy, mainChestDrop]);
 
   useEffect(() => {
-    cpuTurnPendingRef.current = false;
-    setCpuTurnPending(false);
     pendingStrikeRef.current = null;
-    isActionPlayingRef.current = false;
-    busyRef.current = false;
-    setIsActionPlaying(false);
-    setBusy(false);
+    actionLockedRef.current = false;
+    setActionLocked(false);
     battlePhaseRef.current = 'chooseAction';
     setBattlePhase('chooseAction');
     return () => {
-      cpuTurnPendingRef.current = false;
       pendingStrikeRef.current = null;
     };
   }, []);
@@ -422,9 +413,9 @@ export default function BattleScreen({
   useEffect(() => {
     if (battleIntro && !bossStageBanner) {
       battleIntroRef.current = false;
-      busyRef.current = false;
+      actionLockedRef.current = false;
       setBattleIntro(false);
-      setBusy(false);
+      setActionLocked(false);
     }
   }, [battleIntro, bossStageBanner]);
 
@@ -432,9 +423,9 @@ export default function BattleScreen({
     unlockBattleAudio();
     startBattleMusic({ kind: ladderStageKind, mainMiniBoss: isMainMiniBoss });
     if (!bossStageBanner) return undefined;
-    busyRef.current = true;
+    actionLockedRef.current = true;
     battleIntroRef.current = true;
-    setBusy(true);
+    setActionLocked(true);
     setBattleIntro(true);
     playSound('rage', { volume: ladderStageKind === 'bigBoss' ? 1.1 : 0.85 });
     phaserEventSeqRef.current += 1;
@@ -448,15 +439,15 @@ export default function BattleScreen({
     const introMs = baseMs + (bossPassiveIntroLines.length > 0 ? 450 : 0);
     const t = setTimeout(() => {
       battleIntroRef.current = false;
-      busyRef.current = false;
+      actionLockedRef.current = false;
       setBattleIntro(false);
-      setBusy(false);
+      setActionLocked(false);
     }, introMs);
     return () => clearTimeout(t);
   }, [bossStageBanner, isMainMiniBoss, ladderStageKind, bossPassiveIntroLines.length]);
 
   useEffect(() => {
-    if (!usePhaserBattleRenderer || phaserFailed || isActionPlaying || busy) return;
+    if (!usePhaserBattleRenderer || phaserFailed || actionLocked) return;
     phaserEventSeqRef.current += 1;
     setPhaserVisualEvent({
       id: phaserEventSeqRef.current,
@@ -465,7 +456,7 @@ export default function BattleScreen({
       text: activeBattler === PLAYER_ID ? 'Your Turn' : `${labelCpu}'s Turn`,
       actionType: 'turn',
     });
-  }, [activeBattler, busy, isActionPlaying, labelCpu, phaserFailed, usePhaserBattleRenderer]);
+  }, [activeBattler, actionLocked, labelCpu, phaserFailed, usePhaserBattleRenderer]);
 
   useEffect(() => () => stopBattleMusic(), []);
 
@@ -620,10 +611,8 @@ export default function BattleScreen({
   }
 
   function finishBattleNow(winner, np1, np2, extras = {}) {
-    busyRef.current = false;
-    isActionPlayingRef.current = false;
-    setBusy(false);
-    setIsActionPlaying(false);
+    actionLockedRef.current = false;
+    setActionLocked(false);
     setMainChestPhase(null);
     setPendingFinish(null);
     onFinish({
@@ -695,10 +684,8 @@ export default function BattleScreen({
     stopAutoAttack(null, true);
     clearTimers();
     clearAttackEffects();
-    isActionPlayingRef.current = false;
-    busyRef.current = true;
-    setIsActionPlaying(false);
-    setBusy(true);
+    actionLockedRef.current = true;
+    setActionLocked(true);
     resetPoses();
     showBanner(
       winnerSide === PLAYER_ID ? `${labelP1} wins!` : winnerSide === CPU_ID ? `${labelCpu} wins!` : 'Draw!',
@@ -794,10 +781,8 @@ export default function BattleScreen({
     battlePhaseRef.current = 'chooseAction';
     setBattlePhase('chooseAction');
     setMenuMode('main');
-    isActionPlayingRef.current = false;
-    busyRef.current = false;
-    setBusy(false);
-    setIsActionPlaying(false);
+    actionLockedRef.current = false;
+    setActionLocked(false);
     if (ticked.passiveFloats?.length || ticked.passiveCenter) {
       presentPassiveFeedback({
         floats: ticked.passiveFloats,
@@ -847,13 +832,7 @@ export default function BattleScreen({
 
   function tryAutoLevelStrike() {
     if (!autoLevelRef.current || !opponentIsAi) return;
-    if (
-      battleIntroRef.current ||
-      isActionPlayingRef.current ||
-      busyRef.current ||
-      cpuTurnPendingRef.current ||
-      battlePhaseRef.current !== 'chooseAction'
-    ) {
+    if (battleIntroRef.current || actionLockedRef.current || battlePhaseRef.current !== 'chooseAction') {
       return;
     }
     if (activeBattlerRef.current !== PLAYER_ID) return;
@@ -877,13 +856,7 @@ export default function BattleScreen({
 
   function tryAutoAttackStrike() {
     if (!autoAttackRef.current || !opponentIsAi) return;
-    if (
-      battleIntroRef.current ||
-      isActionPlayingRef.current ||
-      busyRef.current ||
-      cpuTurnPendingRef.current ||
-      battlePhaseRef.current !== 'chooseAction'
-    ) {
+    if (battleIntroRef.current || actionLockedRef.current || battlePhaseRef.current !== 'chooseAction') {
       return;
     }
     if (activeBattlerRef.current !== PLAYER_ID) return;
@@ -903,13 +876,7 @@ export default function BattleScreen({
 
   function tryAutoMagicAttack() {
     if (!autoMagicRef.current || !opponentIsAi) return;
-    if (
-      battleIntroRef.current ||
-      isActionPlayingRef.current ||
-      busyRef.current ||
-      cpuTurnPendingRef.current ||
-      battlePhaseRef.current !== 'chooseAction'
-    ) {
+    if (battleIntroRef.current || actionLockedRef.current || battlePhaseRef.current !== 'chooseAction') {
       return;
     }
     if (activeBattlerRef.current !== PLAYER_ID) return;
@@ -1076,51 +1043,32 @@ export default function BattleScreen({
     );
   }
 
-  function releaseActionLocks() {
-    isActionPlayingRef.current = false;
-    busyRef.current = false;
-    setIsActionPlaying(false);
-    setBusy(false);
+  function lockAction() {
+    actionLockedRef.current = true;
+    setActionLocked(true);
   }
 
-  /** Recover stuck resolveAttack with no pending strike (HMR / cleared timers). */
-  useEffect(() => {
-    if (battlePhase !== 'resolveAttack' || pendingStrikeRef.current) return undefined;
-    const t = setTimeout(() => {
-      if (battlePhaseRef.current === 'resolveAttack' && !pendingStrikeRef.current) {
-        releaseActionLocks();
-        battlePhaseRef.current = 'chooseAction';
-        setBattlePhase('chooseAction');
-      }
-    }, 800);
-    return () => clearTimeout(t);
-  }, [battlePhase]);
+  function unlockAction() {
+    actionLockedRef.current = false;
+    setActionLocked(false);
+  }
 
   useEffect(() => {
-    if (!busy && !isActionPlaying) return undefined;
+    if (!actionLocked) return undefined;
     const t = setTimeout(() => {
-      if ((busyRef.current || isActionPlayingRef.current) && !pendingStrikeRef.current) {
-        releaseActionLocks();
-        if (battlePhaseRef.current === 'resolveAttack') {
-          battlePhaseRef.current = 'chooseAction';
-          setBattlePhase('chooseAction');
-        }
-      }
-    }, 6000);
+      if (!actionLockedRef.current) return;
+      if (pendingStrikeRef.current) return;
+      unlockAction();
+      battlePhaseRef.current = 'chooseAction';
+      setBattlePhase('chooseAction');
+      clearAttackEffects();
+      resetPoses();
+    }, 10000);
     return () => clearTimeout(t);
-  }, [busy, isActionPlaying]);
+  }, [actionLocked]);
 
   function playerCanAct() {
-    if (pendingStrikeRef.current && battlePhase !== 'resolveAttack') {
-      pendingStrikeRef.current = null;
-    }
-    return (
-      !battleIntro
-      && !isActionPlaying
-      && !busy
-      && !cpuTurnPending
-      && battlePhase === 'chooseAction'
-    );
+    return !battleIntro && !actionLocked && battlePhase === 'chooseAction';
   }
 
   function finishActionSequence() {
@@ -1140,49 +1088,37 @@ export default function BattleScreen({
       p2Ref.current = np2;
     }
 
-    releaseActionLocks();
+    const followUp = pending.onComplete;
+    const cpuChain = opponentIsAi && followUp === runCpuCounter;
+
+    if (!cpuChain) {
+      unlockAction();
+    }
     battlePhaseRef.current = 'chooseAction';
     setBattlePhase('chooseAction');
 
     try {
       if (np1?.hp <= 0) {
+        unlockAction();
         wrapUpBattle(CPU_ID, np1, np2);
         return;
       }
       if (np2?.hp <= 0) {
+        unlockAction();
         wrapUpBattle(PLAYER_ID, np1, np2);
         return;
       }
-      if (pending.onComplete) {
-        pending.onComplete(np1, np2);
+      if (followUp) {
+        followUp(np1, np2);
       } else {
         endRound(np1, np2);
       }
     } catch (err) {
       console.warn('[battle] post-attack callback failed', err);
-      releaseActionLocks();
+      unlockAction();
       battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
     }
-  }
-
-  function canStartAttack(skipBusyCheck) {
-    if (skipBusyCheck) return true;
-    if (isActionPlaying || busy) return false;
-    if (pendingStrikeRef.current && battlePhase !== 'resolveAttack') {
-      pendingStrikeRef.current = null;
-    }
-    if (pendingStrikeRef.current) return false;
-    if (isActionPlayingRef.current || busyRef.current) {
-      const staleLocks = !isActionPlaying && !busy && !pendingStrikeRef.current;
-      if (staleLocks) {
-        isActionPlayingRef.current = false;
-        busyRef.current = false;
-      } else {
-        return false;
-      }
-    }
-    return true;
   }
 
   function runAttack({
@@ -1195,11 +1131,8 @@ export default function BattleScreen({
     superBomb = false,
     skipBusyCheck = false,
   }) {
-    if (!canStartAttack(skipBusyCheck)) return;
-    isActionPlayingRef.current = true;
-    busyRef.current = true;
-    setIsActionPlaying(true);
-    setBusy(true);
+    if (!skipBusyCheck && actionLockedRef.current) return;
+    lockAction();
 
     try {
     const curP1 = p1Ref.current;
@@ -1208,7 +1141,7 @@ export default function BattleScreen({
     const def = defenderId === PLAYER_ID ? curP1 : curP2;
     if (!atk || !def) {
       showBanner('Attack failed — fighters not loaded.');
-      releaseActionLocks();
+      unlockAction();
       battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
       return;
@@ -1225,7 +1158,7 @@ export default function BattleScreen({
     if (strikeKind === 'magic' && !canAffordSkill(atk, skill)) {
       if (autoMagicRef.current) stopAutoMagic('Auto magic off — no MP');
       else showBanner('Not enough MP!');
-      releaseActionLocks();
+      unlockAction();
       battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
       setMenuMode(autoMagicRef.current ? 'main' : 'magic');
@@ -1244,7 +1177,7 @@ export default function BattleScreen({
       });
     } catch (err) {
       console.warn('[battle] attack resolution failed', err);
-      releaseActionLocks();
+      unlockAction();
       battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
       return;
@@ -1266,18 +1199,6 @@ export default function BattleScreen({
     }
     setMenuMode('main');
     clearAttackEffects();
-
-    if (attackerId === PLAYER_ID) {
-      setP2Pose('idle');
-      if (!usePhaserBattleRenderer) setP1Pose(superBomb ? 'superWindup' : strikeKind === 'magic' ? 'cast' : 'idle');
-      if (!usePhaserBattleRenderer) setP1Emotion('happy');
-      setP2Emotion('angry');
-    } else {
-      setP1Pose('idle');
-      if (!usePhaserBattleRenderer) setP2Pose(superBomb ? 'superWindup' : strikeKind === 'magic' ? 'cast' : 'idle');
-      if (!usePhaserBattleRenderer) setP2Emotion('happy');
-      setP1Emotion('angry');
-    }
 
     const mpSpentAtk = { ...atk, mp: Math.max(0, atk.mp - mpCost) };
     setP1(attackerId === PLAYER_ID ? mpSpentAtk : curP1);
@@ -1370,6 +1291,27 @@ export default function BattleScreen({
     setBattlePhase('resolveAttack');
     showBanner(bannerText || skill?.name || 'Attack');
 
+    if (!usePhaserBattleRenderer || phaserFailed) {
+      if (attackerId === PLAYER_ID) {
+        setP2Pose('idle');
+        setP2Emotion('angry');
+        setP1Emotion('happy');
+        setFlyStrikeP1(shouldAttackerJump);
+        setP1Pose(
+          superBomb ? 'superWindup' : strikeKind === 'magic' ? 'cast' : shouldAttackerJump ? 'lunge' : 'idle',
+        );
+      } else {
+        setP1Pose('idle');
+        setP1Emotion('angry');
+        setP2Emotion('happy');
+        setFlyStrikeP2(shouldAttackerJump);
+        setP2Pose(
+          superBomb ? 'superWindup' : strikeKind === 'magic' ? 'cast' : shouldAttackerJump ? 'lunge' : 'idle',
+        );
+      }
+      setActiveAttackEffect({ ...effectPayload, seq: effectSeqRef.current });
+    }
+
     emitPhaserActionResult({
       attackerId,
       defenderId,
@@ -1445,18 +1387,14 @@ export default function BattleScreen({
     } catch (err) {
       console.warn('[battle] runAttack failed', err);
       pendingStrikeRef.current = null;
-      releaseActionLocks();
+      unlockAction();
       battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
     }
   }
 
   function runCpuCounter(np1, np2) {
-    cpuTurnPendingRef.current = true;
-    setCpuTurnPending(true);
     schedule(400, () => {
-      cpuTurnPendingRef.current = false;
-      setCpuTurnPending(false);
       try {
         if (np1 && np2) {
           p1Ref.current = np1;
@@ -1479,7 +1417,7 @@ export default function BattleScreen({
         });
       } catch (err) {
         console.warn('[battle] CPU counter failed', err);
-        releaseActionLocks();
+        unlockAction();
         battlePhaseRef.current = 'chooseAction';
         setBattlePhase('chooseAction');
         endRound(p1Ref.current, p2Ref.current, 'Choose your move');
@@ -1531,7 +1469,7 @@ export default function BattleScreen({
   }
 
   function handleMagicBack() {
-    if (isActionPlayingRef.current || busyRef.current) return;
+    if (actionLockedRef.current) return;
     tapUi();
     setMenuMode('main');
     showBanner('Choose your move');
@@ -1556,7 +1494,7 @@ export default function BattleScreen({
   }
 
   function handleRun() {
-    if (isActionPlayingRef.current || busyRef.current) return;
+    if (actionLockedRef.current) return;
     tapUi();
     setFleeConfirmOpen(true);
   }
@@ -1583,7 +1521,7 @@ export default function BattleScreen({
   const p1Mood = moodFor(p1, p1Emotion);
   const p2Mood = moodFor(p2, p2Emotion);
   const actionsEnabled = playerCanAct();
-  const runEnabled = !battleIntro && !isActionPlaying && !busy;
+  const runEnabled = !battleIntro && !actionLocked;
   const autoToggleEnabled = !battleIntro && opponentIsAi;
   const autoLevelEligible =
     opponentIsAi
@@ -1659,7 +1597,7 @@ export default function BattleScreen({
                 p2Mood={p2Mood}
                 p1Pose={p1Pose}
                 p2Pose={p2Pose}
-                activeTurn={isActionPlaying || busy ? CPU_ID : activeBattler}
+                activeTurn={actionLocked ? CPU_ID : activeBattler}
                 round={round}
                 turnBadge={bannerMessage}
                 turnBadgeCombatHighlight={bannerCombatHighlight}
@@ -1748,7 +1686,7 @@ export default function BattleScreen({
           {menuMode === 'magic' ? (
             <View style={styles.magicPanel}>
               <View style={styles.magicHeader}>
-                <Pressable style={styles.magicBackBtn} onPress={handleMagicBack} disabled={isActionPlaying || busy}>
+                <Pressable style={styles.magicBackBtn} onPress={handleMagicBack} disabled={actionLocked}>
                   <Text style={styles.magicBackTxt}>← Back</Text>
                 </Pressable>
                 <Text style={styles.magicMp}>
@@ -1922,8 +1860,7 @@ export default function BattleScreen({
                 tapUi();
                 if (!playerCanAct()) {
                   if (battleIntro) showBanner('Wait for the intro to finish…');
-                  else if (busy || isActionPlaying) showBanner('Wait for the current action…');
-                  else if (cpuTurnPending) showBanner('CPU is moving…');
+                  else if (actionLocked) showBanner('Wait for the current action…');
                   else if (battlePhase !== 'chooseAction') showBanner('Finishing last attack…');
                   return;
                 }
@@ -1949,8 +1886,7 @@ export default function BattleScreen({
                   if (!playerCanAct()) {
                     tapUi();
                     if (battleIntro) showBanner('Wait for the intro to finish…');
-                    else if (busy || isActionPlaying) showBanner('Wait for the current action…');
-                    else if (cpuTurnPending) showBanner('CPU is moving…');
+                    else if (actionLocked) showBanner('Wait for the current action…');
                     else if (battlePhase !== 'chooseAction') showBanner('Finishing last attack…');
                     return;
                   }
