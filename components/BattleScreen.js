@@ -85,6 +85,7 @@ function fighterToPhaserState(fighter, fallbackName) {
     parts: fighter?.monsterParts || {},
     theme: fighter?.monsterParts?.themeBody ?? 'default',
     stageKind: fighter?.ladderStageKind ?? 'normal',
+    statuses: fighter?.statuses ?? {},
   };
 }
 
@@ -124,6 +125,7 @@ function seedFighter(p) {
     element: p.element ?? 'earth',
     skills: p.skills ?? null,
     status: p.status ?? null,
+    statuses: p.statuses ?? (p.status?.type ? { [p.status.type]: p.status } : {}),
     isAiOpponent: !!p.isAiOpponent,
     aiPowerRatio: p.aiPowerRatio ?? null,
     isMainMiniBoss: !!p.isMainMiniBoss,
@@ -165,6 +167,7 @@ function snapshotFight(f) {
     element: f.element,
     skills: f.skills,
     status: f.status ?? null,
+    statuses: f.statuses ?? {},
     isAiOpponent: f.isAiOpponent,
     aiPowerRatio: f.aiPowerRatio,
     isLadderMonster: !!f.isLadderMonster,
@@ -305,6 +308,7 @@ export default function BattleScreen({
   const busyRef = useRef(busy);
   const isActionPlayingRef = useRef(isActionPlaying);
   const battleIntroRef = useRef(battleIntro);
+  const playerUsedMagicRef = useRef(false);
 
   useEffect(() => {
     p1Ref.current = p1;
@@ -665,10 +669,16 @@ export default function BattleScreen({
   }
 
   function tickFighterStatus(fighter) {
-    if (fighter?.status?.dotMaxHpPct != null) {
-      return tickDotStatus(fighter);
-    }
-    return tickStatus(fighter);
+    const dot = tickDotStatus(fighter);
+    const afterDot = dot.fighter;
+    const legacy = tickStatus(afterDot);
+    return {
+      fighter: legacy.fighter,
+      tickDamage: (dot.tickDamage ?? 0) + (legacy.tickDamage ?? 0),
+      message: dot.message || legacy.message,
+      popup: dot.popup || null,
+      isDot: dot.isDot || false,
+    };
   }
 
   function tickBothStatuses(np1, np2) {
@@ -701,6 +711,14 @@ export default function BattleScreen({
   function endRound(np1, np2, bannerOverride) {
     let roundP1 = np1;
     let roundP2 = np2;
+
+    if (!playerUsedMagicRef.current && roundP1.mp < (roundP1.maxMp ?? roundP1.stats?.mp ?? 0)) {
+      const maxMp = roundP1.maxMp ?? roundP1.stats?.mp ?? 0;
+      const regen = Math.max(1, Math.floor(maxMp * 0.1));
+      roundP1 = { ...roundP1, mp: Math.min(maxMp, roundP1.mp + regen) };
+    }
+    playerUsedMagicRef.current = false;
+
     if (opponentIsAi) {
       roundP1 = applyTurnStartPassives(roundP1);
     }
@@ -1077,6 +1095,9 @@ export default function BattleScreen({
     });
 
     actionSfxRef.current = { launch: false, dodge: false, impact: false };
+    if (attackerId === PLAYER_ID && strikeKind === 'magic') {
+      playerUsedMagicRef.current = true;
+    }
     setIsActionPlaying(true);
     setBusy(true);
     setBattlePhase('resolveAttack');

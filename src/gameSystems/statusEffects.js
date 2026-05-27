@@ -1,25 +1,14 @@
 /**
  * Poison / burn status for passive skill system.
- * Re-exports legacy helpers from utils/statusEffects for atk/def down.
+ * Uses multi-status dict model: fighter.statuses = { poison: {...}, burn: {...} }
  */
 
-import { hasStatus as legacyHasStatus } from '../../utils/statusEffects';
+import { hasStatus as legacyHasStatus, normalizeStatuses } from '../../utils/statusEffects';
 
 /** @typedef {'poison'|'burn'|'atkDown'|'defDown'} StatusType */
 
-/**
- * @typedef {{
- *   type: StatusType,
- *   turnsLeft: number,
- *   potency?: number,
- *   dotMaxHpPct?: number,
- *   healReductionPct?: number,
- *   source?: string,
- * }} BattleStatus
- */
-
 export function hasStatus(fighter) {
-  return legacyHasStatus(fighter?.status);
+  return legacyHasStatus(fighter);
 }
 
 /** Compare poison/burn strength for override rules. */
@@ -29,13 +18,11 @@ function dotStrength(status) {
 }
 
 /**
- * Apply or refresh poison/burn from passive books.
- * @param {object} fighter
- * @param {'poison'|'burn'} type
- * @param {{ dotMaxHpPct: number, turns: number, healReductionPct?: number }} params
+ * Apply or refresh poison/burn from passive books — preserves other effects.
  */
 export function applyDotStatus(fighter, type, { dotMaxHpPct, turns, healReductionPct = 0 }) {
   if (!fighter) return fighter;
+  const dict = { ...normalizeStatuses(fighter) };
   const next = {
     type,
     turnsLeft: Math.max(1, turns),
@@ -44,52 +31,66 @@ export function applyDotStatus(fighter, type, { dotMaxHpPct, turns, healReductio
     healReductionPct: type === 'burn' ? healReductionPct : 0,
     source: 'passive',
   };
-  const cur = fighter.status;
-  if (cur?.type === type) {
+  const cur = dict[type];
+  if (cur) {
     if (dotStrength(next) >= dotStrength(cur)) {
-      return { ...fighter, status: { ...next, turnsLeft: Math.max(next.turnsLeft, cur.turnsLeft ?? 0) } };
+      dict[type] = { ...next, turnsLeft: Math.max(next.turnsLeft, cur.turnsLeft ?? 0) };
+    } else {
+      dict[type] = { ...cur, turnsLeft: Math.max(cur.turnsLeft ?? 0, next.turnsLeft) };
     }
-    return { ...fighter, status: { ...cur, turnsLeft: Math.max(cur.turnsLeft ?? 0, next.turnsLeft) } };
+  } else {
+    dict[type] = next;
   }
-  if (cur && hasStatus(fighter) && cur.type !== type) {
-    return { ...fighter, status: next };
-  }
-  return { ...fighter, status: next };
+  return { ...fighter, statuses: dict, status: dict[type] };
 }
 
 /** Healing multiplier on target (burn anti-heal). */
 export function healingMultiplier(fighter) {
-  const s = fighter?.status;
-  if (s?.type === 'burn' && (s.turnsLeft ?? 0) > 0) {
-    const red = Math.min(80, s.healReductionPct ?? 0);
+  const dict = normalizeStatuses(fighter);
+  const burn = dict.burn;
+  if (burn && (burn.turnsLeft ?? 0) > 0) {
+    const red = Math.min(80, burn.healReductionPct ?? 0);
     return Math.max(0, 1 - red / 100);
   }
   return 1;
 }
 
-/** Tick poison/burn at start of owner's turn. */
+/** Tick ALL poison/burn DoTs at start of owner's turn. */
 export function tickDotStatus(fighter) {
-  const s = fighter?.status;
-  if (!s || (s.turnsLeft ?? 0) <= 0) return { fighter, tickDamage: 0, message: null, popup: null };
+  const dict = { ...normalizeStatuses(fighter) };
+  let totalDamage = 0;
+  const messages = [];
+  const popups = [];
+  const maxHp = fighter.maxHp ?? fighter.stats?.hp ?? 100;
 
-  if (s.type !== 'poison' && s.type !== 'burn') {
-    return { fighter, tickDamage: 0, message: null, popup: null };
+  for (const dotType of ['poison', 'burn']) {
+    const s = dict[dotType];
+    if (!s || (s.turnsLeft ?? 0) <= 0) continue;
+
+    const pct = (s.dotMaxHpPct ?? 2) / 100;
+    const dmg = Math.max(1, Math.round(maxHp * pct));
+    totalDamage += dmg;
+    messages.push(dotType === 'poison' ? 'Poison hurts!' : 'Burn sizzles!');
+    popups.push(dotType === 'poison' ? 'POISONED' : 'BURN');
+
+    const nextTurns = s.turnsLeft - 1;
+    if (nextTurns > 0) dict[dotType] = { ...s, turnsLeft: nextTurns };
+    else delete dict[dotType];
   }
 
-  const maxHp = fighter.maxHp ?? fighter.stats?.hp ?? 100;
-  const pct = (s.dotMaxHpPct ?? (s.type === 'poison' ? 2 : 2)) / 100;
-  const tickDamage = Math.max(1, Math.round(maxHp * pct));
-  const hp = Math.max(0, fighter.hp - tickDamage);
-  const nextTurns = s.turnsLeft - 1;
-  const nextStatus = nextTurns > 0 ? { ...s, turnsLeft: nextTurns } : null;
-
+  const hasAny = Object.keys(dict).length > 0;
   return {
-    fighter: { ...fighter, hp, status: nextStatus },
-    tickDamage,
-    dotType: s.type,
-    message: s.type === 'poison' ? 'Poison hurts!' : 'Burn sizzles!',
-    popup: s.type === 'poison' ? 'POISONED' : 'BURN',
-    isDot: true,
+    fighter: {
+      ...fighter,
+      hp: Math.max(0, fighter.hp - totalDamage),
+      statuses: hasAny ? dict : {},
+      status: hasAny ? Object.values(dict)[0] : null,
+    },
+    tickDamage: totalDamage,
+    dotType: popups.length === 1 ? (popups[0] === 'POISONED' ? 'poison' : 'burn') : 'multi',
+    message: messages[0] || null,
+    popup: popups[0] || null,
+    isDot: totalDamage > 0,
   };
 }
 

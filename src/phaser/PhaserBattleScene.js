@@ -298,6 +298,28 @@ export function createPhaserBattleScene(Phaser) {
       const mpRatio = Phaser.Math.Clamp((fighter.mp ?? fighter.maxMp ?? 1) / Math.max(1, fighter.maxMp ?? fighter.mp ?? 1), 0, 1);
       panel.bar.width = 176 * hpRatio;
       panel.mpBar.width = 176 * mpRatio;
+      this.syncStatusIcons(key, fighter);
+    }
+
+    syncStatusIcons(key, fighter) {
+      const panel = this.hud?.[key];
+      if (!panel) return;
+      if (panel._statusIcons) {
+        panel._statusIcons.forEach((t) => t.destroy());
+        panel._statusIcons = [];
+      }
+      const ICONS = { poison: '☠️', burn: '🔥', atkDown: '⬇️', defDown: '🛡️' };
+      const dict = fighter.statuses || {};
+      const active = Object.keys(ICONS).filter((t) => dict[t]?.turnsLeft > 0);
+      if (!active.length) return;
+      const baseX = panel.bar.x - (panel.bar.width / 2) + 2;
+      const baseY = (panel.mpBar?.y ?? panel.bar.y) + 14;
+      panel._statusIcons = active.map((type, i) => {
+        const icon = this.add.text(baseX + i * 22, baseY, ICONS[type], {
+          fontSize: '13px',
+        }).setDepth(34).setScrollFactor(0);
+        return icon;
+      });
     }
 
     animateHudTo(key, { hp, mp, heavy = false } = {}) {

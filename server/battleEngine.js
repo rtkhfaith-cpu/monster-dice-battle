@@ -3,6 +3,7 @@
  */
 const { resolvePhysicalBattleDamage, resolveMagicBattleDamage } = require('./battleDamage');
 const { getPhysicalSkill, getMagicSkills, canAffordSkill } = require('./battleSkills');
+const { applyPassivesToStrike, rollPhantomDodge, resolveStartOfTurn } = require('./passiveResolver');
 
 const { getSkillAnimMeta } = require('../utils/skillAnimRegistry');
 const { getProjectile, getCloudEmojis } = require('../utils/battleProjectilesData');
@@ -20,6 +21,10 @@ function createBattle(fighterP1, fighterP2) {
     f.maxMp = f.stats.mp;
     f.mp = f.maxMp;
     f.combo = 0;
+    f.statuses = {};
+    f.status = null;
+    if (!f.passiveBattleState) f.passiveBattleState = { barrierConsumed: false };
+    if (!Array.isArray(f.equippedPassives)) f.equippedPassives = [];
   }
 
   return {
@@ -182,8 +187,8 @@ function buildEffect(skill, resolved, attackerId, defenderId, strikeKind) {
 }
 
 function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
-  const atk = { ...fighterAt(battle, attackerId) };
-  const def = { ...fighterAt(battle, defenderId) };
+  let atk = { ...fighterAt(battle, attackerId) };
+  let def = { ...fighterAt(battle, defenderId) };
 
   if (!skill) return { error: 'Unknown skill' };
   if (strikeKind === 'magic' && !canAffordSkill(atk, skill)) {
@@ -203,7 +208,35 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
 
   const mpCost = strikeKind === 'magic' ? skill.mpCost ?? 0 : 0;
   atk.mp = Math.max(0, atk.mp - mpCost);
+
+  if (!resolved.dodged && rollPhantomDodge(def)) {
+    resolved.dodged = true;
+    resolved.damage = 0;
+  }
+
   if (!resolved.dodged) {
+    const passive = applyPassivesToStrike(resolved, atk, def, strikeKind);
+    atk = passive.attacker;
+    def = passive.defender;
+    resolved.damage = passive.damage;
+    resolved.critical = passive.critical;
+    for (const line of passive.log) pushLog(battle, line);
+
+    if (resolved.damage > 0 && strikeKind === 'magic' && skill?.status) {
+      const st = skill.status;
+      if (st.type && st.chance && Math.random() < st.chance) {
+        if (!def.statuses) def.statuses = {};
+        const cur = def.statuses[st.type];
+        def.statuses[st.type] = {
+          type: st.type,
+          turnsLeft: Math.max(cur?.turnsLeft ?? 0, st.turns ?? 2),
+          potency: 1,
+        };
+        def.status = def.statuses[st.type];
+        pushLog(battle, `${def.displayName || 'Defender'} got ${st.type}!`);
+      }
+    }
+  } else {
     def.hp = Math.max(0, def.hp - resolved.damage);
   }
 
@@ -241,6 +274,15 @@ function endTurnAfterResolve(battle) {
   battle.phase = 'chooseAction';
   battle.battleState = 'active';
   battle.round += 1;
+
+  const nextId = battle.activePlayerId;
+  const sot = resolveStartOfTurn(fighterAt(battle, nextId));
+  setFighter(battle, nextId, sot.fighter);
+  for (const line of sot.log) pushLog(battle, line);
+
+  checkWinner(battle);
+  if (battle.winner) return { ok: true, battle };
+
   battle.bannerMessage = `Player ${battle.activePlayerId} — choose your move`;
   bump(battle);
   return { ok: true, battle };
