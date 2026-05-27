@@ -271,7 +271,15 @@ export function chestDropTitle(drop) {
 export function chestDropSubtitle(drop) {
   if (!drop) return '';
   if (drop.kind === 'pet') {
-    if (drop.duplicate) return `Duplicate → +${drop.petExpDust ?? 0} pet EXP dust`;
+    if (drop.duplicate) {
+      const dust = drop.petExpDust ?? 0;
+      const shards = drop.monsterChestShards ?? 0;
+      const parts = [
+        dust ? `+${dust} pet EXP dust` : null,
+        shards ? `+${shards} monster-chest shards` : null,
+      ].filter(Boolean);
+      return parts.length ? `Duplicate → ${parts.join(' · ')}` : 'Duplicate pet.';
+    }
     return 'Mythic pet joined your collection!';
   }
   if (drop.kind === 'pet_exp_dust') return 'Spend on pets in Monster Gear → Pets';

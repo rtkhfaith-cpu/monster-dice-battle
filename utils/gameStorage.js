@@ -1260,6 +1260,8 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
     applied.petExpDust = grant.petExpDust ?? drop.amount;
     applied.petExpDustTotal = profile.petExpDust;
     applied.pet = grant.pet;
+    applied.monsterChestShards = grant.monsterChestShards ?? 0;
+    applied.ladderShardsTotal = grant.ladderShardsTotal ?? 0;
   }
 
   return { gameData: gd, drop: applied };
@@ -1316,6 +1318,8 @@ export function buyPetForProfile(gameData, profileId, petId) {
     pet: grant.pet,
     duplicate: grant.duplicate,
     petExpDust: grant.petExpDust,
+    monsterChestShards: grant.monsterChestShards ?? 0,
+    ladderShardsTotal: grant.ladderShardsTotal ?? 0,
     price: def.shopPrice,
   };
 }

@@ -157,9 +157,17 @@ function maybeGrantBonusPet(profile, result) {
   if (!petDrop) return result;
   const grant = applyPetChestDrop(profile, petDrop);
   result.petDrop = petDrop;
-  result.message = grant.duplicate
-    ? `${result.message} · Duplicate ${petDrop.name} → +${grant.petExpDust} pet dust`
-    : `${result.message} · Mythic pet: ${petDrop.emoji} ${petDrop.name}!`;
+  if (grant.duplicate) {
+    const dust = grant.petExpDust ?? 0;
+    const shards = grant.monsterChestShards ?? 0;
+    const extras = [
+      dust ? `+${dust} pet dust` : null,
+      shards ? `+${shards} monster-chest shards` : null,
+    ].filter(Boolean);
+    result.message = `${result.message} · Duplicate ${petDrop.name}${extras.length ? ` → ${extras.join(', ')}` : ''}`;
+  } else {
+    result.message = `${result.message} · Mythic pet: ${petDrop.emoji} ${petDrop.name}!`;
+  }
   return result;
 }
 

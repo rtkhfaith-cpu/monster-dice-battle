@@ -257,6 +257,8 @@ function resolveChestOpen(profile, ml, type, rateWeights) {
       ...petDrop,
       duplicate: applied.duplicate,
       petExpDust: applied.petExpDust ?? 0,
+      monsterChestShards: applied.monsterChestShards ?? 0,
+      ladderShardsTotal: applied.ladderShardsTotal ?? 0,
     };
   }
 

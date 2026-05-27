@@ -44,3 +44,23 @@ export function gearDuplicateShardsForRarity(rarity) {
   }
   return MART_GEAR_DUPLICATE_SHARDS;
 }
+
+/**
+ * Pet duplicate → ladder (monster-chest) shards.
+ * Mythic dupes are extremely rare (chest-only, 5 pets in catalog) so reward
+ * generously: 1 mythic dupe = ~2 monster chests, 6 epics = 1, ~18 rares = 1.
+ * Pets only come in rare/epic/mythic — anything unknown falls back to rare.
+ */
+export const PET_DUPLICATE_SHARDS_BY_RARITY = {
+  rare: 8,
+  epic: 24,
+  mythic: 150,
+};
+
+/** @param {'rare'|'epic'|'mythic'|string|undefined|null} rarity */
+export function petDuplicateShardsForRarity(rarity) {
+  if (rarity && PET_DUPLICATE_SHARDS_BY_RARITY[rarity] != null) {
+    return PET_DUPLICATE_SHARDS_BY_RARITY[rarity];
+  }
+  return PET_DUPLICATE_SHARDS_BY_RARITY.rare;
+}

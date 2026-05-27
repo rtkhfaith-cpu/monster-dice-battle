@@ -4,6 +4,8 @@
 import { getPetDef, calculatePetStats } from './pets';
 import { grantPetExp, reconcilePetLevelExp, PET_MAX_LEVEL } from './petExp';
 import { describePetSkill, getPetSkillEffect } from './petSkills';
+import { petDuplicateShardsForRarity } from '../gameBalance/gearShards';
+import { getMonsterLadderState, setMonsterLadderState } from '../../utils/monsterLadder/ladderProfile';
 
 function newInstanceId() {
   return `pet_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
@@ -128,7 +130,20 @@ export function grantPet(profile, petId, opts = {}) {
   if (existing) {
     const dust = def.rarity === 'mythic' ? 120 : def.rarity === 'epic' ? 60 : 30;
     profile.petExpDust = (profile.petExpDust ?? 0) + dust;
-    return { ok: true, duplicate: true, petExpDust: dust, pet: existing };
+
+    const shards = petDuplicateShardsForRarity(def.rarity);
+    const ml = getMonsterLadderState(profile);
+    ml.ladderShards = (ml.ladderShards || 0) + shards;
+    setMonsterLadderState(profile, ml);
+
+    return {
+      ok: true,
+      duplicate: true,
+      petExpDust: dust,
+      monsterChestShards: shards,
+      ladderShardsTotal: ml.ladderShards,
+      pet: existing,
+    };
   }
 
   const row = normalizeOwnedPetRow({

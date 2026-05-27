@@ -1344,7 +1344,16 @@ export default function App() {
     persistSave(res.gameData, 'pet_bought', profileId);
     playSound('shop');
     if (res.duplicate) {
-      showNotice('Duplicate pet', `Converted to pet EXP dust (+${res.petExpDust ?? 0}).`);
+      const dust = res.petExpDust ?? 0;
+      const shards = res.monsterChestShards ?? 0;
+      const parts = [
+        dust ? `+${dust} pet EXP dust` : null,
+        shards ? `+${shards} monster-chest shards` : null,
+      ].filter(Boolean);
+      showNotice(
+        'Duplicate pet',
+        parts.length ? parts.join(' · ') : 'Already owned.',
+      );
     } else {
       showNotice('Pet acquired!', `${res.pet?.name ?? petId} added to your collection.`);
     }

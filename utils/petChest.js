@@ -82,6 +82,8 @@ export function applyPetChestDrop(profile, drop) {
       pet: grant.pet,
       petExpDust: grant.petExpDust ?? 0,
       petExpDustTotal: profile.petExpDust ?? 0,
+      monsterChestShards: grant.monsterChestShards ?? 0,
+      ladderShardsTotal: grant.ladderShardsTotal ?? 0,
     };
   }
   if (drop.kind === 'pet_exp_dust') {
