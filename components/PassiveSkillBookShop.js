@@ -6,8 +6,6 @@ import {
   PASSIVE_SKILL_BOOK_SHOP,
 } from '../src/gameSystems/passiveSkills';
 import { passiveBookShopOffers } from '../src/gameBalance/shop';
-import { profileOwnsPassiveSkillId } from '../src/gameSystems/passiveInventory';
-
 const RARITY_COLORS = {
   rare: '#60a5fa',
   epic: '#c084fc',
@@ -31,8 +29,7 @@ export default function PassiveSkillBookShop({
     return PASSIVE_SKILL_BOOK_SHOP.map((row) => {
       const def = getPassiveSkillDef(row.skillId);
       const offers = passiveBookShopOffers(row.skillId, profileId);
-      const owned = profile ? profileOwnsPassiveSkillId(profile, row.skillId) : false;
-      return { ...row, def, offers, owned };
+      return { ...row, def, offers };
     });
   }, [profileId, profile]);
 
@@ -43,7 +40,7 @@ export default function PassiveSkillBookShop({
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.hint}>Books are consumed when equipped. One copy per skill in inventory.</Text>
+      <Text style={styles.hint}>Books are consumed when equipped. Buy again to equip on another monster.</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
         {[
           { id: 'all', label: 'All' },
@@ -77,22 +74,18 @@ export default function PassiveSkillBookShop({
             <View style={styles.mid}>
               <Text style={styles.name}>{row.def?.name ?? row.skillId}</Text>
               <Text style={styles.meta}>{row.def?.effectType ?? 'passive'}</Text>
-              {row.owned ? (
-                <Text style={styles.owned}>Owned (inventory or equipped)</Text>
-              ) : (
-                row.offers.map((o) => (
-                  <TouchableOpacity
-                    key={o.rarity}
-                    style={[styles.buyBtn, (coins ?? 0) < o.price && styles.buyOff]}
-                    disabled={row.owned || (coins ?? 0) < o.price}
-                    onPress={() => onBuy?.(row.skillId, o.rarity, o.price)}
-                  >
-                    <Text style={styles.buyTxt}>
-                      Buy {o.rarity} · {o.price}c
-                    </Text>
-                  </TouchableOpacity>
-                ))
-              )}
+              {row.offers.map((o) => (
+                <TouchableOpacity
+                  key={o.rarity}
+                  style={[styles.buyBtn, (coins ?? 0) < o.price && styles.buyOff]}
+                  disabled={(coins ?? 0) < o.price}
+                  onPress={() => onBuy?.(row.skillId, o.rarity, o.price)}
+                >
+                  <Text style={styles.buyTxt}>
+                    Buy {o.rarity} · {o.price}c
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
         ))}
@@ -156,7 +149,6 @@ const styles = StyleSheet.create({
   mid: { flex: 1, marginLeft: 10 },
   name: { color: '#f1f5f9', fontWeight: '700', fontSize: 15 },
   meta: { color: '#94a3b8', fontSize: 12, marginTop: 2 },
-  owned: { color: '#4ade80', fontSize: 12, marginTop: 6 },
   buyBtn: {
     marginTop: 6,
     alignSelf: 'flex-start',

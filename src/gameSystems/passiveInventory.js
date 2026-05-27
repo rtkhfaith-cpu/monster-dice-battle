@@ -98,16 +98,13 @@ export function canEquipPassive(monster, skillBook, equippedOnMonster = null) {
 }
 
 /**
- * Grant a new book to inventory (no duplicate skillId in inventory).
- * @returns {{ ok: boolean, book?: object, error?: string, duplicate?: boolean }}
+ * Grant a new book to inventory.
+ * @returns {{ ok: boolean, book?: object, error?: string }}
  */
 export function grantPassiveSkillBook(profile, skillId, rarity, source = 'unknown') {
   ensurePassiveInventory(profile);
   const def = getPassiveSkillDef(skillId);
   if (!def) return { ok: false, error: 'Unknown passive skill' };
-  if (profileOwnsPassiveSkillId(profile, skillId)) {
-    return { ok: false, error: 'Already own this skill book', duplicate: true };
-  }
   const book = normalizePassiveBookRow({
     instanceId: newInstanceId(),
     skillId,
