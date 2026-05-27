@@ -41,7 +41,8 @@ export function resolvePetStartOfTurn(fighter) {
   let f = { ...fighter };
   let healing = 0;
 
-  for (const skillType of pet.skills) {
+  const skills = Array.isArray(pet.skills) ? pet.skills : [];
+  for (const skillType of skills) {
     if (skillType === 'heal') {
       const e = getPetSkillEffect('heal', pet.rarity);
       const every = e.everyTurns ?? 4;
@@ -89,7 +90,8 @@ export function resolvePetOnAttackHit(attacker, defender, { damageDealt = 0 } = 
   let atk = { ...attacker };
   let def = { ...defender };
 
-  for (const skillType of pet.skills) {
+  const skills = Array.isArray(pet.skills) ? pet.skills : [];
+  for (const skillType of skills) {
     if (skillType === 'poison_bite') {
       const e = getPetSkillEffect('poison_bite', pet.rarity);
       if (rollPct(e.chancePct ?? 0)) {

@@ -316,6 +316,8 @@ export default function BattleScreen({
   const isActionPlayingRef = useRef(isActionPlaying);
   const battleIntroRef = useRef(battleIntro);
   const playerUsedMagicRef = useRef(false);
+  const cpuTurnPendingRef = useRef(false);
+  const [cpuTurnPending, setCpuTurnPending] = useState(false);
 
   useEffect(() => {
     p1Ref.current = p1;
@@ -393,9 +395,27 @@ export default function BattleScreen({
   }, [mainChestPhase, mainChestBusy, mainChestDrop]);
 
   useEffect(() => {
+    cpuTurnPendingRef.current = false;
+    setCpuTurnPending(false);
+    pendingStrikeRef.current = null;
+    isActionPlayingRef.current = false;
+    busyRef.current = false;
+    setIsActionPlaying(false);
+    setBusy(false);
+    battlePhaseRef.current = 'chooseAction';
+    setBattlePhase('chooseAction');
+    return () => {
+      cpuTurnPendingRef.current = false;
+      pendingStrikeRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     unlockBattleAudio();
     startBattleMusic({ kind: ladderStageKind, mainMiniBoss: isMainMiniBoss });
     if (!bossStageBanner) return undefined;
+    busyRef.current = true;
+    battleIntroRef.current = true;
     setBusy(true);
     setBattleIntro(true);
     playSound('rage', { volume: ladderStageKind === 'bigBoss' ? 1.1 : 0.85 });
@@ -409,6 +429,8 @@ export default function BattleScreen({
     const baseMs = ladderStageKind === 'bigBoss' ? 1250 : 900;
     const introMs = baseMs + (bossPassiveIntroLines.length > 0 ? 450 : 0);
     const t = setTimeout(() => {
+      battleIntroRef.current = false;
+      busyRef.current = false;
       setBattleIntro(false);
       setBusy(false);
     }, introMs);
@@ -746,6 +768,7 @@ export default function BattleScreen({
     clearAttackEffects();
     resetPoses();
     setRound((r) => r + 1);
+    battlePhaseRef.current = 'chooseAction';
     setBattlePhase('chooseAction');
     setMenuMode('main');
     isActionPlayingRef.current = false;
@@ -805,6 +828,7 @@ export default function BattleScreen({
       battleIntroRef.current ||
       isActionPlayingRef.current ||
       busyRef.current ||
+      cpuTurnPendingRef.current ||
       battlePhaseRef.current !== 'chooseAction'
     ) {
       return;
@@ -834,6 +858,7 @@ export default function BattleScreen({
       battleIntroRef.current ||
       isActionPlayingRef.current ||
       busyRef.current ||
+      cpuTurnPendingRef.current ||
       battlePhaseRef.current !== 'chooseAction'
     ) {
       return;
@@ -859,6 +884,7 @@ export default function BattleScreen({
       battleIntroRef.current ||
       isActionPlayingRef.current ||
       busyRef.current ||
+      cpuTurnPendingRef.current ||
       battlePhaseRef.current !== 'chooseAction'
     ) {
       return;
@@ -1034,6 +1060,17 @@ export default function BattleScreen({
     setBusy(false);
   }
 
+  function canPlayerChooseAction() {
+    // Match actionsEnabled (state) for intro/phase/cpu; refs for in-flight attack locks.
+    return (
+      !battleIntro
+      && !isActionPlayingRef.current
+      && !busyRef.current
+      && !cpuTurnPending
+      && battlePhase === 'chooseAction'
+    );
+  }
+
   function finishActionSequence() {
     const pending = pendingStrikeRef.current;
     if (!pending) return;
@@ -1052,6 +1089,7 @@ export default function BattleScreen({
     }
 
     releaseActionLocks();
+    battlePhaseRef.current = 'chooseAction';
     setBattlePhase('chooseAction');
 
     try {
@@ -1071,6 +1109,7 @@ export default function BattleScreen({
     } catch (err) {
       console.warn('[battle] post-attack callback failed', err);
       releaseActionLocks();
+      battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
     }
   }
@@ -1083,19 +1122,22 @@ export default function BattleScreen({
     skill: skillIn,
     strikeKind: strikeKindIn,
     superBomb = false,
+    skipBusyCheck = false,
   }) {
-    if (isActionPlayingRef.current || busyRef.current) return;
+    if (!skipBusyCheck && (isActionPlayingRef.current || busyRef.current)) return;
     isActionPlayingRef.current = true;
     busyRef.current = true;
     setIsActionPlaying(true);
     setBusy(true);
 
+    try {
     const curP1 = p1Ref.current;
     const curP2 = p2Ref.current;
     const atk = attackerId === PLAYER_ID ? curP1 : curP2;
     const def = defenderId === PLAYER_ID ? curP1 : curP2;
     if (!atk || !def) {
       releaseActionLocks();
+      battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
       return;
     }
@@ -1112,6 +1154,7 @@ export default function BattleScreen({
       if (autoMagicRef.current) stopAutoMagic('Auto magic off — no MP');
       else showBanner('Not enough MP!');
       releaseActionLocks();
+      battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
       setMenuMode(autoMagicRef.current ? 'main' : 'magic');
       return;
@@ -1130,6 +1173,7 @@ export default function BattleScreen({
     } catch (err) {
       console.warn('[battle] attack resolution failed', err);
       releaseActionLocks();
+      battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
       return;
     }
@@ -1148,6 +1192,7 @@ export default function BattleScreen({
     if (attackerId === PLAYER_ID && strikeKind === 'magic') {
       playerUsedMagicRef.current = true;
     }
+    battlePhaseRef.current = 'resolveAttack';
     setBattlePhase('resolveAttack');
     setMenuMode('main');
     clearAttackEffects();
@@ -1182,11 +1227,15 @@ export default function BattleScreen({
       nextDef = maybeApplySkillStatus(nextDef, skill);
     }
     if (dmg > 0 && !resolved.dodged) {
-      const petHit = resolvePetOnAttackHit(nextAtk, nextDef, { damageDealt: dmg });
-      nextAtk = petHit.attacker;
-      nextDef = petHit.defender;
-      if (petHit.log?.length) {
-        showBanner(petHit.log[0]);
+      try {
+        const petHit = resolvePetOnAttackHit(nextAtk, nextDef, { damageDealt: dmg });
+        nextAtk = petHit.attacker;
+        nextDef = petHit.defender;
+        if (petHit.log?.length) {
+          showBanner(petHit.log[0]);
+        }
+      } catch (err) {
+        console.warn('[battle] pet on-hit failed', err);
       }
     }
 
@@ -1320,12 +1369,21 @@ export default function BattleScreen({
     });
 
     schedule(timing.total, () => finishActionSequence());
+    } catch (err) {
+      console.warn('[battle] runAttack failed', err);
+      pendingStrikeRef.current = null;
+      releaseActionLocks();
+      battlePhaseRef.current = 'chooseAction';
+      setBattlePhase('chooseAction');
+    }
   }
 
   function runCpuCounter(np1, np2) {
-    busyRef.current = true;
-    setBusy(true);
+    cpuTurnPendingRef.current = true;
+    setCpuTurnPending(true);
     schedule(400, () => {
+      cpuTurnPendingRef.current = false;
+      setCpuTurnPending(false);
       try {
         if (np1 && np2) {
           p1Ref.current = np1;
@@ -1344,10 +1402,12 @@ export default function BattleScreen({
           skill,
           strikeKind,
           onComplete: null,
+          skipBusyCheck: true,
         });
       } catch (err) {
         console.warn('[battle] CPU counter failed', err);
         releaseActionLocks();
+        battlePhaseRef.current = 'chooseAction';
         setBattlePhase('chooseAction');
         endRound(p1Ref.current, p2Ref.current, 'Choose your move');
       }
@@ -1365,7 +1425,7 @@ export default function BattleScreen({
   }
 
   function handleFight() {
-    if (isActionPlayingRef.current || busyRef.current || battlePhase !== 'chooseAction') return;
+    if (!canPlayerChooseAction()) return;
     startBattleAudioFromInput();
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     const skill = attacker?.skills?.physical ?? getPhysicalSkill(attacker?.monsterTemplateId);
@@ -1385,7 +1445,7 @@ export default function BattleScreen({
   }
 
   function handleMagicOpen() {
-    if (isActionPlayingRef.current || busyRef.current || battlePhase !== 'chooseAction') return;
+    if (!canPlayerChooseAction()) return;
     tapUi();
     setMenuMode('magic');
     showBanner('Pick a magic skill');
@@ -1399,7 +1459,7 @@ export default function BattleScreen({
   }
 
   function handleMagicSkill(skill) {
-    if (isActionPlayingRef.current || busyRef.current || battlePhase !== 'chooseAction' || !skill) return;
+    if (!canPlayerChooseAction() || !skill) return;
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     if (!canAffordSkill(attacker, skill)) {
       showBanner('Not enough MP!');
@@ -1443,7 +1503,8 @@ export default function BattleScreen({
 
   const p1Mood = moodFor(p1, p1Emotion);
   const p2Mood = moodFor(p2, p2Emotion);
-  const actionsEnabled = !battleIntro && !isActionPlaying && !busy && battlePhase === 'chooseAction';
+  const actionsEnabled =
+    !battleIntro && !isActionPlaying && !busy && !cpuTurnPending && battlePhase === 'chooseAction';
   const runEnabled = !battleIntro && !isActionPlaying && !busy;
   const autoToggleEnabled = !battleIntro && opponentIsAi;
   const autoLevelEligible =
