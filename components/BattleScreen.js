@@ -719,6 +719,8 @@ export default function BattleScreen({
     setRound((r) => r + 1);
     setBattlePhase('chooseAction');
     setMenuMode('main');
+    isActionPlayingRef.current = false;
+    busyRef.current = false;
     setBusy(false);
     setIsActionPlaying(false);
     if (ticked.passiveFloats?.length || ticked.passiveCenter) {
@@ -1003,10 +1005,17 @@ export default function BattleScreen({
     if (pending.safetyId) clearTimeout(pending.safetyId);
     clearAttackEffects();
     resetPoses();
+    isActionPlayingRef.current = false;
     setIsActionPlaying(false);
-    setBusy(false);
-    setBattlePhase('chooseAction');
-    if (pending.onDone) pending.onDone(pending.np1After, pending.np2After);
+
+    if (pending.onDone) {
+      setBattlePhase('chooseAction');
+      pending.onDone(pending.np1After, pending.np2After);
+    } else {
+      busyRef.current = false;
+      setBusy(false);
+      setBattlePhase('chooseAction');
+    }
   }
 
   function runAttack({
@@ -1253,6 +1262,8 @@ export default function BattleScreen({
       p2Ref.current = cpu;
       setP2(cpu);
       const { skill, strikeKind } = pickCpuStrike(cpu);
+      isActionPlayingRef.current = false;
+      busyRef.current = false;
       runAttack({
         attackerId: CPU_ID,
         defenderId: PLAYER_ID,
