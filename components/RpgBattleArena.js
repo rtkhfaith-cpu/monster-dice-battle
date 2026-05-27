@@ -14,7 +14,7 @@ import {
   battleTemplateDisplayScale,
 } from '../utils/battleLayout';
 import { ELEMENT_UI } from '../utils/elements';
-import { hasStatus, STATUS_LABELS } from '../utils/statusEffects';
+import { activeStatusTypes, hasStatus, STATUS_LABELS } from '../utils/statusEffects';
 import { ART } from '../utils/artDirection';
 import { FONT_BATTLE_COMBAT, FONT_BATTLE_COMMENT } from '../utils/gameFonts';
 import { BATTLE } from '../utils/gameTheme';
@@ -43,7 +43,10 @@ function BattlerInfoPanel({ title, fighter, active, side, panelWidth, compact })
   const rage = fighter?.stats?.hp && fighter.hp / fighter.stats.hp <= 0.3 && fighter.hp > 0;
   const hpColor = side === 'left' ? '#4ecdc4' : '#ff6b6b';
   const elUi = ELEMENT_UI[fighter?.element] ?? ELEMENT_UI.earth;
-  const statusTag = hasStatus(fighter) ? STATUS_LABELS[fighter.status.type] : null;
+  const statusType = hasStatus(fighter)
+    ? (fighter.status?.type ?? activeStatusTypes(fighter)[0])
+    : null;
+  const statusTag = statusType ? STATUS_LABELS[statusType] : null;
 
   return (
     <View

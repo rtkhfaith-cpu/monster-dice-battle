@@ -342,16 +342,25 @@ export default function BattleScreen({
   }, [battlePhase]);
 
   useEffect(() => {
-    busyRef.current = busy;
-  }, [busy]);
-
-  useEffect(() => {
-    isActionPlayingRef.current = isActionPlaying;
-  }, [isActionPlaying]);
-
-  useEffect(() => {
     battleIntroRef.current = battleIntro;
   }, [battleIntro]);
+
+  useEffect(() => {
+    if (!p1Ref.current && fighter1?.stats) {
+      const nextP1 = seedFighter(fighter1);
+      if (nextP1) {
+        setP1(nextP1);
+        p1Ref.current = nextP1;
+      }
+    }
+    if (!p2Ref.current && fighter2?.stats) {
+      const nextP2 = seedFighter(fighter2);
+      if (nextP2) {
+        setP2(nextP2);
+        p2Ref.current = nextP2;
+      }
+    }
+  }, [fighter1, fighter2]);
 
   useEffect(() => {
     if (!autoLevelGrind) {
@@ -409,6 +418,15 @@ export default function BattleScreen({
       pendingStrikeRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (battleIntro && !bossStageBanner) {
+      battleIntroRef.current = false;
+      busyRef.current = false;
+      setBattleIntro(false);
+      setBusy(false);
+    }
+  }, [battleIntro, bossStageBanner]);
 
   useEffect(() => {
     unlockBattleAudio();
@@ -602,7 +620,10 @@ export default function BattleScreen({
   }
 
   function finishBattleNow(winner, np1, np2, extras = {}) {
+    busyRef.current = false;
+    isActionPlayingRef.current = false;
     setBusy(false);
+    setIsActionPlaying(false);
     setMainChestPhase(null);
     setPendingFinish(null);
     onFinish({
@@ -674,6 +695,8 @@ export default function BattleScreen({
     stopAutoAttack(null, true);
     clearTimers();
     clearAttackEffects();
+    isActionPlayingRef.current = false;
+    busyRef.current = true;
     setIsActionPlaying(false);
     setBusy(true);
     resetPoses();
@@ -1060,12 +1083,38 @@ export default function BattleScreen({
     setBusy(false);
   }
 
-  function canPlayerChooseAction() {
-    // Match actionsEnabled (state) for intro/phase/cpu; refs for in-flight attack locks.
+  /** Recover stuck turn state (HMR, cleared timers, or interrupted animation). */
+  useEffect(() => {
+    if (battlePhase !== 'resolveAttack' || pendingStrikeRef.current) return undefined;
+    const t = setTimeout(() => {
+      if (battlePhaseRef.current === 'resolveAttack' && !pendingStrikeRef.current) {
+        releaseActionLocks();
+        battlePhaseRef.current = 'chooseAction';
+        setBattlePhase('chooseAction');
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [battlePhase]);
+
+  useEffect(() => {
+    if (!busy && !isActionPlaying) return undefined;
+    const t = setTimeout(() => {
+      if ((busyRef.current || isActionPlayingRef.current) && !pendingStrikeRef.current) {
+        releaseActionLocks();
+        if (battlePhaseRef.current === 'resolveAttack') {
+          battlePhaseRef.current = 'chooseAction';
+          setBattlePhase('chooseAction');
+        }
+      }
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [busy, isActionPlaying]);
+
+  function playerCanAct() {
     return (
       !battleIntro
-      && !isActionPlayingRef.current
-      && !busyRef.current
+      && !isActionPlaying
+      && !busy
       && !cpuTurnPending
       && battlePhase === 'chooseAction'
     );
@@ -1425,7 +1474,13 @@ export default function BattleScreen({
   }
 
   function handleFight() {
-    if (!canPlayerChooseAction()) return;
+    if (!playerCanAct()) return;
+    const curP1 = p1Ref.current ?? p1;
+    const curP2 = p2Ref.current ?? p2;
+    if (!curP1?.stats || !curP2?.stats) {
+      showBanner('Battle not ready — exit and start again.');
+      return;
+    }
     startBattleAudioFromInput();
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     const skill = attacker?.skills?.physical ?? getPhysicalSkill(attacker?.monsterTemplateId);
@@ -1445,7 +1500,7 @@ export default function BattleScreen({
   }
 
   function handleMagicOpen() {
-    if (!canPlayerChooseAction()) return;
+    if (!playerCanAct()) return;
     tapUi();
     setMenuMode('magic');
     showBanner('Pick a magic skill');
@@ -1459,7 +1514,7 @@ export default function BattleScreen({
   }
 
   function handleMagicSkill(skill) {
-    if (!canPlayerChooseAction() || !skill) return;
+    if (!playerCanAct() || !skill) return;
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     if (!canAffordSkill(attacker, skill)) {
       showBanner('Not enough MP!');
@@ -1503,8 +1558,7 @@ export default function BattleScreen({
 
   const p1Mood = moodFor(p1, p1Emotion);
   const p2Mood = moodFor(p2, p2Emotion);
-  const actionsEnabled =
-    !battleIntro && !isActionPlaying && !busy && !cpuTurnPending && battlePhase === 'chooseAction';
+  const actionsEnabled = playerCanAct();
   const runEnabled = !battleIntro && !isActionPlaying && !busy;
   const autoToggleEnabled = !battleIntro && opponentIsAi;
   const autoLevelEligible =
@@ -1528,6 +1582,17 @@ export default function BattleScreen({
     round,
     bannerMessage,
   }), [activeBattler, bannerMessage, labelCpu, labelP1, p1, p2, round]);
+
+  if (!p1 || !p2) {
+    return (
+      <View style={[styles.root, styles.battleLoadError]}>
+        <Text style={styles.battleLoadErrorTitle}>Battle could not load</Text>
+        <Text style={styles.battleLoadErrorBody}>
+          Monster data was missing. Return to the menu and start the fight again.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.root, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
@@ -1649,7 +1714,13 @@ export default function BattleScreen({
           </View>
         </View>
 
-        <View style={[styles.actionDock, battleMobile && styles.actionDockMobile]}>
+        <View
+          style={[
+            styles.actionDock,
+            battleMobile && styles.actionDockMobile,
+            Platform.OS === 'web' && styles.actionDockWeb,
+          ]}
+        >
           {menuMode === 'magic' ? (
             <View style={styles.magicPanel}>
               <View style={styles.magicHeader}>
@@ -1823,9 +1894,15 @@ export default function BattleScreen({
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
                 ]}
-                disabled={!actionsEnabled}
               onPress={() => {
                 tapUi();
+                if (!playerCanAct()) {
+                  if (battleIntro) showBanner('Wait for the intro to finish…');
+                  else if (busy || isActionPlaying) showBanner('Wait for the current action…');
+                  else if (cpuTurnPending) showBanner('CPU is moving…');
+                  else if (battlePhase !== 'chooseAction') showBanner('Finishing last attack…');
+                  return;
+                }
                 handleFight();
               }}
             >
@@ -1844,8 +1921,17 @@ export default function BattleScreen({
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
                 ]}
-                disabled={!actionsEnabled}
-                onPress={handleMagicOpen}
+                onPress={() => {
+                  if (!playerCanAct()) {
+                    tapUi();
+                    if (battleIntro) showBanner('Wait for the intro to finish…');
+                    else if (busy || isActionPlaying) showBanner('Wait for the current action…');
+                    else if (cpuTurnPending) showBanner('CPU is moving…');
+                    else if (battlePhase !== 'chooseAction') showBanner('Finishing last attack…');
+                    return;
+                  }
+                  handleMagicOpen();
+                }}
               >
                 <View style={[styles.btnFace, battleMobile && styles.btnFaceMobile, styles.magicFace]} pointerEvents="none">
                   <View style={styles.magicBtnShine} />
@@ -1958,6 +2044,26 @@ export default function BattleScreen({
 
 const styles = StyleSheet.create({
   root: { flex: 1, width: '100%', minHeight: 0, overflow: 'hidden', position: 'relative' },
+  battleLoadError: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 28,
+    backgroundColor: '#121624',
+  },
+  battleLoadErrorTitle: {
+    color: '#f8fafc',
+    fontWeight: '900',
+    fontSize: 20,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  battleLoadErrorBody: {
+    color: '#94a3b8',
+    fontWeight: '600',
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
   battleFrame: {
     flex: 1,
     minHeight: 0,
@@ -2069,6 +2175,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'web' ? 18 : 14,
+  },
+  actionDockWeb: {
+    touchAction: 'manipulation',
   },
   menuRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap' },
   menuRowMobile: {
