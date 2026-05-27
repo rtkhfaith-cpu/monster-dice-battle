@@ -83,7 +83,7 @@ function rollDodge(attacker, defender, magic, phantomBonus = 0) {
     bossKind: attacker?.ladderStageKind ?? null,
   });
   pct += phantomBonus;
-  pct += getPetDodgeBonus(def);
+  pct += getPetDodgeBonus(defender);
   pct = clamp(pct, COMBAT_BALANCE.dodgeMin, PASSIVE_CAPS.dodgePct + 15);
   return rollPercentChance(pct);
 }
