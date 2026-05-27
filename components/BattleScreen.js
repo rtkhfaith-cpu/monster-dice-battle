@@ -314,7 +314,6 @@ export default function BattleScreen({
   const actionLockedRef = useRef(false);
   const battleIntroRef = useRef(battleIntro);
   const playerUsedMagicRef = useRef(false);
-  const queuedPlayerActionRef = useRef(null);
 
   useEffect(() => {
     p1Ref.current = p1;
@@ -1058,53 +1057,33 @@ export default function BattleScreen({
     if (!actionLocked) return undefined;
     const t = setTimeout(() => {
       if (!actionLockedRef.current) return;
-      if (pendingStrikeRef.current) return;
+      if (pendingStrikeRef.current) {
+        console.warn('[battle] forcing recovery from stuck attack sequence');
+        finishActionSequence();
+        return;
+      }
       unlockAction();
       battlePhaseRef.current = 'chooseAction';
       setBattlePhase('chooseAction');
       clearAttackEffects();
       resetPoses();
-    }, 10000);
+    }, 4500);
     return () => clearTimeout(t);
   }, [actionLocked]);
 
+  /** Ref-synced gate — React state can lag behind refs during attack animations. */
+  function playerCanActNow() {
+    return (
+      !battleIntroRef.current
+      && !actionLockedRef.current
+      && battlePhaseRef.current === 'chooseAction'
+      && activeBattlerRef.current === PLAYER_ID
+    );
+  }
+
   function playerCanAct() {
-    return !battleIntro && !actionLocked && battlePhase === 'chooseAction';
+    return playerCanActNow();
   }
-
-  function canQueuePlayerAttack() {
-    return !battleIntroRef.current && activeBattlerRef.current === PLAYER_ID;
-  }
-
-  function queuePlayerAttack() {
-    if (!canQueuePlayerAttack()) return false;
-    queuedPlayerActionRef.current = { type: 'basic' };
-    showBanner('Attack queued...');
-    return true;
-  }
-
-  function flushQueuedPlayerAction() {
-    const queued = queuedPlayerActionRef.current;
-    if (!queued) return false;
-    if (
-      battleIntroRef.current
-      || actionLockedRef.current
-      || battlePhaseRef.current !== 'chooseAction'
-      || activeBattlerRef.current !== PLAYER_ID
-    ) {
-      return false;
-    }
-    queuedPlayerActionRef.current = null;
-    if (queued.type === 'basic') {
-      handleFight();
-      return true;
-    }
-    return false;
-  }
-
-  useEffect(() => {
-    flushQueuedPlayerAction();
-  }, [battleIntro, actionLocked, battlePhase, activeBattler]);
 
   function finishActionSequence() {
     const pending = pendingStrikeRef.current;
@@ -1124,7 +1103,8 @@ export default function BattleScreen({
     }
 
     const followUp = pending.onComplete;
-    const cpuChain = opponentIsAi && followUp === runCpuCounter;
+    // Do not compare followUp === runCpuCounter — that function is recreated each render.
+    const cpuChain = !!pending.chainsCpuCounter;
 
     if (!cpuChain) {
       unlockAction();
@@ -1320,6 +1300,7 @@ export default function BattleScreen({
       resolved,
       safetyId,
       onComplete,
+      chainsCpuCounter: opponentIsAi && typeof onComplete === 'function',
     };
 
     battlePhaseRef.current = 'resolveAttack';
@@ -1471,8 +1452,11 @@ export default function BattleScreen({
   }
 
   function handleFight() {
-    if (!playerCanAct()) {
-      queuePlayerAttack();
+    if (!playerCanActNow()) {
+      if (battleIntroRef.current) showBanner('Wait for the intro to finish…');
+      else if (actionLockedRef.current || battlePhaseRef.current !== 'chooseAction') {
+        showBanner('Wait for the current action…');
+      }
       return;
     }
     const curP1 = p1Ref.current ?? p1;
@@ -1500,7 +1484,7 @@ export default function BattleScreen({
   }
 
   function handleMagicOpen() {
-    if (!playerCanAct()) return;
+    if (!playerCanActNow()) return;
     tapUi();
     setMenuMode('magic');
     showBanner('Pick a magic skill');
@@ -1514,7 +1498,7 @@ export default function BattleScreen({
   }
 
   function handleMagicSkill(skill) {
-    if (!playerCanAct() || !skill) return;
+    if (!playerCanActNow() || !skill) return;
     const { attackerId, defenderId, attacker } = attackSidesForActiveBattler();
     if (!canAffordSkill(attacker, skill)) {
       showBanner('Not enough MP!');
@@ -1890,18 +1874,13 @@ export default function BattleScreen({
                 style={({ pressed }) => [
                   styles.arcadeBtn,
                   battleMobile && styles.arcadeBtnMobile,
+                  Platform.OS === 'web' && styles.arcadeBtnWeb,
                   styles.fightBtn,
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
                 ]}
               onPress={() => {
                 tapUi();
-                if (!playerCanAct()) {
-                  if (battleIntro) showBanner('Wait for the intro to finish…');
-                  else if (actionLocked) showBanner('Wait for the current action…');
-                  else if (battlePhase !== 'chooseAction') showBanner('Finishing last attack…');
-                  return;
-                }
                 handleFight();
               }}
             >
@@ -1916,16 +1895,16 @@ export default function BattleScreen({
                 style={({ pressed }) => [
                   styles.arcadeBtn,
                   battleMobile && styles.arcadeBtnMobile,
+                  Platform.OS === 'web' && styles.arcadeBtnWeb,
                   styles.magicBtnOuter,
                   pressed && actionsEnabled && styles.arcadeBtnPressed,
                   !actionsEnabled && styles.disabledBtn,
                 ]}
                 onPress={() => {
-                  if (!playerCanAct()) {
-                    tapUi();
-                    if (battleIntro) showBanner('Wait for the intro to finish…');
-                    else if (actionLocked) showBanner('Wait for the current action…');
-                    else if (battlePhase !== 'chooseAction') showBanner('Finishing last attack…');
+                  tapUi();
+                  if (!playerCanActNow()) {
+                    if (battleIntroRef.current) showBanner('Wait for the intro to finish…');
+                    else showBanner('Wait for the current action…');
                     return;
                   }
                   handleMagicOpen();
@@ -1942,6 +1921,7 @@ export default function BattleScreen({
                 style={({ pressed }) => [
                   styles.arcadeBtn,
                   battleMobile && styles.arcadeBtnMobile,
+                  Platform.OS === 'web' && styles.arcadeBtnWeb,
                   styles.runBtnOuter,
                   pressed && runEnabled && styles.arcadeBtnPressed,
                   !runEnabled && styles.disabledBtn,
@@ -2178,6 +2158,7 @@ const styles = StyleSheet.create({
     touchAction: 'manipulation',
   },
   menuRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap' },
+  arcadeBtnWeb: Platform.OS === 'web' ? { touchAction: 'manipulation', cursor: 'pointer' } : null,
   menuRowMobile: {
     gap: 12,
     flexWrap: 'nowrap',
