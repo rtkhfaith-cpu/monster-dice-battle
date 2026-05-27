@@ -35,6 +35,10 @@ const SIDE_AIM_BAND_PX = 52;
 /** Finger movement or angle change required before release fires. */
 const MIN_AIM_DRAG_PX = 5;
 const MIN_AIM_ANGLE_DELTA = 0.028;
+/** Hold-to-aim warning shake — stopped manually on bubble release. */
+const AIM_HOLD_SHAKE_MS = 3600000;
+const AIM_HOLD_SHAKE_INTENSITY_2 = 0.003;
+const AIM_HOLD_SHAKE_INTENSITY_1 = 0.0045;
 
 export function createMonsterRescueScene(Phaser) {
   return class MonsterRescueScene extends Phaser.Scene {
@@ -54,7 +58,8 @@ export function createMonsterRescueScene(Phaser) {
       this.isAiming = false;
       this.aimDragMoved = false;
       this.aimAngleTarget = -Math.PI / 2;
-      this._lastPushWarnMoves = null;
+      this._pushWarnMoves = null;
+      this._aimHoldShakeOn = false;
     }
 
     init(data) {
@@ -84,7 +89,8 @@ export function createMonsterRescueScene(Phaser) {
       this.timeRemainingMs = this.gameTimeLimitMs;
       this.moveTimeLimitMs = (this.stageDef.moveTimeSec ?? 15) * 1000;
       this.moveDeadlineMs = 0;
-      this._lastPushWarnMoves = null;
+      this._pushWarnMoves = null;
+      this._aimHoldShakeOn = false;
 
       const { displayFillRows, ...layout } = computeRescueLayout(w, h, this.stageDef.fillRows);
       this.layout = layout;
@@ -342,17 +348,41 @@ export function createMonsterRescueScene(Phaser) {
 
     _maybeWarnUpcomingPush(untilPush) {
       if (this.gameOver || this.isShooting) return;
-      // Warn once per countdown state so it does not spam every HUD refresh.
-      if (untilPush === this._lastPushWarnMoves) return;
-      if (untilPush === 2) {
-        this._lastPushWarnMoves = 2;
-        this.cameras?.main?.shake?.(120, 0.003);
-      } else if (untilPush === 1) {
-        this._lastPushWarnMoves = 1;
-        this.cameras?.main?.shake?.(170, 0.0045);
-      } else if (untilPush > 2) {
-        this._lastPushWarnMoves = null;
+      if (untilPush === 2 || untilPush === 1) {
+        this._pushWarnMoves = untilPush;
+        if (this.isAiming) this._ensureAimHoldShake();
+        return;
       }
+      if (untilPush > 2) {
+        this._pushWarnMoves = null;
+        if (!this.isAiming) this._stopAimHoldShake();
+      }
+    }
+
+    _aimHoldShakeIntensity() {
+      return this._pushWarnMoves === 1 ? AIM_HOLD_SHAKE_INTENSITY_1 : AIM_HOLD_SHAKE_INTENSITY_2;
+    }
+
+    _ensureAimHoldShake() {
+      if (!this._pushWarnMoves || this.gameOver) return;
+      const cam = this.cameras?.main;
+      if (!cam?.shakeEffect) return;
+      const intensity = this._aimHoldShakeIntensity();
+      if (cam.shakeEffect.isRunning) {
+        cam.shakeEffect.intensity.set(intensity, intensity);
+        this._aimHoldShakeOn = true;
+        return;
+      }
+      cam.shake(AIM_HOLD_SHAKE_MS, intensity, true);
+      this._aimHoldShakeOn = true;
+    }
+
+    _stopAimHoldShake() {
+      const cam = this.cameras?.main;
+      if (cam?.shakeEffect?.isRunning) {
+        cam.shakeEffect.reset();
+      }
+      this._aimHoldShakeOn = false;
     }
 
     _playFrameBounds() {
@@ -406,7 +436,15 @@ export function createMonsterRescueScene(Phaser) {
     }
 
     update(_time, delta) {
-      if (!this.shooter || this.isShooting || this.gameOver) return;
+      if (!this.shooter || this.isShooting || this.gameOver) {
+        if (!this.isAiming) this._stopAimHoldShake();
+        return;
+      }
+      if (this.isAiming && this._pushWarnMoves) {
+        this._ensureAimHoldShake();
+      } else if (!this.isAiming && this._aimHoldShakeOn) {
+        this._stopAimHoldShake();
+      }
       if (!this.isAiming) return;
       const t = 1 - Math.exp(-AIM_SMOOTH_RATE * (delta / 1000));
       const next = Phaser.Math.Linear(this.aimAngle, this.aimAngleTarget, t);
@@ -424,6 +462,7 @@ export function createMonsterRescueScene(Phaser) {
       this.aimDragStartY = p.y;
       this.aimDragStartAngle = this.aimAngle;
       this.aimFromSideWall = this._isSideAimBand(p);
+      if (this._pushWarnMoves) this._ensureAimHoldShake();
       if (this.aimFromSideWall) {
         this._updateAimFromPointer(p);
         this.aimDragMoved = true;
@@ -443,12 +482,15 @@ export function createMonsterRescueScene(Phaser) {
     async _onPointerUp() {
       if (!this.isAiming) return;
       this.isAiming = false;
+      this._stopAimHoldShake();
       if (this.isShooting || this.gameOver || this.timeRemainingMs <= 0) return;
       await this._fire();
     }
 
     async _fire() {
       if (this.isShooting || this.gameOver || this.timeRemainingMs <= 0) return;
+      this.isAiming = false;
+      this._stopAimHoldShake();
       this._clearMoveTimer();
       this.isShooting = true;
       try {
@@ -774,6 +816,7 @@ export function createMonsterRescueScene(Phaser) {
     shutdown() {
       this._clearMoveTimer();
       this._clearGameClock();
+      this._stopAimHoldShake();
       this.shooter?.destroy();
       this.puzzleHud?.destroy();
     }
