@@ -185,7 +185,7 @@ function snapshotFight(f) {
 
 function pickCpuStrike(atk) {
   const physical = atk.skills?.physical ?? getPhysicalSkill(atk.monsterTemplateId);
-  const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId);
+  const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId) ?? [];
   const affordable = magicList.filter((s) => canAffordSkill(atk, s));
   if (affordable.length > 0 && Math.random() < 0.42) {
     const skill = affordable[Math.floor(Math.random() * affordable.length)];
@@ -197,7 +197,7 @@ function pickCpuStrike(atk) {
 /** Pick magic or basic for Auto Level — magic when affordable and MP ≥ 20%, else physical. */
 function pickAutoLevelStrike(atk) {
   const physical = atk.skills?.physical ?? getPhysicalSkill(atk.monsterTemplateId);
-  const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId);
+  const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId) ?? [];
   const affordable = magicList.filter((s) => canAffordSkill(atk, s));
   const maxMp = atk.maxMp ?? atk.stats?.mp ?? 1;
   const mpRatio = maxMp > 0 ? (atk.mp ?? 0) / maxMp : 0;
@@ -209,7 +209,7 @@ function pickAutoLevelStrike(atk) {
 
 /** Highest-MP affordable magic skill for auto-cast (list order = strongest last). */
 function pickPlayerAutoMagic(atk) {
-  const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId);
+  const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId) ?? [];
   const affordable = magicList.filter((s) => canAffordSkill(atk, s));
   if (!affordable.length) return null;
   return affordable[affordable.length - 1];
@@ -1042,26 +1042,36 @@ export default function BattleScreen({
     clearAttackEffects();
     resetPoses();
 
-    if (pending.np1After && pending.np2After) {
-      setP1(pending.np1After);
-      setP2(pending.np2After);
-      p1Ref.current = pending.np1After;
-      p2Ref.current = pending.np2After;
+    const np1 = pending.np1After;
+    const np2 = pending.np2After;
+    if (np1 && np2) {
+      setP1(np1);
+      setP2(np2);
+      p1Ref.current = np1;
+      p2Ref.current = np2;
     }
 
-    isActionPlayingRef.current = false;
-    setIsActionPlaying(false);
+    releaseActionLocks();
     setBattlePhase('chooseAction');
 
-    if (pending.onDone) {
-      try {
-        pending.onDone(pending.np1After, pending.np2After);
-      } catch (err) {
-        console.warn('[battle] post-attack callback failed', err);
-        releaseActionLocks();
+    try {
+      if (np1?.hp <= 0) {
+        wrapUpBattle(CPU_ID, np1, np2);
+        return;
       }
-    } else {
+      if (np2?.hp <= 0) {
+        wrapUpBattle(PLAYER_ID, np1, np2);
+        return;
+      }
+      if (pending.onComplete) {
+        pending.onComplete(np1, np2);
+      } else {
+        endRound(np1, np2);
+      }
+    } catch (err) {
+      console.warn('[battle] post-attack callback failed', err);
       releaseActionLocks();
+      setBattlePhase('chooseAction');
     }
   }
 
@@ -1077,6 +1087,8 @@ export default function BattleScreen({
     if (isActionPlayingRef.current || busyRef.current) return;
     isActionPlayingRef.current = true;
     busyRef.current = true;
+    setIsActionPlaying(true);
+    setBusy(true);
 
     const curP1 = p1Ref.current;
     const curP2 = p2Ref.current;
@@ -1093,7 +1105,7 @@ export default function BattleScreen({
     const skill =
       skillIn ??
       (strikeKind === 'magic'
-        ? (atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId))[0]
+        ? (atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId) ?? [])[0]
         : atk.skills?.physical ?? getPhysicalSkill(atk.monsterTemplateId));
 
     if (strikeKind === 'magic' && !canAffordSkill(atk, skill)) {
@@ -1136,8 +1148,6 @@ export default function BattleScreen({
     if (attackerId === PLAYER_ID && strikeKind === 'magic') {
       playerUsedMagicRef.current = true;
     }
-    setIsActionPlaying(true);
-    setBusy(true);
     setBattlePhase('resolveAttack');
     setMenuMode('main');
     clearAttackEffects();
@@ -1235,18 +1245,7 @@ export default function BattleScreen({
       defenderId,
       resolved,
       safetyId,
-      onDone: (finalP1, finalP2) => {
-        if (finalP1.hp <= 0) {
-          wrapUpBattle(CPU_ID, finalP1, finalP2);
-          return;
-        }
-        if (finalP2.hp <= 0) {
-          wrapUpBattle(PLAYER_ID, finalP1, finalP2);
-          return;
-        }
-        if (onComplete) onComplete(finalP1, finalP2);
-        else endRound(finalP1, finalP2);
-      },
+      onComplete,
     };
 
     emitPhaserActionResult({
@@ -1324,6 +1323,8 @@ export default function BattleScreen({
   }
 
   function runCpuCounter(np1, np2) {
+    busyRef.current = true;
+    setBusy(true);
     schedule(400, () => {
       try {
         if (np1 && np2) {
@@ -1336,7 +1337,6 @@ export default function BattleScreen({
         p2Ref.current = cpu;
         setP2(cpu);
         const { skill, strikeKind } = pickCpuStrike(cpu);
-        releaseActionLocks();
         runAttack({
           attackerId: CPU_ID,
           defenderId: PLAYER_ID,
