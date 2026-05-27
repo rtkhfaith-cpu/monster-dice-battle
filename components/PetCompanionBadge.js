@@ -1,12 +1,15 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text } from 'react-native';
 
 /**
- * Floating pet companion above monster (top-right).
+ * Floating pet companion beside monster — no frame; faces toward opponent.
+ * @param {'left'|'right'} side — battler slot (left = P1, right = P2)
  */
 export default function PetCompanionBadge({ pet, triggerPulse = 0, side = 'left' }) {
   const floatY = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(1)).current;
+  // P1 (left slot) faces right; P2 (right slot) faces left — matches AnimatedMonster mirror.
+  const faceOpponent = side === 'left';
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -36,13 +39,18 @@ export default function PetCompanionBadge({ pet, triggerPulse = 0, side = 'left'
       style={[
         styles.wrap,
         side === 'right' ? styles.wrapRight : styles.wrapLeft,
-        { transform: [{ translateY: floatY }, { scale: pulse }] },
+        { transform: [{ translateY: floatY }] },
       ]}
     >
-      <View style={styles.bubble}>
+      <Animated.View
+        style={{
+          alignItems: 'center',
+          transform: [{ scaleX: faceOpponent ? -1 : 1 }, { scale: pulse }],
+        }}
+      >
         <Text style={styles.emoji}>{pet.emoji}</Text>
-        <Text style={styles.lv}>Lv {pet.level ?? 1}</Text>
-      </View>
+        <Text style={[styles.lv, faceOpponent && styles.lvFlipped]}>Lv {pet.level ?? 1}</Text>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -55,15 +63,7 @@ const styles = StyleSheet.create({
   },
   wrapLeft: { right: -4 },
   wrapRight: { left: -4 },
-  bubble: {
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 10,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
-    borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.45)',
-  },
-  emoji: { fontSize: 18, lineHeight: 22 },
+  emoji: { fontSize: 22, lineHeight: 26 },
   lv: { fontSize: 9, fontWeight: '800', color: '#e2e8f0', marginTop: -2 },
+  lvFlipped: { transform: [{ scaleX: -1 }] },
 });
