@@ -35,7 +35,21 @@ export function normalizeOwnedPetRow(row) {
 export function ensurePetInventory(profile) {
   if (!profile) return;
   if (!Array.isArray(profile.ownedPets)) profile.ownedPets = [];
-  profile.ownedPets = profile.ownedPets.map(normalizeOwnedPetRow).filter(Boolean);
+
+  // Normalize in place so existing row references remain valid across calls.
+  for (let i = profile.ownedPets.length - 1; i >= 0; i--) {
+    const cur = profile.ownedPets[i];
+    const norm = normalizeOwnedPetRow(cur);
+    if (!norm) {
+      profile.ownedPets.splice(i, 1);
+      continue;
+    }
+    if (cur && typeof cur === 'object') {
+      Object.assign(cur, norm);
+    } else {
+      profile.ownedPets[i] = norm;
+    }
+  }
 
   const byMonster = {};
   for (const pet of profile.ownedPets) {
@@ -141,32 +155,42 @@ export function canEquipPet(profile, monsterId, petInstanceId) {
 
 /** Unequip pet from any monster, then equip to target. */
 export function equipPetOnMonster(profile, monsterId, petInstanceId) {
-  const check = canEquipPet(profile, monsterId, petInstanceId);
-  if (!check.ok) return check;
-  if (check.already) return { ok: true, pet: findOwnedPet(profile, petInstanceId) };
-
-  const pet = findOwnedPet(profile, petInstanceId);
-  const currentOnMonster = petEquippedToMonster(profile, monsterId);
-  if (currentOnMonster && currentOnMonster.instanceId !== petInstanceId) {
-    currentOnMonster.equippedToMonsterId = null;
+  ensurePetInventory(profile);
+  const om = (profile.ownedMonsters || []).find((m) => m.id === monsterId);
+  if (!om) return { ok: false, error: 'Monster not found' };
+  const pet = profile.ownedPets.find((p) => p.instanceId === petInstanceId);
+  if (!pet) return { ok: false, error: 'Pet not found' };
+  if (pet.equippedToMonsterId === monsterId) {
+    om.equippedPetInstanceId = pet.instanceId;
+    return { ok: true, already: true, pet };
   }
+
+  // Unequip any pet currently on the target monster (other than this one).
+  for (const other of profile.ownedPets) {
+    if (other !== pet && other.equippedToMonsterId === monsterId) {
+      other.equippedToMonsterId = null;
+    }
+  }
+  // Unequip this pet from a previous monster.
   if (pet.equippedToMonsterId && pet.equippedToMonsterId !== monsterId) {
     const prev = (profile.ownedMonsters || []).find((m) => m.id === pet.equippedToMonsterId);
     if (prev) prev.equippedPetInstanceId = null;
-    pet.equippedToMonsterId = null;
   }
+
   pet.equippedToMonsterId = monsterId;
-  const om = (profile.ownedMonsters || []).find((m) => m.id === monsterId);
-  if (om) om.equippedPetInstanceId = pet.instanceId;
+  om.equippedPetInstanceId = pet.instanceId;
   return { ok: true, pet };
 }
 
 export function unequipPetFromMonster(profile, monsterId) {
   ensurePetInventory(profile);
-  const pet = petEquippedToMonster(profile, monsterId);
-  if (!pet) return { ok: false, error: 'No pet equipped' };
-  pet.equippedToMonsterId = null;
   const om = (profile.ownedMonsters || []).find((m) => m.id === monsterId);
+  const pet = profile.ownedPets.find((p) => p.equippedToMonsterId === monsterId);
+  if (!pet) {
+    if (om) om.equippedPetInstanceId = null;
+    return { ok: false, error: 'No pet equipped' };
+  }
+  pet.equippedToMonsterId = null;
   if (om) om.equippedPetInstanceId = null;
   return { ok: true, pet };
 }
