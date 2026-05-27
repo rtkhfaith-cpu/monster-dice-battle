@@ -313,6 +313,8 @@ export default function BattleScreen({
   const battlePhaseRef = useRef(battlePhase);
   const actionLockedRef = useRef(false);
   const battleIntroRef = useRef(battleIntro);
+  const battleInputReadyRef = useRef(!bossStageBanner);
+  const actionLockSeqRef = useRef(0);
   const playerUsedMagicRef = useRef(false);
 
   useEffect(() => {
@@ -402,6 +404,8 @@ export default function BattleScreen({
   useEffect(() => {
     pendingStrikeRef.current = null;
     actionLockedRef.current = false;
+    battleInputReadyRef.current = !bossStageBanner;
+    battleIntroRef.current = !!bossStageBanner;
     setActionLocked(false);
     battlePhaseRef.current = 'chooseAction';
     setBattlePhase('chooseAction');
@@ -411,18 +415,17 @@ export default function BattleScreen({
   }, []);
 
   useEffect(() => {
-    if (battleIntro && !bossStageBanner) {
+    if (!bossStageBanner) {
       battleIntroRef.current = false;
+      battleInputReadyRef.current = true;
       actionLockedRef.current = false;
       setBattleIntro(false);
       setActionLocked(false);
+      return undefined;
     }
-  }, [battleIntro, bossStageBanner]);
-
-  useEffect(() => {
     unlockBattleAudio();
     startBattleMusic({ kind: ladderStageKind, mainMiniBoss: isMainMiniBoss });
-    if (!bossStageBanner) return undefined;
+    battleInputReadyRef.current = false;
     actionLockedRef.current = true;
     battleIntroRef.current = true;
     setActionLocked(true);
@@ -439,12 +442,19 @@ export default function BattleScreen({
     const introMs = baseMs + (bossPassiveIntroLines.length > 0 ? 450 : 0);
     const t = setTimeout(() => {
       battleIntroRef.current = false;
+      battleInputReadyRef.current = true;
       actionLockedRef.current = false;
       setBattleIntro(false);
       setActionLocked(false);
     }, introMs);
     return () => clearTimeout(t);
   }, [bossStageBanner, isMainMiniBoss, ladderStageKind, bossPassiveIntroLines.length]);
+
+  useEffect(() => {
+    if (bossStageBanner) return;
+    unlockBattleAudio();
+    startBattleMusic({ kind: ladderStageKind, mainMiniBoss: isMainMiniBoss });
+  }, [bossStageBanner, isMainMiniBoss, ladderStageKind]);
 
   useEffect(() => {
     if (!usePhaserBattleRenderer || phaserFailed || actionLocked) return;
@@ -832,10 +842,7 @@ export default function BattleScreen({
 
   function tryAutoLevelStrike() {
     if (!autoLevelRef.current || !opponentIsAi) return;
-    if (battleIntroRef.current || actionLockedRef.current || battlePhaseRef.current !== 'chooseAction') {
-      return;
-    }
-    if (activeBattlerRef.current !== PLAYER_ID) return;
+    if (!playerCanActNow()) return;
     const attacker = p1Ref.current;
     if (!attacker) return;
     if ((attacker.level ?? fighter1?.level ?? 1) >= AUTO_LEVEL_GRIND_MAX) {
@@ -851,15 +858,13 @@ export default function BattleScreen({
       skill,
       strikeKind,
       onComplete: strikeAftermath(runCpuCounter),
+      chainsCpuCounter: opponentIsAi,
     });
   }
 
   function tryAutoAttackStrike() {
     if (!autoAttackRef.current || !opponentIsAi) return;
-    if (battleIntroRef.current || actionLockedRef.current || battlePhaseRef.current !== 'chooseAction') {
-      return;
-    }
-    if (activeBattlerRef.current !== PLAYER_ID) return;
+    if (!playerCanActNow()) return;
     const attacker = p1Ref.current;
     if (!attacker) return;
     const skill = attacker.skills?.physical ?? getPhysicalSkill(attacker.monsterTemplateId);
@@ -871,15 +876,13 @@ export default function BattleScreen({
       skill,
       strikeKind: 'physical',
       onComplete: strikeAftermath(runCpuCounter),
+      chainsCpuCounter: opponentIsAi,
     });
   }
 
   function tryAutoMagicAttack() {
     if (!autoMagicRef.current || !opponentIsAi) return;
-    if (battleIntroRef.current || actionLockedRef.current || battlePhaseRef.current !== 'chooseAction') {
-      return;
-    }
-    if (activeBattlerRef.current !== PLAYER_ID) return;
+    if (!playerCanActNow()) return;
     const attacker = p1Ref.current;
     if (!attacker) return;
     const skill = pickPlayerAutoMagic(attacker);
@@ -895,6 +898,7 @@ export default function BattleScreen({
       skill,
       strikeKind: 'magic',
       onComplete: strikeAftermath(runCpuCounter),
+      chainsCpuCounter: opponentIsAi,
     });
   }
 
@@ -1044,6 +1048,7 @@ export default function BattleScreen({
   }
 
   function lockAction() {
+    actionLockSeqRef.current += 1;
     actionLockedRef.current = true;
     setActionLocked(true);
   }
@@ -1055,7 +1060,9 @@ export default function BattleScreen({
 
   useEffect(() => {
     if (!actionLocked) return undefined;
+    const lockSeq = actionLockSeqRef.current;
     const t = setTimeout(() => {
+      if (lockSeq !== actionLockSeqRef.current) return;
       if (!actionLockedRef.current) return;
       if (pendingStrikeRef.current) {
         console.warn('[battle] forcing recovery from stuck attack sequence');
@@ -1067,17 +1074,18 @@ export default function BattleScreen({
       setBattlePhase('chooseAction');
       clearAttackEffects();
       resetPoses();
-    }, 4500);
+    }, 10000);
     return () => clearTimeout(t);
   }, [actionLocked]);
 
   /** Ref-synced gate — React state can lag behind refs during attack animations. */
   function playerCanActNow() {
     return (
-      !battleIntroRef.current
+      battleInputReadyRef.current
+      && !battleIntroRef.current
       && !actionLockedRef.current
       && battlePhaseRef.current === 'chooseAction'
-      && activeBattlerRef.current === PLAYER_ID
+      && (!opponentIsAi || activeBattlerRef.current === PLAYER_ID)
     );
   }
 
@@ -1108,9 +1116,9 @@ export default function BattleScreen({
 
     if (!cpuChain) {
       unlockAction();
+      battlePhaseRef.current = 'chooseAction';
+      setBattlePhase('chooseAction');
     }
-    battlePhaseRef.current = 'chooseAction';
-    setBattlePhase('chooseAction');
 
     try {
       if (np1?.hp <= 0) {
@@ -1145,6 +1153,7 @@ export default function BattleScreen({
     strikeKind: strikeKindIn,
     superBomb = false,
     skipBusyCheck = false,
+    chainsCpuCounter = false,
   }) {
     if (!skipBusyCheck && actionLockedRef.current) return;
     lockAction();
@@ -1300,7 +1309,7 @@ export default function BattleScreen({
       resolved,
       safetyId,
       onComplete,
-      chainsCpuCounter: opponentIsAi && typeof onComplete === 'function',
+      chainsCpuCounter: !!chainsCpuCounter,
     };
 
     battlePhaseRef.current = 'resolveAttack';
@@ -1453,9 +1462,10 @@ export default function BattleScreen({
 
   function handleFight() {
     if (!playerCanActNow()) {
-      if (battleIntroRef.current) showBanner('Wait for the intro to finish…');
-      else if (actionLockedRef.current || battlePhaseRef.current !== 'chooseAction') {
-        showBanner('Wait for the current action…');
+      if (!battleInputReadyRef.current || battleIntroRef.current) {
+        showBanner('Wait for the intro to finish…');
+      } else if (actionLockedRef.current || battlePhaseRef.current !== 'chooseAction') {
+        showBanner('Finishing last action…');
       }
       return;
     }
@@ -1480,6 +1490,7 @@ export default function BattleScreen({
       skill,
       strikeKind: 'physical',
       onComplete: strikeAftermath(runCpuCounter),
+      chainsCpuCounter: opponentIsAi,
     });
   }
 
@@ -1512,6 +1523,7 @@ export default function BattleScreen({
       skill,
       strikeKind: 'magic',
       onComplete: strikeAftermath(runCpuCounter),
+      chainsCpuCounter: opponentIsAi,
     });
   }
 
@@ -1579,8 +1591,8 @@ export default function BattleScreen({
   }
 
   return (
-    <View style={[styles.root, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
-      <View style={[styles.battleFrame, WEB_GAME_TOUCH_STYLE]} {...gameSurfaceDataProps()}>
+    <View style={styles.root}>
+      <View style={styles.battleFrame}>
         <View style={[styles.arenaField, WEB_GAME_TOUCH_STYLE]} pointerEvents="box-none" {...gameSurfaceDataProps()}>
           <View style={styles.arenaInner}>
           {usePhaserBattleRenderer && !phaserFailed ? (
@@ -2142,6 +2154,8 @@ const styles = StyleSheet.create({
   },
   actionDock: {
     flexShrink: 0,
+    zIndex: 50,
+    elevation: 50,
     backgroundColor: 'rgba(18, 22, 36, 0.98)',
     borderTopWidth: 4,
     borderColor: '#3d4a6a',
