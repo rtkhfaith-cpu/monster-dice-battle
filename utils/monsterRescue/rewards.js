@@ -5,11 +5,12 @@ import { RESCUE_BALANCE, rescueCoinCap, rescueExpCap } from '../../src/gameBalan
  * Rescue payouts scale with rescue stage id (1–60) only.
  * Player monster level does not affect coins or EXP.
  */
-const COINS_PER_BUBBLE = 0.65;
+const COIN_REWARD_SCALE = 3;
+const COINS_PER_BUBBLE = 0.65 * COIN_REWARD_SCALE;
 const EXP_PER_BUBBLE = 0.09;
-const COMBO_COIN_PER_STEP = 3;
+const COMBO_COIN_PER_STEP = 3 * COIN_REWARD_SCALE;
 const COMBO_EXP_PER_STEP = 0;
-const CLEAR_COIN_BONUS = 18;
+const CLEAR_COIN_BONUS = 18 * COIN_REWARD_SCALE;
 const CLEAR_EXP_BONUS = 3;
 
 /**
@@ -51,7 +52,7 @@ export function computeStageRewards({ comboPeak = 1, bubblesCleared = 0, rescueS
 export function computeLossRewards(runSummary = {}) {
   const cleared = Math.max(0, Math.floor(runSummary?.bubblesCleared ?? 0));
   return {
-    coins: cleared >= 12 ? 2 : cleared >= 6 ? 1 : 0,
+    coins: cleared >= 12 ? 2 * COIN_REWARD_SCALE : cleared >= 6 ? 1 * COIN_REWARD_SCALE : 0,
     exp: cleared >= 15 ? 1 : 0,
     shards: 0,
     comboPeak: runSummary?.comboPeak ?? 1,
