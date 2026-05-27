@@ -84,38 +84,38 @@ export function outgoingDamageLevelFactor(level) {
   return 1 - t * 0.22;
 }
 
-/** Tighter MP pools — magic costs ~10–18; ~4–7 casts per battle at typical levels. */
+/** MP pools — scales visibly every level; role/rarity differentiate casters vs brawlers. */
 export const MP_PACING = {
   min: 30,
-  max: 92,
-  base: 22,
-  perLevel: 1.35,
+  max: 220,
+  base: 24,
+  perLevel: 2,
 };
 
 const ROLE_MP_BONUS = {
   tank: 0,
-  brawler: 2,
-  attacker: 2,
-  mage: 12,
-  balanced: 4,
-  speedster: 5,
-  support: 8,
-  debuffer: 6,
-  trickster: 6,
-  mythic: 6,
-  tank_mage: 5,
+  brawler: 4,
+  attacker: 4,
+  mage: 16,
+  balanced: 6,
+  speedster: 8,
+  support: 12,
+  debuffer: 8,
+  trickster: 8,
+  mythic: 10,
+  tank_mage: 8,
 };
 
 const RARITY_MP_BONUS = {
   common: 0,
-  rare: 3,
-  epic: 7,
-  legendary: 11,
-  mythic: 14,
+  rare: 5,
+  epic: 10,
+  legendary: 16,
+  mythic: 22,
 };
 
 /**
- * Battle MP cap — replaces inflated template MP growth so mana runs out in normal fights.
+ * Battle MP pool — grows +2 MP per level so players see clear progression.
  * @param {number} level
  * @param {string} [role]
  * @param {string} [rarity]
