@@ -33,7 +33,7 @@ export default function EquipmentSlotBox({
         compact && styles.boxCompact,
         widthOverride ? { width: widthOverride } : null,
         gear ? styles.filled : styles.empty,
-        gear && { borderColor: ui.border },
+        gear && { borderColor: ui.border, borderStyle: 'solid' },
         selected && styles.selected,
         mythic && styles.mythic,
       ]}
@@ -77,8 +77,8 @@ const styles = StyleSheet.create({
   },
   filled: { backgroundColor: 'rgba(18, 53, 40, 0.65)' },
   selected: {
-    borderColor: GEAR_UI.accent,
     backgroundColor: GEAR_UI.slotSelected,
+    borderWidth: 3,
     shadowColor: GEAR_UI.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.55,
