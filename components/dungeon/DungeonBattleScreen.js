@@ -30,7 +30,6 @@ function BossArt({ uri }) {
 export default function DungeonBattleScreen({ boss, team, profile, onExit, onClaimRewards }) {
   const engineRef = useRef(null);
   const [, setVersion] = useState(0);
-  const [auto, setAuto] = useState(true);
   const [rewards, setRewards] = useState(null);
   const claimedRef = useRef(false);
 
@@ -60,21 +59,6 @@ export default function DungeonBattleScreen({ boss, team, profile, onExit, onCla
     advanceDungeonStep(state);
     setVersion((v) => v + 1);
   }
-
-  // Auto-advance loop.
-  useEffect(() => {
-    if (!auto || finished) return undefined;
-    const t = setInterval(() => {
-      if (engineRef.current.phase !== 'active') {
-        clearInterval(t);
-        setVersion((v) => v + 1);
-        return;
-      }
-      advanceDungeonStep(engineRef.current);
-      setVersion((v) => v + 1);
-    }, 650);
-    return () => clearInterval(t);
-  }, [auto, finished]);
 
   // Grant rewards once on victory.
   useEffect(() => {
@@ -141,9 +125,6 @@ export default function DungeonBattleScreen({ boss, team, profile, onExit, onCla
         <View style={styles.controls}>
           <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlStep]} onPress={step}>
             <Text style={styles.ctrlTxt}>Next</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.ctrlBtn, auto ? styles.ctrlAutoOn : styles.ctrlAuto]} onPress={() => setAuto((a) => !a)}>
-            <Text style={styles.ctrlTxt}>{auto ? 'Pause' : 'Auto'}</Text>
           </TouchableOpacity>
         </View>
       ) : null}

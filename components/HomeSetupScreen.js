@@ -311,6 +311,12 @@ export default function HomeSetupScreen({
     };
   }
 
+  function openMonstersScreen() {
+    setTray(null);
+    setCardMonster(null);
+    (onOpenMonsterGearShop || onOpenMonsterGear)?.();
+  }
+
   const selectedMonsterId = activeSlot === 2 ? selectedP2Id : selectedP1Id;
   const cardFighter = useMemo(
     () => (cardMonster ? fighterFromOwned(cardMonster) : null),
@@ -646,16 +652,15 @@ export default function HomeSetupScreen({
               />
               <FantasyButton label="Monster Mart" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
               <FantasyButton label="Shop" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
-              <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonFive} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
               <FantasyButton
                 label={dungeonsAvailable ? 'Dungeons' : 'Coming Soon'}
                 icon={dungeonsAvailable ? '☠' : '⏳'}
                 variant="legendary"
-                style={styles.menuButtonSix}
+                style={styles.menuButtonFive}
                 disabled={!dungeonsAvailable}
                 onPress={dungeonsAvailable ? pressWithSound(onOpenDungeons) : undefined}
               />
-              <FantasyButton label="Login" icon="🔑" style={styles.menuButtonSeven} onPress={pressWithSound(openLoginModal)} />
+              <FantasyButton label="Login" icon="🔑" style={styles.menuButtonSix} onPress={pressWithSound(openLoginModal)} />
             </View>
 
             <BottomNavButton
@@ -666,7 +671,7 @@ export default function HomeSetupScreen({
               onPress={pressWithSound(onOpenQuests || onOpenMonsterLadder)}
             />
             <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenInventory)} />
-            <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
+            <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(openMonstersScreen)} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
 
             <MainMiniBossDropsModal
@@ -909,7 +914,6 @@ const styles = StyleSheet.create({
   menuButtonFour: { top: '60.6%' },
   menuButtonFive: { top: '66.8%' },
   menuButtonSix: { top: '73%' },
-  menuButtonSeven: { top: '79.2%' },
   bottomNavButton: {
     position: 'absolute',
     zIndex: 40,

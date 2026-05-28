@@ -72,7 +72,7 @@ export default function PlayerInventoryScreen({
             <Text style={gearModalStyles.coins}>🪙 {coins}</Text>
           ) : null}
           <Text style={gearModalStyles.sub}>
-            Everything you own — equip items from the Equip Gear screen.
+            Everything you own — equip items from the Monsters screen.
           </Text>
 
           <View style={styles.tabRow}>

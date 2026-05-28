@@ -78,7 +78,7 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullH
         <Text style={styles.title}>Gear ({list.length})</Text>
         {onOpenEquip ? (
           <TouchableOpacity style={styles.equipBtn} onPress={onOpenEquip} activeOpacity={0.88}>
-            <Text style={styles.equipBtnTxt}>Equip Gear</Text>
+            <Text style={styles.equipBtnTxt}>Monsters</Text>
           </TouchableOpacity>
         ) : null}
       </View>
