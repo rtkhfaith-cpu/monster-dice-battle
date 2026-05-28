@@ -188,9 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  topSidePet: {
-    transform: [{ translateY: -10 }],
-  },
+  topSidePet: {},
   rowBottom: {
     transform: [{ translateY: -4 }],
     marginBottom: 4,
