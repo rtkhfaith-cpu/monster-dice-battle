@@ -95,8 +95,7 @@ export default function MonsterEquipmentLayout({
           ]}
         >
           <MonsterPreview
-            templateId={fighter?.monsterTemplateId}
-            monsterParts={fighter?.monsterParts}
+            parts={fighter?.monsterParts}
             size={monsterSize}
             mood="happy"
           />

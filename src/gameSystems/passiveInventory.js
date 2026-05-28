@@ -178,8 +178,9 @@ export function replaceEquippedPassive(profile, monsterId, removeSkillId, skillB
 }
 
 export function listUnequippedBooks(profile) {
+  if (!profile) return [];
   ensurePassiveInventory(profile);
-  return profile.passiveSkillBooksOwned.filter((b) => !b.equippedToMonsterId);
+  return (profile.passiveSkillBooksOwned || []).filter((b) => !b.equippedToMonsterId);
 }
 
 export function formatBookLabel(book) {

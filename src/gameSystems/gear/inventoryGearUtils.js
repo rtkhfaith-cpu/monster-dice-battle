@@ -53,8 +53,9 @@ export function normalizeGearInstance(row) {
 }
 
 export function getGearInstance(profile, instanceId) {
+  if (!profile) return null;
   ensureGearInventory(profile);
-  return profile.gearInventory.find((g) => g.instanceId === instanceId) ?? null;
+  return (profile.gearInventory || []).find((g) => g.instanceId === instanceId) ?? null;
 }
 
 export function addGearToInventory(profile, instance) {

@@ -116,7 +116,7 @@ export default function GearMartModal({
           {shopTab === 'gear' ? (
             <>
               <Text style={gearModalStyles.sub}>
-                Each listing is one gear piece. Set name is shown for reference — full set bonus only activates when matching pieces are equipped together. Tap a piece to view full details.
+                Each set consists of Head, Body, Weapon, Hand and Legs. Featured sets rotate daily — every set on offer shows all 5 slot pieces. Full set bonus only activates when all 5 slots are equipped from the same set. Tap a piece to view full details.
               </Text>
               <View style={styles.rarityRow}>
                 {['rare', 'epic'].map((r) => {
@@ -152,7 +152,7 @@ export default function GearMartModal({
                             {group.setName}
                           </Text>
                           <Text style={styles.setHeaderMeta}>
-                            {group.items.length} piece{group.items.length === 1 ? '' : 's'} available
+                            Head · Body · Weapon · Hand · Legs ({group.items.length}/5)
                           </Text>
                         </View>
                         <GearBuildPill buildType={group.buildType} size={10} />

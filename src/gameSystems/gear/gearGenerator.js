@@ -166,8 +166,75 @@ export function buildShopGearOffer(profileId, template, index = 0, dateKey = '')
 }
 
 /**
- * Rotating shop: 12 Rare + 8 Epic individual gear offers.
- * Each offer is one piece (e.g. Iron Guard Helm), not a full set.
+ * Canonical slot order — each shop set group is built in this order so
+ * the player can always see Head → Body → Weapon → Hand → Legs at a glance.
+ */
+const SHOP_SLOT_ORDER = ['head', 'body', 'weapon', 'hand', 'legs'];
+
+function uniqueSetIdsInOrder(pool) {
+  const out = [];
+  const seen = new Set();
+  for (const t of pool) {
+    if (!seen.has(t.setId)) {
+      seen.add(t.setId);
+      out.push(t.setId);
+    }
+  }
+  return out;
+}
+
+/** Deterministic rotating pick of `count` set ids from a rarity pool. */
+function pickFeaturedSets(pool, count, daySeed) {
+  const ids = uniqueSetIdsInOrder(pool);
+  if (!ids.length) return [];
+  const out = [];
+  const used = new Set();
+  for (let i = 0; i < count && out.length < ids.length; i += 1) {
+    const idx = (daySeed + i * 3) % ids.length;
+    let pick = ids[idx];
+    let cursor = idx;
+    while (used.has(pick) && used.size < ids.length) {
+      cursor = (cursor + 1) % ids.length;
+      pick = ids[cursor];
+    }
+    used.add(pick);
+    out.push(pick);
+  }
+  return out;
+}
+
+/** Pick one template for a slot from a set pool — deterministic per day. */
+function pickSlotTemplate(setTemplates, slot, seed) {
+  const variants = setTemplates.filter((t) => t.slot === slot);
+  if (!variants.length) return null;
+  return variants[seed % variants.length];
+}
+
+/**
+ * Build the 5 shop offers for one featured set — one per slot type
+ * (Head, Body, Weapon, Hand, Legs) in canonical order.
+ */
+function emitSetOffers(profileId, setTemplates, daySeed, dateKey, baseIndex) {
+  const offers = [];
+  SHOP_SLOT_ORDER.forEach((slot, s) => {
+    const tpl = pickSlotTemplate(setTemplates, slot, daySeed + s * 13);
+    if (!tpl) return;
+    offers.push(buildShopGearOffer(profileId, tpl, baseIndex + s, dateKey));
+  });
+  return offers;
+}
+
+/**
+ * Daily shop catalog.
+ *
+ * Each featured set always contributes exactly 5 offers (one per slot type:
+ * Head, Body, Weapon, Hand, Legs) so the player can see complete set coverage
+ * at a glance.
+ *
+ * Configuration:
+ *   - 3 featured Rare sets per day → 15 Rare offers
+ *   - 2 featured Epic sets per day → 10 Epic offers
+ *   - Mythic gear is not sold in the shop (chest drops only).
  */
 export function buildGearShopCatalog(profileId = '') {
   const rarePool = gearTemplatesForShopRarity('rare');
@@ -175,20 +242,26 @@ export function buildGearShopCatalog(profileId = '') {
   const dateKey = new Date().toISOString().slice(0, 10);
   const daySeed = profileId ? hashSeed(`${profileId}_${dateKey}`) : 0;
 
-  const pickRotating = (pool, count) => {
-    if (!pool.length) return [];
-    const offers = [];
-    for (let i = 0; i < count; i += 1) {
-      const idx = (daySeed + i * 7) % pool.length;
-      offers.push(buildShopGearOffer(profileId, pool[idx], i, dateKey));
-    }
-    return offers;
-  };
+  const rareSetIds = pickFeaturedSets(rarePool, 3, daySeed);
+  const epicSetIds = pickFeaturedSets(epicPool, 2, daySeed + 11);
 
-  return {
-    rareOffers: pickRotating(rarePool, 12),
-    epicOffers: pickRotating(epicPool, 8),
-  };
+  const rareOffers = [];
+  rareSetIds.forEach((setId, i) => {
+    const setTemplates = rarePool.filter((t) => t.setId === setId);
+    rareOffers.push(
+      ...emitSetOffers(profileId, setTemplates, daySeed + i * 17, dateKey, i * 5),
+    );
+  });
+
+  const epicOffers = [];
+  epicSetIds.forEach((setId, i) => {
+    const setTemplates = epicPool.filter((t) => t.setId === setId);
+    epicOffers.push(
+      ...emitSetOffers(profileId, setTemplates, daySeed + i * 19 + 100, dateKey, i * 5 + 50),
+    );
+  });
+
+  return { rareOffers, epicOffers };
 }
 
 export function formatGearStatLines(stats) {

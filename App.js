@@ -651,19 +651,42 @@ export default function App() {
     applyAudioSettings();
     initAudio();
     void loadSaveApiConfig();
-    loadGameSave().then(async (gd) => {
-      const activeId = gd.session?.activeProfileId ?? gd.players?.[0]?.id ?? null;
-      let normalized = activeId ? enforceSingleActiveProfile(gd, activeId) : gd;
-      if (activeId) {
-        const profile = getPlayerProfile(normalized, activeId);
-        if (profile) repairPlayerProfileInventory(profile);
-        normalized = (await refreshCloudIfBehind(normalized, activeId, { quiet: true })).gameData;
-      }
-      setGameData(normalized);
-      setSetupP1ProfileId(activeId);
-      setSetupP2ProfileId(null);
-      syncSetupMonstersFromProfiles(normalized, activeId, null, 'onePlayer');
-    });
+    loadGameSave()
+      .then(async (gd) => {
+        const activeId = gd.session?.activeProfileId ?? gd.players?.[0]?.id ?? null;
+        let normalized = activeId ? enforceSingleActiveProfile(gd, activeId) : gd;
+        if (activeId) {
+          try {
+            const profile = getPlayerProfile(normalized, activeId);
+            if (profile) repairPlayerProfileInventory(profile);
+          } catch (err) {
+            console.warn('[boot] repairPlayerProfileInventory failed', err);
+          }
+          try {
+            normalized = (await refreshCloudIfBehind(normalized, activeId, { quiet: true })).gameData;
+          } catch (err) {
+            console.warn('[boot] refreshCloudIfBehind failed', err);
+          }
+        }
+        setGameData(normalized);
+        setSetupP1ProfileId(activeId);
+        setSetupP2ProfileId(null);
+        try {
+          syncSetupMonstersFromProfiles(normalized, activeId, null, 'onePlayer');
+        } catch (err) {
+          console.warn('[boot] syncSetupMonstersFromProfiles failed', err);
+        }
+      })
+      .catch((err) => {
+        console.warn('[boot] loadGameSave failed', err);
+        // Fall back to an empty game state so the UI does not hang on a blank screen.
+        try {
+          const fallback = { players: [], guest: null, session: {}, meta: {} };
+          setGameData(fallback);
+        } catch (e2) {
+          console.warn('[boot] could not set fallback gameData', e2);
+        }
+      });
   }, []);
 
   const activeProfileId = gameData?.session?.activeProfileId ?? null;
@@ -2157,6 +2180,18 @@ export default function App() {
             setPhase('menu');
           }}
         />
+      </SafeAreaView>
+    );
+  }
+
+  if (!gameData) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar style="dark" />
+        <View style={styles.versionGate}>
+          <Text style={styles.versionGateTitle}>Loading your save…</Text>
+          <Text style={styles.versionGateHint}>Please wait a moment.</Text>
+        </View>
       </SafeAreaView>
     );
   }

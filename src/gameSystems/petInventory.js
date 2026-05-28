@@ -70,13 +70,15 @@ export function ensurePetInventory(profile) {
 }
 
 export function findOwnedPet(profile, instanceId) {
+  if (!profile) return null;
   ensurePetInventory(profile);
-  return profile.ownedPets.find((p) => p.instanceId === instanceId) ?? null;
+  return (profile.ownedPets || []).find((p) => p.instanceId === instanceId) ?? null;
 }
 
 export function petEquippedToMonster(profile, monsterId) {
+  if (!profile) return null;
   ensurePetInventory(profile);
-  return profile.ownedPets.find((p) => p.equippedToMonsterId === monsterId) ?? null;
+  return (profile.ownedPets || []).find((p) => p.equippedToMonsterId === monsterId) ?? null;
 }
 
 export function monsterNameForPet(profile, monsterId) {

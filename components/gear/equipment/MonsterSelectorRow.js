@@ -22,7 +22,7 @@ export default function MonsterSelectorRow({ monsters, selectedId, onSelect }) {
             onPress={() => onSelect?.(m.id)}
             activeOpacity={0.88}
           >
-            <MonsterPreview templateId={m.templateId} monsterParts={m.monsterParts} size={32} mood="happy" />
+            <MonsterPreview parts={m.monsterParts} size={32} mood="happy" />
             <Text style={[styles.name, on && styles.nameOn]} numberOfLines={1}>
               {m.nickname || m.templateId}
             </Text>
