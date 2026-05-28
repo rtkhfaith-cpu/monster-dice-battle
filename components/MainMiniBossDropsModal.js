@@ -1,70 +1,147 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { RARITY_ORDER } from '../utils/monsterTemplates';
-import {
-  MAIN_MINI_BOSS_CHANCE,
-  MAIN_MINI_BOSS_CHEST_ROWS,
-  MAIN_MINI_BOSS_MONSTER_RARITY_ROWS,
-  MAIN_MINI_BOSS_MONSTER_RARITY_WEIGHTS,
-  MAIN_MINI_BOSS_STAT_MULT,
-} from '../utils/mainBattleChest';
+import { MAIN_MINI_BOSS_CHANCE, MAIN_MINI_BOSS_STAT_MULT } from '../utils/mainBattleChest';
+
+const TOPICS = [
+  {
+    id: 'mini_boss',
+    label: 'Mini Boss',
+    lines: [
+      `Appears in main CPU battles with ${Math.round(MAIN_MINI_BOSS_CHANCE * 100)}% chance.`,
+      `Mini boss power is about ${MAIN_MINI_BOSS_STAT_MULT}x a normal CPU opponent.`,
+      'Winning grants a chest reward on top of normal battle rewards.',
+    ],
+  },
+  {
+    id: 'monster_ladder',
+    label: 'Monster Ladder',
+    lines: [
+      'Progress through staged fights with mini boss and big boss checkpoints.',
+      'Earn ladder gold and shards for chest exchange and progression rewards.',
+      'Ladder has its own reward cadence and chest rules.',
+    ],
+  },
+  {
+    id: 'monster_rescue',
+    label: 'Monster Rescue',
+    lines: [
+      'Stage-based rescue mode with its own reward pacing.',
+      'Clears can grant chest rewards and progression materials.',
+      'Designed as an alternate progression path outside standard battle loops.',
+    ],
+  },
+  {
+    id: 'pet_system',
+    label: 'Pet System',
+    lines: [
+      'Pets add stat bonuses and combat modifiers to equipped monsters.',
+      'Pets can level up and provide different utility depending on rarity/skills.',
+      'Pet drops and pet EXP dust come from reward systems and chests.',
+    ],
+  },
+  {
+    id: 'skill_book_system',
+    label: 'Skill Book System',
+    lines: [
+      'Passive skill books are collected, then equipped per monster.',
+      'Books grant passive combat effects through passive resolver logic.',
+      'Slot limits apply, so loadout decisions matter.',
+    ],
+  },
+  {
+    id: 'equip_system',
+    label: 'Equip System',
+    lines: [
+      'Gear uses per-piece instances with rolled stats and rarity.',
+      'Set bonuses activate when matching set pieces are equipped together.',
+      'Core active gear stats include HP, Attack, Defense, Speed, Crit, Dodge, HitRate.',
+    ],
+  },
+  {
+    id: 'battle_system',
+    label: 'Battle System',
+    lines: [
+      'Battle uses core stats: HP, Attack/Magic, Defense, Agility/Speed, Crit, Dodge, HitRate.',
+      'HitRate is a flat stat and offsets Dodge directly (not a percent stat by itself).',
+      'Final dodge chance is derived from defender Dodge minus attacker HitRate, then clamped.',
+      'Damage and turn outcomes also include skills, passives, pets, and status effects.',
+    ],
+  },
+  {
+    id: 'gemming_system',
+    label: 'Gemming System',
+    lines: [
+      'Socket count is rolled on acquired gear and visible in inventory.',
+      'Shop hides socket count before purchase; sockets are revealed after buy/drop.',
+      'Socket-ready gear is intended for future gem insertion progression.',
+    ],
+  },
+  {
+    id: 'multiplayer',
+    label: 'Multiplayer',
+    lines: [
+      'Real-time battle mode with separate room/lobby flow.',
+      'Uses synchronized battle state and server-side battle resolution paths.',
+      'Progression and rewards are handled separately from solo CPU loops.',
+    ],
+  },
+  {
+    id: 'daily_spin',
+    label: 'Daily Spin',
+    lines: [
+      'Daily reward wheel gives coins, shards, chest rewards, and jackpots.',
+      'Some outcomes can include bonus systems such as gear/pet/book grants.',
+      'Spin claims are time-gated and tracked per reward day.',
+    ],
+  },
+];
 
 export default function MainMiniBossDropsModal({ visible, onClose }) {
-  const encounterPct = Math.round(MAIN_MINI_BOSS_CHANCE * 100);
+  const [topicId, setTopicId] = useState(TOPICS[0].id);
+  const activeTopic = useMemo(
+    () => TOPICS.find((t) => t.id === topicId) ?? TOPICS[0],
+    [topicId],
+  );
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <Text style={styles.title}>Main Battle · Mini Boss</Text>
+          <Text style={styles.title}>Game Info</Text>
           <Text style={styles.sub}>
-            Random CPU fights on the home screen can spawn a mini boss. Win to open the chest before results.
+            Select a topic to view a quick system explanation.
           </Text>
 
-          <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-            <Text style={styles.section}>Encounter</Text>
-            <View style={styles.infoBox}>
-              <Text style={styles.infoLine}>• {encounterPct}% chance per CPU battle (not multiplayer)</Text>
-              <Text style={styles.infoLine}>• Boss stats ≈ {MAIN_MINI_BOSS_STAT_MULT}× normal CPU power</Text>
-              <Text style={styles.infoLine}>• Lose or flee → next CPU battle is a normal fight (no mini boss)</Text>
-              <Text style={styles.infoLine}>• First battle after a full page reload never rolls mini boss</Text>
-            </View>
-
-            <Text style={styles.section}>Chest drop table (one roll per win)</Text>
-            {MAIN_MINI_BOSS_CHEST_ROWS.map((row) => (
-              <View key={row.id} style={styles.dropRow}>
-                <View style={styles.dropHead}>
-                  <Text style={styles.dropLabel}>{row.label}</Text>
-                  <Text style={styles.dropPct}>{row.chancePct}%</Text>
-                </View>
-                <Text style={styles.dropDetail}>{row.detail}</Text>
-              </View>
-            ))}
-
-            <Text style={styles.section}>Monster drop — rarity first (then random species)</Text>
-            <Text style={styles.infoLine}>
-              Base weights at Lv 36+ (lower levels only use tiers you have unlocked; % are renormalized):
-            </Text>
-            {RARITY_ORDER.map((rarity) => {
-              const w = MAIN_MINI_BOSS_MONSTER_RARITY_WEIGHTS[rarity] ?? 0;
-              const pct = Math.round((w / 100) * 1000) / 10;
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.topicRow}
+            contentContainerStyle={styles.topicRowContent}
+          >
+            {TOPICS.map((topic) => {
+              const on = topic.id === activeTopic.id;
               return (
-                <View key={rarity} style={styles.rarityRow}>
-                  <Text style={styles.rarityLv}>{rarity}</Text>
-                  <Text style={styles.rarityVal}>{pct}%</Text>
-                </View>
+                <TouchableOpacity
+                  key={topic.id}
+                  style={[styles.topicChip, on && styles.topicChipOn]}
+                  onPress={() => setTopicId(topic.id)}
+                  activeOpacity={0.86}
+                >
+                  <Text style={[styles.topicChipTxt, on && styles.topicChipTxtOn]}>{topic.label}</Text>
+                </TouchableOpacity>
               );
             })}
-            {MAIN_MINI_BOSS_MONSTER_RARITY_ROWS.map((row) => (
-              <View key={row.levelRange} style={styles.rarityRow}>
-                <Text style={styles.rarityLv}>Lv {row.levelRange}</Text>
-                <Text style={styles.rarityVal}>{row.rarities}</Text>
-              </View>
-            ))}
+          </ScrollView>
 
-            <Text style={styles.foot}>
-              Normal battle coins and EXP still apply. Mini boss chest is extra.
-            </Text>
+          <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+            <Text style={styles.section}>{activeTopic.label}</Text>
+            <View style={styles.infoBox}>
+              {activeTopic.lines.map((line) => (
+                <Text key={line} style={styles.infoLine}>
+                  • {line}
+                </Text>
+              ))}
+            </View>
           </ScrollView>
 
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.88}>
@@ -106,8 +183,36 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   scroll: {
-    marginTop: 12,
+    marginTop: 8,
     maxHeight: 420,
+  },
+  topicRow: {
+    marginTop: 10,
+    maxHeight: 44,
+  },
+  topicRowContent: {
+    paddingRight: 4,
+    gap: 8,
+  },
+  topicChip: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.45)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+  },
+  topicChipOn: {
+    borderColor: 'rgba(250, 204, 21, 0.65)',
+    backgroundColor: 'rgba(88, 28, 135, 0.6)',
+  },
+  topicChipTxt: {
+    color: '#cbd5e1',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  topicChipTxtOn: {
+    color: '#fff7ad',
   },
   section: {
     color: '#fbbf24',
@@ -128,60 +233,6 @@ const styles = StyleSheet.create({
     color: '#dbeafe',
     fontSize: 12,
     lineHeight: 17,
-  },
-  dropRow: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
-  },
-  dropHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dropLabel: {
-    color: '#f8fafc',
-    fontSize: 14,
-    fontWeight: '800',
-    flex: 1,
-  },
-  dropPct: {
-    color: '#fde047',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  dropDetail: {
-    color: '#94a3b8',
-    fontSize: 12,
-    marginTop: 4,
-    lineHeight: 17,
-  },
-  rarityRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  rarityLv: {
-    color: '#cbd5e1',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  rarityVal: {
-    color: '#e2e8f0',
-    fontSize: 13,
-    flex: 1,
-    textAlign: 'right',
-  },
-  foot: {
-    color: '#64748b',
-    fontSize: 11,
-    marginTop: 12,
-    marginBottom: 8,
-    lineHeight: 16,
   },
   closeBtn: {
     marginTop: 8,

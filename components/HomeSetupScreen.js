@@ -588,7 +588,7 @@ export default function HomeSetupScreen({
               </Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Mini boss chest drop table"
+                accessibilityLabel="Open game info"
                 style={({ pressed }) => [
                   styles.topHudLinkPress,
                   pressed && styles.topHudLinkPressed,
@@ -596,7 +596,7 @@ export default function HomeSetupScreen({
                 onPress={pressWithSound(() => setMiniBossDropsOpen(true))}
               >
                 <Text style={styles.topHudHint} numberOfLines={1}>
-                  Mini Boss drops ▾
+                  Game Info ▾
                 </Text>
               </Pressable>
             </View>
