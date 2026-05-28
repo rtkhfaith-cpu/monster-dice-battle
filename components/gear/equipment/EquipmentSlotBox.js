@@ -19,6 +19,7 @@ export default function EquipmentSlotBox({
   selected,
   onPress,
   compact,
+  widthOverride,
 }) {
   const ui = gear ? gearRarityUi(gear.rarity) : null;
   const mythic = gear && isMythicRarity(gear.rarity);
@@ -30,6 +31,7 @@ export default function EquipmentSlotBox({
       style={[
         styles.box,
         compact && styles.boxCompact,
+        widthOverride ? { width: widthOverride } : null,
         gear ? styles.filled : styles.empty,
         gear && { borderColor: ui.border },
         selected && styles.selected,

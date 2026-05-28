@@ -44,6 +44,9 @@ export default function MonsterEquipmentLayout({
   const slotWidth = compact ? 72 : 80;
   // Total width of the weapon row (Wpn1 + spacer + Wpn2).
   const outerRowWidth = slotWidth * 2 + sideGap * 2 + monsterSize;
+  // Widths for Pet/Skills/Legs (same size) and wider Head/Body.
+  const sideBoxWidth = compact ? 86 : 96;
+  const wideBoxWidth = compact ? 96 : 116;
 
   const SpacerCenter = () => (
     <View style={[styles.centerCol, { width: monsterSize, marginHorizontal: sideGap }]} />
@@ -61,6 +64,7 @@ export default function MonsterEquipmentLayout({
           selected={isSelected('head')}
           onPress={() => onSelectGearSlot('head', 0)}
           compact={compact}
+          widthOverride={wideBoxWidth}
         />
         <View>{skillSlotNode}</View>
       </View>
@@ -119,8 +123,8 @@ export default function MonsterEquipmentLayout({
         />
       </View>
 
-      {/* Row 4: LEG 1 · BODY (centered) · LEG 2 — same height */}
-      <View style={[styles.rowSides, styles.rowBottom]}>
+      {/* Row 4: LEG 1 · BODY (centered) · LEG 2 — outer edges aligned with Pet/Skills */}
+      <View style={[styles.rowBottomRow, { width: outerRowWidth }]}>
         <EquipmentSlotBox
           label="Leg 1"
           slotKey="legs"
@@ -128,27 +132,17 @@ export default function MonsterEquipmentLayout({
           selected={isSelected('legs', 0)}
           onPress={() => onSelectGearSlot('legs', 0)}
           compact={compact}
+          widthOverride={sideBoxWidth}
         />
-        <View
-          style={[
-            styles.centerCol,
-            {
-              width: monsterSize,
-              marginHorizontal: sideGap,
-              alignItems: 'center',
-              justifyContent: 'center',
-            },
-          ]}
-        >
-          <EquipmentSlotBox
-            label="Body"
-            slotKey="body"
-            gear={gear('body')}
-            selected={isSelected('body')}
-            onPress={() => onSelectGearSlot('body', 0)}
-            compact={compact}
-          />
-        </View>
+        <EquipmentSlotBox
+          label="Body"
+          slotKey="body"
+          gear={gear('body')}
+          selected={isSelected('body')}
+          onPress={() => onSelectGearSlot('body', 0)}
+          compact={compact}
+          widthOverride={wideBoxWidth}
+        />
         <EquipmentSlotBox
           label="Leg 2"
           slotKey="legs"
@@ -156,6 +150,7 @@ export default function MonsterEquipmentLayout({
           selected={isSelected('legs', 1)}
           onPress={() => onSelectGearSlot('legs', 1)}
           compact={compact}
+          widthOverride={sideBoxWidth}
         />
       </View>
     </View>
@@ -192,6 +187,13 @@ const styles = StyleSheet.create({
   rowBottom: {
     transform: [{ translateY: -4 }],
     marginBottom: 4,
+  },
+  rowBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+    transform: [{ translateY: -4 }],
   },
   centerCol: {},
   monsterCore: {
