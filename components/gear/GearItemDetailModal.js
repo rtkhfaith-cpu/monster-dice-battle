@@ -90,7 +90,7 @@ export default function GearItemDetailModal({
               <>
                 <Text style={styles.sectionTitle}>Sockets</Text>
                 <Text style={styles.statLine}>
-                  {sockets.length > 0 ? `${sockets.length} socket${sockets.length > 1 ? 's' : ''}` : 'No sockets'}
+                  {`Socket: ${Math.max(0, sockets.length)}`}
                 </Text>
               </>
             ) : null}

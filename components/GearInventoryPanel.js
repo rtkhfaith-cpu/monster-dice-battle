@@ -112,7 +112,7 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip }) {
                 <Text style={styles.cardStats}>{card.statLines.join(' · ')}</Text>
                 <View style={[styles.socketBadge, card.socketCount > 0 ? styles.socketBadgeOn : styles.socketBadgeOff]}>
                   <Text style={[styles.socketBadgeTxt, card.socketCount > 0 ? styles.socketBadgeTxtOn : styles.socketBadgeTxtOff]}>
-                    {card.socketCount > 0 ? `Sockets: ${card.socketCount}` : 'Sockets: 0'}
+                    {`Socket: ${Math.max(0, card.socketCount ?? 0)}`}
                   </Text>
                 </View>
                 <Text style={[styles.cardEquipped, equipped && styles.cardEquippedOn]}>

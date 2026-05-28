@@ -113,7 +113,7 @@ export default function CompatibleItemPanel({
                       <Text style={[styles.rowName, { color: ui.color }]}>{g.name}</Text>
                       <Text style={styles.rowMeta}>
                         {g.rarity} · {g.setName}
-                        {g.sockets?.length ? ` · ${g.sockets.length} socket` : ''}
+                        {` · Socket: ${Math.max(0, g.sockets?.length ?? 0)}`}
                       </Text>
                       <Text style={styles.rowStats}>{formatGearStatLines(g.stats).join(' · ')}</Text>
                       {onOther ? <Text style={styles.otherMon}>On another monster</Text> : null}
