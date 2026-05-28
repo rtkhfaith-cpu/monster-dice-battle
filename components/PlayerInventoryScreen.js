@@ -13,12 +13,14 @@ import { describePetSkill } from '../src/gameSystems/petSkills';
 import { formatBookLabel } from '../src/gameSystems/passiveInventory';
 import { getPassiveDescription } from '../src/gameSystems/passiveSkills';
 import GearInventoryPanel from './GearInventoryPanel';
+import GemManagerPanel from './GemManagerPanel';
 import { GEAR_UI, gearModalStyles, gearRarityUi } from './gear/gearUiTheme';
 
 const TABS = [
   { id: 'gear', label: 'Gear' },
   { id: 'pets', label: 'Pets' },
   { id: 'books', label: 'Skill books' },
+  { id: 'gems', label: 'Gems' },
 ];
 
 const PET_RARITY = { rare: '#60a5fa', epic: '#c084fc', mythic: '#f472b6' };
@@ -38,6 +40,9 @@ export default function PlayerInventoryScreen({
   onClose,
   onSell,
   onOpenEquip,
+  onUpgradeGem,
+  onEquipGem,
+  onUnequipGem,
 }) {
   const [tab, setTab] = useState('gear');
 
@@ -158,6 +163,16 @@ export default function PlayerInventoryScreen({
                   })
                 )}
               </ScrollView>
+            ) : null}
+
+            {tab === 'gems' ? (
+              <GemManagerPanel
+                profile={profile}
+                monsters={ownedMonsters}
+                onUpgrade={onUpgradeGem}
+                onEquip={onEquipGem}
+                onUnequip={onUnequipGem}
+              />
             ) : null}
           </View>
 

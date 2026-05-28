@@ -11,12 +11,15 @@ import {
 } from './gearSets';
 import { ensureMonsterEquipment } from './equipmentSystem';
 import { getGearInstance } from './inventoryGearUtils';
+import { sumEquippedGemStats } from '../gems/gemInventory';
 
 function sumGearFlatStats(gearInstances) {
   const flat = {
     hp: 0,
     attack: 0,
+    magicAttack: 0,
     defense: 0,
+    magicDefence: 0,
     speed: 0,
     crit: 0,
     dodge: 0,
@@ -45,9 +48,10 @@ function applyFlatGearToStats(baseStats, flat) {
     };
   }
   if (stats.magic?.min != null) {
+    const magicFromAttack = Math.floor(flat.attack * 0.6);
     stats.magic = {
-      min: stats.magic.min + Math.floor(flat.attack * 0.6),
-      max: stats.magic.max + Math.floor(flat.attack * 0.6),
+      min: stats.magic.min + magicFromAttack + flat.magicAttack,
+      max: stats.magic.max + magicFromAttack + flat.magicAttack,
     };
   }
   if (stats.def?.min != null) {
@@ -57,9 +61,10 @@ function applyFlatGearToStats(baseStats, flat) {
     };
   }
   if (stats.magicDef?.min != null) {
+    const magicDefFromDefense = Math.floor(flat.defense * 0.6);
     stats.magicDef = {
-      min: stats.magicDef.min + Math.floor(flat.defense * 0.6),
-      max: stats.magicDef.max + Math.floor(flat.defense * 0.6),
+      min: stats.magicDef.min + magicDefFromDefense + flat.magicDefence,
+      max: stats.magicDef.max + magicDefFromDefense + flat.magicDefence,
     };
   }
 
@@ -73,6 +78,37 @@ function applyFlatGearToStats(baseStats, flat) {
   stats.dodge = dodgeBase + flat.dodge;
   stats.dodgePct = stats.dodge;
   stats.hitRate = (stats.hitRate ?? 0) + flat.hitRate;
+
+  return stats;
+}
+
+/** Apply equipped-gem flat bonuses (gem stat keys → battle stat fields). */
+function applyGemStatsToStats(baseStats, gemFlat) {
+  if (!gemFlat) return baseStats;
+  const stats = { ...baseStats };
+
+  if (typeof stats.hp === 'number') stats.hp += gemFlat.hp || 0;
+  if (stats.attack?.min != null && gemFlat.attack) {
+    stats.attack = { min: stats.attack.min + gemFlat.attack, max: stats.attack.max + gemFlat.attack };
+  }
+  if (stats.magic?.min != null && gemFlat.magicAttack) {
+    stats.magic = { min: stats.magic.min + gemFlat.magicAttack, max: stats.magic.max + gemFlat.magicAttack };
+  }
+  if (stats.def?.min != null && gemFlat.defence) {
+    stats.def = { min: stats.def.min + gemFlat.defence, max: stats.def.max + gemFlat.defence };
+  }
+  if (stats.magicDef?.min != null && gemFlat.magicDefence) {
+    stats.magicDef = {
+      min: stats.magicDef.min + gemFlat.magicDefence,
+      max: stats.magicDef.max + gemFlat.magicDefence,
+    };
+  }
+  if (gemFlat.dodge) {
+    const dodgeBase = stats.dodge ?? stats.dodgePct ?? 0;
+    stats.dodge = dodgeBase + gemFlat.dodge;
+    stats.dodgePct = stats.dodge;
+  }
+  if (gemFlat.hitRate) stats.hitRate = (stats.hitRate ?? 0) + gemFlat.hitRate;
 
   return stats;
 }
@@ -100,6 +136,9 @@ export function computeFinalBattleStats(baseStats, profile, ownedMonster, equipp
 
   const flat = sumGearFlatStats(gearInstances);
   let stats = applyFlatGearToStats(baseStats, flat);
+
+  const gemFlat = sumEquippedGemStats(profile, ownedMonster);
+  stats = applyGemStatsToStats(stats, gemFlat);
 
   const setBonus = detectActiveGearSet(profile, equipment);
   stats = applyGearSetBonusToStats(stats, setBonus);

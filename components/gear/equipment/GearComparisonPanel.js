@@ -5,7 +5,9 @@ import { GEAR_UI, gearRarityUi } from '../gearUiTheme';
 
 const STAT_LABELS = {
   attack: 'ATK',
+  magicAttack: 'MAG',
   defense: 'DEF',
+  magicDefence: 'MDEF',
   hp: 'HP',
   speed: 'SPD',
   crit: 'Crit',

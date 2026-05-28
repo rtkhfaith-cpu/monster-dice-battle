@@ -45,15 +45,18 @@ export function applyDotStatus(fighter, type, { dotMaxHpPct, turns, healReductio
   return { ...fighter, statuses: dict, status: dict[type] };
 }
 
-/** Healing multiplier on target (burn anti-heal). */
+/** Healing multiplier on target (burn anti-heal + gear heal power). */
 export function healingMultiplier(fighter) {
   const dict = normalizeStatuses(fighter);
   const burn = dict.burn;
+  let mult = 1;
   if (burn && (burn.turnsLeft ?? 0) > 0) {
     const red = Math.min(80, burn.healReductionPct ?? 0);
-    return Math.max(0, 1 - red / 100);
+    mult = Math.max(0, 1 - red / 100);
   }
-  return 1;
+  const healBoost = fighter?.gearModifiers?.healPowerPct ?? 0;
+  if (healBoost) mult *= 1 + healBoost / 100;
+  return mult;
 }
 
 /** Tick ALL poison/burn DoTs at start of owner's turn. */

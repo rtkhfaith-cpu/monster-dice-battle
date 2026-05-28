@@ -103,6 +103,29 @@ const TOPICS = [
     ],
   },
   {
+    id: 'dungeons',
+    label: 'Dungeons',
+    lines: [
+      'End-game boss raids: bring 3 monsters in a formation — Position 1 Tanker (front), Position 2 Healer/Support (middle), Position 3 Damager (back).',
+      'Position 1 absorbs most single-target hits and takes reduced damage; a real Tanker there pulls extra aggro and gains more HP/reduction.',
+      'Position 2: only the pet on the middle monster applies team-wide support (heal/shield/cleanse). Damage pets always target the boss.',
+      'Correct role formation grants bonus stats and extra boss damage reduction — recommended but not mandatory.',
+      'Bosses use unique mechanics: stun, freeze, burn, debuffs, AOE, rage, and true damage. Death Knight (daily), Ice Queen (every 2 days), Black Dragon (every 3 days).',
+      'Drops scale by boss: Epic/Legendary, Mythic + Epic, and triple Mythic (Black Dragon). Mythic Gems drop only from Black Dragon.',
+    ],
+  },
+  {
+    id: 'gems',
+    label: 'Gems',
+    lines: [
+      'Gems boost monster stats: Attack, Magic Attack, Defence, Magic Defence, Dodge, Hit Rate, HP.',
+      'Each monster equips up to 3 gems: one Offensive, one Defensive, one Utility (in Inventory → Gems).',
+      'Gems are stackable. Duplicate copies upgrade a gem (2, 4, 8, 16… copies). Each level adds +10% value.',
+      'Rare gems: shop. Epic gems: chests and dungeon bosses. Mythic gems: Black Dragon dungeon boss only.',
+      'Equipped gem stats apply in every battle, including dungeons.',
+    ],
+  },
+  {
     id: 'daily_spin',
     label: 'Daily Spin',
     lines: [

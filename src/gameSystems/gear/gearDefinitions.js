@@ -6,12 +6,21 @@
 /** @typedef {'tank'|'attack'|'recovery'|'poison'|'fire'} GearBuildType */
 
 const BUILD_ALLOWED_STATS = {
-  tank: ['hp', 'defense', 'dodge', 'hitRate'],
-  attack: ['attack', 'crit', 'speed', 'hitRate'],
-  // Player-facing pools only include battle-proven active stats for now.
-  recovery: ['hp', 'defense', 'dodge', 'hitRate'],
-  poison: ['attack', 'speed', 'hitRate', 'crit'],
-  fire: ['attack', 'crit', 'speed', 'hitRate'],
+  tank: ['hp', 'defense', 'magicDefence', 'dodge', 'hitRate'],
+  attack: ['attack', 'magicAttack', 'crit', 'speed', 'hitRate'],
+  // Healers: sustain + magic support + evasion — no physical defense (tank identity).
+  recovery: ['hp', 'magicAttack', 'dodge', 'hitRate'],
+  poison: ['attack', 'magicAttack', 'speed', 'hitRate', 'crit'],
+  fire: ['attack', 'magicAttack', 'crit', 'speed', 'hitRate'],
+};
+
+/** Weighted roll bias per build type. */
+export const BUILD_STAT_WEIGHTS = {
+  tank: { hp: 2, defense: 3, magicDefence: 3, dodge: 2, hitRate: 1 },
+  recovery: { hp: 4, magicAttack: 3, dodge: 3, hitRate: 2 },
+  attack: { attack: 4, magicAttack: 3, crit: 3, speed: 2, hitRate: 1 },
+  fire: { attack: 3, magicAttack: 4, crit: 4, speed: 2, hitRate: 1 },
+  poison: { attack: 4, magicAttack: 2, speed: 3, crit: 2, hitRate: 2 },
 };
 
 const BUILD_EMOJI = {

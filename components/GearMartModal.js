@@ -12,6 +12,15 @@ import {
   gearRarityUi,
 } from './gear/gearUiTheme';
 import GearItemDetailModal from './gear/GearItemDetailModal';
+import {
+  RARE_GEM_SHOP_ITEMS,
+  rareGemShopPrice,
+  gemEmoji,
+  gemDisplayName,
+  gemStatValue,
+  GEM_STAT_LABELS,
+} from '../src/gameSystems/gems/gemDefinitions';
+import { parseGemKey } from '../src/gameSystems/gems/gemInventory';
 
 /** Stable set order based on gear definitions (rare sets first, then epic). */
 const SET_ORDER_INDEX = (() => {
@@ -65,6 +74,7 @@ export default function GearMartModal({
   onBuy,
   onBuyPassiveBook,
   onBuyPet,
+  onBuyGem,
 }) {
   const [shopTab, setShopTab] = useState('gear');
   const [rarityTab, setRarityTab] = useState('rare');
@@ -91,6 +101,7 @@ export default function GearMartModal({
               { id: 'gear', label: 'Gear' },
               { id: 'skills', label: 'Skills' },
               { id: 'pets', label: 'Pets' },
+              { id: 'gems', label: 'Gems' },
             ].map((t) => (
               <TouchableOpacity
                 key={t.id}
@@ -112,6 +123,54 @@ export default function GearMartModal({
           ) : null}
 
           {shopTab === 'pets' ? <PetShop coins={coins} onBuy={onBuyPet} /> : null}
+
+          {shopTab === 'gems' ? (
+            <>
+              <Text style={gearModalStyles.sub}>
+                Rare gems boost monster stats. Epic gems drop from chests and dungeon bosses; Mythic gems drop only from the Black Dragon dungeon boss. Upgrade gems with duplicate copies in Inventory → Gems.
+              </Text>
+              <ScrollView
+                style={styles.list}
+                contentContainerStyle={styles.listContent}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                {RARE_GEM_SHOP_ITEMS.map((key) => {
+                  const parsed = parseGemKey(key);
+                  if (!parsed) return null;
+                  const price = rareGemShopPrice(parsed.stat);
+                  const afford = (coins ?? 0) >= price;
+                  const value = gemStatValue(parsed.rarity, parsed.stat, 1);
+                  return (
+                    <View key={key} style={[gearModalStyles.row, styles.itemRow, { borderColor: '#0984e3' }]}>
+                      <View style={styles.emojiCol}>
+                        <Text style={{ fontSize: 26 }}>{gemEmoji(parsed.stat)}</Text>
+                      </View>
+                      <View style={styles.mid}>
+                        <Text style={[styles.name, { color: '#74b9ff' }]} numberOfLines={1}>
+                          {gemDisplayName(parsed.rarity, parsed.stat)}
+                        </Text>
+                        <Text style={styles.bonus} numberOfLines={1}>
+                          +{value} {GEM_STAT_LABELS[parsed.stat]} (Lv 1)
+                        </Text>
+                        <Text style={styles.price}>🪙 {price}</Text>
+                      </View>
+                      <View style={styles.actionsCol}>
+                        <TouchableOpacity
+                          style={[gearModalStyles.btnBuy, !afford && gearModalStyles.btnOff]}
+                          disabled={!afford}
+                          onPress={() => onBuyGem?.(key)}
+                          activeOpacity={0.86}
+                        >
+                          <Text style={gearModalStyles.btnBuyTxt}>Buy</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </>
+          ) : null}
 
           {shopTab === 'gear' ? (
             <>

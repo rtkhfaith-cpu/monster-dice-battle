@@ -110,6 +110,8 @@ export default function HomeSetupScreen({
   onStartGame,
   onOpenQuests,
   onOpenMonsterLadder,
+  onOpenDungeons,
+  dungeonsAvailable = false,
   onOpenMonsterGear,
   onEnterMultiplayer,
   onlineRoom,
@@ -645,7 +647,15 @@ export default function HomeSetupScreen({
               <FantasyButton label="Monster Mart" icon="●" style={styles.menuButtonThree} onPress={pressWithSound(onOpenMonsterMart)} />
               <FantasyButton label="Shop" icon="◆" style={styles.menuButtonFour} onPress={pressWithSound(onOpenGearMart)} />
               <FantasyButton label="Equip Gear" icon="▣" style={styles.menuButtonFive} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
-              <FantasyButton label="Login" icon="🔑" style={styles.menuButtonSix} onPress={pressWithSound(openLoginModal)} />
+              <FantasyButton
+                label={dungeonsAvailable ? 'Dungeons' : 'Coming Soon'}
+                icon={dungeonsAvailable ? '☠' : '⏳'}
+                variant="legendary"
+                style={styles.menuButtonSix}
+                disabled={!dungeonsAvailable}
+                onPress={dungeonsAvailable ? pressWithSound(onOpenDungeons) : undefined}
+              />
+              <FantasyButton label="Login" icon="🔑" style={styles.menuButtonSeven} onPress={pressWithSound(openLoginModal)} />
             </View>
 
             <BottomNavButton
@@ -899,6 +909,7 @@ const styles = StyleSheet.create({
   menuButtonFour: { top: '60.6%' },
   menuButtonFive: { top: '66.8%' },
   menuButtonSix: { top: '73%' },
+  menuButtonSeven: { top: '79.2%' },
   bottomNavButton: {
     position: 'absolute',
     zIndex: 40,

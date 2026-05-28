@@ -13,6 +13,7 @@ import {
   GEAR_TEMPLATES_BY_RARITY,
   gearTemplatesForShopRarity,
   getGearTemplate,
+  BUILD_STAT_WEIGHTS,
 } from './gearDefinitions';
 
 function newInstanceId() {
@@ -62,13 +63,39 @@ function rollSockets(rng, rarity) {
   }));
 }
 
+/** Pick a stat type using optional build weights (hp favored on recovery sets). */
+function pickStatFromPool(rng, pool, buildType) {
+  if (!pool.length) return null;
+  const weights = BUILD_STAT_WEIGHTS[buildType];
+  if (!weights) {
+    const idx = Math.floor(rng() * pool.length);
+    return pool.splice(idx, 1)[0];
+  }
+  const options = pool.filter((s) => weights[s] != null);
+  const pickFrom = options.length ? options : pool;
+  const total = pickFrom.reduce((sum, s) => sum + (weights[s] ?? 1), 0);
+  let roll = rng() * total;
+  for (const s of pickFrom) {
+    roll -= weights[s] ?? 1;
+    if (roll <= 0) {
+      const idx = pool.indexOf(s);
+      if (idx >= 0) pool.splice(idx, 1);
+      return s;
+    }
+  }
+  const fallback = pickFrom[pickFrom.length - 1];
+  const idx = pool.indexOf(fallback);
+  if (idx >= 0) pool.splice(idx, 1);
+  return fallback;
+}
+
 function rollStatsForTemplate(rng, template, rarity) {
   const count = GEAR_STAT_LINE_COUNT[rarity] ?? 1;
   const pool = [...(template.allowedStats || [])];
   const stats = [];
   for (let i = 0; i < count && pool.length; i += 1) {
-    const idx = Math.floor(rng() * pool.length);
-    const type = pool.splice(idx, 1)[0];
+    const type = pickStatFromPool(rng, pool, template.buildType);
+    if (!type) break;
     stats.push({ type, value: rollStatValue(rng, type, rarity) });
   }
   return stats;
@@ -274,7 +301,9 @@ export function formatGearStatLines(stats) {
   const hiddenPlayerStats = new Set(['healPower', 'firePower', 'poisonPower', 'skillPower']);
   const labels = {
     attack: 'ATK',
+    magicAttack: 'MAG',
     defense: 'DEF',
+    magicDefence: 'MDEF',
     hp: 'HP',
     speed: 'SPD',
     crit: 'Crit',

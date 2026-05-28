@@ -352,8 +352,22 @@ export function resolveStartOfTurnPassives(fighter) {
     }
   }
 
+  const gearRegenPct = f.gearModifiers?.regenHpPerTurn ?? 0;
+  if (gearRegenPct > 0) {
+    const maxHp = f.maxHp ?? f.stats?.hp ?? 100;
+    let heal = Math.round((maxHp * gearRegenPct) / 100);
+    heal = Math.round(heal * healingMultiplier(f));
+    const applied = clampHeal(heal, f);
+    if (applied > 0) {
+      f = { ...f, hp: f.hp + applied };
+      addPopup(popups, 'REGEN');
+      const setName = f.gearModifiers?.setName ?? f.activeSetBonus?.name ?? 'Set bonus';
+      battleLogEntries.push(`${f.displayName ?? 'Monster'} recovered ${applied} HP (${setName}).`);
+    }
+  }
+
   const healingApplied =
-    regenPassive && f.hp > (fighter.hp ?? 0) ? f.hp - (fighter.hp ?? 0) : 0;
+    f.hp > (fighter.hp ?? 0) ? f.hp - (fighter.hp ?? 0) : 0;
 
   return {
     fighter: f,

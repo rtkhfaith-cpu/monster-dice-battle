@@ -72,6 +72,18 @@ import {
   unequipPetFromMonster,
 } from '../src/gameSystems/petInventory';
 import { applyPetChestDrop } from './petChest';
+import {
+  ensureGemInventory,
+  grantGem,
+  grantGemByKey,
+  upgradeGem,
+  equipGem,
+  unequipGem,
+  parseGemKey,
+} from '../src/gameSystems/gems/gemInventory';
+import { RARE_GEM_SHOP_ITEMS, rareGemShopPrice } from '../src/gameSystems/gems/gemDefinitions';
+import { grantDungeonRewards } from './dungeon/dungeonRewards';
+import { getDungeonBoss } from './dungeon/dungeonBosses';
 import { getPetDef } from '../src/gameSystems/pets';
 import { getPassiveSkillDef } from '../src/gameSystems/passiveSkills';
 import { applyPassiveSkillBookDrop } from './passiveSkillChest';
@@ -330,6 +342,7 @@ export function repairPlayerProfileInventory(profile) {
   profile.monsterLadder = normalizeMonsterLadder(profile.monsterLadder, profile.ladderProgress);
   normalizeDailyLoginSpin(profile);
   ensurePetInventory(profile);
+  ensureGemInventory(profile);
   return consolidatePlayerMonstersToMain(profile);
 }
 
@@ -356,6 +369,7 @@ function normalizePlayerProfile(p) {
   normalizeDailyLoginSpin(p);
   ensurePassiveInventory(p);
   ensurePetInventory(p);
+  ensureGemInventory(p);
   if (typeof p.petExpDust !== 'number') p.petExpDust = 0;
   consolidatePlayerMonstersToMain(p);
   delete p.ladderProgress;
@@ -743,6 +757,71 @@ export function buyGearItem(gameData, playerId, gearId, rarity = 'rare', opts = 
   const res = buyGeneratedGear(wallet, gearId, rarity, opts);
   if (!res.ok) return { gameData: gd, error: res.error };
   return { gameData: gd, gear: res.gear, price: res.price };
+}
+
+/** Buy a Rare gem into the profile gem inventory (shop only). */
+export function buyGemForProfile(gameData, profileId, gemKeyId) {
+  const gd = cloneGameData(gameData);
+  const wallet = walletForProfile(gd, profileId);
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  if (!RARE_GEM_SHOP_ITEMS.includes(gemKeyId)) {
+    return { gameData: gd, error: 'This gem is not sold here.' };
+  }
+  const parsed = parseGemKey(gemKeyId);
+  if (!parsed || parsed.rarity !== 'rare') {
+    return { gameData: gd, error: 'Only Rare gems are sold in the shop.' };
+  }
+  const price = rareGemShopPrice(parsed.stat);
+  if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
+  const grant = grantGem(wallet, parsed.rarity, parsed.stat, 1);
+  if (!grant.ok) return { gameData: gd, error: grant.error || 'Cannot buy gem' };
+  wallet.coins -= price;
+  wallet.updatedAt = new Date().toISOString();
+  return { gameData: gd, gem: grant.gem, price };
+}
+
+/** Upgrade an owned gem one level (consumes duplicate copies). */
+export function upgradeGemForProfile(gameData, profileId, gemKeyId) {
+  const gd = cloneGameData(gameData);
+  const wallet = walletForProfile(gd, profileId);
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const res = upgradeGem(wallet, gemKeyId);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd, gem: res.gem, level: res.level };
+}
+
+export function equipGemForMonster(gameData, profileId, monsterId, gemKeyId) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const res = equipGem(profile, monsterId, gemKeyId);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd, slot: res.slot };
+}
+
+export function unequipGemForMonster(gameData, profileId, monsterId, slot) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const res = unequipGem(profile, monsterId, slot);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd };
+}
+
+/** Grant gem copies directly to a profile (used by chest / dungeon drops). */
+export function grantGemToProfile(profile, key, quantity = 1) {
+  return grantGemByKey(profile, key, quantity);
+}
+
+/** Roll + grant a dungeon boss's rewards into the profile. */
+export function claimDungeonRewards(gameData, profileId, bossId) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  if (!profile) return { gameData: gd, drops: [], error: 'Profile not found' };
+  const boss = getDungeonBoss(bossId);
+  if (!boss) return { gameData: gd, drops: [], error: 'Unknown dungeon boss' };
+  const res = grantDungeonRewards(profile, boss);
+  return { gameData: gd, drops: res.drops };
 }
 
 /** @deprecated slot unlock removed — fixed 7 equipment slots per monster */
@@ -1182,6 +1261,8 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
     applied.pet = grant.pet;
     applied.monsterChestShards = grant.monsterChestShards ?? 0;
     applied.ladderShardsTotal = grant.ladderShardsTotal ?? 0;
+  } else if (drop.kind === 'gem') {
+    grantGemToProfile(profile, drop.gemKey, 1);
   }
 
   return { gameData: gd, drop: applied };

@@ -16,6 +16,7 @@ import OnlineBattleScreen from './components/OnlineBattleScreen';
 import MonsterGearScreen from './components/MonsterGearScreen';
 import MonsterEquipmentScreen from './components/MonsterEquipmentScreen';
 import PlayerInventoryScreen from './components/PlayerInventoryScreen';
+import DungeonScreen from './components/DungeonScreen';
 import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
 import HomeSetupScreen from './components/HomeSetupScreen';
@@ -83,10 +84,15 @@ import {
   awardBattleRewards,
   applyMonsterRescueStageResult,
   claimMainBattleMiniBossChest,
+  claimDungeonRewards,
   buyGearItem,
   sellGearItem,
   buyPassiveSkillBook,
   buyPetForProfile,
+  buyGemForProfile,
+  upgradeGemForProfile,
+  equipGemForMonster,
+  unequipGemForMonster,
   buyMonster as purchaseMonsterRow,
   equipPassiveSkillOnMonster,
   equipPetForMonster,
@@ -837,6 +843,14 @@ export default function App() {
     return !isLadderLevelLockedUntilReset(getMonsterLadderState(profile));
   }, [gameData, setupP1ProfileId]);
 
+  /** Dungeons beta — only Charming can enter while testing. */
+  const dungeonsAvailable = useMemo(() => {
+    if (!gameData || !setupP1ProfileId) return false;
+    const profile = getPlayerProfile(gameData, setupP1ProfileId);
+    if (!profile) return false;
+    return String(profile.name ?? '').trim().toLowerCase() === 'charming';
+  }, [gameData, setupP1ProfileId]);
+
   function markProfileUnlocked(profileId) {
     if (profileId) unlockedProfileIdsRef.current.add(profileId);
   }
@@ -1353,6 +1367,29 @@ export default function App() {
     setInventoryOpen(true);
   }
 
+  function openDungeons() {
+    if (!setupP1ProfileId) {
+      showNotice('Dungeons', 'Select or create a player profile first.');
+      return;
+    }
+    if (!dungeonsAvailable) return;
+    unlockAudio();
+    setQuestHubOpen(false);
+    setPhase('dungeons');
+  }
+
+  /** Grant a dungeon boss's rewards, persist, and return the drop list for display. */
+  function handleClaimDungeonRewards(bossId) {
+    if (!gameData || !setupP1ProfileId) return [];
+    const res = claimDungeonRewards(gameData, setupP1ProfileId, bossId);
+    if (res.error) {
+      showNotice('Dungeon', res.error);
+      return [];
+    }
+    persistSave(res.gameData, 'dungeon_cleared', setupP1ProfileId);
+    return res.drops ?? [];
+  }
+
   function openEquipFromInventory() {
     setInventoryOpen(false);
     openMonsterGearForActiveSlot();
@@ -1367,6 +1404,49 @@ export default function App() {
     }
     persistSave(res.gameData, 'gear_sold', inventoryProfileId);
     showNotice('Gear sold', `+${res.coins} coins`);
+  }
+
+  function handleBuyGem(gemKeyId) {
+    if (!gameData) return;
+    const profileId = activeProfileId || setupP1ProfileId || null;
+    const res = buyGemForProfile(gameData, profileId, gemKeyId);
+    if (res.error) {
+      showNotice('Gem Shop', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gem_bought', profileId);
+    playSound('shop');
+  }
+
+  function handleUpgradeGem(gemKeyId) {
+    if (!gameData || !inventoryProfileId) return;
+    const res = upgradeGemForProfile(gameData, inventoryProfileId, gemKeyId);
+    if (res.error) {
+      showNotice('Gem Upgrade', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gem_upgraded', inventoryProfileId);
+    showNotice('Gem upgraded', `Now level ${res.level}`);
+  }
+
+  function handleEquipGem(monsterId, gemKeyId) {
+    if (!gameData || !inventoryProfileId) return;
+    const res = equipGemForMonster(gameData, inventoryProfileId, monsterId, gemKeyId);
+    if (res.error) {
+      showNotice('Equip Gem', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gem_equipped', inventoryProfileId);
+  }
+
+  function handleUnequipGem(monsterId, slot) {
+    if (!gameData || !inventoryProfileId) return;
+    const res = unequipGemForMonster(gameData, inventoryProfileId, monsterId, slot);
+    if (res.error) {
+      showNotice('Unequip Gem', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gem_unequipped', inventoryProfileId);
   }
 
   function handleBuyGearMart(gearId, rarity = 'rare', price = null, seed = null) {
@@ -2331,7 +2411,7 @@ export default function App() {
         onCancel={() => setNoticeDialog(null)}
         onConfirm={() => setNoticeDialog(null)}
       />
-      {phase !== 'menu' && phase !== 'ladder' && phase !== 'battle' && phase !== 'online' ? (
+      {phase !== 'menu' && phase !== 'ladder' && phase !== 'battle' && phase !== 'online' && phase !== 'dungeons' ? (
         <>
           <Text style={styles.gameTitle}>
             {RESCUE_PHASES.has(phase) ? 'Monster Rescue' : 'Monster Battle'}
@@ -2375,7 +2455,7 @@ export default function App() {
               ? styles.cardShellReward
             : phase === 'monsterRescue' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward'
               ? [styles.cardShellRescue, lobbyMobile && styles.cardShellRescueMobile]
-            : phase === 'menu' || phase === 'ladder'
+            : phase === 'menu' || phase === 'ladder' || phase === 'dungeons'
               ? [styles.cardShellMenu, lobbyMobile && styles.cardShellMenuMobile]
               : styles.cardShell
         }
@@ -2432,6 +2512,8 @@ export default function App() {
             onStartGame={startGameFromSetup}
             onOpenQuests={openQuests}
             onOpenMonsterLadder={openMonsterLadder}
+            onOpenDungeons={openDungeons}
+            dungeonsAvailable={dungeonsAvailable}
             ladderAvailable={ladderAvailable}
             onOpenMonsterGear={openMonsterGear}
             onlineRoom={onlineRoom}
@@ -2501,6 +2583,14 @@ export default function App() {
             }
             onBack={returnToQuestPicker}
             onStartStage={startMonsterRescueStage}
+          />
+        ) : null}
+
+        {phase === 'dungeons' && dungeonsAvailable ? (
+          <DungeonScreen
+            profile={setupP1ProfileId ? getPlayerProfile(gameData, setupP1ProfileId) : null}
+            onExit={() => setPhase('menu')}
+            onClaimRewards={handleClaimDungeonRewards}
           />
         ) : null}
 
@@ -2754,6 +2844,9 @@ export default function App() {
         onClose={() => setInventoryOpen(false)}
         onSell={handleSellInventoryGear}
         onOpenEquip={openEquipFromInventory}
+        onUpgradeGem={handleUpgradeGem}
+        onEquipGem={handleEquipGem}
+        onUnequipGem={handleUnequipGem}
       />
 
       <MonsterGearScreen
@@ -2807,6 +2900,7 @@ export default function App() {
         onBuy={handleBuyGearMart}
         onBuyPassiveBook={handleBuyPassiveSkillBook}
         onBuyPet={handleBuyPet}
+        onBuyGem={handleBuyGem}
       />
 
       <MonsterMarketModal

@@ -34,6 +34,7 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
     equipment: om.equipment ?? defaultMonsterEquipment(),
     unlockedVisualTags: Array.isArray(om.unlockedVisualTags) ? om.unlockedVisualTags : [],
     equippedPassives: Array.isArray(om.equippedPassives) ? om.equippedPassives : [],
+    equippedGems: om.equippedGems ?? { offensive: null, defensive: null, utility: null },
   }));
 
   const playerKey = normalizePlayerKey(p.pin || p.playerKey || '');
@@ -53,6 +54,7 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
     syncActivityExp: syncActivity.exp,
     syncActivity: { level: syncActivity.level, exp: syncActivity.exp },
     gearInventory: Array.isArray(p.gearInventory) ? p.gearInventory : [],
+    gemInventory: Array.isArray(p.gemInventory) ? p.gemInventory : [],
     passiveSkillBooksOwned: Array.isArray(p.passiveSkillBooksOwned) ? p.passiveSkillBooksOwned : [],
     equippedPassiveSkills: p.equippedPassiveSkills ?? {},
     passiveSkillBookDropHistory: Array.isArray(p.passiveSkillBookDropHistory)
@@ -156,7 +158,10 @@ export function applyCloudProfile(gameData, cloud) {
     equipment: om.equipment ?? defaultMonsterEquipment(),
     unlockedVisualTags: om.unlockedVisualTags ?? [],
     equippedPassives: om.equippedPassives ?? [],
+    equippedGems: om.equippedGems ?? { offensive: null, defensive: null, utility: null },
   }));
+
+  p.gemInventory = Array.isArray(normalized.gemInventory) ? normalized.gemInventory : p.gemInventory ?? [];
 
   p.passiveSkillBooksOwned = Array.isArray(normalized.passiveSkillBooksOwned)
     ? normalized.passiveSkillBooksOwned

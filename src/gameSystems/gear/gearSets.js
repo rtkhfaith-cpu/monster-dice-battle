@@ -60,9 +60,11 @@ export const GEAR_SET_BONUSES = {
   lifebloom: {
     setId: 'lifebloom',
     name: 'Lifebloom Set',
-    description: '+10% HP and +8% Defense',
+    description: '+10% HP, +8% Defense, recover 3% max HP per turn, +12% healing',
     hpPct: 10,
     defensePct: 8,
+    regenHpPerTurn: 3,
+    healPowerPct: 12,
   },
   venomfang: {
     setId: 'venomfang',
@@ -97,10 +99,12 @@ export const GEAR_SET_BONUSES = {
   eternal_bloom: {
     setId: 'eternal_bloom',
     name: 'Eternal Bloom Set',
-    description: '+15% HP, +12% Defense, and +4 Dodge',
+    description: '+15% HP, +12% Defense, +4 Dodge, recover 5% max HP per turn, +18% healing',
     hpPct: 15,
     defensePct: 12,
     dodgeFlat: 4,
+    regenHpPerTurn: 5,
+    healPowerPct: 18,
   },
   abyss_venom: {
     setId: 'abyss_venom',

@@ -43,4 +43,8 @@ export const GAME_ASSETS = {
   },
   chestClosed: '/assets/others/chest_close.png',
   chestOpen: '/assets/others/chest_open.png',
+  /** Dungeon boss raid art — must match the exact files in public/assets/dungeons. */
+  dungeonDeathKnight: '/assets/dungeons/Death knight.png',
+  dungeonIceQueen: '/assets/dungeons/Ice Queen.png',
+  dungeonBlackDragon: '/assets/dungeons/Black dragon.png',
 };

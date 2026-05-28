@@ -16,7 +16,9 @@ export const GEAR_RARITY_COLORS = {
 
 export const GEAR_STAT_TYPES = [
   'attack',
+  'magicAttack',
   'defense',
+  'magicDefence',
   'hp',
   'speed',
   'crit',
@@ -36,7 +38,9 @@ export const GEAR_STAT_RANGES = {
   rare: {
     hp: [20, 40],
     attack: [3, 6],
+    magicAttack: [3, 6],
     defense: [3, 6],
+    magicDefence: [3, 6],
     speed: [1, 3],
     crit: [1, 3],
     dodge: [1, 3],
@@ -49,7 +53,9 @@ export const GEAR_STAT_RANGES = {
   epic: {
     hp: [45, 80],
     attack: [7, 12],
+    magicAttack: [7, 12],
     defense: [7, 12],
+    magicDefence: [7, 12],
     speed: [3, 6],
     crit: [3, 6],
     dodge: [3, 6],
@@ -62,7 +68,9 @@ export const GEAR_STAT_RANGES = {
   mythic: {
     hp: [90, 150],
     attack: [13, 22],
+    magicAttack: [13, 22],
     defense: [13, 22],
+    magicDefence: [13, 22],
     speed: [6, 10],
     crit: [6, 10],
     dodge: [6, 10],

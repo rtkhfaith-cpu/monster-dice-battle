@@ -8,6 +8,7 @@ import { profileOwnsMonsterTemplate } from './monsterLadder/ladderProfile';
 import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
 import { rollPassiveSkillBookDrop } from './passiveSkillChest';
 import { rollPetChestDrop, rollPetExpDustDrop } from './petChest';
+import { EPIC_GEM_DROP_RATES, GEM_STATS, gemKey, gemDisplayName } from '../src/gameSystems/gems/gemDefinitions';
 
 /** 20% chance for a main-menu CPU battle to spawn a catalog mini boss (testing). */
 export const MAIN_MINI_BOSS_CHANCE = 0.2;
@@ -215,6 +216,19 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
     return { kind: 'exp', amount, label: `${amount} bonus EXP`, rarity: 'rare' };
   }
 
+  // Epic gem chance (mini battle chest rate). Mythic gems never drop here.
+  if (Math.random() * 100 < EPIC_GEM_DROP_RATES.miniBattleChest) {
+    const stat = GEM_STATS[Math.floor(Math.random() * GEM_STATS.length)];
+    const key = gemKey('epic', stat);
+    return {
+      kind: 'gem',
+      gemKey: key,
+      rarity: 'epic',
+      label: `Epic ${stat} gem`,
+      gemName: gemDisplayName('epic', stat),
+    };
+  }
+
   const gear = pickChestGearInstance();
   if (gear) {
     return {
@@ -242,6 +256,7 @@ export function chestDropTitle(drop) {
   if (drop.kind === 'skill_book') return `Passive Skill Book: ${drop.name ?? drop.skillId}`;
   if (drop.kind === 'gold') return `${drop.amount} coins`;
   if (drop.kind === 'exp') return `${drop.amount} bonus EXP`;
+  if (drop.kind === 'gem') return drop.gemName ?? drop.label ?? 'Gem';
   if (drop.kind === 'gear' || drop.kind === 'gear_instance') {
     return drop.name ?? drop.gear?.name ?? 'Gear';
   }
@@ -267,6 +282,7 @@ export function chestDropSubtitle(drop) {
   if (drop.kind === 'skill_book_duplicate') return 'You already know this passive — converted to bonus coins';
   if (drop.kind === 'gold') return 'Gold from the chest';
   if (drop.kind === 'exp') return 'Experience for your fighter';
+  if (drop.kind === 'gem') return 'Added to your gems — upgrade in Inventory → Gems';
   if (drop.kind === 'gear' || drop.kind === 'gear_instance') {
     const lines = drop.statLines?.join(' · ') ?? (drop.gear?.stats || []).map((s) => `+${s.value} ${s.type}`).join(' · ');
     const sockets = drop.socketCount ?? drop.gear?.sockets?.length ?? 0;
