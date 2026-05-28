@@ -117,6 +117,7 @@ export default function HomeSetupScreen({
   onLeaveOnlineRoom,
   onOpenOnlineLobby,
   onOpenMonsterGearShop,
+  onOpenInventory,
   onOpenGearMart,
   onOpenMonsterMart,
   onSelectProfile,
@@ -654,7 +655,7 @@ export default function HomeSetupScreen({
               highlight={ladderAvailable}
               onPress={pressWithSound(onOpenQuests || onOpenMonsterLadder)}
             />
-            <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenMonsterGearShop || onOpenMonsterGear)} />
+            <BottomNavButton label="Inventory" icon="▤" style={styles.bottomInventory} onPress={pressWithSound(onOpenInventory)} />
             <BottomNavButton label="Monsters" icon="♜" style={styles.bottomMonsters} onPress={pressWithSound(() => toggleTray('monsters'))} />
             <BottomNavButton label="Settings" icon="⚙" style={styles.bottomSettings} onPress={pressWithSound(onResetSave || onOpenAudioSettings)} />
 

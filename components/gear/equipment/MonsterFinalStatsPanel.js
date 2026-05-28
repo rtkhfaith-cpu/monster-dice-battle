@@ -5,7 +5,7 @@ import { GEAR_UI } from '../gearUiTheme';
 /**
  * Compact 2-row Battle Stats grid (player-facing active stats only).
  *
- * Row 1: HP   | ATK | DEF | SPD
+ * Row 1: HP   | ATK | DEF | MAG
  * Row 2: Crit | Dodge | HitRate | MP
  *
  * Pet base bonuses and combat modifiers appear as small footer lines so
@@ -22,15 +22,15 @@ export default function MonsterFinalStatsPanel({ fighter, compact }) {
   if (!fighter?.stats) return null;
   const { stats, gearBonuses, petBonuses, activeSetBonus, petCombatModifiers } = fighter;
 
-  const speedVal = stats.speed ?? stats.agility ?? 0;
   const dodgeVal = stats.dodge ?? stats.dodgePct ?? 0;
   const hitRateVal = stats.hitRate ?? 0;
+  const magicGearBonus = gearBonuses?.attack ? Math.floor(gearBonuses.attack * 0.6) : 0;
 
   const row1 = [
     { label: 'HP', display: String(stats.hp ?? 0), bonus: gearBonuses?.hp },
     { label: 'ATK', display: rangeLabel(stats.attack), bonus: gearBonuses?.attack },
     { label: 'DEF', display: rangeLabel(stats.def), bonus: gearBonuses?.defense },
-    { label: 'SPD', display: String(speedVal), bonus: gearBonuses?.speed },
+    { label: 'MAG', display: rangeLabel(stats.magic), bonus: magicGearBonus },
   ];
   const row2 = [
     { label: 'Crit', display: `${stats.critPct ?? 0}%`, bonus: gearBonuses?.crit },

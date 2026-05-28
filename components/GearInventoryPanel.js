@@ -26,7 +26,7 @@ const FILTERS = [
   { id: 'unequipped', label: 'Free' },
 ];
 
-export default function GearInventoryPanel({ profile, onSell, onOpenEquip }) {
+export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullHeight }) {
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('rarity');
 
@@ -75,7 +75,11 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip }) {
         ))}
       </View>
 
-      <ScrollView style={styles.list} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={[styles.list, fullHeight && styles.listFull]}
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+      >
         {list.length === 0 ? (
           <Text style={styles.muted}>No gear yet. Buy from the shop or earn from chests.</Text>
         ) : (
@@ -180,6 +184,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(14, 28, 52, 0.6)',
   },
   list: { maxHeight: 300 },
+  listFull: { flex: 1, maxHeight: undefined },
   muted: { color: GEAR_UI.muted, fontSize: 12, fontWeight: '800', textAlign: 'center', padding: 16, lineHeight: 18 },
   card: {
     padding: 12,

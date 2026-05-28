@@ -15,6 +15,7 @@ import BattleScreen, { AUTO_LEVEL_GRIND_MAX } from './components/BattleScreen';
 import OnlineBattleScreen from './components/OnlineBattleScreen';
 import MonsterGearScreen from './components/MonsterGearScreen';
 import MonsterEquipmentScreen from './components/MonsterEquipmentScreen';
+import PlayerInventoryScreen from './components/PlayerInventoryScreen';
 import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
 import HomeSetupScreen from './components/HomeSetupScreen';
@@ -213,6 +214,7 @@ export default function App() {
   const [winner, setWinner] = useState(null);
   const [battleKey, setBattleKey] = useState(0);
   const [gearOpen, setGearOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [equipmentOpen, setEquipmentOpen] = useState(false);
   const [gearMartOpen, setGearMartOpen] = useState(false);
   const [gearMonsterId, setGearMonsterId] = useState(null);
@@ -820,6 +822,14 @@ export default function App() {
     if (!gearProfile?.selectedMonsterId || !gearWallet?.ownedMonsters?.length) return null;
     return resolveBattleMonsterId(gearWallet.ownedMonsters, gearProfile.selectedMonsterId);
   }, [gearProfile, gearWallet]);
+  const inventoryProfileId = useMemo(() => {
+    if (gameMode === 'onePlayer') return setupP1ProfileId || slotProfileId;
+    return slotProfileId || setupP1ProfileId || activeProfileId;
+  }, [gameMode, setupP1ProfileId, slotProfileId, activeProfileId]);
+  const inventoryProfile = useMemo(
+    () => (inventoryProfileId && gameData ? getPlayerProfile(gameData, inventoryProfileId) : null),
+    [gameData, inventoryProfileId],
+  );
   const ladderAvailable = useMemo(() => {
     if (!gameData || !setupP1ProfileId) return false;
     const profile = getPlayerProfile(gameData, setupP1ProfileId);
@@ -1333,6 +1343,30 @@ export default function App() {
 
   function openMonsterGearForActiveSlot() {
     openMonsterGear(setupActiveSlot);
+  }
+
+  function openInventory() {
+    if (!inventoryProfileId) {
+      showNotice('Inventory', 'Select a player profile first.');
+      return;
+    }
+    setInventoryOpen(true);
+  }
+
+  function openEquipFromInventory() {
+    setInventoryOpen(false);
+    openMonsterGearForActiveSlot();
+  }
+
+  function handleSellInventoryGear(instanceId) {
+    if (!gameData || !inventoryProfileId) return;
+    const res = sellGearItem(gameData, inventoryProfileId, instanceId);
+    if (res.error) {
+      showNotice('Sell gear', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gear_sold', inventoryProfileId);
+    showNotice('Gear sold', `+${res.coins} coins`);
   }
 
   function handleBuyGearMart(gearId, rarity = 'rare', price = null, seed = null) {
@@ -2428,6 +2462,7 @@ export default function App() {
               }
             }}
             onOpenMonsterGearShop={openMonsterGearForActiveSlot}
+            onOpenInventory={openInventory}
             onOpenGearMart={() => void openGearMart()}
             onOpenMonsterMart={() => void openMonsterMart()}
             onOpenAudioSettings={() => setPhase('audioSettings')}
@@ -2706,6 +2741,19 @@ export default function App() {
           setLadderChestAutoReveal(false);
           setLadderChestKicker('Monster Ladder Chest');
         }}
+      />
+
+      <PlayerInventoryScreen
+        visible={inventoryOpen}
+        profile={inventoryProfile}
+        coins={
+          inventoryProfileId && gameData
+            ? walletForProfile(gameData, inventoryProfileId)?.coins
+            : coins
+        }
+        onClose={() => setInventoryOpen(false)}
+        onSell={handleSellInventoryGear}
+        onOpenEquip={openEquipFromInventory}
       />
 
       <MonsterGearScreen
