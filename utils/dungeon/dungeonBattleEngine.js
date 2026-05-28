@@ -145,8 +145,8 @@ function aliveMonsters(state) {
   return state.monsters.filter((m) => m.alive && m.hp > 0);
 }
 
-function logLine(state, text, kind = 'info') {
-  state.log.push({ id: nextLogId(), text, kind });
+function logLine(state, text, kind = 'info', action = null) {
+  state.log.push({ id: nextLogId(), text, kind, action });
 }
 
 /** Choose a single-target victim using the spec's weighted rules. */
@@ -211,7 +211,13 @@ function bossHitMonster(state, monster, skill, { isAoe = false } = {}) {
     if (monster.statuses.speedDodgeDown) dodge = Math.max(0, dodge - monster.statuses.speedDodgeDown.value);
     const dodgeChance = clamp(dodge - bossHitRate(state), 0, 60);
     if (!isAoe && rollPct(dodgeChance)) {
-      logLine(state, `${monster.name} dodged ${skill.name}!`, 'dodge');
+      logLine(state, `${monster.name} dodged ${skill.name}!`, 'dodge', {
+        type: 'attack',
+        source: 'boss',
+        targetId: monster.id,
+        dodged: true,
+        skillName: skill.name,
+      });
       return 0;
     }
   }
@@ -236,7 +242,7 @@ function bossHitMonster(state, monster, skill, { isAoe = false } = {}) {
   monster.hp = Math.max(0, monster.hp - dmg);
   if (monster.hp <= 0) {
     monster.alive = false;
-    logLine(state, `${monster.name} was defeated!`, 'ko');
+    logLine(state, `${monster.name} was defeated!`, 'ko', { type: 'ko', targetId: monster.id });
   }
   return dmg;
 }
@@ -244,11 +250,11 @@ function bossHitMonster(state, monster, skill, { isAoe = false } = {}) {
 function applyControlEffect(state, monster, skill) {
   if (skill.type === 'stun' && rollPct(skill.stunChance ?? 0)) {
     monster.statuses.stun = Math.max(monster.statuses.stun ?? 0, skill.durationTurns ?? 1);
-    logLine(state, `${monster.name} is stunned!`, 'status');
+    logLine(state, `${monster.name} is stunned!`, 'status', { type: 'status', targetId: monster.id, status: 'stun' });
   }
   if (skill.type === 'freeze' && rollPct(skill.freezeChance ?? 0)) {
     monster.statuses.freeze = Math.max(monster.statuses.freeze ?? 0, skill.durationTurns ?? 1);
-    logLine(state, `${monster.name} is frozen!`, 'status');
+    logLine(state, `${monster.name} is frozen!`, 'status', { type: 'status', targetId: monster.id, status: 'freeze' });
   }
 }
 
@@ -256,10 +262,18 @@ function applyDebuff(state, monster, skill) {
   const turns = skill.durationTurns ?? 2;
   if (skill.effect === 'increaseDamageTaken') {
     monster.statuses.damageTakenPct = { turns, value: skill.value ?? 20 };
-    logLine(state, `${monster.name} is marked (+${skill.value ?? 20}% damage taken).`, 'status');
+    logLine(state, `${monster.name} is marked (+${skill.value ?? 20}% damage taken).`, 'status', {
+      type: 'status',
+      targetId: monster.id,
+      status: 'marked',
+    });
   } else if (skill.effect === 'reduceSpeedAndDodge') {
     monster.statuses.speedDodgeDown = { turns, value: skill.value ?? 25 };
-    logLine(state, `${monster.name}: speed & dodge reduced.`, 'status');
+    logLine(state, `${monster.name}: speed & dodge reduced.`, 'status', {
+      type: 'status',
+      targetId: monster.id,
+      status: 'slowed',
+    });
   }
 }
 
@@ -295,7 +309,12 @@ function maybeEnrage(state) {
   state.boss.enraged = true;
   state.boss.rageBoost = rageSkill.effect ?? {};
   state.boss.patternIndex = 0;
-  logLine(state, `${state.boss.name} ENRAGES! ${rageSkill.description}`, 'boss');
+  logLine(state, `${state.boss.name} ENRAGES! ${rageSkill.description}`, 'boss', {
+    type: 'skill',
+    source: 'boss',
+    skillName: 'Enrage',
+    enrage: true,
+  });
   return true;
 }
 
@@ -305,12 +324,16 @@ function monsterUpkeep(state, monster) {
   if (monster.statuses.burn) {
     const b = monster.statuses.burn;
     monster.hp = Math.max(0, monster.hp - b.dmg);
-    logLine(state, `${monster.name} takes ${b.dmg} burn damage.`, 'dot');
+    logLine(state, `${monster.name} takes ${b.dmg} burn damage.`, 'dot', {
+      type: 'dot',
+      targetId: monster.id,
+      damage: b.dmg,
+    });
     b.turns -= 1;
     if (b.turns <= 0) delete monster.statuses.burn;
     if (monster.hp <= 0) {
       monster.alive = false;
-      logLine(state, `${monster.name} burned to defeat!`, 'ko');
+      logLine(state, `${monster.name} burned to defeat!`, 'ko', { type: 'ko', targetId: monster.id });
       return { skip: true };
     }
   }
@@ -329,20 +352,32 @@ function monsterUpkeep(state, monster) {
     if (heal > 0) {
       monster.hp = Math.min(monster.maxHp, monster.hp + heal);
       const setName = monster.gearModifiers?.setName ?? 'Set bonus';
-      logLine(state, `${monster.name} recovered ${heal} HP (${setName}).`, 'heal');
+      logLine(state, `${monster.name} recovered ${heal} HP (${setName}).`, 'heal', {
+        type: 'heal',
+        targetId: monster.id,
+        amount: heal,
+      });
     }
   }
   // Stun / freeze consume the turn.
   if (monster.statuses.stun) {
     monster.statuses.stun -= 1;
     if (monster.statuses.stun <= 0) delete monster.statuses.stun;
-    logLine(state, `${monster.name} is stunned and cannot act.`, 'status');
+    logLine(state, `${monster.name} is stunned and cannot act.`, 'status', {
+      type: 'status',
+      targetId: monster.id,
+      status: 'stun',
+    });
     return { skip: true };
   }
   if (monster.statuses.freeze) {
     monster.statuses.freeze -= 1;
     if (monster.statuses.freeze <= 0) delete monster.statuses.freeze;
-    logLine(state, `${monster.name} is frozen and cannot act.`, 'status');
+    logLine(state, `${monster.name} is frozen and cannot act.`, 'status', {
+      type: 'status',
+      targetId: monster.id,
+      status: 'freeze',
+    });
     return { skip: true };
   }
   return { skip: false };
