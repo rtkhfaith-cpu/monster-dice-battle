@@ -120,56 +120,49 @@ export const GEAR_SET_BONUSES = {
   },
 };
 
-const MAIN_CATEGORIES = ['head', 'body', 'weapon', 'hand', 'legs'];
-
 function gearSetId(item) {
   return item?.setId ?? item?.set ?? null;
 }
 
-function equippedInstanceIds(equipment) {
-  if (!equipment) return [];
-  const ids = [];
-  if (equipment.head) ids.push(equipment.head);
-  if (equipment.body) ids.push(equipment.body);
-  for (const slot of ARRAY_GEAR_SLOTS) {
-    for (const id of equipment[slot] || []) {
-      if (id) ids.push(id);
-    }
-  }
-  return ids;
-}
-
 /**
- * Returns active set bonus if monster has ≥1 item from the same exact setId in each main category.
+ * Returns active set bonus only when monster has FULL 8-piece loadout:
+ * head (1), body (1), weapon (2), hand (2), legs (2),
+ * and every equipped piece matches the same exact setId and rarity.
  */
 export function detectActiveGearSet(profile, equipment) {
-  const ids = equippedInstanceIds(equipment);
-  if (!ids.length) return null;
+  if (!equipment) return null;
+  const slotRows = [
+    { slot: 'head', ids: [equipment.head] },
+    { slot: 'body', ids: [equipment.body] },
+    { slot: 'weapon', ids: equipment.weapon || [] },
+    { slot: 'hand', ids: equipment.hand || [] },
+    { slot: 'legs', ids: equipment.legs || [] },
+  ];
 
-  const bySet = {};
-  for (const instanceId of ids) {
-    const item = getGearInstance(profile, instanceId);
-    const setId = gearSetId(item);
-    if (!setId) continue;
-    if (!bySet[setId]) {
-      bySet[setId] = { head: false, body: false, weapon: false, hand: false, legs: false };
-    }
-    const cat = item.slot;
-    if (MAIN_CATEGORIES.includes(cat)) bySet[setId][cat] = true;
-  }
-
-  let best = null;
-  let bestScore = 0;
-  for (const [setId, cats] of Object.entries(bySet)) {
-    const complete = MAIN_CATEGORIES.every((c) => cats[c]);
-    if (!complete) continue;
-    const score = ids.filter((id) => gearSetId(getGearInstance(profile, id)) === setId).length;
-    if (!best || score > bestScore) {
-      best = setId;
-      bestScore = score;
+  const items = [];
+  for (const row of slotRows) {
+    const needed = row.slot === 'head' || row.slot === 'body' ? 1 : 2;
+    if (!Array.isArray(row.ids) || row.ids.length < needed) return null;
+    for (let i = 0; i < needed; i += 1) {
+      const id = row.ids[i];
+      if (!id) return null;
+      const item = getGearInstance(profile, id);
+      if (!item) return null;
+      if (item.slot !== row.slot) return null;
+      items.push(item);
     }
   }
-  return best ? GEAR_SET_BONUSES[best] ?? null : null;
+
+  if (items.length !== 8) return null;
+  const firstSetId = gearSetId(items[0]);
+  const firstRarity = items[0]?.rarity ?? null;
+  if (!firstSetId || !firstRarity) return null;
+
+  for (const item of items) {
+    if (gearSetId(item) !== firstSetId) return null;
+    if ((item?.rarity ?? null) !== firstRarity) return null;
+  }
+  return GEAR_SET_BONUSES[firstSetId] ?? null;
 }
 
 /**

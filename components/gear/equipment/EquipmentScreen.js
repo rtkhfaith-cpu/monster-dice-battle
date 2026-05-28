@@ -216,22 +216,23 @@ export default function EquipmentScreen({
             selectedSlot={selectedSlot}
             onSelectGearSlot={openGearSlot}
             compact={compact}
-          />
-        </View>
-
-        <View style={styles.petSkillRow}>
-          <PetSlotBox
-            pet={equippedPet}
-            selected={selectedSlot?.kind === 'pet'}
-            onPress={openPetSlot}
-            compact={compact}
-          />
-          <SkillSlotPanel
-            equippedPassives={equippedPassives}
-            slotLimit={passiveLimit}
-            selected={selectedSlot?.kind === 'skills'}
-            onPress={openSkillsSlot}
-            compact={compact}
+            petSlotNode={(
+              <PetSlotBox
+                pet={equippedPet}
+                selected={selectedSlot?.kind === 'pet'}
+                onPress={openPetSlot}
+                compact={compact}
+              />
+            )}
+            skillSlotNode={(
+              <SkillSlotPanel
+                equippedPassives={equippedPassives}
+                slotLimit={passiveLimit}
+                selected={selectedSlot?.kind === 'skills'}
+                onPress={openSkillsSlot}
+                compact={compact}
+              />
+            )}
           />
         </View>
 
@@ -293,14 +294,6 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   dim: { opacity: 0.92 },
-  petSkillRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 4,
-    marginBottom: 8,
-  },
   empty: { padding: 24, alignItems: 'center' },
   emptyTxt: { color: GEAR_UI.muted, fontWeight: '800', marginBottom: 16 },
 });

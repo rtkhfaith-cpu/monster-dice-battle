@@ -1,7 +1,8 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import MonsterPreview from '../../MonsterPreview';
 import EquipmentSlotBox from './EquipmentSlotBox';
+import { GEAR_UI } from '../gearUiTheme';
 
 /**
  * MMORPG-style equipment stage — monster centered, slots arranged neatly around.
@@ -20,6 +21,8 @@ export default function MonsterEquipmentLayout({
   selectedSlot,
   onSelectGearSlot,
   compact,
+  petSlotNode = null,
+  skillSlotNode = null,
 }) {
   const gear = (slot, index = 0) => {
     const id =
@@ -46,7 +49,8 @@ export default function MonsterEquipmentLayout({
   return (
     <View style={styles.stage}>
       {/* Row 1: HEAD */}
-      <View style={styles.rowCenter}>
+      <View style={styles.rowTop}>
+        <View style={styles.topSide}>{petSlotNode}</View>
         <EquipmentSlotBox
           label="Head"
           slotKey="head"
@@ -55,6 +59,7 @@ export default function MonsterEquipmentLayout({
           onPress={() => onSelectGearSlot('head', 0)}
           compact={compact}
         />
+        <View style={styles.topSide}>{skillSlotNode}</View>
       </View>
 
       {/* Row 2: WEAPON 1 · WEAPON 2 */}
@@ -99,6 +104,7 @@ export default function MonsterEquipmentLayout({
             size={monsterSize}
             mood="happy"
           />
+          <Text style={styles.levelTxt}>Lv {fighter?.level ?? 1}</Text>
         </View>
         <EquipmentSlotBox
           label="Hand 2"
@@ -110,19 +116,7 @@ export default function MonsterEquipmentLayout({
         />
       </View>
 
-      {/* Row 4: BODY (placed below monster, never overlapping) */}
-      <View style={styles.rowCenter}>
-        <EquipmentSlotBox
-          label="Body"
-          slotKey="body"
-          gear={gear('body')}
-          selected={isSelected('body')}
-          onPress={() => onSelectGearSlot('body', 0)}
-          compact={compact}
-        />
-      </View>
-
-      {/* Row 5: LEG 1 · LEG 2 */}
+      {/* Row 4: LEG 1 · BODY · LEG 2 (same height) */}
       <View style={styles.rowSides}>
         <EquipmentSlotBox
           label="Leg 1"
@@ -133,6 +127,14 @@ export default function MonsterEquipmentLayout({
           compact={compact}
         />
         <SpacerCenter />
+        <EquipmentSlotBox
+          label="Body"
+          slotKey="body"
+          gear={gear('body')}
+          selected={isSelected('body')}
+          onPress={() => onSelectGearSlot('body', 0)}
+          compact={compact}
+        />
         <EquipmentSlotBox
           label="Leg 2"
           slotKey="legs"
@@ -148,6 +150,13 @@ export default function MonsterEquipmentLayout({
 
 const styles = StyleSheet.create({
   stage: { alignItems: 'center', paddingVertical: 4 },
+  rowTop: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+    gap: 8,
+  },
   rowCenter: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -166,9 +175,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
+  topSide: {
+    minWidth: 116,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   centerCol: {},
   monsterCore: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: -20,
+  },
+  levelTxt: {
+    marginTop: -2,
+    color: GEAR_UI.accent,
+    fontSize: 11,
+    fontWeight: '900',
   },
 });
