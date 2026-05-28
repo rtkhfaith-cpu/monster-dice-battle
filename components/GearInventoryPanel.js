@@ -7,8 +7,7 @@ import {
 } from '../src/gameSystems/gear/inventoryGearUtils';
 import {
   GEAR_UI,
-  SET_EMOJI,
-  SLOT_ICONS,
+  emojiForGear,
   gearRarityUi,
   isMythicRarity,
 } from './gear/gearUiTheme';
@@ -96,7 +95,7 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip }) {
                 ]}
               >
                 <View style={styles.cardTop}>
-                  <Text style={styles.cardEmoji}>{SET_EMOJI[g.set] ?? SLOT_ICONS[g.slot] ?? '⚔️'}</Text>
+                  <Text style={styles.cardEmoji}>{emojiForGear(g)}</Text>
                   <View style={styles.cardMid}>
                     <Text style={[styles.cardName, { color: ui.color }]}>{card.name}</Text>
                     <View style={styles.cardMetaRow}>

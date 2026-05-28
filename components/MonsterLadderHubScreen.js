@@ -3,7 +3,8 @@ import { Image, ImageBackground, Platform, ScrollView, StyleSheet, Text, Touchab
 import MonsterPreview from './MonsterPreview';
 import { RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate, LADDER_MONSTER_CATALOG } from '../utils/monsterLadder/ladderMonsterCatalog';
-import { LADDER_GEAR_CATALOG } from '../utils/monsterLadder/ladderGearCatalog';
+import { GEAR_DROP_TABLES } from '../src/gameSystems/gear/gearConstants';
+import { GEAR_SETS_FOR_DISPLAY } from '../src/gameSystems/gear/gearDefinitions';
 import { getLadderTheme } from '../utils/monsterLadder/ladderLevelThemes';
 import { mergeLadderMonsterParts } from '../utils/monsterLadder/ladderProfile';
 import { computeLadderBattleStats } from '../utils/monsterLadder/ladderStatsCalc';
@@ -35,7 +36,25 @@ import {
   WEB_DECORATIVE_IMAGE_PROPS,
   WEB_GAME_TOUCH_STYLE,
 } from '../utils/webGameTouch';
-import { formatGearBonusLines } from '../utils/cosmetics';
+const BUILD_TYPE_LABELS = {
+  tank: 'Tank',
+  attack: 'Attack',
+  recovery: 'Recovery',
+  poison: 'Poison',
+  fire: 'Fire',
+};
+
+const GEAR_CHEST_RARITY_ORDER = ['rare', 'epic', 'mythic'];
+
+function formatGearChestRateLine() {
+  const table = GEAR_DROP_TABLES.ladder;
+  const total = GEAR_CHEST_RARITY_ORDER.reduce((s, r) => s + (table[r] ?? 0), 0);
+  if (!total) return 'Rare · Epic · Mythic';
+  return GEAR_CHEST_RARITY_ORDER.map((r) => {
+    const pct = ((table[r] ?? 0) / total) * 100;
+    return `${rarityLabel(r)} ${Number.isInteger(pct) ? pct : pct.toFixed(1)}%`;
+  }).join(' · ');
+}
 
 function opensUntilPityGate(opens, every) {
   const n = Math.max(0, Number(opens) || 0);
@@ -88,13 +107,13 @@ function buildLadderRulesLines(ml) {
 
     RULE_SECTION('Ladder gold'),
     `You earn gold only by winning ladder battles (not from chests). Amount scales with enemy level and boss type; early fights often give 1–3 gold. Your balance: ${gold}.`,
-    `Spend gold in Chest Exchange to buy a Gear Chest for ${gearGoldCost} gold. Gear chests drop ladder-exclusive items. Gold is separate from main-game coins.`,
+    `Spend gold in Chest Exchange to buy a Gear Chest for ${gearGoldCost} gold. Gear chests add random Rare, Epic, or Mythic pieces from the main gear sets to your profile stash. Gold is separate from main-game coins.`,
 
     RULE_SECTION('Ladder shards'),
     `Shards are the currency for Monster Chests. Your balance: ${shards}. Buy a Monster Chest in Chest Exchange for ${monShardCost} shards.`,
     'Monster chests drop ladder-exclusive monsters only (not main-roster shop monsters).',
-    'How to earn shards: opening Gear or Monster chests and getting duplicate ladder gear converts to shards (new gear is kept). Monster duplicates do not give shards yet.',
-    `Duplicate gear shards by rarity: ${dupeShards}.`,
+    'Gear chests use the main gear system (unique instances in profile gear stash). They do not convert duplicates into ladder shards.',
+    `Legacy duplicate ladder gear shard values (old catalog only): ${dupeShards}.`,
 
     RULE_SECTION('Pity system (bad-luck protection)'),
     'Each chest type has its own pity counter (total chests opened of that type, including free boss chests and bought chests). Pity never resets on the biweekly stage reset.',
@@ -175,7 +194,7 @@ function formatChestRateLine(weights = LADDER_RARITY_WEIGHTS) {
 
 function formatStats(stats) {
   if (!stats) return '';
-  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max} · HIT ${stats.hitRate ?? 92}% · AGI ${stats.agility ?? stats.speed ?? 10}`;
+  return `HP ${stats.hp} · MP ${stats.mp} · ATK ${stats.attack.min}-${stats.attack.max} · MAG ${stats.magic.min}-${stats.magic.max} · HIT RATE ${Math.round(stats.hitRate ?? 0)} · AGI ${stats.agility ?? stats.speed ?? 10}`;
 }
 
 function statGrid(stats) {
@@ -190,7 +209,7 @@ function statGrid(stats) {
     ],
     [
       ['DEF', range(stats.def)],
-      ['HIT', `${stats.hitRate ?? 92}%`],
+      ['HIT RATE', String(Math.round(stats.hitRate ?? 0))],
       ['AGI', stats.agility ?? stats.speed ?? 10],
     ],
   ];
@@ -249,31 +268,39 @@ function CatalogByRarity({ items, type, onItemPress }) {
   });
 }
 
-function CodexGearCard({ gear, onClose }) {
-  if (!gear) return null;
-  const ui = RARITY_UI[gear.rarity] ?? RARITY_UI.common;
-  const lines = formatGearBonusLines(gear);
-  return (
-    <View style={styles.codexCardOverlay}>
-      <View style={[styles.codexDetailCard, { borderColor: ui.border ?? '#facc15' }]}>
-        <TouchableOpacity style={styles.cardClose} onPress={onClose}>
-          <Text style={styles.cardCloseTxt}>×</Text>
-        </TouchableOpacity>
-        <Text style={styles.cardKicker}>Ladder Gear</Text>
-        <Text style={styles.codexDetailEmoji}>{gear.emoji}</Text>
-        <Text style={styles.cardName}>{gear.name}</Text>
-        <View style={styles.cardMetaRow}>
-          <Text style={[styles.cardBadge, { backgroundColor: ui.chipBg ?? '#334155', color: ui.chipFg ?? '#fff' }]}>
-            {ui.label ?? gear.rarity}
+function GearSetsCodex() {
+  return GEAR_CHEST_RARITY_ORDER.map((rarity) => {
+    const group = GEAR_SETS_FOR_DISPLAY.filter((s) => s.rarity === rarity);
+    if (!group.length) return null;
+    return (
+      <View key={`gear-sets-${rarity}`} style={styles.rarityGroup}>
+        <View style={styles.rarityGroupHeader}>
+          <Text style={[styles.rarityGroupTitle, { color: RARITY_TONE[rarity] ?? '#fff' }]}>
+            {rarityLabel(rarity)} tier
           </Text>
-          <Text style={styles.cardRole}>{gear.slot} · Chest drop</Text>
+          <Text style={styles.rarityGroupChance}>5 sets · 40 pieces each tier</Text>
         </View>
-        {lines.map((line) => (
-          <Text key={line} style={styles.codexDetailLine}>{line}</Text>
-        ))}
+        <View style={styles.catalogGrid}>
+          {group.map((set) => (
+            <View
+              key={set.setId}
+              style={[styles.catalogChip, styles.catalogChipSet, { borderColor: RARITY_TONE[rarity] ?? '#fff' }]}
+            >
+              <Text style={styles.catalogIcon}>{set.emoji}</Text>
+              <View style={styles.catalogCopy}>
+                <Text style={styles.catalogName} numberOfLines={2}>
+                  {set.setName}
+                </Text>
+                <Text style={[styles.catalogMeta, { color: RARITY_TONE[rarity] }]}>
+                  {BUILD_TYPE_LABELS[set.buildType] ?? set.buildType}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
       </View>
-    </View>
-  );
+    );
+  });
 }
 
 function CodexMonsterCard({ templateId, onClose }) {
@@ -351,12 +378,10 @@ function ChestOddsCard({ title, sub, type, rateWeights }) {
 }
 
 function RewardsCodexOverlay({ onClose }) {
-  const [detailGear, setDetailGear] = useState(null);
   const [detailMonsterId, setDetailMonsterId] = useState(null);
 
   function handleCatalogPress(item, type) {
-    if (type === 'gear') setDetailGear(item);
-    else setDetailMonsterId(item.id);
+    if (type === 'monster') setDetailMonsterId(item.id);
   }
 
   return (
@@ -375,16 +400,23 @@ function RewardsCodexOverlay({ onClose }) {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.codexScroll}>
           <Text style={styles.codexIntro}>
-            Beat Sub 5 Mini Bosses for Gear Chests. Beat Sub 10 Bosses for Monster Chests. Chest Exchange
-            purchases use the same rarity table. Duplicate ladder gear becomes shards.
+            Beat Sub 5 Mini Bosses for Gear Chests. Beat Sub 10 Bosses for Monster Chests. Gear chests add
+            randomized Rare, Epic, or Mythic gear to your profile stash (Iron Guard, Dragon Guard, and the other
+            main sets). Equip from Equipment on any monster. Monster chests still drop ladder-exclusive monsters.
           </Text>
 
           <View style={styles.codexRatesBlock}>
-            <Text style={styles.sectionTitle}>Drop rates (all chests)</Text>
+            <Text style={styles.sectionTitle}>Gear chest — rarity split</Text>
+            <Text style={styles.codexRatesLine}>{formatGearChestRateLine()}</Text>
+            <Text style={styles.codexRatesSub}>
+              Each gear chest rolls one random piece from the matching tier pool (Rare / Epic / Mythic sets). Stats
+              and sockets are rolled per item. Applies to boss rewards, stored chests, and Chest Exchange (
+              {LADDER_CHEST_GOLD_COST.gear} ladder gold).
+            </Text>
+            <Text style={styles.sectionTitle}>Monster chest — rarity tiers</Text>
             <Text style={styles.codexRatesLine}>{formatChestRateLine()}</Text>
             <Text style={styles.codexRatesSub}>
-              Applies to boss rewards, stored chests, and Chest Exchange ({LADDER_CHEST_GOLD_COST.gear} gold gear ·{' '}
-              {LADDER_CHEST_SHARD_COST.monster} shards monster).
+              Monster chest exchange costs {LADDER_CHEST_SHARD_COST.monster} ladder shards.
             </Text>
             <Text style={styles.codexRatesSub}>
               Pity (per chest type): Epic+ every {LADDER_PITY.epicPlusEvery} opens · Legendary+ every{' '}
@@ -394,27 +426,20 @@ function RewardsCodexOverlay({ onClose }) {
           </View>
 
           <View style={styles.oddsGrid}>
-            <ChestOddsCard title="Gear Chest" sub="Ladder-exclusive gear" type="gear" />
+            <ChestOddsCard title="Gear Chest" sub="Main gear sets → profile stash" type="gear" />
             <ChestOddsCard title="Monster Chest" sub="Ladder-exclusive monsters" type="monster" />
           </View>
 
-          <Text style={styles.sectionTitle}>Duplicate gear → shards</Text>
-          <View style={styles.shardStrip}>
-            {LADDER_RARITY_ORDER.map((rarity) => (
-              <View key={rarity} style={styles.shardPill}>
-                <Text style={[styles.shardRarity, { color: RARITY_TONE[rarity] ?? '#fff' }]}>{rarityLabel(rarity)}</Text>
-                <Text style={styles.shardValue}>{LADDER_SHARDS_BY_RARITY[rarity] ?? 0} shards</Text>
-              </View>
-            ))}
-          </View>
+          <Text style={styles.sectionTitle}>Gear chest — set pools</Text>
+          <Text style={styles.codexRatesSub}>
+            Old ladder-only items (Glitch Core, Sauce Cannon, etc.) are no longer dropped. Each open picks a random
+            piece from one of these sets.
+          </Text>
+          <GearSetsCodex />
 
-          <Text style={styles.sectionTitle}>Gear Chest Drops</Text>
-          <CatalogByRarity items={LADDER_GEAR_CATALOG} type="gear" onItemPress={handleCatalogPress} />
-
-          <Text style={styles.sectionTitle}>Monster Chest Drops</Text>
+          <Text style={styles.sectionTitle}>Monster chest drops</Text>
           <CatalogByRarity items={LADDER_MONSTER_CATALOG} type="monster" onItemPress={handleCatalogPress} />
         </ScrollView>
-        <CodexGearCard gear={detailGear} onClose={() => setDetailGear(null)} />
         <CodexMonsterCard templateId={detailMonsterId} onClose={() => setDetailMonsterId(null)} />
       </View>
     </View>
@@ -557,7 +582,7 @@ function ChestExchangeOverlay({
           </TouchableOpacity>
         </View>
         <Text style={styles.exchangeFoot}>
-          Gear chests cost ladder gold from wins. Monster chests cost shards from duplicate gear. Duplicate monsters are kept for future combine.
+          Gear chests cost ladder gold from wins and grant main-profile gear. Monster chests cost ladder shards. Duplicate monsters are kept for future combine.
         </Text>
       </View>
     </View>
@@ -1592,6 +1617,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 7,
+  },
+  catalogChipSet: {
+    minHeight: 52,
   },
   catalogChip: {
     width: '48%',

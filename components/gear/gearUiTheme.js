@@ -47,21 +47,37 @@ export const GEAR_UI = {
   slotSelected: 'rgba(255, 224, 138, 0.12)',
 };
 
+/** One icon per equipment slot — shown on equip screen, inventory, and shop. */
 export const SLOT_ICONS = {
-  head: '🪖',
-  body: '🦺',
-  weapon: '⚔️',
-  hand: '🧤',
-  legs: '👢',
+  head: '🪖', // helmet
+  body: '🦺', // body armor / vest
+  weapon: '⚔️', // weapons
+  hand: '🧤', // gloves
+  legs: '🥾', // boots / greaves
 };
 
-export const SET_EMOJI = {
-  guardian: '🛡️',
-  berserker: '⚔️',
-  lifebloom: '🌿',
-  venomfang: '🐍',
-  flameheart: '🔥',
+/** Build-type icons (shared across all 15 sets). */
+export const BUILD_TYPE_EMOJI = {
+  tank: '🛡️',
+  attack: '⚔️',
+  recovery: '🌿',
+  poison: '🐍',
+  fire: '🔥',
 };
+
+/** @deprecated Use emojiForGear — kept for legacy setId keys */
+export const SET_EMOJI = { ...BUILD_TYPE_EMOJI };
+
+export function emojiForGear(gearOrOffer) {
+  if (!gearOrOffer) return '⚔️';
+  if (gearOrOffer.buildType && BUILD_TYPE_EMOJI[gearOrOffer.buildType]) {
+    return BUILD_TYPE_EMOJI[gearOrOffer.buildType];
+  }
+  if (gearOrOffer.slot && SLOT_ICONS[gearOrOffer.slot]) {
+    return SLOT_ICONS[gearOrOffer.slot];
+  }
+  return '⚔️';
+}
 
 export function isMythicRarity(rarity) {
   return rarity === 'mythic';

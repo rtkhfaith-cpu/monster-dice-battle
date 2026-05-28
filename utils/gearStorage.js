@@ -29,18 +29,23 @@ export function normalizeProfileGear(profile) {
   }
 }
 
-/** Buy generated gear instance (Rare/Epic only). */
-export function buyGeneratedGear(profile, gearId, rarity) {
+/** Buy generated gear instance (Rare/Epic templates only). */
+export function buyGeneratedGear(profile, gearId, rarityHint = null) {
   normalizeProfileGear(profile);
-  if (!GEAR_SHOP_RARITIES.includes(rarity)) {
-    return { ok: false, error: 'Mythic gear cannot be purchased.' };
-  }
   const template = getGearTemplate(gearId);
   if (!template) return { ok: false, error: 'Unknown gear' };
+  if (!GEAR_SHOP_RARITIES.includes(template.rarity)) {
+    return { ok: false, error: 'Mythic gear cannot be purchased.' };
+  }
+  if (rarityHint && rarityHint !== template.rarity) {
+    return { ok: false, error: 'Gear rarity mismatch.' };
+  }
+
+  const rarity = template.rarity;
   const price = shopPriceForGear(rarity, `${profile.id}_${gearId}_${rarity}`);
   if (profile.coins < price) return { ok: false, error: 'Not enough coins' };
 
-  const instance = generateGearInstance(gearId, rarity);
+  const instance = generateGearInstance(gearId);
   if (!instance) return { ok: false, error: 'Failed to generate gear' };
   const grant = addGearToInventory(profile, instance);
   if (!grant.ok) return grant;
@@ -74,9 +79,9 @@ export function sellGearInstance(profile, instanceId) {
   return { ok: true, coins: value };
 }
 
-export function grantGearDropToProfile(profile, source) {
+export function grantGearDropToProfile(profile, source, opts = {}) {
   normalizeProfileGear(profile);
-  return grantGearDrop(profile, source);
+  return grantGearDrop(profile, source, opts);
 }
 
 export function expMultiplierFromEquipment() {

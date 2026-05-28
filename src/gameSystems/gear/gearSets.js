@@ -1,20 +1,58 @@
 /**
- * Full set bonus detection and application.
+ * Full set bonus detection and application — exact setId match only.
  */
-import { ARRAY_GEAR_SLOTS, GEAR_SLOTS } from './gearConstants';
+import { ARRAY_GEAR_SLOTS } from './gearConstants';
 import { getGearInstance } from './inventoryGearUtils';
 
+/** Per-set bonuses keyed by exact setId (15 sets). */
 export const GEAR_SET_BONUSES = {
-  guardian: {
-    setId: 'guardian',
-    name: 'Guardian Set',
+  // Rare
+  iron_guard: {
+    setId: 'iron_guard',
+    name: 'Iron Guard Set',
+    description: '+5% HP and +3% Defense',
+    hpPct: 5,
+    defensePct: 3,
+  },
+  wild_fang: {
+    setId: 'wild_fang',
+    name: 'Wild Fang Set',
+    description: '+5% Attack and +2 Crit',
+    attackPct: 5,
+    critFlat: 2,
+  },
+  meadow_bloom: {
+    setId: 'meadow_bloom',
+    name: 'Meadow Bloom Set',
+    description: '+10% healing and +1 HP each turn',
+    healPowerPct: 10,
+    regenHpPerTurn: 1,
+  },
+  toxic_bite: {
+    setId: 'toxic_bite',
+    name: 'Toxic Bite Set',
+    description: '+10% poison damage and +5% poison chance',
+    poisonDamagePct: 10,
+    poisonChancePct: 5,
+  },
+  ember_paw: {
+    setId: 'ember_paw',
+    name: 'Ember Paw Set',
+    description: '+10% fire damage and +5% burn chance',
+    fireDamagePct: 10,
+    burnChancePct: 5,
+  },
+  // Epic
+  dragon_guard: {
+    setId: 'dragon_guard',
+    name: 'Dragon Guard Set',
     description: '+10% HP and +8% Defense',
     hpPct: 10,
     defensePct: 8,
   },
-  berserker: {
-    setId: 'berserker',
-    name: 'Berserker Set',
+  warborn: {
+    setId: 'warborn',
+    name: 'Warborn Set',
     description: '+10% Attack and +5 Crit',
     attackPct: 10,
     critFlat: 5,
@@ -22,7 +60,7 @@ export const GEAR_SET_BONUSES = {
   lifebloom: {
     setId: 'lifebloom',
     name: 'Lifebloom Set',
-    description: '+15% healing and small HP recovery each turn',
+    description: '+15% healing and +2 HP each turn',
     healPowerPct: 15,
     regenHpPerTurn: 2,
   },
@@ -40,9 +78,50 @@ export const GEAR_SET_BONUSES = {
     fireDamagePct: 20,
     burnChancePct: 10,
   },
+  // Mythic
+  celestial_guardian: {
+    setId: 'celestial_guardian',
+    name: 'Celestial Guardian Set',
+    description: '+15% HP, +12% Defense, and 5% damage reduction',
+    hpPct: 15,
+    defensePct: 12,
+    damageReductionPct: 5,
+  },
+  titan_berserker: {
+    setId: 'titan_berserker',
+    name: 'Titan Berserker Set',
+    description: '+15% Attack and +8 Crit',
+    attackPct: 15,
+    critFlat: 8,
+  },
+  eternal_bloom: {
+    setId: 'eternal_bloom',
+    name: 'Eternal Bloom Set',
+    description: '+20% healing and +3 HP each turn',
+    healPowerPct: 20,
+    regenHpPerTurn: 3,
+  },
+  abyss_venom: {
+    setId: 'abyss_venom',
+    name: 'Abyss Venom Set',
+    description: '+25% poison damage and +15% poison chance',
+    poisonDamagePct: 25,
+    poisonChancePct: 15,
+  },
+  inferno_king: {
+    setId: 'inferno_king',
+    name: 'Inferno King Set',
+    description: '+25% fire damage and +15% burn chance',
+    fireDamagePct: 25,
+    burnChancePct: 15,
+  },
 };
 
 const MAIN_CATEGORIES = ['head', 'body', 'weapon', 'hand', 'legs'];
+
+function gearSetId(item) {
+  return item?.setId ?? item?.set ?? null;
+}
 
 function equippedInstanceIds(equipment) {
   if (!equipment) return [];
@@ -58,8 +137,7 @@ function equippedInstanceIds(equipment) {
 }
 
 /**
- * Returns active set id if monster has ≥1 item from same set in each main category.
- * Only one set bonus at a time (highest piece count wins tie).
+ * Returns active set bonus if monster has ≥1 item from the same exact setId in each main category.
  */
 export function detectActiveGearSet(profile, equipment) {
   const ids = equippedInstanceIds(equipment);
@@ -68,12 +146,13 @@ export function detectActiveGearSet(profile, equipment) {
   const bySet = {};
   for (const instanceId of ids) {
     const item = getGearInstance(profile, instanceId);
-    if (!item?.set) continue;
-    if (!bySet[item.set]) {
-      bySet[item.set] = { head: false, body: false, weapon: false, hand: false, legs: false };
+    const setId = gearSetId(item);
+    if (!setId) continue;
+    if (!bySet[setId]) {
+      bySet[setId] = { head: false, body: false, weapon: false, hand: false, legs: false };
     }
     const cat = item.slot;
-    if (MAIN_CATEGORIES.includes(cat)) bySet[item.set][cat] = true;
+    if (MAIN_CATEGORIES.includes(cat)) bySet[setId][cat] = true;
   }
 
   let best = null;
@@ -81,7 +160,7 @@ export function detectActiveGearSet(profile, equipment) {
   for (const [setId, cats] of Object.entries(bySet)) {
     const complete = MAIN_CATEGORIES.every((c) => cats[c]);
     if (!complete) continue;
-    const score = ids.filter((id) => getGearInstance(profile, id)?.set === setId).length;
+    const score = ids.filter((id) => gearSetId(getGearInstance(profile, id)) === setId).length;
     if (!best || score > bestScore) {
       best = setId;
       bestScore = score;
@@ -119,6 +198,9 @@ export function applyGearSetBonusToStats(stats, setBonus) {
   if (setBonus.critFlat) {
     next.critPct = (next.critPct ?? 0) + setBonus.critFlat;
   }
+  if (setBonus.damageReductionPct) {
+    next.damageReductionPct = (next.damageReductionPct ?? 0) + setBonus.damageReductionPct;
+  }
 
   return next;
 }
@@ -133,6 +215,7 @@ export function buildSetCombatModifiers(setBonus) {
       poisonChancePct: 0,
       fireDamagePct: 0,
       burnChancePct: 0,
+      damageReductionPct: 0,
       setId: null,
       setName: null,
     };
@@ -144,6 +227,7 @@ export function buildSetCombatModifiers(setBonus) {
     poisonChancePct: setBonus.poisonChancePct ?? 0,
     fireDamagePct: setBonus.fireDamagePct ?? 0,
     burnChancePct: setBonus.burnChancePct ?? 0,
+    damageReductionPct: setBonus.damageReductionPct ?? 0,
     setId: setBonus.setId,
     setName: setBonus.name,
   };

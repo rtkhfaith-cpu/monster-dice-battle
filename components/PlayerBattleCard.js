@@ -129,7 +129,10 @@ export default function PlayerBattleCard({
             <HPBar dense label="HP" current={fighter.hp} max={fighter.stats.hp} fillColor={tint} textColor="#1f2940" />
             <MPBar dense label="MP" current={fighter.mp} max={fighter.stats.mp} textColor="#1f2940" />
             <Text style={styles.modalStat}>Attack {fighter.stats.attack.min}–{fighter.stats.attack.max}</Text>
-            <Text style={styles.modalStat}>Crit {fighter.stats.critPct}% · Dodge {fighter.stats.dodgePct}%</Text>
+            <Text style={styles.modalStat}>
+              Crit {fighter.stats.critPct}% · Hit {Math.round(fighter.stats.hitRate ?? 0)} · Dodge{' '}
+              {Math.round(fighter.stats.dodge ?? fighter.stats.dodgePct ?? 0)}
+            </Text>
             <Text style={styles.modalNote}>Tap outside to close</Text>
           </View>
         </TouchableOpacity>

@@ -3,6 +3,7 @@
  */
 import { ARRAY_GEAR_SLOTS } from './gearConstants';
 import { formatGearStatLines } from './gearGenerator';
+import { GEAR_SET_IDS, getGearTemplate } from './gearDefinitions';
 import { gearRarityColor } from '../../../utils/gearRarityUi';
 
 export function ensureGearInventory(profile) {
@@ -24,19 +25,27 @@ export function normalizeGearInstance(row) {
   const instanceId = String(row.instanceId || '');
   const gearId = String(row.gearId || '');
   if (!instanceId || !gearId) return null;
-  const rarity = ['rare', 'epic', 'mythic'].includes(row.rarity) ? row.rarity : 'rare';
-  const slot = ['head', 'body', 'weapon', 'hand', 'legs'].includes(row.slot) ? row.slot : 'head';
+
+  const template = getGearTemplate(gearId);
+  if (!template) return null;
+
+  const rarity = template.rarity;
+  const slot = template.slot;
+  const setId = template.setId;
+  const socketCount = rarity === 'rare' ? 0 : rarity === 'epic' ? Math.min(row.sockets?.length ?? 0, 1) : Math.min(row.sockets?.length ?? 0, 2);
+
   return {
     instanceId,
     gearId,
-    name: String(row.name || gearId),
+    name: template.name,
     rarity,
     slot,
-    set: row.set ?? null,
-    setName: row.setName ?? null,
+    setId,
+    setName: template.setName,
+    buildType: template.buildType,
     stats: Array.isArray(row.stats) ? row.stats.map((s) => ({ type: s.type, value: Math.round(s.value) })) : [],
     sockets: Array.isArray(row.sockets)
-      ? row.sockets.map((sk, i) => ({ id: sk.id || `socket_${i + 1}`, gem: sk.gem ?? null }))
+      ? row.sockets.slice(0, socketCount).map((sk, i) => ({ id: sk.id || `socket_${i + 1}`, gem: sk.gem ?? null }))
       : [],
     equippedToMonsterId: row.equippedToMonsterId ?? null,
     acquiredAt: row.acquiredAt || new Date().toISOString(),
@@ -96,8 +105,11 @@ export function filterGearInventory(gearList, filter) {
   if (['head', 'body', 'weapon', 'hand', 'legs'].includes(filter)) {
     return list.filter((g) => g.slot === filter);
   }
-  if (['guardian', 'berserker', 'lifebloom', 'venomfang', 'flameheart'].includes(filter)) {
-    return list.filter((g) => g.set === filter);
+  if (['tank', 'attack', 'recovery', 'poison', 'fire'].includes(filter)) {
+    return list.filter((g) => g.buildType === filter);
+  }
+  if (GEAR_SET_IDS.includes(filter)) {
+    return list.filter((g) => g.setId === filter);
   }
   return list;
 }
@@ -126,7 +138,7 @@ export function gearCardSummary(gear, profile = null) {
     rarity: gear.rarity,
     rarityColor: gearRarityColor(gear.rarity),
     slot: gear.slot,
-    setName: gear.setName ?? gear.set,
+    setName: gear.setName ?? gear.setId,
     statLines: formatGearStatLines(gear.stats),
     socketCount: gear.sockets?.length ?? 0,
     equippedTo: gear.equippedToMonsterId,

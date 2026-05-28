@@ -78,6 +78,7 @@ function sumLadderGearBonuses(gearIds) {
 }
 
 function applyBonuses(stats, b) {
+  const dodgeVal = (stats.dodge ?? stats.dodgePct ?? 0) + b.dodgePct;
   return {
     hp: stats.hp + b.hp,
     mp: stats.mp + b.mp,
@@ -85,9 +86,11 @@ function applyBonuses(stats, b) {
     magic: { min: stats.magic.min + b.magicMin, max: stats.magic.max + b.magicMax },
     def: { min: stats.def.min + b.defMin, max: stats.def.max + b.defMax },
     magicDef: { min: stats.magicDef.min + b.magicDefMin, max: stats.magicDef.max + b.magicDefMax },
+    hitRate: stats.hitRate ?? 0,
     critPct: Math.min(55, stats.critPct + b.critPct),
-    dodgePct: Math.min(25, stats.dodgePct + b.dodgePct),
-    speed: Math.max(1, (stats.speed ?? 10) + b.speed + (b.dodgePct * 2 || 0)),
+    dodge: dodgeVal,
+    dodgePct: dodgeVal,
+    speed: Math.max(1, (stats.speed ?? 10) + b.speed),
   };
 }
 
@@ -111,8 +114,10 @@ function scaleStatsBundle(stats, ratio) {
       min: Math.max(1, Math.round(stats.magicDef.min * ratio)),
       max: Math.max(1, Math.round(stats.magicDef.max * ratio)),
     },
+    hitRate: stats.hitRate ?? 0,
     critPct: stats.critPct,
-    dodgePct: stats.dodgePct,
+    dodge: stats.dodge ?? stats.dodgePct ?? 0,
+    dodgePct: stats.dodge ?? stats.dodgePct ?? 0,
     speed: Math.max(1, Math.round((stats.speed ?? 10) * ratio)),
   };
 }

@@ -6,8 +6,7 @@ import PassiveSkillBookShop from './PassiveSkillBookShop';
 import PetShop from './PetShop';
 import {
   GEAR_UI,
-  SET_EMOJI,
-  SLOT_ICONS,
+  emojiForGear,
   gearModalStyles,
   gearRarityUi,
 } from './gear/gearUiTheme';
@@ -68,7 +67,7 @@ export default function GearMartModal({
           {shopTab === 'gear' ? (
             <>
               <Text style={gearModalStyles.sub}>
-                Each purchase rolls unique stats. Mythic gear only drops from chests & events.
+                Rare and Epic sets only. Stats roll per purchase. Mythic drops from chests & events.
               </Text>
               <View style={styles.rarityRow}>
                 {['rare', 'epic'].map((r) => {
@@ -100,7 +99,7 @@ export default function GearMartModal({
                   return (
                     <View key={`${o.gearId}_${o.rarity}`} style={[gearModalStyles.row, { borderColor: ui.border }]}>
                       <View style={styles.emojiCol}>
-                        <Text style={styles.emoji}>{SET_EMOJI[o.set] ?? SLOT_ICONS[o.slot] ?? '⚔️'}</Text>
+                        <Text style={styles.emoji}>{emojiForGear(o)}</Text>
                         <Text style={styles.tapHint}>Set</Text>
                       </View>
                       <View style={styles.mid}>

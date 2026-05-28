@@ -40,21 +40,59 @@ function getElementalDamageModifier(relation) {
   return 1;
 }
 
+const DODGE_CHANCE_MIN = 0;
+const DODGE_CHANCE_MAX = 60;
+
+function getDefenderDodgeStat(stats) {
+  if (!stats) return 0;
+  if (typeof stats.dodge === 'number') return stats.dodge;
+  if (typeof stats.dodgePct === 'number') return stats.dodgePct;
+  return 0;
+}
+
+function getAttackerHitRateStat(stats) {
+  if (!stats || typeof stats.hitRate !== 'number') return 0;
+  return stats.hitRate;
+}
+
+function dodgeChancePct(attacker, defender, magic = false) {
+  const defStats = defender?.stats;
+  const hasFlatDodge =
+    typeof defStats?.dodge === 'number' || typeof defStats?.dodgePct === 'number';
+  if (hasFlatDodge) {
+    let pct = getDefenderDodgeStat(defStats) - getAttackerHitRateStat(attacker?.stats);
+    pct = Math.max(DODGE_CHANCE_MIN, Math.min(DODGE_CHANCE_MAX, pct));
+    if (magic) pct *= 0.5;
+    const bossKind = defender?.ladderStageKind ?? attacker?.ladderStageKind ?? null;
+    if (bossKind === 'miniBoss') pct *= 0.75;
+    if (bossKind === 'bigBoss') pct *= 0.5;
+    return Math.max(DODGE_CHANCE_MIN, Math.min(DODGE_CHANCE_MAX, pct));
+  }
+  // Legacy fallback for old/incomplete payloads that do not carry flat dodge.
+  // Active battles should provide `stats.dodge` (or synced `dodgePct`) and use
+  // flat dodge-hitRate above.
+  const attackerAgility = attacker?.stats?.agility ?? attacker?.stats?.speed ?? 10;
+  const defenderAgility = defender?.stats?.agility ?? defender?.stats?.speed ?? 10;
+  let pct = 3 + (defenderAgility - attackerAgility) * 0.25;
+  pct = Math.max(3, Math.min(25, pct));
+  if (magic) pct *= 0.5;
+  const bossKind = defender?.ladderStageKind ?? attacker?.ladderStageKind ?? null;
+  if (bossKind === 'miniBoss') pct *= 0.75;
+  if (bossKind === 'bigBoss') pct *= 0.5;
+  return Math.max(DODGE_CHANCE_MIN, Math.min(DODGE_CHANCE_MAX, pct));
+}
+
+/** Agility-based connect roll — hitRate does not affect this (only offsets dodge). */
 function attackHitChance(attacker, defender, magic = false) {
-  const hitRate = attacker?.stats?.hitRate ?? 92;
   const attackerAgility = attacker?.stats?.agility ?? attacker?.stats?.speed ?? 10;
   const defenderAgility = defender?.stats?.agility ?? defender?.stats?.speed ?? 10;
   const agilityDelta = defenderAgility - attackerAgility;
   const magicBonus = magic ? 2 : 0;
-  return Math.max(76, Math.min(98, 92 + (hitRate - 92) * 0.45 - agilityDelta * 0.25 + magicBonus));
+  return Math.max(76, Math.min(98, 92 - agilityDelta * 0.25 + magicBonus));
 }
 
 function rollAutoDodge(attacker, defender, magic = false) {
-  const attackerAgility = attacker?.stats?.agility ?? attacker?.stats?.speed ?? attacker?.stats?.dodgePct ?? 10;
-  const defenderAgility = defender?.stats?.agility ?? defender?.stats?.speed ?? defender?.stats?.dodgePct ?? 10;
-  const base = 3 + (defenderAgility - attackerAgility) * 0.25;
-  const pct = Math.max(3, Math.min(25, magic ? base * 0.5 : base));
-  return rollPercentChance(pct);
+  return rollPercentChance(dodgeChancePct(attacker, defender, magic));
 }
 
 function rollAttackAvoided(attacker, defender, magic = false) {
@@ -201,4 +239,7 @@ function resolveMagicBattleDamage({
 module.exports = {
   resolvePhysicalBattleDamage,
   resolveMagicBattleDamage,
+  // Debug/test hook used by scripts/verify-hitrate-dodge.mjs.
+  _debugDodgeChancePct: dodgeChancePct,
+  _debugAttackHitChance: attackHitChance,
 };

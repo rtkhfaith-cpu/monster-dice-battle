@@ -8,6 +8,10 @@ import {
   elementalDamageMultiplier,
   randomVariance as balancedVariance,
 } from '../src/gameBalance/combat';
+import {
+  getAttackerHitRateStat,
+  getDefenderDodgeStat,
+} from '../src/gameBalance/dodgeHitRate';
 
 /**
  * @param {{min:number,max:number}} range
@@ -32,32 +36,29 @@ function statMid(range, fallback) {
   return Math.round((range.min + range.max) / 2);
 }
 
-/** Auto dodge roll — flat dodge vs hitRate when present, else agility fallback. */
+/** Auto dodge roll — defender.dodge minus attacker.hitRate (flat stats), clamped 0–60%. */
 function rollAutoDodge(attacker, defender, magic = false) {
-  const defenderDodge =
-    typeof defender?.stats?.dodge === 'number'
-      ? defender.stats.dodge
-      : typeof defender?.stats?.dodgePct === 'number'
-        ? defender.stats.dodgePct
-        : null;
+  const defenderDodge = getDefenderDodgeStat(defender?.stats);
+  const hasFlatDodge =
+    typeof defender?.stats?.dodge === 'number' || typeof defender?.stats?.dodgePct === 'number';
   const pct = dodgeChance({
     attackerSpeed: attacker?.stats?.agility ?? attacker?.stats?.speed ?? 10,
     defenderSpeed: defender?.stats?.agility ?? defender?.stats?.speed ?? 10,
-    attackerHitRate: attacker?.stats?.hitRate ?? 0,
-    defenderDodge,
+    attackerHitRate: getAttackerHitRateStat(attacker?.stats),
+    defenderDodge: hasFlatDodge ? defenderDodge : null,
     magic,
-    bossKind: attacker?.ladderStageKind ?? null,
+    bossKind: defender?.ladderStageKind ?? attacker?.ladderStageKind ?? null,
   });
   return rollPercentChance(pct);
 }
 
+/** Attack connects (before dodge) — agility only; hitRate does not affect this roll. */
 function attackHitChance(attacker, defender, magic = false) {
-  const hitRate = attacker?.stats?.hitRate ?? 92;
   const attackerAgility = attacker?.stats?.agility ?? attacker?.stats?.speed ?? 10;
   const defenderAgility = defender?.stats?.agility ?? defender?.stats?.speed ?? 10;
   const agilityDelta = defenderAgility - attackerAgility;
   const magicBonus = magic ? 2 : 0;
-  const pct = 92 + (hitRate - 92) * 0.45 - agilityDelta * 0.25 + magicBonus;
+  const pct = 92 - agilityDelta * 0.25 + magicBonus;
   return Math.max(76, Math.min(98, pct));
 }
 
@@ -151,12 +152,16 @@ export function resolvePhysicalBattleDamage({ attacker, defender, skill = null }
     raw *= 0.75;
   }
 
-  const damage = applyCombatDamageModifiers(raw, {
+  let damage = applyCombatDamageModifiers(raw, {
     attacker,
     defender,
     strikeKind: 'physical',
     elementRelation: 'neutral',
   });
+  const damageReduction = gearModifierPct(defender, 'damageReductionPct');
+  if (damageReduction > 0) {
+    damage = Math.max(1, Math.round(damage * (1 - damageReduction / 100)));
+  }
   // Defense is baked into damage — do not flag every mitigated hit as "Blocked" UI.
   const defended = false;
 
@@ -234,12 +239,16 @@ export function resolveMagicBattleDamage({
     raw *= 0.75;
   }
 
-  const damage = applyCombatDamageModifiers(raw, {
+  let damage = applyCombatDamageModifiers(raw, {
     attacker,
     defender,
     strikeKind: 'magic',
     elementRelation,
   });
+  const damageReduction = gearModifierPct(defender, 'damageReductionPct');
+  if (damageReduction > 0) {
+    damage = Math.max(1, Math.round(damage * (1 - damageReduction / 100)));
+  }
   const defended = false;
 
   return {

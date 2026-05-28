@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
+import { formatDodgeStat, formatHitRateStat } from '../src/gameBalance/dodgeHitRate';
 
 function statGrid(stats) {
   if (!stats) return [[], []];
@@ -16,7 +17,7 @@ function statGrid(stats) {
     [
       ['DEF', range(stats.def)],
       ['MDEF', range(stats.magicDef)],
-      ['HIT', `${stats.hitRate ?? 92}%`],
+      ['HIT RATE', formatHitRateStat(stats.hitRate)],
       ['AGI', stats.agility ?? stats.speed ?? 10],
     ],
   ];
@@ -114,7 +115,7 @@ export default function MonsterStatCardOverlay({
         </View>
         {stats ? (
           <Text style={styles.extraStats}>
-            CRIT {stats.critPct ?? 0}% · DODGE {stats.dodgePct ?? 0}%
+            CRIT {stats.critPct ?? 0}% · DODGE {formatDodgeStat(stats.dodge ?? stats.dodgePct)}
           </Text>
         ) : null}
         {primaryAction ? (

@@ -37,7 +37,7 @@ export default function StatRoller({ initialRolls = 3, rollStats, onAccept }) {
           <Row label="Def" value={formatRange(stats.def)} />
           <Row label="Magic Def" value={formatRange(stats.magicDef)} />
           <Row label="Crit %" value={`${stats.critPct}%`} />
-          <Row label="Dodge" value={`${stats.dodgePct}%`} />
+          <Row label="Dodge" value={`${stats.dodge ?? stats.dodgePct ?? 0}`} />
         </View>
       ) : (
         <Text style={styles.hint}>Tap “Roll Stats” to generate stats.</Text>

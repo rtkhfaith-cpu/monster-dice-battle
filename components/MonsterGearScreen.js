@@ -17,7 +17,7 @@ import {
 } from '../utils/gearSlots';
 import { useReadableType } from '../utils/readableType';
 import MonsterPassivePanel from './MonsterPassivePanel';
-import GearInventoryPanel from './GearInventoryPanel';
+import EquipmentScreen from './gear/equipment/EquipmentScreen';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -223,7 +223,7 @@ export default function MonsterGearScreen({
   onEquipPet,
   onUnequipPet,
   onSpendPetDust,
-  onOpenEquipment,
+  onSelectMonster,
   onSellGear,
 }) {
   const type = useReadableType();
@@ -283,6 +283,31 @@ export default function MonsterGearScreen({
     setSelectedSlot((prev) => (prev === i ? null : i));
   }
 
+  if (useNewGear) {
+    return (
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <View style={styles.backdrop}>
+          <View style={[styles.card, styles.cardEquip]}>
+            <EquipmentScreen
+              ownedMonster={ownedMonster}
+              profile={profile}
+              coins={coins}
+              ownedMonsters={profile?.ownedMonsters}
+              onSelectMonster={onSelectMonster}
+              onClose={onClose}
+              onEquip={onEquip}
+              onUnequip={onUnequip}
+              onEquipPet={onEquipPet}
+              onUnequipPet={onUnequipPet}
+              onEquipPassiveBook={onEquipPassiveBook}
+              onRemovePassive={onRemovePassive}
+            />
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -320,38 +345,6 @@ export default function MonsterGearScreen({
           >
             {tab === 'equip' ? (
               <>
-                {useNewGear ? (
-                  <>
-                    {fighter ? (
-                      <View style={styles.previewRow}>
-                        <MonsterPreview parts={fighter.monsterParts} size={88} mood="happy" />
-                        <View style={styles.previewMeta}>
-                          <Text style={[styles.monName, { fontSize: type.stat }]}>{fighter.displayName}</Text>
-                          {fighter.activeSetBonus ? (
-                            <Text style={[styles.slotHint, { fontSize: type.statSm, color: '#c4b5fd' }]}>
-                              {fighter.activeSetBonus.name} active
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
-                    ) : null}
-                    <GearInventoryPanel
-                      profile={profile}
-                      onOpenEquip={onOpenEquipment}
-                      onSell={onSellGear}
-                    />
-                    {ownedMonster ? (
-                      <MonsterPassivePanel
-                        monster={ownedMonster}
-                        profile={profile}
-                        onEquipBook={onEquipPassiveBook}
-                        onRemovePassive={onRemovePassive}
-                        onOpenSkillShop={onOpenGearMart}
-                      />
-                    ) : null}
-                  </>
-                ) : (
-                  <>
                 {fighter ? (
                   <View style={styles.previewRow}>
                     <MonsterPreview parts={fighter.monsterParts} size={88} mood="happy" />
@@ -505,8 +498,6 @@ export default function MonsterGearScreen({
                   </Text>
                 ) : null}
               </>
-                )}
-              </>
             ) : tab === 'pets' ? (
               <PetEquipPanel
                 profile={profile}
@@ -608,6 +599,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -8 },
     shadowOpacity: 0.35,
     shadowRadius: 18,
+  },
+  cardEquip: {
+    paddingHorizontal: 12,
+    paddingTop: Platform.OS === 'ios' ? 14 : 10,
   },
   title: {
     fontWeight: '900',

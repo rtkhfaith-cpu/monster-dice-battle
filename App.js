@@ -1403,7 +1403,6 @@ export default function App() {
       return;
     }
     persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
-    setEquipmentOpen(false);
   }
 
   function handleUnequipGear(slot, slotIndex = 0) {
@@ -2650,7 +2649,7 @@ export default function App() {
         onEquipPet={handleEquipPet}
         onUnequipPet={handleUnequipPet}
         onSpendPetDust={handleSpendPetDust}
-        onOpenEquipment={() => setEquipmentOpen(true)}
+        onSelectMonster={(id) => setGearMonsterId(id)}
         onSellGear={handleSellGear}
         onOpenGearMart={() => {
           setGearOpen(false);
@@ -2662,9 +2661,16 @@ export default function App() {
         visible={equipmentOpen}
         ownedMonster={gearOwnedMonster}
         profile={gearProfileId ? getPlayerProfile(gameData, gearProfileId) : null}
+        coins={coins}
+        ownedMonsters={wallet?.ownedMonsters}
+        onSelectMonster={(id) => setGearMonsterId(id)}
         onClose={() => setEquipmentOpen(false)}
         onEquip={handleEquipGear}
         onUnequip={handleUnequipGear}
+        onEquipPet={handleEquipPet}
+        onUnequipPet={handleUnequipPet}
+        onEquipPassiveBook={handleEquipPassiveBook}
+        onRemovePassive={handleRemovePassive}
       />
 
       <GearMartModal

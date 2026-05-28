@@ -32,8 +32,25 @@ export function rollGearDropRarity(source) {
  * Grant gear drop to profile.
  * @returns {{ ok: boolean, gear?: object, rarity?: string, error?: string }}
  */
-export function grantGearDrop(profile, source) {
-  const rarity = rollGearDropRarity(source);
+/** Roll rarity from table weights only (no “empty roll” gate). */
+export function rollGearRarityFromTable(source) {
+  const table = GEAR_DROP_TABLES[source];
+  if (!table) return 'rare';
+  const order = ['rare', 'epic', 'mythic'];
+  const total = order.reduce((s, r) => s + (table[r] ?? 0), 0);
+  if (total <= 0) return 'rare';
+  let roll = Math.random() * total;
+  for (const rarity of order) {
+    roll -= table[rarity] ?? 0;
+    if (roll <= 0) return rarity;
+  }
+  return 'rare';
+}
+
+export function grantGearDrop(profile, source, opts = {}) {
+  const rarity = opts.guaranteed
+    ? rollGearRarityFromTable(source)
+    : rollGearDropRarity(source);
   if (!rarity) return { ok: false, skipped: true };
   const instance = generateRandomGearInstance(rarity);
   if (!instance) return { ok: false, error: 'Failed to generate gear' };

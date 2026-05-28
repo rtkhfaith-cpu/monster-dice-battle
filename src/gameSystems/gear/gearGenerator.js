@@ -1,12 +1,16 @@
 /**
- * Generate unique gear instances from templates.
+ * Generate unique gear instances from templates (fixed rarity per template).
  */
 import {
   GEAR_STAT_LINE_COUNT,
   GEAR_STAT_RANGES,
   GEAR_SHOP_PRICES,
 } from './gearConstants';
-import { GEAR_TEMPLATE_LIST, getGearTemplate } from './gearDefinitions';
+import {
+  GEAR_TEMPLATES_BY_RARITY,
+  gearTemplatesForShopRarity,
+  getGearTemplate,
+} from './gearDefinitions';
 
 function newInstanceId() {
   return `gear_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
@@ -54,23 +58,17 @@ function rollStatsForTemplate(template, rarity) {
   return stats;
 }
 
-/**
- * @param {string} gearId
- * @param {'rare'|'epic'|'mythic'} rarity
- */
-export function generateGearInstance(gearId, rarity) {
-  const template = getGearTemplate(gearId);
-  if (!template) return null;
-  if (!GEAR_STAT_LINE_COUNT[rarity]) return null;
-
+function instanceFromTemplate(template) {
+  const rarity = template.rarity;
   return {
     instanceId: newInstanceId(),
     gearId: template.gearId,
     name: template.name,
     rarity,
     slot: template.slot,
-    set: template.set,
+    setId: template.setId,
     setName: template.setName,
+    buildType: template.buildType,
     stats: rollStatsForTemplate(template, rarity),
     sockets: rollSockets(rarity),
     equippedToMonsterId: null,
@@ -78,14 +76,24 @@ export function generateGearInstance(gearId, rarity) {
   };
 }
 
-/** Random template + rarity for drops. */
+/**
+ * Create an instance from a template. Rarity comes from the template only.
+ * @param {string} gearId
+ */
+export function generateGearInstance(gearId) {
+  const template = getGearTemplate(gearId);
+  if (!template) return null;
+  return instanceFromTemplate(template);
+}
+
+/** Pick a random template from the rarity pool, then generate an instance. */
 export function generateRandomGearInstance(rarity, opts = {}) {
-  let pool = GEAR_TEMPLATE_LIST;
+  let pool = [...(GEAR_TEMPLATES_BY_RARITY[rarity] || [])];
   if (opts.slot) pool = pool.filter((t) => t.slot === opts.slot);
-  if (opts.set) pool = pool.filter((t) => t.set === opts.set);
-  if (!pool.length) pool = GEAR_TEMPLATE_LIST;
+  if (opts.setId) pool = pool.filter((t) => t.setId === opts.setId);
+  if (!pool.length) return null;
   const template = pickRandom(pool);
-  return generateGearInstance(template.gearId, rarity);
+  return instanceFromTemplate(template);
 }
 
 export function shopPriceForGear(rarity, seed = '') {
@@ -100,16 +108,23 @@ export function shopPriceForGear(rarity, seed = '') {
   return rollInt(range.min, range.max);
 }
 
-/** Shop stock row: one random template offer per refresh seed. */
-export function buildShopGearOffer(profileId, rarity, index) {
-  const template = GEAR_TEMPLATE_LIST[index % GEAR_TEMPLATE_LIST.length];
-  const price = shopPriceForGear(rarity, `${profileId}_${template.gearId}_${rarity}`);
+function hashSeed(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/** Shop stock row from a specific template in the rarity pool. */
+export function buildShopGearOffer(profileId, template, index = 0) {
+  const rarity = template.rarity;
+  const price = shopPriceForGear(rarity, `${profileId}_${template.gearId}_${index}`);
   return {
     gearId: template.gearId,
     name: template.name,
     slot: template.slot,
-    set: template.set,
+    setId: template.setId,
     setName: template.setName,
+    buildType: template.buildType,
     rarity,
     price,
     statLineCount: GEAR_STAT_LINE_COUNT[rarity],
@@ -117,16 +132,26 @@ export function buildShopGearOffer(profileId, rarity, index) {
   };
 }
 
+/** Rotating shop: 12 Rare + 8 Epic offers from rarity-specific template pools. */
 export function buildGearShopCatalog(profileId = '') {
-  const rareOffers = GEAR_TEMPLATE_LIST.slice(0, 12).map((t, i) => ({
-    ...buildShopGearOffer(profileId, 'rare', i),
-    templateIndex: i,
-  }));
-  const epicOffers = GEAR_TEMPLATE_LIST.slice(0, 8).map((t, i) => ({
-    ...buildShopGearOffer(profileId, 'epic', i + 20),
-    templateIndex: i,
-  }));
-  return { rareOffers, epicOffers };
+  const rarePool = gearTemplatesForShopRarity('rare');
+  const epicPool = gearTemplatesForShopRarity('epic');
+  const daySeed = profileId ? hashSeed(`${profileId}_${new Date().toISOString().slice(0, 10)}`) : 0;
+
+  const pickRotating = (pool, count) => {
+    if (!pool.length) return [];
+    const offers = [];
+    for (let i = 0; i < count; i += 1) {
+      const idx = (daySeed + i * 7) % pool.length;
+      offers.push(buildShopGearOffer(profileId, pool[idx], i));
+    }
+    return offers;
+  };
+
+  return {
+    rareOffers: pickRotating(rarePool, 12),
+    epicOffers: pickRotating(epicPool, 8),
+  };
 }
 
 export function formatGearStatLines(stats) {

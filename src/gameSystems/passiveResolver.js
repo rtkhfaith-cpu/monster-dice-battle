@@ -9,6 +9,10 @@ import {
   clamp,
   randomVariance,
 } from '../gameBalance/combat';
+import {
+  getAttackerHitRateStat,
+  getDefenderDodgeStat,
+} from '../gameBalance/dodgeHitRate';
 import { statusStatMultiplier } from '../../utils/statusEffects';
 import {
   PASSIVE_CAPS,
@@ -66,21 +70,25 @@ function statMid(range, fallback) {
 }
 
 function attackHitChance(attacker, defender, magic = false) {
-  const hitRate = attacker?.stats?.hitRate ?? 92;
   const attackerAgility = attacker?.stats?.agility ?? attacker?.stats?.speed ?? 10;
   const defenderAgility = defender?.stats?.agility ?? defender?.stats?.speed ?? 10;
   const agilityDelta = defenderAgility - attackerAgility;
   const magicBonus = magic ? 2 : 0;
-  const pct = 92 + (hitRate - 92) * 0.45 - agilityDelta * 0.25 + magicBonus;
+  const pct = 92 - agilityDelta * 0.25 + magicBonus;
   return Math.max(76, Math.min(98, pct));
 }
 
 function rollDodge(attacker, defender, magic, phantomBonus = 0) {
+  const defStats = defender?.stats;
+  const hasFlatDodge =
+    typeof defStats?.dodge === 'number' || typeof defStats?.dodgePct === 'number';
   let pct = dodgeChance({
     attackerSpeed: attacker?.stats?.agility ?? attacker?.stats?.speed ?? 10,
     defenderSpeed: defender?.stats?.agility ?? defender?.stats?.speed ?? 10,
+    attackerHitRate: getAttackerHitRateStat(attacker?.stats),
+    defenderDodge: hasFlatDodge ? getDefenderDodgeStat(defStats) : null,
     magic,
-    bossKind: attacker?.ladderStageKind ?? null,
+    bossKind: defender?.ladderStageKind ?? attacker?.ladderStageKind ?? null,
   });
   pct += phantomBonus;
   pct += getPetDodgeBonus(defender);

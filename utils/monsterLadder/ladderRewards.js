@@ -268,7 +268,21 @@ function resolveChestOpen(profile, ml, type, rateWeights) {
     return dustDrop;
   }
 
-  const pityKey = type === 'gear' ? 'gearChestsOpened' : 'monsterChestsOpened';
+  if (type === 'gear') {
+    const gearGrant = grantGearDropToProfile(profile, 'ladder', { guaranteed: true });
+    if (!gearGrant.ok || !gearGrant.gear) return null;
+    return {
+      kind: 'gear_instance',
+      gear: gearGrant.gear,
+      name: gearGrant.gear.name,
+      rarity: gearGrant.gear.rarity,
+      label: `${gearGrant.gear.rarity} ${gearGrant.gear.name}`,
+      statLines: (gearGrant.gear.stats || []).map((s) => `+${s.value} ${s.type}`),
+      socketCount: gearGrant.gear.sockets?.length ?? 0,
+    };
+  }
+
+  const pityKey = 'monsterChestsOpened';
   const roll = rollChestDrop(type, ml.pity?.[pityKey] ?? 0, rateWeights);
   if (!roll?.id) return null;
 
@@ -288,20 +302,6 @@ function resolveChestOpen(profile, ml, type, rateWeights) {
       console.warn('[ladder] monster chest grant failed', roll.id, err?.message || err);
       return null;
     }
-  }
-
-  if (type === 'gear') {
-    const gearGrant = grantGearDropToProfile(profile, 'ladder');
-    if (!gearGrant.ok || !gearGrant.gear) return null;
-    return {
-      kind: 'gear_instance',
-      gear: gearGrant.gear,
-      name: gearGrant.gear.name,
-      rarity: gearGrant.gear.rarity,
-      label: `${gearGrant.gear.rarity} ${gearGrant.gear.name}`,
-      statLines: (gearGrant.gear.stats || []).map((s) => `+${s.value} ${s.type}`),
-      socketCount: gearGrant.gear.sockets?.length ?? 0,
-    };
   }
 
   return null;

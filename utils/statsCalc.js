@@ -53,6 +53,7 @@ export function computeBattleStats(templateId, level) {
   const speedSteps = Math.floor((roleGrowth.speed ?? 2) * L);
   const critSteps = Math.floor(L / Math.max(1, g.criticalEveryLevels ?? 6));
   const dodgeSteps = Math.floor(L / Math.max(1, g.dodgeEveryLevels ?? 7));
+  const hitSteps = Math.floor(L / Math.max(1, g.hitEveryLevels ?? 8));
 
   let hp = b.hp + hpGain + highLevelHpBonus(lv);
   let mp = b.mp + mpGain;
@@ -67,7 +68,7 @@ export function computeBattleStats(templateId, level) {
   let crit = b.critical + critSteps;
   let dodge = b.dodge + dodgeSteps;
   let speed = (b.speed ?? baseSpeedForRole(t.role)) + speedSteps;
-  let hitRate = 90 + Math.floor(speed * 0.25);
+  let hitRate = (b.hit ?? 0) + hitSteps + Math.floor(speed * 0.1);
 
   const rf = RARITY_FLAT[t.rarity] ?? RARITY_FLAT.common;
   hp += rf.hp;
@@ -107,6 +108,9 @@ export function computeBattleStats(templateId, level) {
   const agility = Math.max(1, Math.round(speed));
   mp = battleMpPool(lv, t.role, t.rarity);
 
+  const dodgeVal = Math.max(0, Math.round(dodge));
+  const hitVal = Math.max(0, Math.round(hitRate));
+
   const stats = {
     hp,
     mp,
@@ -114,10 +118,11 @@ export function computeBattleStats(templateId, level) {
     magic: mag,
     def,
     magicDef,
-    hitRate: Math.min(98, Math.max(75, Math.round(hitRate))),
+    hitRate: hitVal,
     agility,
     critPct: Math.min(55, Math.max(4, Math.round(crit))),
-    dodgePct: Math.min(25, Math.max(3, Math.round(dodge))),
+    dodge: dodgeVal,
+    dodgePct: dodgeVal,
     speed: agility,
   };
 

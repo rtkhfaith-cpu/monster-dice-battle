@@ -154,9 +154,9 @@ export function formatGearBonusLines(gearDef) {
   if (b.defMin || b.defMax) lines.push(`+${Math.min(20, ((b.defMin || 0) + (b.defMax || 0)) * 2)}% Defense`);
   if (b.magicDefMin || b.magicDefMax) lines.push(`+${Math.min(20, ((b.magicDefMin || 0) + (b.magicDefMax || 0)) * 2)}% Magic Def`);
   if (b.critPct) lines.push(`+${b.critPct}% Crit`);
-  if (b.hitRate) lines.push(`+${b.hitRate}% Hit`);
+  if (b.hitRate) lines.push(`+${b.hitRate} Hit`);
   if (b.agility) lines.push(`+${b.agility} Agility`);
-  if (b.dodgePct) lines.push(`+${Math.min(25, b.dodgePct * 2)}% Speed`);
+  if (b.dodgePct) lines.push(`+${b.dodgePct} Dodge`);
   if (b.expPct) lines.push(`+${b.expPct}% EXP`);
   if (gearDef.element) {
     const mode = gearDef.elementMode === 'override' ? 'becomes' : 'boosts';

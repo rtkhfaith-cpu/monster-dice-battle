@@ -1,6 +1,6 @@
 /** @typedef {'rare'|'epic'|'mythic'} GearRarity */
 /** @typedef {'head'|'body'|'weapon'|'hand'|'legs'} GearSlot */
-/** @typedef {'guardian'|'berserker'|'lifebloom'|'venomfang'|'flameheart'} GearSetId */
+/** @typedef {'tank'|'attack'|'recovery'|'poison'|'fire'} GearBuildType */
 
 export const GEAR_RARITIES = ['rare', 'epic', 'mythic'];
 export const GEAR_SHOP_RARITIES = ['rare', 'epic'];

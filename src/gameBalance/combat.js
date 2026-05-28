@@ -30,8 +30,8 @@ export function randomVariance() {
 export const DODGE_HITRATE_LIMITS = { min: 0, max: 60 };
 
 /**
- * Dodge from flat stats: defender.dodge - attacker.hitRate, clamped 0–60%.
- * Falls back to legacy agility-based formula when flat dodge is not present.
+ * Dodge chance (%): defenderDodge - attackerHitRate, clamped 0–60.
+ * Falls back to legacy agility-based formula only when defenderDodge is null/undefined.
  */
 export function dodgeChance({
   attackerSpeed = 10,
@@ -43,9 +43,12 @@ export function dodgeChance({
 }) {
   let pct;
   if (typeof defenderDodge === 'number') {
-    pct = defenderDodge - attackerHitRate;
+    pct = defenderDodge - (attackerHitRate ?? 0);
     pct = clamp(pct, DODGE_HITRATE_LIMITS.min, DODGE_HITRATE_LIMITS.max);
   } else {
+    // Legacy fallback for old/incomplete fighter payloads that do not carry flat dodge.
+    // Normal gameplay fighters should include `stats.dodge` (or synced `dodgePct`) and
+    // therefore use the flat dodge-hitRate model above.
     pct = COMBAT_BALANCE.dodgeBase
       + (defenderSpeed - attackerSpeed) * COMBAT_BALANCE.dodgeSpeedScalar;
     pct = clamp(pct, COMBAT_BALANCE.dodgeMin, COMBAT_BALANCE.dodgeMax);

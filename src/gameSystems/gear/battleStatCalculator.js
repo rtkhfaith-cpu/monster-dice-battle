@@ -69,9 +69,10 @@ function applyFlatGearToStats(baseStats, flat) {
   stats.agility = (stats.agility ?? spd) + flat.speed;
 
   stats.critPct = (stats.critPct ?? 0) + flat.crit;
-  stats.dodgePct = (stats.dodgePct ?? 0) + flat.dodge;
-  stats.dodge = (stats.dodge ?? stats.dodgePct ?? 0) + flat.dodge;
-  stats.hitRate = (stats.hitRate ?? 90) + flat.hitRate;
+  const dodgeBase = stats.dodge ?? stats.dodgePct ?? 0;
+  stats.dodge = dodgeBase + flat.dodge;
+  stats.dodgePct = stats.dodge;
+  stats.hitRate = (stats.hitRate ?? 0) + flat.hitRate;
 
   return stats;
 }

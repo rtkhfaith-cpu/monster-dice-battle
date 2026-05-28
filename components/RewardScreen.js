@@ -87,7 +87,7 @@ function MonsterStatsPanel({ player, expPack }) {
     { key: 'ATK', value: rangeLabel(currentStats.attack), bonus: formatBonus(rangeDelta(prevStats?.attack, currentStats.attack), showBonus) },
     { key: 'MAG', value: rangeLabel(currentStats.magic), bonus: formatBonus(rangeDelta(prevStats?.magic, currentStats.magic), showBonus) },
     { key: 'DEF', value: rangeLabel(currentStats.def), bonus: formatBonus(rangeDelta(prevStats?.def, currentStats.def), showBonus) },
-    { key: 'HIT', value: `${currentStats.hitRate ?? 90}%`, bonus: formatBonus((currentStats.hitRate ?? 90) - (prevStats?.hitRate ?? currentStats.hitRate ?? 90), showBonus) },
+    { key: 'HIT RATE', value: String(Math.round(currentStats.hitRate ?? 0)), bonus: formatBonus((currentStats.hitRate ?? 0) - (prevStats?.hitRate ?? currentStats.hitRate ?? 0), showBonus) },
     { key: 'AGI', value: String(currentStats.agility ?? currentStats.speed ?? 10), bonus: formatBonus((currentStats.agility ?? currentStats.speed ?? 10) - (prevStats?.agility ?? prevStats?.speed ?? currentStats.agility ?? 10), showBonus) },
   ];
 
