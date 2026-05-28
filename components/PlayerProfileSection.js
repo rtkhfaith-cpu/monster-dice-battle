@@ -112,7 +112,7 @@ export default function PlayerProfileSection({
                 {om ? `${monName} · Lv ${om.level} · EXP ${om.exp ?? 0}` : 'Pick a monster below'}
               </Text>
               <Text style={[styles.cardLine, { fontSize: type.statSm }]}>
-                Gear owned: {(p.cosmeticsOwned || []).length} · Battles: {battles}
+                Gear owned: {(p.gearInventory || []).length} · Battles: {battles}
               </Text>
               {selected ? (
                 <Text style={[styles.selectedTag, { fontSize: type.statSm }]}>✓ Selected</Text>

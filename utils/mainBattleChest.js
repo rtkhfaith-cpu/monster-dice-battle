@@ -1,7 +1,9 @@
 import { bossCoinsForEnemyLevel, bossExpForEnemyLevel } from '../src/gameBalance/rewards';
 import { CHEST_RARITY_RATES } from '../src/gameBalance/chestRarityRates';
 import { getChestMonstersByRarity } from './chestMonsterPools';
-import { GEAR_CATALOG, getGear } from './cosmetics';
+import { generateRandomGearInstance } from '../src/gameSystems/gear/gearGenerator';
+import { rollGearDropRarity } from '../src/gameSystems/gear/gearDrops';
+import { formatGearStatLines } from '../src/gameSystems/gear/gearGenerator';
 import { getAllowedCpuRarities } from './fighterFromOwned';
 import { profileOwnsMonsterTemplate } from './monsterLadder/ladderProfile';
 import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
@@ -114,16 +116,6 @@ export function consumeMainMiniBossSkipNext(profile) {
   return true;
 }
 
-const CHEST_GEAR_STANDARD = GEAR_CATALOG.filter(
-  (g) => g?.id && !g.ladderExclusive && typeof g.price === 'number' && g.price <= 85,
-);
-
-const CHEST_GEAR_PREMIUM = GEAR_CATALOG.filter(
-  (g) => g?.id && !g.ladderExclusive && typeof g.price === 'number' && g.price > 85 && g.price <= 140,
-);
-
-const CHEST_GEAR_POOL = [...CHEST_GEAR_STANDARD, ...CHEST_GEAR_PREMIUM];
-
 function miniBossCoinPayout(level) {
   const bossCoins = bossCoinsForEnemyLevel(level, 'miniBoss');
   const bonus = Math.floor(Math.random() * Math.max(6, Math.floor(bossCoins * 0.3)));
@@ -185,16 +177,10 @@ function pickChestMonster(profile, enemyLevel) {
   };
 }
 
-function pickChestGear() {
-  const premium = CHEST_GEAR_PREMIUM.length > 0 && Math.random() < 0.4;
-  const pool = premium
-    ? CHEST_GEAR_PREMIUM
-    : CHEST_GEAR_STANDARD.length
-      ? CHEST_GEAR_STANDARD
-      : CHEST_GEAR_POOL;
-  const fallback = GEAR_CATALOG.filter((g) => g?.id && !g.ladderExclusive);
-  const list = pool.length ? pool : fallback;
-  return list[Math.floor(Math.random() * list.length)] ?? null;
+function pickChestGearInstance() {
+  const rarity = rollGearDropRarity('miniBoss');
+  if (!rarity) return null;
+  return generateRandomGearInstance(rarity);
 }
 
 /**
@@ -230,16 +216,16 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
     return { kind: 'exp', amount, label: `${amount} bonus EXP`, rarity: 'rare' };
   }
 
-  const gear = pickChestGear();
+  const gear = pickChestGearInstance();
   if (gear) {
-    const premium = (gear.price ?? 0) > 85;
     return {
-      kind: 'gear',
-      id: gear.id,
+      kind: 'gear_instance',
+      gear,
       name: gear.name,
-      emoji: gear.emoji,
-      label: gear.name,
-      rarity: premium ? 'rare' : 'common',
+      label: `${gear.rarity} ${gear.name}`,
+      rarity: gear.rarity,
+      statLines: formatGearStatLines(gear.stats),
+      socketCount: gear.sockets?.length ?? 0,
     };
   }
 
@@ -261,9 +247,8 @@ export function chestDropTitle(drop) {
   if (drop.kind === 'skill_book') return `Passive Skill Book: ${drop.name ?? drop.skillId}`;
   if (drop.kind === 'gold') return `${drop.amount} coins`;
   if (drop.kind === 'exp') return `${drop.amount} bonus EXP`;
-  if (drop.kind === 'gear') {
-    const g = getGear(drop.id);
-    return g?.name ?? drop.name ?? drop.id;
+  if (drop.kind === 'gear' || drop.kind === 'gear_instance') {
+    return drop.name ?? drop.gear?.name ?? 'Gear';
   }
   return drop.name ?? drop.label ?? 'Monster';
 }
@@ -287,12 +272,11 @@ export function chestDropSubtitle(drop) {
   if (drop.kind === 'skill_book_duplicate') return 'You already know this passive — converted to bonus coins';
   if (drop.kind === 'gold') return 'Gold from the chest';
   if (drop.kind === 'exp') return 'Experience for your fighter';
-  if (drop.kind === 'gear') {
-    if (drop.duplicate && drop.exchangedForShards) {
-      return `Duplicate gear → +${drop.shardsGained ?? 0} ladder shards`;
-    }
-    if (drop.duplicate) return 'Already owned';
-    return 'Added to your gear inventory';
+  if (drop.kind === 'gear' || drop.kind === 'gear_instance') {
+    const lines = drop.statLines?.join(' · ') ?? (drop.gear?.stats || []).map((s) => `+${s.value} ${s.type}`).join(' · ');
+    const sockets = drop.socketCount ?? drop.gear?.sockets?.length ?? 0;
+    const parts = [lines, sockets ? `Sockets: ${sockets}` : null].filter(Boolean);
+    return parts.length ? parts.join('\n') : 'Added to your gear inventory';
   }
   if (drop.duplicate) return 'Another copy joins your roster';
   return 'New monster added to your collection';

@@ -2,7 +2,7 @@ import { addExperience, subtractExperience, expToAdvanceFrom, expWinForEnemyLeve
 import { ladderCoinsForEnemyLevel, scaleExpGain } from '../../src/gameBalance/rewards';
 import { LADDER_CHEST_GOLD_COST, LADDER_CHEST_SHARD_COST, LADDER_EXP_MULTIPLIER } from './ladderConstants';
 import { grantChestMonsterToProfile } from '../chestMonsterGrant';
-import { grantGearToProfile } from '../gearDuplicateReward';
+import { grantGearDropToProfile } from '../gearStorage';
 import { rollChestDrop } from './ladderChestTables';
 import {
   advanceMonsterLadderStage,
@@ -290,13 +290,19 @@ function resolveChestOpen(profile, ml, type, rateWeights) {
     }
   }
 
-  const gearGrant = grantGearToProfile(profile, roll.id, { ladderState: ml, deferLadderSave: true });
-  if (gearGrant.error) return null;
-  return {
-    ...roll,
-    duplicate: gearGrant.duplicate,
-    shardsGained: gearGrant.shardsGained ?? 0,
-    exchangedForShards: !!gearGrant.exchangedForShards,
-    quantity: gearGrant.quantity ?? 1,
-  };
+  if (type === 'gear') {
+    const gearGrant = grantGearDropToProfile(profile, 'ladder');
+    if (!gearGrant.ok || !gearGrant.gear) return null;
+    return {
+      kind: 'gear_instance',
+      gear: gearGrant.gear,
+      name: gearGrant.gear.name,
+      rarity: gearGrant.gear.rarity,
+      label: `${gearGrant.gear.rarity} ${gearGrant.gear.name}`,
+      statLines: (gearGrant.gear.stats || []).map((s) => `+${s.value} ${s.type}`),
+      socketCount: gearGrant.gear.sockets?.length ?? 0,
+    };
+  }
+
+  return null;
 }

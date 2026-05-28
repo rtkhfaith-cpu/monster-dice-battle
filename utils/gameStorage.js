@@ -10,14 +10,18 @@ import {
   expLossPenalty,
 } from './expLevel';
 import { coinWinForEnemyLevel, LOSER_COINS, DRAW_COINS_EACH } from './rewards';
-import { compactGearIds, equipToFirstEmptySlot, getGear, setGearAtSlot } from './cosmetics';
+import { defaultMonsterEquipment } from '../src/gameSystems/gear/gearConstants';
+import { ensureMonsterEquipment } from '../src/gameSystems/gear/equipmentSystem';
+import { migrateProfileToNewGear } from '../src/gameSystems/gear/gearMigration';
 import {
-  DEFAULT_GEAR_SLOTS,
-  getUnlockedSlotCount,
-  nextSlotUnlockCost,
-  normalizeEquippedSlots,
-} from './gearSlots';
-import { expMultiplierFromGear } from './gearStats';
+  buyGeneratedGear,
+  equipGearInstance,
+  unequipGearInstance,
+  sellGearInstance,
+  grantGearDropToProfile,
+  normalizeProfileGear,
+  expMultiplierFromEquipment,
+} from './gearStorage';
 import { scaleExpGain } from '../src/gameBalance/rewards';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
@@ -49,8 +53,8 @@ import {
   rosterInstancesForTemplate,
   rosterSpeciesKey,
 } from './rosterInventory';
-import { assertShopGearPurchase, assertShopMonsterPurchase } from './shopGuards';
-import { gearShopPrice, monsterShopPrice, passiveBookShopPrice } from '../src/gameBalance/shop';
+import { assertShopMonsterPurchase } from './shopGuards';
+import { monsterShopPrice, passiveBookShopPrice } from '../src/gameBalance/shop';
 import {
   ensurePassiveInventory,
   equipPassiveSkill,
@@ -75,7 +79,6 @@ import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
 import { grantChestMonsterToProfile } from './chestMonsterGrant';
-import { grantGearToProfile } from './gearDuplicateReward';
 import {
   clearMainMiniBossSkipNext,
   normalizeMainBattleState,
@@ -97,9 +100,7 @@ const LEGACY_KEY_V2 = 'monster_dice_battle_v2';
  * updatedAt?: string,
  * coins: number,
  * ownedMonsters: OwnedMonster[],
- * cosmeticsOwned: string[],
- * cosmeticEquippedP1: string[],
- * cosmeticEquippedP2: string[],
+ * gearInventory: object[],
  * selectedMonsterId?: string|null,
  * battleProgress?: { totalBattles: number, winStreak: number, lossStreak: number },
  * meta?: { difficultyMode: 'easy'|'normal'|'hard'|'boss', aiBias: number, consecutiveLosses: number, consecutiveEasyWins: number, lastAiPowerRatio: number|null },
@@ -142,7 +143,7 @@ export function getDefaultGameData() {
     guest: {
       coins: 0,
       ownedMonsters: /** @type {OwnedMonster[]} */ ([]),
-      cosmeticsOwned: /** @type {string[]} */ ([]),
+      gearInventory: /** @type {object[]} */ ([]),
       cosmeticEquippedP1: /** @type {string[]} */ ([]),
       cosmeticEquippedP2: /** @type {string[]} */ ([]),
     },
@@ -222,23 +223,17 @@ export function generateOwnedMonster(templateId, nickname = '') {
     level: 1,
     exp: 0,
     monsterParts: mergeMonsterParts(templateId),
-    equippedGear: [],
-    gearSlotCount: DEFAULT_GEAR_SLOTS,
+    equipment: defaultMonsterEquipment(),
     unlockedVisualTags: [],
     mergeTier: 0,
   };
 }
 
 function normalizeOwnedMonster(om) {
-  if (typeof om.gearSlotCount !== 'number' || om.gearSlotCount < DEFAULT_GEAR_SLOTS) {
-    om.gearSlotCount = DEFAULT_GEAR_SLOTS;
-  }
-  if (om.gearSlotCount > 6) om.gearSlotCount = 6;
-  om.equippedGear = normalizeEquippedSlots(om.equippedGear, om.gearSlotCount);
-  for (let i = 0; i < om.equippedGear.length; i += 1) {
-    const id = om.equippedGear[i];
-    if (id && !getGear(id)) om.equippedGear[i] = null;
-  }
+  ensureMonsterEquipment(om);
+  delete om.equippedGear;
+  delete om.gearSlotCount;
+  delete om.equippedLadderGear;
   if (!om.monsterParts) {
     om.monsterParts = getLadderMonsterTemplate(om.templateId)
       ? mergeLadderMonsterParts(om.templateId)
@@ -255,32 +250,11 @@ function normalizeOwnedMonster(om) {
   om.exp = reconciled.exp;
 }
 
-function migrateLegacyWalletGear(wallet) {
-  if (!wallet.ownedMonsters?.length) return;
-  const applyList = (list, index) => {
-    if (!Array.isArray(list) || !list.length) return;
-    const om = wallet.ownedMonsters[index];
-    if (!om || (om.equippedGear && om.equippedGear.length > 0)) return;
-    let eq = normalizeEquippedSlots([], om.gearSlotCount ?? DEFAULT_GEAR_SLOTS);
-    for (const id of list) {
-      if (getGear(id)) {
-        const next = equipToFirstEmptySlot(eq, id, getUnlockedSlotCount(om));
-        if (next) eq = next;
-      }
-    }
-    om.equippedGear = eq;
-    const owned = new Set(wallet.cosmeticsOwned || []);
-    for (const id of list) if (getGear(id)) owned.add(id);
-    wallet.cosmeticsOwned = [...owned];
-  };
-  applyList(wallet.cosmeticEquippedP1, 0);
-  applyList(wallet.cosmeticEquippedP2, 1);
-}
-
 function normalizeWalletMonsters(wallet) {
   if (!wallet.ownedMonsters) wallet.ownedMonsters = [];
+  migrateProfileToNewGear(wallet);
   wallet.ownedMonsters.forEach(normalizeOwnedMonster);
-  migrateLegacyWalletGear(wallet);
+  normalizeProfileGear(wallet);
 }
 
 /** Merge one legacy ladder-owned row into profile.ownedMonsters (by row id only — keeps duplicate species). */
@@ -301,7 +275,7 @@ function absorbLadderOwnedRow(profile, lm) {
   const row = {
     ...lm,
     templateId: canonicalTpl,
-    equippedGear: Array.isArray(lm.equippedGear) ? lm.equippedGear : [],
+    equipment: lm.equipment ?? defaultMonsterEquipment(),
     equippedLadderGear: Array.isArray(lm.equippedLadderGear) ? [...lm.equippedLadderGear] : [],
     unlockedVisualTags: Array.isArray(lm.unlockedVisualTags) ? lm.unlockedVisualTags : [],
   };
@@ -318,20 +292,6 @@ function consolidatePlayerMonstersToMain(profile) {
   let changed = migrateLadderMonsterTemplateIds(profile);
   const ml = getMonsterLadderState(profile);
   if (!ml) return changed;
-
-  const ownedGear = new Set(profile.cosmeticsOwned || []);
-  for (const gearId of ml.ownedGear || []) {
-    if (getGear(gearId)) ownedGear.add(gearId);
-  }
-  const prevGear = profile.cosmeticsOwned || [];
-  const nextGear = [...ownedGear];
-  if (
-    prevGear.length !== nextGear.length
-    || nextGear.some((id, i) => prevGear[i] !== id)
-  ) {
-    profile.cosmeticsOwned = nextGear;
-    changed = true;
-  }
 
   if (!Array.isArray(profile.ownedMonsters)) {
     profile.ownedMonsters = [];
@@ -377,9 +337,7 @@ function normalizePlayerProfile(p) {
   p.name = String(p.name).slice(0, 24);
   if (p.pin && typeof p.pin !== 'string') delete p.pin;
   if (typeof p.coins !== 'number') p.coins = 0;
-  if (!Array.isArray(p.cosmeticsOwned)) p.cosmeticsOwned = [];
-  if (!Array.isArray(p.cosmeticEquippedP1)) p.cosmeticEquippedP1 = [];
-  if (!Array.isArray(p.cosmeticEquippedP2)) p.cosmeticEquippedP2 = [];
+  if (!Array.isArray(p.gearInventory)) p.gearInventory = [];
   normalizeWalletMonsters(p);
   if (p.selectedMonsterId && !p.ownedMonsters.some((om) => om.id === p.selectedMonsterId)) {
     p.selectedMonsterId = defaultBattleMonsterId(p);
@@ -481,11 +439,7 @@ function migrateLegacyV2Into(gameData, legacyParsed) {
   if (!legacyParsed || typeof legacyParsed !== 'object') return gameData;
   gameData.guest.coins += typeof legacyParsed.coins === 'number' ? legacyParsed.coins : 0;
   const owned = Array.isArray(legacyParsed.owned) ? legacyParsed.owned.filter((x) => typeof x === 'string') : [];
-  gameData.guest.cosmeticsOwned = [...new Set([...(gameData.guest.cosmeticsOwned || []), ...owned])];
-  const e1 = Array.isArray(legacyParsed.equippedP1) ? legacyParsed.equippedP1.filter((x) => typeof x === 'string') : [];
-  const e2 = Array.isArray(legacyParsed.equippedP2) ? legacyParsed.equippedP2.filter((x) => typeof x === 'string') : [];
-  if (e1.length) gameData.guest.cosmeticEquippedP1 = e1.slice(0, 8);
-  if (e2.length) gameData.guest.cosmeticEquippedP2 = e2.slice(0, 8);
+  if (!Array.isArray(gameData.guest.gearInventory)) gameData.guest.gearInventory = [];
   ensureStarterMonsters(gameData.guest);
   return gameData;
 }
@@ -499,9 +453,7 @@ function normalizeGameData(raw) {
   if (raw.guest && typeof raw.guest === 'object') {
     d.guest.coins = typeof raw.guest.coins === 'number' ? Math.max(0, raw.guest.coins) : 0;
     d.guest.ownedMonsters = Array.isArray(raw.guest.ownedMonsters) ? raw.guest.ownedMonsters : [];
-    d.guest.cosmeticsOwned = Array.isArray(raw.guest.cosmeticsOwned) ? raw.guest.cosmeticsOwned.filter((x) => typeof x === 'string') : [];
-    d.guest.cosmeticEquippedP1 = Array.isArray(raw.guest.cosmeticEquippedP1) ? raw.guest.cosmeticEquippedP1 : [];
-    d.guest.cosmeticEquippedP2 = Array.isArray(raw.guest.cosmeticEquippedP2) ? raw.guest.cosmeticEquippedP2 : [];
+    d.guest.gearInventory = Array.isArray(raw.guest.gearInventory) ? raw.guest.gearInventory : [];
   }
   if (raw.settings && typeof raw.settings === 'object') {
     d.settings.soundEnabled = raw.settings.soundEnabled !== false;
@@ -592,7 +544,7 @@ export function ensureProfilesFromGuest(gameData) {
   }
   const g = gd.guest;
   const hasGuest =
-    (g.ownedMonsters?.length ?? 0) > 0 || g.coins > 0 || (g.cosmeticsOwned?.length ?? 0) > 0;
+    (g.ownedMonsters?.length ?? 0) > 0 || g.coins > 0 || (g.gearInventory?.length ?? 0) > 0;
   const id = uid('pl');
   const profile = {
     id,
@@ -600,9 +552,7 @@ export function ensureProfilesFromGuest(gameData) {
     pin: '0000',
     coins: hasGuest ? g.coins : STARTING_PLAYER_COINS,
     ownedMonsters: hasGuest ? g.ownedMonsters : [],
-    cosmeticsOwned: hasGuest ? [...(g.cosmeticsOwned || [])] : [],
-    cosmeticEquippedP1: hasGuest ? [...(g.cosmeticEquippedP1 || [])] : [],
-    cosmeticEquippedP2: hasGuest ? [...(g.cosmeticEquippedP2 || [])] : [],
+    gearInventory: hasGuest ? [...(g.gearInventory || [])] : [],
     selectedMonsterId: null,
     battleProgress: {
       totalBattles: gd.battleSummary?.totalBattles ?? 0,
@@ -640,9 +590,7 @@ export function createPlayerProfile(gameData, name, playerKey = '') {
     pin: String(playerKey || '').replace(/\D/g, '').slice(0, 4),
     coins: STARTING_PLAYER_COINS,
     ownedMonsters: [],
-    cosmeticsOwned: [],
-    cosmeticEquippedP1: [],
-    cosmeticEquippedP2: [],
+    gearInventory: [],
     selectedMonsterId: null,
     battleProgress: defaultBattleProgress(),
     meta: defaultProfileMeta(),
@@ -786,102 +734,59 @@ export function buyMonster(gameData, playerId, monsterTypeId) {
   return { gameData: gd, ownedMonster: om };
 }
 
-/** Buy gear into profile inventory only (no equip). */
-export function buyGearItem(gameData, playerId, gearId) {
+/** Buy generated gear instance (Rare/Epic). */
+export function buyGearItem(gameData, playerId, gearId, rarity = 'rare') {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
-  const guard = assertShopGearPurchase(gearId);
-  if (!guard.ok) return { gameData: gd, error: guard.error };
-  const item = getGear(gearId);
-  if (!item) return { gameData: gd, error: 'Unknown gear' };
-  if (wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Already owned' };
-  const price = gearShopPrice(item);
-  if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
-  wallet.coins -= price;
-  wallet.cosmeticsOwned = [...new Set([...wallet.cosmeticsOwned, gearId])];
-  return { gameData: gd };
+  const res = buyGeneratedGear(wallet, gearId, rarity);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd, gear: res.gear, price: res.price };
 }
 
-/**
- * Buy gear, add to wallet owned list, equip on target monster (replaces same slot).
- */
-export function buyGearForMonster(gameData, playerId, ownedMonsterId, gearId) {
+/** @deprecated slot unlock removed — fixed 7 equipment slots per monster */
+export function buyGearForMonster(gameData, playerId, ownedMonsterId, gearId, rarity = 'rare') {
+  const bought = buyGearItem(gameData, playerId, gearId, rarity);
+  if (bought.error || !bought.gear) return bought;
+  const gd = bought.gameData;
+  const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
+  const gear = bought.gear;
+  const eq = equipGearInstance(wallet, ownedMonsterId, gear.instanceId, gear.slot, 0);
+  if (!eq.ok) return { gameData: gd, gear, error: eq.error };
+  return { gameData: gd, gear };
+}
+
+export function equipOwnedGear(gameData, playerId, ownedMonsterId, instanceId, slot, slotIndex = 0) {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
-  const guard = assertShopGearPurchase(gearId);
-  if (!guard.ok) return { gameData: gd, error: guard.error };
-  const item = getGear(gearId);
-  if (!item) return { gameData: gd, error: 'Unknown gear' };
-  if (wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Already owned' };
-  const price = gearShopPrice(item);
-  if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
-  const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
-  if (!om) return { gameData: gd, error: 'Monster not found' };
-
-  wallet.coins -= price;
-  wallet.cosmeticsOwned = [...new Set([...wallet.cosmeticsOwned, gearId])];
-  const maxSlots = getUnlockedSlotCount(om);
-  const next = equipToFirstEmptySlot(om.equippedGear || [], gearId, maxSlots);
-  if (!next) return { gameData: gd, error: 'All gear slots full — remove an item first' };
-  om.equippedGear = next;
-  normalizeOwnedMonster(om);
+  const res = equipGearInstance(wallet, ownedMonsterId, instanceId, slot, slotIndex);
+  if (!res.ok) return { gameData: gd, error: res.error };
   return { gameData: gd };
 }
 
-/** Equip owned gear onto monster (optional slot index). */
-export function equipOwnedGear(gameData, playerId, ownedMonsterId, gearId, slotIndex = null) {
+export function unequipOwnedGear(gameData, playerId, ownedMonsterId, slot, slotIndex = 0) {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
-  if (!wallet.cosmeticsOwned.includes(gearId)) return { gameData: gd, error: 'Not owned yet' };
-  const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
-  if (!om) return { gameData: gd, error: 'Monster not found' };
-  const maxSlots = getUnlockedSlotCount(om);
-  if (typeof slotIndex === 'number' && slotIndex >= 0 && slotIndex < maxSlots) {
-    om.equippedGear = setGearAtSlot(om.equippedGear || [], gearId, slotIndex, maxSlots);
-  } else {
-    const next = equipToFirstEmptySlot(om.equippedGear || [], gearId, maxSlots);
-    if (!next) return { gameData: gd, error: 'All gear slots full' };
-    om.equippedGear = next;
-  }
-  normalizeOwnedMonster(om);
+  const res = unequipGearInstance(wallet, ownedMonsterId, slot, slotIndex);
+  if (!res.ok) return { gameData: gd, error: res.error };
   return { gameData: gd };
 }
 
-export function unequipOwnedGear(gameData, playerId, ownedMonsterId, gearId, slotIndex = null) {
+export function sellGearItem(gameData, playerId, instanceId) {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
-  const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
-  if (!om) return { gameData: gd, error: 'Monster not found' };
-  const maxSlots = getUnlockedSlotCount(om);
-  if (typeof slotIndex === 'number') {
-    const slots = normalizeEquippedSlots(om.equippedGear, maxSlots);
-    if (slotIndex >= 0 && slotIndex < maxSlots) slots[slotIndex] = null;
-    om.equippedGear = slots;
-  } else {
-    om.equippedGear = (om.equippedGear || []).map((id) => (id === gearId ? null : id));
-    normalizeOwnedMonster(om);
-  }
-  return { gameData: gd };
+  const res = sellGearInstance(wallet, instanceId);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd, coins: res.coins };
 }
 
-/** Unlock next gear slot for one owned monster (permanent, costs coins). */
+/** @deprecated — all equipment slots are always available */
 export function unlockGearSlotForMonster(gameData, playerId, ownedMonsterId) {
   const gd = cloneGameData(gameData);
-  const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
-  if (!wallet) return { gameData: gd, error: 'No wallet' };
-  const om = wallet.ownedMonsters.find((x) => x.id === ownedMonsterId);
-  if (!om) return { gameData: gd, error: 'Monster not found' };
-  const cost = nextSlotUnlockCost(om);
-  if (cost == null) return { gameData: gd, error: 'All slots unlocked' };
-  if (wallet.coins < cost) return { gameData: gd, error: `Need ${cost} coins` };
-  wallet.coins -= cost;
-  om.gearSlotCount = getUnlockedSlotCount(om) + 1;
-  om.equippedGear = normalizeEquippedSlots(om.equippedGear, om.gearSlotCount);
-  return { gameData: gd, newSlotCount: om.gearSlotCount };
+  return { gameData: gd, error: 'Gear slots are fixed (Head, Body, 2× Weapon, 2× Hand, 2× Legs).' };
 }
 
 export function updateOwnedMonster(gameData, playerId, ownedMonsterId, updates) {
@@ -952,7 +857,7 @@ function grantExpInWallet(wallet, ownedId, amount) {
   const prevStage = evolutionStageFromLevel(om.level).key;
   const prevFormTier = visualFormTierFromLevel(om.level);
   const prevLvl = om.level;
-  const mult = expMultiplierFromGear(om.equippedGear || []);
+  const mult = expMultiplierFromEquipment();
   let raw = Math.floor(amount * mult);
   if (raw > 0) raw = scaleExpGain(raw);
   let res;
@@ -1223,18 +1128,24 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
     applied.coinsTotal = wallet.coins;
   } else if (drop.kind === 'exp') {
     applied.expPack = grantExpInWallet(wallet, payload.p1OwnedId ?? null, drop.amount);
-  } else if (drop.kind === 'gear') {
-    const gearGrant = grantGearToProfile(profile, drop.id);
-    applied.duplicate = gearGrant.duplicate;
-    applied.shardsGained = gearGrant.shardsGained ?? 0;
-    applied.exchangedForShards = !!gearGrant.exchangedForShards;
-    applied.gearName = gearGrant.gearName;
-    if (gearGrant.duplicate && gearGrant.exchangedForShards) {
-      const ml = getMonsterLadderState(profile);
-      applied.ladderShardsTotal = ml.ladderShards;
-      applied.label = `+${gearGrant.shardsGained} ladder shards`;
-    } else {
-      applied.duplicate = false;
+  } else if (drop.kind === 'gear' || drop.kind === 'gear_instance') {
+    const gearGrant = drop.gear
+      ? { ok: true, gear: drop.gear }
+      : grantGearDropToProfile(profile, 'miniBoss');
+    if (gearGrant.ok && gearGrant.gear) {
+      applied.kind = 'gear_instance';
+      applied.gear = gearGrant.gear;
+      applied.gearName = gearGrant.gear.name;
+      applied.rarity = gearGrant.gear.rarity;
+      applied.label = `${gearGrant.gear.rarity} ${gearGrant.gear.name}`;
+      applied.statLines = (gearGrant.gear.stats || []).map((s) => `+${s.value} ${s.type}`);
+      applied.socketCount = gearGrant.gear.sockets?.length ?? 0;
+    } else if (gearGrant.skipped) {
+      applied.kind = 'gold';
+      const bonus = mainBattleChestDuplicateGold(payload.enemyLevel ?? 1);
+      wallet.coins += bonus;
+      applied.amount = bonus;
+      applied.label = `+${bonus} coins`;
     }
   } else if (drop.kind === 'monster') {
     const granted = grantChestMonsterToProfile(profile, drop);

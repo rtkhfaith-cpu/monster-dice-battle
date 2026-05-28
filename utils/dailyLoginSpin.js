@@ -10,6 +10,7 @@ import { openLadderChestOnProfile } from './monsterLadder/ladderRewards';
 import { cloneGameData, getPlayerProfile } from './gameStorage';
 import { tryLuckySpinSkillBook, applyPassiveSkillBookDrop } from './passiveSkillChest';
 import { applyPetChestDrop, rollPetChestDrop } from './petChest';
+import { grantGearDropToProfile } from './gearStorage';
 
 /** @typedef {'coins'|'shards'|'gear_chest'|'monster_chest'|'mythic_monster'} DailySpinKind */
 
@@ -60,13 +61,13 @@ function formatChestDropMessage(drop, chestType) {
   if (!drop) {
     return chestType === 'gear' ? 'Gear chest opened' : 'Monster chest opened';
   }
-  if (drop.kind === 'gear') {
+  if (drop.kind === 'gear' || drop.kind === 'gear_instance') {
     if (drop.exchangedForShards) {
       return `${drop.name ?? 'Gear'} → +${drop.shardsGained ?? 0} shards`;
     }
-    return drop.duplicate
-      ? `${drop.name ?? 'Ladder gear'} (duplicate)`
-      : `${drop.name ?? 'Ladder gear'} unlocked`;
+    const stats = drop.statLines?.join(', ') ?? '';
+    const sockets = drop.socketCount ? ` · ${drop.socketCount} sockets` : '';
+    return `${drop.name ?? drop.gear?.name ?? 'Gear'}${stats ? ` (${stats})` : ''}${sockets}`;
   }
   return drop.duplicate
     ? `${drop.name ?? 'Monster'} — extra copy for merge`
@@ -171,8 +172,21 @@ function maybeGrantBonusPet(profile, result) {
   return result;
 }
 
+function maybeGrantBonusGear(profile, result) {
+  const grant = grantGearDropToProfile(profile, 'dailySpin');
+  if (grant.ok && grant.gear) {
+    result.gearDrop = grant.gear;
+    const lines = (grant.gear.stats || []).map((s) => `+${s.value} ${s.type}`).join(', ');
+    result.message = `${result.message} · Gear: ${grant.gear.rarity} ${grant.gear.name} (${lines})`;
+  }
+  return result;
+}
+
 function finalizeSpinRewards(profile, result) {
-  return maybeGrantBonusPet(profile, maybeGrantBonusSkillBook(profile, result));
+  return maybeGrantBonusGear(
+    profile,
+    maybeGrantBonusPet(profile, maybeGrantBonusSkillBook(profile, result)),
+  );
 }
 
 /** @param {object} profile @param {DailySpinSegment} segment */

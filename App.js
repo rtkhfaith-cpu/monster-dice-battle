@@ -14,6 +14,7 @@ import { isMobileLayout as isLobbyMobileWidth } from './utils/responsive';
 import BattleScreen, { AUTO_LEVEL_GRIND_MAX } from './components/BattleScreen';
 import OnlineBattleScreen from './components/OnlineBattleScreen';
 import MonsterGearScreen from './components/MonsterGearScreen';
+import MonsterEquipmentScreen from './components/MonsterEquipmentScreen';
 import GearMartModal from './components/GearMartModal';
 import MonsterMarketModal from './components/MonsterMarketModal';
 import HomeSetupScreen from './components/HomeSetupScreen';
@@ -81,8 +82,8 @@ import {
   awardBattleRewards,
   applyMonsterRescueStageResult,
   claimMainBattleMiniBossChest,
-  buyGearForMonster,
   buyGearItem,
+  sellGearItem,
   buyPassiveSkillBook,
   buyPetForProfile,
   buyMonster as purchaseMonsterRow,
@@ -104,7 +105,6 @@ import {
   setPlayerKeyForProfile,
   setProfileSelectedMonster,
   unequipOwnedGear,
-  unlockGearSlotForMonster,
   updatePlayer,
   walletForProfile,
 } from './utils/gameStorage';
@@ -212,6 +212,7 @@ export default function App() {
   const [winner, setWinner] = useState(null);
   const [battleKey, setBattleKey] = useState(0);
   const [gearOpen, setGearOpen] = useState(false);
+  const [equipmentOpen, setEquipmentOpen] = useState(false);
   const [gearMartOpen, setGearMartOpen] = useState(false);
   const [gearMonsterId, setGearMonsterId] = useState(null);
   const [monsterMartOpen, setMonsterMartOpen] = useState(false);
@@ -761,7 +762,7 @@ export default function App() {
   }, [gameData, gameMode, setupP1ProfileId, slotProfileId]);
   const wallet = slotWallet;
   const coins = wallet?.coins ?? 0;
-  const cosmeticsOwned = wallet?.cosmeticsOwned ?? [];
+  const gearInventory = wallet?.gearInventory ?? [];
   const gearOwnedMonster = useMemo(
     () => {
       const roster = wallet?.ownedMonsters;
@@ -1275,27 +1276,21 @@ export default function App() {
     openMonsterGear(setupActiveSlot);
   }
 
-  function handleBuyGear(gearId) {
-    if (!gameData || !gearMonsterId) return;
-    const res = buyGearForMonster(gameData, gearProfileId || null, gearMonsterId, gearId);
-    if (res.error) {
-      showNotice('Monster Gear', res.error);
-      return;
-    }
-    persistSave(res.gameData, 'gear_bought', gearProfileId || null);
-    playSound('shop');
-  }
-
-  function handleBuyGearMart(gearId) {
+  function handleBuyGearMart(gearId, rarity = 'rare') {
     if (!gameData) return;
     const profileId = activeProfileId || setupP1ProfileId || null;
-    const res = buyGearItem(gameData, profileId, gearId);
+    const res = buyGearItem(gameData, profileId, gearId, rarity);
     if (res.error) {
       showNotice('Gear & Skill Shop', res.error);
       return;
     }
     persistSave(res.gameData, 'gear_bought', profileId);
     playSound('shop');
+    const g = res.gear;
+    showNotice(
+      'Gear acquired!',
+      g ? `${g.rarity} ${g.name} added to inventory.` : 'New gear added to inventory.',
+    );
   }
 
   function handleBuyPassiveSkillBook(skillId, rarity) {
@@ -1400,29 +1395,41 @@ export default function App() {
     showNotice('Pet EXP dust', msg);
   }
 
-  function handleEquipGear(gearId, slotIndex = null) {
+  function handleEquipGear(instanceId, slot, slotIndex = 0) {
     if (!gameData || !gearMonsterId) return;
-    const res = equipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId, slotIndex);
+    const res = equipOwnedGear(gameData, gearProfileId || null, gearMonsterId, instanceId, slot, slotIndex);
     if (res.error) {
-      showNotice('Monster Gear', res.error);
+      showNotice('Equipment', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
+    setEquipmentOpen(false);
+  }
+
+  function handleUnequipGear(slot, slotIndex = 0) {
+    if (!gameData || !gearMonsterId) return;
+    const res = unequipOwnedGear(gameData, gearProfileId || null, gearMonsterId, slot, slotIndex);
+    if (res.error) {
+      showNotice('Equipment', res.error);
       return;
     }
     persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
   }
 
-  function handleUnequipGear(gearId, slotIndex = null) {
-    if (!gameData || !gearMonsterId) return;
-    const res = unequipOwnedGear(gameData, gearProfileId || null, gearMonsterId, gearId, slotIndex);
+  function handleSellGear(instanceId) {
+    if (!gameData || !gearProfileId) return;
+    const res = sellGearItem(gameData, gearProfileId, instanceId);
     if (res.error) {
-      showNotice('Monster Gear', res.error);
+      showNotice('Sell gear', res.error);
       return;
     }
-    persistSave(res.gameData, 'gear_equipped', gearProfileId || null);
+    persistSave(res.gameData, 'gear_sold', gearProfileId);
+    showNotice('Gear sold', `+${res.coins} coins`);
   }
 
   function handleUnlockGearSlot() {
     if (!gameData || !gearMonsterId) return;
-    const res = unlockGearSlotForMonster(gameData, gearProfileId || null, gearMonsterId);
+    const res = { error: 'All equipment slots are always available.' };
     if (res.error) {
       showNotice('Unlock slot', res.error);
       return;
@@ -2631,11 +2638,10 @@ export default function App() {
       <MonsterGearScreen
         visible={gearOpen}
         coins={coins}
-        ownedGearIds={cosmeticsOwned}
+        ownedGearIds={[]}
         ownedMonster={gearOwnedMonster}
         profile={gearProfileId ? getPlayerProfile(gameData, gearProfileId) : null}
         onClose={() => setGearOpen(false)}
-        onBuy={handleBuyGear}
         onEquip={handleEquipGear}
         onUnequip={handleUnequipGear}
         onUnlockSlot={handleUnlockGearSlot}
@@ -2644,16 +2650,26 @@ export default function App() {
         onEquipPet={handleEquipPet}
         onUnequipPet={handleUnequipPet}
         onSpendPetDust={handleSpendPetDust}
+        onOpenEquipment={() => setEquipmentOpen(true)}
+        onSellGear={handleSellGear}
         onOpenGearMart={() => {
           setGearOpen(false);
           void openGearMart();
         }}
       />
 
+      <MonsterEquipmentScreen
+        visible={equipmentOpen}
+        ownedMonster={gearOwnedMonster}
+        profile={gearProfileId ? getPlayerProfile(gameData, gearProfileId) : null}
+        onClose={() => setEquipmentOpen(false)}
+        onEquip={handleEquipGear}
+        onUnequip={handleUnequipGear}
+      />
+
       <GearMartModal
         visible={gearMartOpen}
         coins={coins}
-        ownedGearIds={cosmeticsOwned}
         profileId={activeProfileId || setupP1ProfileId || ''}
         profile={activeProfileId ? getPlayerProfile(gameData, activeProfileId) : null}
         onClose={() => setGearMartOpen(false)}

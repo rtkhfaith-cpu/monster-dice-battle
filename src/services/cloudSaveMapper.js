@@ -3,7 +3,7 @@
  */
 import { loadAudioSettings, applyAudioSettings } from '../../utils/audioSettings';
 import { getPlayerProfile, cloneGameData, repairPlayerProfileInventory } from '../../utils/gameStorage';
-import { DEFAULT_GEAR_SLOTS } from '../../utils/gearSlots';
+import { defaultMonsterEquipment } from '../gameSystems/gear/gearConstants';
 import { normalizePlayerKey } from '../../utils/playerKey';
 import { normalizeMonsterLadder } from '../../utils/monsterLadder/ladderProgress';
 import { normalizeMonsterRescue } from '../../utils/monsterRescue/progress';
@@ -31,18 +31,10 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
     exp: om.exp ?? 0,
     mergeTier: clampMergeTier(om.mergeTier),
     monsterParts: om.monsterParts ?? {},
-    equippedGear: Array.isArray(om.equippedGear) ? om.equippedGear : [],
-    gearSlotCount: om.gearSlotCount ?? DEFAULT_GEAR_SLOTS,
+    equipment: om.equipment ?? defaultMonsterEquipment(),
     unlockedVisualTags: Array.isArray(om.unlockedVisualTags) ? om.unlockedVisualTags : [],
     equippedPassives: Array.isArray(om.equippedPassives) ? om.equippedPassives : [],
   }));
-
-  const equippedGear = {};
-  const unlockedGearSlots = {};
-  for (const om of p.ownedMonsters || []) {
-    equippedGear[om.id] = Array.isArray(om.equippedGear) ? om.equippedGear : [];
-    unlockedGearSlots[om.id] = om.gearSlotCount ?? DEFAULT_GEAR_SLOTS;
-  }
 
   const playerKey = normalizePlayerKey(p.pin || p.playerKey || '');
   const peak = peakMonsterLevelFromRoster(p.ownedMonsters);
@@ -60,9 +52,7 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
     syncActivityLevel: syncActivity.level,
     syncActivityExp: syncActivity.exp,
     syncActivity: { level: syncActivity.level, exp: syncActivity.exp },
-    gear: Array.isArray(p.cosmeticsOwned) ? p.cosmeticsOwned : [],
-    equippedGear,
-    unlockedGearSlots,
+    gearInventory: Array.isArray(p.gearInventory) ? p.gearInventory : [],
     passiveSkillBooksOwned: Array.isArray(p.passiveSkillBooksOwned) ? p.passiveSkillBooksOwned : [],
     equippedPassiveSkills: p.equippedPassiveSkills ?? {},
     passiveSkillBookDropHistory: Array.isArray(p.passiveSkillBookDropHistory)
@@ -125,9 +115,7 @@ export function applyCloudProfile(gameData, cloud) {
       name: 'Player',
       coins: 0,
       ownedMonsters: [],
-      cosmeticsOwned: [],
-      cosmeticEquippedP1: [],
-      cosmeticEquippedP2: [],
+      gearInventory: [],
       selectedMonsterId: null,
     };
     gd.players.push(p);
@@ -150,16 +138,11 @@ export function applyCloudProfile(gameData, cloud) {
   p.coins = typeof normalized.coins === 'number' ? normalized.coins : p.coins;
   p.selectedMonsterId = normalized.selectedMonsterId ?? p.selectedMonsterId;
 
-  p.cosmeticsOwned = Array.isArray(normalized.gear) ? [...normalized.gear] : p.cosmeticsOwned;
-
-  const equippedMap =
-    normalized.equippedGear && typeof normalized.equippedGear === 'object'
-      ? normalized.equippedGear
-      : {};
-  const slotsMap =
-    normalized.unlockedGearSlots && typeof normalized.unlockedGearSlots === 'object'
-      ? normalized.unlockedGearSlots
-      : {};
+  p.gearInventory = Array.isArray(normalized.gearInventory)
+    ? normalized.gearInventory
+    : Array.isArray(normalized.gear)
+      ? []
+      : p.gearInventory ?? [];
 
   const cloudMonsters = normalized.monsters || normalized.ownedMonsters || [];
   p.ownedMonsters = cloudMonsters.map((om) => ({
@@ -170,8 +153,7 @@ export function applyCloudProfile(gameData, cloud) {
     exp: om.exp ?? 0,
     mergeTier: clampMergeTier(om.mergeTier),
     monsterParts: om.monsterParts ?? {},
-    equippedGear: equippedMap[om.id] ?? om.equippedGear ?? [],
-    gearSlotCount: slotsMap[om.id] ?? om.gearSlotCount ?? DEFAULT_GEAR_SLOTS,
+    equipment: om.equipment ?? defaultMonsterEquipment(),
     unlockedVisualTags: om.unlockedVisualTags ?? [],
     equippedPassives: om.equippedPassives ?? [],
   }));

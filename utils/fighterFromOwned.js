@@ -1,8 +1,9 @@
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { MONSTER_LEVEL_MAX, expToAdvanceFrom } from './expLevel';
-import { applyGearBonuses } from './gearStats';
-import { compactGearIds, resolveFighterElement } from './cosmetics';
+import { buildFighterStatPackage } from '../src/gameSystems/gear/battleStatCalculator';
+import { ensureMonsterEquipment } from '../src/gameSystems/gear/equipmentSystem';
+import { migrateProfileToNewGear } from '../src/gameSystems/gear/gearMigration';
 import { getTemplateElements } from './elements';
 import { mergeMonsterParts } from './gameStorage';
 import { getMonsterSkillSet } from './monsterSkills';
@@ -23,7 +24,6 @@ import {
   BOSS_PASSIVE_BATTLE_STATE,
   buildBossEquippedPassives,
 } from '../src/gameSystems/bossPassives';
-import { applyPetStatBonuses, buildPetCombatModifiers } from '../src/gameSystems/petBonuses';
 import { findOwnedPet, petBattleSnapshot, petEquippedToMonster } from '../src/gameSystems/petInventory';
 
 function resolveEquippedPet(profile, owned) {
@@ -34,23 +34,21 @@ function resolveEquippedPet(profile, owned) {
   return petBattleSnapshot(row);
 }
 
-function attachPetToFighter(base, profile, owned) {
+function attachGearAndPetToFighter(base, profile, owned) {
   const equippedPet = resolveEquippedPet(profile, owned);
-  let stats = base.stats;
-  let petBonuses = { hp: 0, atk: 0, def: 0, spd: 0 };
-  if (equippedPet?.currentStats) {
-    const applied = applyPetStatBonuses(stats, equippedPet.currentStats);
-    stats = applied.stats;
-    petBonuses = applied.petBonuses;
-  }
+  const pkg = buildFighterStatPackage(base.baseStats, profile, owned, equippedPet);
   return {
     ...base,
-    stats,
-    petBonuses,
-    baseStats: base.baseStats ?? base.stats,
+    stats: pkg.stats,
+    baseStats: pkg.baseStats,
+    gearBonuses: pkg.gearBonuses,
+    gearModifiers: pkg.gearModifiers,
+    activeSetBonus: pkg.activeSetBonus,
+    petBonuses: pkg.petBonuses,
     equippedPet,
-    petCombatModifiers: buildPetCombatModifiers(equippedPet),
+    petCombatModifiers: pkg.petCombatModifiers,
     petBattleState: { turnCounter: 0, shieldHp: 0, lastHealTurn: 0 },
+    equippedGearInstanceIds: pkg.equippedGearInstanceIds,
   };
 }
 
@@ -60,6 +58,9 @@ function attachPetToFighter(base, profile, owned) {
  * @param {object|null} [profile] Player profile for equipped pet lookup
  */
 export function fighterFromOwned(owned, profile = null) {
+  if (profile) migrateProfileToNewGear(profile);
+  ensureMonsterEquipment(owned);
+
   const tpl = getMonsterTemplate(owned.templateId);
   const ladderTpl = tpl ? null : getLadderMonsterTemplate(owned.templateId);
   if (!tpl && ladderTpl) return fighterFromLadderOwnedInMainInventory(owned, ladderTpl, profile);
@@ -68,11 +69,13 @@ export function fighterFromOwned(owned, profile = null) {
   const st = evolutionStageFromLevel(owned.level);
   const visualTier = visualFormTierFromLevel(owned.level);
   const form = evolutionFormForMonster(owned.templateId, visualTier);
-  const gearIds = compactGearIds(owned.equippedGear);
   const mergeTier = clampMergeTier(owned.mergeTier);
   const mergedBase = scaleStatsByMergeTier(built.stats, mergeTier);
-  const { stats: finalStats, bonuses: gearBonuses } = applyGearBonuses(mergedBase, gearIds);
   const mergedParts = mergeMonsterParts(owned.templateId, owned.monsterParts || {});
+  const elements = getTemplateElements(owned.templateId);
+  const element = elements[0] ?? 'neutral';
+  const skills = getMonsterSkillSet(owned.templateId);
+
   const parts = {
     ...mergedParts,
     templateId: owned.templateId,
@@ -82,21 +85,15 @@ export function fighterFromOwned(owned, profile = null) {
     evolutionFormName: form.name,
     evolutionFormTagline: form.tagline,
     visualFlair: tpl.visualProfile.moveFlair ?? 'none',
-    cosmetics: [...gearIds],
-    equippedGearSlots: owned.equippedGear,
-    gearSlotCount: owned.gearSlotCount,
+    cosmetics: [],
+    equipment: owned.equipment,
   };
-  const element = resolveFighterElement(owned.templateId, gearIds);
-  const elements = getTemplateElements(owned.templateId);
-  const skills = getMonsterSkillSet(owned.templateId);
 
-  return attachPetToFighter(
+  return attachGearAndPetToFighter(
     {
       monsterParts: parts,
-      stats: finalStats,
+      stats: mergedBase,
       baseStats: mergedBase,
-      gearBonuses,
-      equippedGear: gearIds,
       monsterTemplateId: owned.templateId,
       ownedMonsterId: owned.id,
       mergeTier,
@@ -121,15 +118,16 @@ export function fighterFromOwned(owned, profile = null) {
 }
 
 function fighterFromLadderOwnedInMainInventory(owned, tpl, profile = null) {
+  if (profile) migrateProfileToNewGear(profile);
+  ensureMonsterEquipment(owned);
+
   const built = computeLadderBattleStats(owned.templateId, owned.level);
   if (!built || !tpl) return null;
   const st = evolutionStageFromLevel(owned.level);
   const visualTier = visualFormTierFromLevel(owned.level);
   const form = evolutionFormForMonster(owned.templateId, visualTier);
-  const gearIds = compactGearIds(owned.equippedGear);
   const mergeTier = clampMergeTier(owned.mergeTier);
   const mergedBase = scaleStatsByMergeTier(built.stats, mergeTier);
-  const { stats: finalStats, bonuses: gearBonuses } = applyGearBonuses(mergedBase, gearIds);
   const parts = {
     ...mergeLadderMonsterParts(owned.templateId, owned.monsterParts || {}),
     templateId: owned.templateId,
@@ -139,19 +137,16 @@ function fighterFromLadderOwnedInMainInventory(owned, tpl, profile = null) {
     evolutionFormName: form.name,
     evolutionFormTagline: form.tagline,
     visualFlair: tpl.visualProfile?.moveFlair ?? 'none',
-    cosmetics: [...gearIds],
-    equippedGearSlots: owned.equippedGear,
-    gearSlotCount: owned.gearSlotCount,
+    cosmetics: [],
+    equipment: owned.equipment,
     ladderPremium: true,
   };
 
-  return attachPetToFighter(
+  return attachGearAndPetToFighter(
     {
       monsterParts: parts,
-      stats: finalStats,
+      stats: mergedBase,
       baseStats: mergedBase,
-      gearBonuses,
-      equippedGear: gearIds,
       monsterTemplateId: owned.templateId,
       ownedMonsterId: owned.id,
       mergeTier,

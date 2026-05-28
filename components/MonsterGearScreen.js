@@ -17,6 +17,7 @@ import {
 } from '../utils/gearSlots';
 import { useReadableType } from '../utils/readableType';
 import MonsterPassivePanel from './MonsterPassivePanel';
+import GearInventoryPanel from './GearInventoryPanel';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -222,8 +223,11 @@ export default function MonsterGearScreen({
   onEquipPet,
   onUnequipPet,
   onSpendPetDust,
+  onOpenEquipment,
+  onSellGear,
 }) {
   const type = useReadableType();
+  const useNewGear = Array.isArray(profile?.gearInventory);
   const ownedSet = useMemo(() => new Set(ownedGearIds || []), [ownedGearIds]);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [filterCat, setFilterCat] = useState('all');
@@ -316,6 +320,38 @@ export default function MonsterGearScreen({
           >
             {tab === 'equip' ? (
               <>
+                {useNewGear ? (
+                  <>
+                    {fighter ? (
+                      <View style={styles.previewRow}>
+                        <MonsterPreview parts={fighter.monsterParts} size={88} mood="happy" />
+                        <View style={styles.previewMeta}>
+                          <Text style={[styles.monName, { fontSize: type.stat }]}>{fighter.displayName}</Text>
+                          {fighter.activeSetBonus ? (
+                            <Text style={[styles.slotHint, { fontSize: type.statSm, color: '#c4b5fd' }]}>
+                              {fighter.activeSetBonus.name} active
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : null}
+                    <GearInventoryPanel
+                      profile={profile}
+                      onOpenEquip={onOpenEquipment}
+                      onSell={onSellGear}
+                    />
+                    {ownedMonster ? (
+                      <MonsterPassivePanel
+                        monster={ownedMonster}
+                        profile={profile}
+                        onEquipBook={onEquipPassiveBook}
+                        onRemovePassive={onRemovePassive}
+                        onOpenSkillShop={onOpenGearMart}
+                      />
+                    ) : null}
+                  </>
+                ) : (
+                  <>
                 {fighter ? (
                   <View style={styles.previewRow}>
                     <MonsterPreview parts={fighter.monsterParts} size={88} mood="happy" />
@@ -468,6 +504,8 @@ export default function MonsterGearScreen({
                     No gear yet. Open the Gear Mart tab or lobby Gear Mart to buy items.
                   </Text>
                 ) : null}
+              </>
+                )}
               </>
             ) : tab === 'pets' ? (
               <PetEquipPanel

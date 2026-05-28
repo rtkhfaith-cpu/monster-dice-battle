@@ -27,13 +27,35 @@ export function randomVariance() {
   return varianceMin + Math.random() * (varianceMax - varianceMin);
 }
 
-export function dodgeChance({ attackerSpeed = 10, defenderSpeed = 10, magic = false, bossKind = null }) {
-  let pct = COMBAT_BALANCE.dodgeBase
-    + (defenderSpeed - attackerSpeed) * COMBAT_BALANCE.dodgeSpeedScalar;
-  pct = clamp(pct, COMBAT_BALANCE.dodgeMin, COMBAT_BALANCE.dodgeMax);
+export const DODGE_HITRATE_LIMITS = { min: 0, max: 60 };
+
+/**
+ * Dodge from flat stats: defender.dodge - attacker.hitRate, clamped 0–60%.
+ * Falls back to legacy agility-based formula when flat dodge is not present.
+ */
+export function dodgeChance({
+  attackerSpeed = 10,
+  defenderSpeed = 10,
+  attackerHitRate = 0,
+  defenderDodge = null,
+  magic = false,
+  bossKind = null,
+}) {
+  let pct;
+  if (typeof defenderDodge === 'number') {
+    pct = defenderDodge - attackerHitRate;
+    pct = clamp(pct, DODGE_HITRATE_LIMITS.min, DODGE_HITRATE_LIMITS.max);
+  } else {
+    pct = COMBAT_BALANCE.dodgeBase
+      + (defenderSpeed - attackerSpeed) * COMBAT_BALANCE.dodgeSpeedScalar;
+    pct = clamp(pct, COMBAT_BALANCE.dodgeMin, COMBAT_BALANCE.dodgeMax);
+  }
   if (magic) pct *= COMBAT_BALANCE.magicDodgeMultiplier;
   if (bossKind === 'miniBoss') pct *= COMBAT_BALANCE.miniBossDodgeMultiplier;
   if (bossKind === 'bigBoss') pct *= COMBAT_BALANCE.bigBossDodgeMultiplier;
+  if (typeof defenderDodge === 'number') {
+    return clamp(pct, DODGE_HITRATE_LIMITS.min, DODGE_HITRATE_LIMITS.max);
+  }
   return clamp(pct, COMBAT_BALANCE.dodgeMin, COMBAT_BALANCE.dodgeMax);
 }
 

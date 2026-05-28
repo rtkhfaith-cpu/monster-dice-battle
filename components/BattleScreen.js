@@ -1990,9 +1990,19 @@ export default function BattleScreen({
                 {...WEB_DECORATIVE_IMAGE_PROPS}
               />
               <Text style={styles.mainChestRevealKicker}>Mini Boss Chest</Text>
+              {mainChestDrop.kind === 'gear_instance' && mainChestDrop.rarity ? (
+                <Text
+                  style={[
+                    styles.mainChestRevealRarity,
+                    { color: (RARITY_UI[mainChestDrop.rarity] ?? RARITY_UI.rare).border },
+                  ]}
+                >
+                  {(RARITY_UI[mainChestDrop.rarity] ?? RARITY_UI.rare).label}
+                </Text>
+              ) : null}
               <Text style={styles.mainChestRevealTitle}>{chestDropTitle(mainChestDrop)}</Text>
-              {mainChestDrop.kind === 'gear' ? (
-                <Text style={styles.mainChestRevealEmoji}>{getGear(mainChestDrop.id)?.emoji ?? mainChestDrop.emoji ?? '🎁'}</Text>
+              {mainChestDrop.kind === 'gear' || mainChestDrop.kind === 'gear_instance' ? (
+                <Text style={styles.mainChestRevealEmoji}>⚔️</Text>
               ) : null}
               <Text style={styles.mainChestRevealSub}>{chestDropSubtitle(mainChestDrop)}</Text>
               <Pressable style={styles.mainChestContinueBtn} onPress={handleMainChestContinue}>
@@ -2617,6 +2627,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  mainChestRevealRarity: {
+    fontWeight: '900',
+    fontSize: 16,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginTop: 4,
   },
   mainChestRevealTitle: {
     color: '#fff4cf',

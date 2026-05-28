@@ -1,7 +1,6 @@
 import { randInt } from './random';
 import { getElementRelation, resolveMagicElementRelation } from './elements';
 import { applyStatus, statusStatMultiplier } from './statusEffects';
-import { getLadderGear } from './monsterLadder/ladderGearCatalog';
 import {
   COMBAT_BALANCE,
   applyCombatDamageModifiers,
@@ -33,11 +32,19 @@ function statMid(range, fallback) {
   return Math.round((range.min + range.max) / 2);
 }
 
-/** Auto dodge roll from speed delta (capped). */
+/** Auto dodge roll — flat dodge vs hitRate when present, else agility fallback. */
 function rollAutoDodge(attacker, defender, magic = false) {
+  const defenderDodge =
+    typeof defender?.stats?.dodge === 'number'
+      ? defender.stats.dodge
+      : typeof defender?.stats?.dodgePct === 'number'
+        ? defender.stats.dodgePct
+        : null;
   const pct = dodgeChance({
-    attackerSpeed: attacker?.stats?.agility ?? attacker?.stats?.speed ?? attacker?.stats?.dodgePct ?? 10,
-    defenderSpeed: defender?.stats?.agility ?? defender?.stats?.speed ?? defender?.stats?.dodgePct ?? 10,
+    attackerSpeed: attacker?.stats?.agility ?? attacker?.stats?.speed ?? 10,
+    defenderSpeed: defender?.stats?.agility ?? defender?.stats?.speed ?? 10,
+    attackerHitRate: attacker?.stats?.hitRate ?? 0,
+    defenderDodge,
     magic,
     bossKind: attacker?.ladderStageKind ?? null,
   });
@@ -59,22 +66,23 @@ function rollAttackAvoided(attacker, defender, magic = false) {
   return rollAutoDodge(attacker, defender, magic);
 }
 
-function ladderEffects(fighter, type) {
-  const ids = Array.isArray(fighter?.equippedGear) ? fighter.equippedGear : [];
-  const effects = [];
-  for (const id of ids) {
-    const gear = getLadderGear(id);
-    for (const fx of gear?.effects || []) {
-      if (fx?.type === type) effects.push(fx);
-    }
-  }
-  return effects;
+/** Gear set / modifier bonuses from new gear system. */
+function gearModifierPct(fighter, key) {
+  const mods = fighter?.gearModifiers;
+  if (!mods) return 0;
+  return typeof mods[key] === 'number' ? mods[key] : 0;
 }
 
-function ladderEffectPct(fighter, type, predicate = null) {
-  return ladderEffects(fighter, type)
-    .filter((fx) => !predicate || predicate(fx))
-    .reduce((sum, fx) => sum + (typeof fx.value === 'number' ? fx.value : 0), 0);
+/** Legacy ladder effect hook → new gear modifiers. */
+function ladderEffectPct(fighter, type) {
+  const mods = fighter?.gearModifiers;
+  if (!mods) return 0;
+  if (type === 'magicDamagePct' || type === 'elementBoost') {
+    return (mods.fireDamagePct ?? 0) + Math.floor((mods.firePower ?? 0) * 0.5);
+  }
+  if (type === 'bossDamagePct') return 0;
+  if (type === 'enemyMissMagicChance') return 0;
+  return 0;
 }
 
 function defenderElementPair(defender, defElementOverride) {

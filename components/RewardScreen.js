@@ -2,8 +2,6 @@ import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { chestDropTitle } from '../utils/mainBattleChest';
-import { compactGearIds } from '../utils/cosmetics';
-import { applyGearBonuses } from '../utils/gearStats';
 import { computeBattleStats } from '../utils/statsCalc';
 import { computeLadderBattleStats } from '../utils/monsterLadder/ladderStatsCalc';
 import { clampMergeTier, scaleStatsByMergeTier } from '../utils/mergeSystem';
@@ -17,8 +15,8 @@ function resolveStatsAtLevel(player, level) {
   if (!built?.stats) return null;
   const mergeTier = clampMergeTier(player?.mergeTier);
   const merged = scaleStatsByMergeTier(built.stats, mergeTier);
-  const gearIds = compactGearIds(player?.equippedGear ?? player?.monsterParts?.cosmetics);
-  return applyGearBonuses(merged, gearIds).stats;
+  if (player?.stats && player.level === level) return player.stats;
+  return merged;
 }
 
 function rangeLabel(range) {

@@ -3,7 +3,8 @@
  * This does NOT stop a determined player from editing localStorage in DevTools; real protection
  * requires server-side validation on POST /save and server-authoritative rewards.
  */
-import { getGear } from './cosmetics';
+import { ensureGearInventory } from '../src/gameSystems/gear/inventoryGearUtils';
+import { migrateProfileToNewGear } from '../src/gameSystems/gear/gearMigration';
 import { MONSTER_LEVEL_MAX, reconcileMonsterLevelExp } from './expLevel';
 import { getMonsterTemplate } from './monsterTemplates';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
@@ -121,13 +122,8 @@ export function sanitizePlayerProfile(profile, opts = {}) {
     getPassiveSkillDef(b?.skillId),
   );
 
-  const gearBefore = (profile.cosmeticsOwned || []).length;
-  profile.cosmeticsOwned = (profile.cosmeticsOwned || []).filter((id) => {
-    const ok = typeof id === 'string' && !!getGear(id);
-    if (!ok) issues.push('gear_unknown');
-    return ok;
-  });
-  if (profile.cosmeticsOwned.length < gearBefore) issues.push('gear_stripped');
+  migrateProfileToNewGear(profile);
+  ensureGearInventory(profile);
 
   return { profile, issues };
 }
@@ -137,7 +133,7 @@ export function profileBlockedForCloudSync(profile) {
   const { issues } = sanitizePlayerProfile(profile, { forCloud: true });
   if (issues.includes('coins_over_cap')) return true;
   const severe = issues.filter((c) =>
-    c === 'monster_unknown_template' || c === 'gear_unknown' || c === 'invalid_profile',
+    c === 'monster_unknown_template' || c === 'invalid_profile',
   );
   return severe.length > 0;
 }
