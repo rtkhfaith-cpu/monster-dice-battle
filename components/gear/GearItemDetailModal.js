@@ -38,6 +38,7 @@ export default function GearItemDetailModal({
   const mythic = isMythicRarity(rarity);
   const stats = gear.previewStats ?? gear.stats ?? [];
   const sockets = gear.previewSockets ?? gear.sockets ?? [];
+  const showSockets = mode !== 'shop';
   const statLines = formatGearStatLines(stats);
   const setBonus = GEAR_SET_BONUSES[gear.setId] ?? null;
 
@@ -85,10 +86,14 @@ export default function GearItemDetailModal({
               ))
             )}
 
-            <Text style={styles.sectionTitle}>Sockets</Text>
-            <Text style={styles.statLine}>
-              {sockets.length > 0 ? `${sockets.length} socket${sockets.length > 1 ? 's' : ''}` : 'No sockets'}
-            </Text>
+            {showSockets ? (
+              <>
+                <Text style={styles.sectionTitle}>Sockets</Text>
+                <Text style={styles.statLine}>
+                  {sockets.length > 0 ? `${sockets.length} socket${sockets.length > 1 ? 's' : ''}` : 'No sockets'}
+                </Text>
+              </>
+            ) : null}
 
             {setBonus ? (
               <>
@@ -106,7 +111,7 @@ export default function GearItemDetailModal({
                 <Text style={styles.sectionTitle}>Price</Text>
                 <Text style={styles.price}>🪙 {price ?? gear.price ?? 0}</Text>
                 <Text style={styles.previewHint}>
-                  Stats and sockets shown above are the exact values you receive on purchase.
+                  Socket count is hidden until purchase.
                 </Text>
               </>
             ) : null}

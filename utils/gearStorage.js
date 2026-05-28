@@ -20,6 +20,19 @@ import { grantGearDrop } from '../src/gameSystems/gear/gearDrops';
 import { GEAR_SELL_VALUES, GEAR_SHOP_RARITIES } from '../src/gameSystems/gear/gearConstants';
 import { migrateProfileToNewGear } from '../src/gameSystems/gear/gearMigration';
 
+function randomSocketsForRarity(rarity) {
+  if (rarity === 'rare') return [];
+  if (rarity === 'epic') {
+    const count = Math.random() < 0.5 ? 0 : 1;
+    return Array.from({ length: count }, (_, i) => ({ id: `socket_${i + 1}`, gem: null }));
+  }
+  if (rarity === 'mythic') {
+    const count = Math.random() < 0.5 ? 1 : 2;
+    return Array.from({ length: count }, (_, i) => ({ id: `socket_${i + 1}`, gem: null }));
+  }
+  return [];
+}
+
 export function normalizeProfileGear(profile) {
   if (!profile) return;
   migrateProfileToNewGear(profile);
@@ -59,6 +72,8 @@ export function buyGeneratedGear(profile, gearId, rarityHint = null, opts = {}) 
 
   const instance = generateGearInstance(gearId, opts.seed ? { seed: opts.seed } : {});
   if (!instance) return { ok: false, error: 'Failed to generate gear' };
+  // Socket rolls are intentionally random per purchase, even for the same daily shop offer.
+  instance.sockets = randomSocketsForRarity(rarity);
   const grant = addGearToInventory(profile, instance);
   if (!grant.ok) return grant;
 

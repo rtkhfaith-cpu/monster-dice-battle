@@ -1,7 +1,6 @@
 import { bossCoinsForEnemyLevel, bossExpForEnemyLevel } from '../src/gameBalance/rewards';
 import { CHEST_RARITY_RATES } from '../src/gameBalance/chestRarityRates';
 import { getChestMonstersByRarity } from './chestMonsterPools';
-import { generateRandomGearInstance } from '../src/gameSystems/gear/gearGenerator';
 import { rollGearDropRarity } from '../src/gameSystems/gear/gearDrops';
 import { formatGearStatLines } from '../src/gameSystems/gear/gearGenerator';
 import { getAllowedCpuRarities } from './fighterFromOwned';
@@ -31,7 +30,7 @@ export const MAIN_MINI_BOSS_CHEST_ROWS = [
     id: 'gear',
     label: 'Gear Mart item',
     chancePct: 26,
-    detail: 'Random non–ladder gear from the mart (price ≤ 140). Within this roll: 40% premium tier (86–140), 60% standard (≤ 85). Duplicate → ladder shards.',
+    detail: 'Random gear instance (rare/epic/mythic) from the active equipment system. Includes rolled stat lines and sockets.',
   },
   {
     id: 'monster',
@@ -180,7 +179,7 @@ function pickChestMonster(profile, enemyLevel) {
 function pickChestGearInstance() {
   const rarity = rollGearDropRarity('miniBoss');
   if (!rarity) return null;
-  return generateRandomGearInstance(rarity);
+  return { rarity };
 }
 
 /**
@@ -220,12 +219,8 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
   if (gear) {
     return {
       kind: 'gear_instance',
-      gear,
-      name: gear.name,
-      label: `${gear.rarity} ${gear.name}`,
       rarity: gear.rarity,
-      statLines: formatGearStatLines(gear.stats),
-      socketCount: gear.sockets?.length ?? 0,
+      label: `${gear.rarity} gear`,
     };
   }
 

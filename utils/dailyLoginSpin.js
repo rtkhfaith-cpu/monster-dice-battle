@@ -177,7 +177,9 @@ function maybeGrantBonusGear(profile, result) {
   if (grant.ok && grant.gear) {
     result.gearDrop = grant.gear;
     const lines = (grant.gear.stats || []).map((s) => `+${s.value} ${s.type}`).join(', ');
-    result.message = `${result.message} · Gear: ${grant.gear.rarity} ${grant.gear.name} (${lines})`;
+    const socketCount = grant.gear.sockets?.length ?? 0;
+    const socketText = socketCount > 0 ? ` · Sockets: ${socketCount}` : '';
+    result.message = `${result.message} · Gear: ${grant.gear.rarity} ${grant.gear.name} (${lines})${socketText}`;
   }
   return result;
 }

@@ -161,7 +161,6 @@ export default function GearMartModal({
                         const afford = (coins ?? 0) >= o.price;
                         const ui = gearRarityUi(o.rarity);
                         const statLines = formatGearStatLines(o.previewStats);
-                        const socketCount = o.previewSockets?.length ?? 0;
                         return (
                           <TouchableOpacity
                             key={`${o.gearId}_${o.rarity}`}
@@ -184,7 +183,6 @@ export default function GearMartModal({
                               {statLines.length > 0 ? (
                                 <Text style={styles.bonus} numberOfLines={2}>
                                   {statLines.join(' · ')}
-                                  {socketCount > 0 ? ` · ◇ ${socketCount}` : ''}
                                 </Text>
                               ) : null}
                               <Text style={styles.price}>🪙 {o.price}</Text>

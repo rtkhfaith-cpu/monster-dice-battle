@@ -110,9 +110,11 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip }) {
                 </View>
                 <Text style={styles.cardSet}>{card.setName} Set</Text>
                 <Text style={styles.cardStats}>{card.statLines.join(' · ')}</Text>
-                {card.socketCount > 0 ? (
-                  <Text style={styles.cardSockets}>◇ {card.socketCount} socket(s)</Text>
-                ) : null}
+                <View style={[styles.socketBadge, card.socketCount > 0 ? styles.socketBadgeOn : styles.socketBadgeOff]}>
+                  <Text style={[styles.socketBadgeTxt, card.socketCount > 0 ? styles.socketBadgeTxtOn : styles.socketBadgeTxtOff]}>
+                    {card.socketCount > 0 ? `Sockets: ${card.socketCount}` : 'Sockets: 0'}
+                  </Text>
+                </View>
                 <Text style={[styles.cardEquipped, equipped && styles.cardEquippedOn]}>
                   {equipped ? `Equipped: ${card.equippedMonsterName}` : 'Not equipped'}
                 </Text>
@@ -205,7 +207,25 @@ const styles = StyleSheet.create({
   cardSlot: { fontWeight: '800', color: GEAR_UI.sub, fontSize: 11, textTransform: 'capitalize' },
   cardSet: { color: '#c4b5fd', fontSize: 11, marginTop: 6, fontWeight: '800' },
   cardStats: { color: GEAR_UI.statPos, fontSize: 11, marginTop: 4, fontWeight: '800', lineHeight: 16 },
-  cardSockets: { color: GEAR_UI.coins, fontSize: 10, marginTop: 4, fontWeight: '900' },
+  socketBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  socketBadgeOn: {
+    backgroundColor: 'rgba(250, 204, 21, 0.18)',
+    borderColor: '#facc15',
+  },
+  socketBadgeOff: {
+    backgroundColor: 'rgba(148, 163, 184, 0.12)',
+    borderColor: 'rgba(148, 163, 184, 0.45)',
+  },
+  socketBadgeTxt: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
+  socketBadgeTxtOn: { color: '#fde68a' },
+  socketBadgeTxtOff: { color: GEAR_UI.muted },
   cardEquipped: { color: GEAR_UI.muted, fontSize: 10, marginTop: 6, fontWeight: '800' },
   cardEquippedOn: { color: '#fcd34d' },
   sellBtn: {
