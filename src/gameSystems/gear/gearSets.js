@@ -24,23 +24,23 @@ export const GEAR_SET_BONUSES = {
   meadow_bloom: {
     setId: 'meadow_bloom',
     name: 'Meadow Bloom Set',
-    description: '+10% healing and +1 HP each turn',
-    healPowerPct: 10,
-    regenHpPerTurn: 1,
+    description: '+5% HP and +4% Defense',
+    hpPct: 5,
+    defensePct: 4,
   },
   toxic_bite: {
     setId: 'toxic_bite',
     name: 'Toxic Bite Set',
-    description: '+10% poison damage and +5% poison chance',
-    poisonDamagePct: 10,
-    poisonChancePct: 5,
+    description: '+6% Attack and +3 Speed',
+    attackPct: 6,
+    speedFlat: 3,
   },
   ember_paw: {
     setId: 'ember_paw',
     name: 'Ember Paw Set',
-    description: '+10% fire damage and +5% burn chance',
-    fireDamagePct: 10,
-    burnChancePct: 5,
+    description: '+6% Attack and +2 Crit',
+    attackPct: 6,
+    critFlat: 2,
   },
   // Epic
   dragon_guard: {
@@ -60,23 +60,23 @@ export const GEAR_SET_BONUSES = {
   lifebloom: {
     setId: 'lifebloom',
     name: 'Lifebloom Set',
-    description: '+15% healing and +2 HP each turn',
-    healPowerPct: 15,
-    regenHpPerTurn: 2,
+    description: '+10% HP and +8% Defense',
+    hpPct: 10,
+    defensePct: 8,
   },
   venomfang: {
     setId: 'venomfang',
     name: 'Venomfang Set',
-    description: '+20% poison damage and +10% poison chance',
-    poisonDamagePct: 20,
-    poisonChancePct: 10,
+    description: '+10% Attack and +5 Speed',
+    attackPct: 10,
+    speedFlat: 5,
   },
   flameheart: {
     setId: 'flameheart',
     name: 'Flameheart Set',
-    description: '+20% fire damage and +10% burn chance',
-    fireDamagePct: 20,
-    burnChancePct: 10,
+    description: '+10% Attack and +5 Crit',
+    attackPct: 10,
+    critFlat: 5,
   },
   // Mythic
   celestial_guardian: {
@@ -97,23 +97,26 @@ export const GEAR_SET_BONUSES = {
   eternal_bloom: {
     setId: 'eternal_bloom',
     name: 'Eternal Bloom Set',
-    description: '+20% healing and +3 HP each turn',
-    healPowerPct: 20,
-    regenHpPerTurn: 3,
+    description: '+15% HP, +12% Defense, and +4 Dodge',
+    hpPct: 15,
+    defensePct: 12,
+    dodgeFlat: 4,
   },
   abyss_venom: {
     setId: 'abyss_venom',
     name: 'Abyss Venom Set',
-    description: '+25% poison damage and +15% poison chance',
-    poisonDamagePct: 25,
-    poisonChancePct: 15,
+    description: '+15% Attack, +8 Speed, and +4 HitRate',
+    attackPct: 15,
+    speedFlat: 8,
+    hitRateFlat: 4,
   },
   inferno_king: {
     setId: 'inferno_king',
     name: 'Inferno King Set',
-    description: '+25% fire damage and +15% burn chance',
-    fireDamagePct: 25,
-    burnChancePct: 15,
+    description: '+15% Attack, +8 Crit, and +4 HitRate',
+    attackPct: 15,
+    critFlat: 8,
+    hitRateFlat: 4,
   },
 };
 
@@ -197,6 +200,20 @@ export function applyGearSetBonusToStats(stats, setBonus) {
   }
   if (setBonus.critFlat) {
     next.critPct = (next.critPct ?? 0) + setBonus.critFlat;
+  }
+  if (setBonus.speedFlat) {
+    const spdBase = next.speed ?? next.agility ?? 10;
+    const agiBase = next.agility ?? next.speed ?? 10;
+    next.speed = spdBase + setBonus.speedFlat;
+    next.agility = agiBase + setBonus.speedFlat;
+  }
+  if (setBonus.dodgeFlat) {
+    const dodgeBase = next.dodge ?? next.dodgePct ?? 0;
+    next.dodge = dodgeBase + setBonus.dodgeFlat;
+    next.dodgePct = next.dodge;
+  }
+  if (setBonus.hitRateFlat) {
+    next.hitRate = (next.hitRate ?? 0) + setBonus.hitRateFlat;
   }
   if (setBonus.damageReductionPct) {
     next.damageReductionPct = (next.damageReductionPct ?? 0) + setBonus.damageReductionPct;

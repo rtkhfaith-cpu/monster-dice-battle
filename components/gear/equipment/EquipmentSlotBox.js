@@ -1,8 +1,17 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { formatGearStatLines } from '../../../src/gameSystems/gear/gearGenerator';
-import { GEAR_UI, SLOT_ICONS, emojiForGear, gearRarityUi, isMythicRarity } from '../gearUiTheme';
+import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { GEAR_UI, GearIcon, SLOT_ICONS, gearRarityUi, isMythicRarity } from '../gearUiTheme';
 
+/**
+ * Compact MMORPG-style equipment slot box.
+ *
+ * Visual goals:
+ *   - icon + short label (Head, Body, Wpn 1, Hand 1, Leg 1)
+ *   - rarity border when equipped
+ *   - single-line gear name (truncated)
+ *   - dashed border + dim look when empty
+ *   - small footprint so the monster stays visually centered
+ */
 export default function EquipmentSlotBox({
   label,
   slotKey,
@@ -16,7 +25,7 @@ export default function EquipmentSlotBox({
 
   return (
     <TouchableOpacity
-      activeOpacity={0.9}
+      activeOpacity={0.85}
       onPress={onPress}
       style={[
         styles.box,
@@ -27,20 +36,18 @@ export default function EquipmentSlotBox({
         mythic && styles.mythic,
       ]}
     >
-      <Text style={styles.icon}>{gear ? emojiForGear(gear) : SLOT_ICONS[slotKey] ?? '◆'}</Text>
-      <Text style={styles.lbl}>{label}</Text>
       {gear ? (
-        <>
-          <Text style={[styles.name, { color: ui.color }]} numberOfLines={2}>
-            {gear.name}
-          </Text>
-          {gear.sockets?.length ? (
-            <Text style={styles.socket}>◇ {gear.sockets.length}</Text>
-          ) : null}
-          <Text style={styles.statHint} numberOfLines={1}>
-            {formatGearStatLines(gear.stats).join(' · ')}
-          </Text>
-        </>
+        <GearIcon gear={gear} size={22} />
+      ) : (
+        <Text style={styles.icon}>{SLOT_ICONS[slotKey] ?? '◆'}</Text>
+      )}
+      <Text style={styles.lbl} numberOfLines={1}>
+        {label}
+      </Text>
+      {gear ? (
+        <Text style={[styles.name, { color: ui.color }]} numberOfLines={1}>
+          {gear.name}
+        </Text>
       ) : (
         <Text style={styles.emptyTxt}>Empty</Text>
       )}
@@ -50,8 +57,8 @@ export default function EquipmentSlotBox({
 
 const styles = StyleSheet.create({
   box: {
-    width: 88,
-    minHeight: 92,
+    width: 80,
+    height: 84,
     borderRadius: 12,
     borderWidth: 2,
     paddingVertical: 6,
@@ -60,7 +67,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     backgroundColor: GEAR_UI.panelDeep,
   },
-  boxCompact: { width: 76, minHeight: 84 },
+  boxCompact: { width: 72, height: 76 },
   empty: {
     borderColor: GEAR_UI.slotEmptyBorder,
     borderStyle: 'dashed',
@@ -84,14 +91,18 @@ const styles = StyleSheet.create({
   },
   icon: { fontSize: 20, marginBottom: 2 },
   lbl: {
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: '900',
     color: GEAR_UI.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  name: { fontSize: 9, fontWeight: '900', textAlign: 'center', marginTop: 3 },
-  socket: { fontSize: 8, fontWeight: '900', color: GEAR_UI.coins, marginTop: 2 },
-  statHint: { fontSize: 7, fontWeight: '800', color: GEAR_UI.statPos, marginTop: 2, textAlign: 'center' },
-  emptyTxt: { fontSize: 9, fontWeight: '800', color: GEAR_UI.sub, marginTop: 6 },
+  name: {
+    fontSize: 9,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginTop: 3,
+    maxWidth: '100%',
+  },
+  emptyTxt: { fontSize: 9, fontWeight: '800', color: GEAR_UI.sub, marginTop: 4 },
 });

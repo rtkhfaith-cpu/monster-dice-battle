@@ -32,17 +32,17 @@ export default function SkillSlotPanel({ equippedPassives, slotLimit, selected, 
 
 const styles = StyleSheet.create({
   box: {
-    width: 88,
-    minHeight: 92,
+    width: 132,
+    minHeight: 88,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: GEAR_UI.panelBorder,
     paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     alignItems: 'center',
     backgroundColor: GEAR_UI.panelDeep,
   },
-  compact: { width: 76, minHeight: 84 },
+  compact: { width: 116, minHeight: 84 },
   selected: {
     borderColor: GEAR_UI.accent,
     backgroundColor: GEAR_UI.slotSelected,

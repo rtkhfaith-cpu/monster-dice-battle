@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -22,6 +22,8 @@ import MonsterFinalStatsPanel from './MonsterFinalStatsPanel';
 import MonsterSelectorRow from './MonsterSelectorRow';
 import SetBonusPanel from './SetBonusPanel';
 import CompatibleItemPanel from './CompatibleItemPanel';
+import PetSlotBox from './PetSlotBox';
+import SkillSlotPanel from './SkillSlotPanel';
 
 const PET_RARITY_COLOR = { rare: '#60a5fa', epic: '#c084fc', mythic: '#f472b6' };
 
@@ -198,36 +200,43 @@ export default function EquipmentScreen({
         onSelect={onSelectMonster}
       />
 
-      <SetBonusPanel
-        setBonus={setBonus}
-        progress={
-          !setBonus
-            ? 'Equip head, body, weapon, hand & legs from the same set for a bonus'
-            : null
-        }
-      />
+      <SetBonusPanel setBonus={setBonus} progress={null} />
 
-      <MonsterFinalStatsPanel fighter={fighter} compact={compact} />
+      <ScrollView
+        style={styles.contentScroll}
+        contentContainerStyle={styles.contentInner}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.equipStage, selectedSlot && styles.dim]}>
+          <MonsterEquipmentLayout
+            fighter={fighter}
+            equipment={equipment}
+            getGear={getGear}
+            selectedSlot={selectedSlot}
+            onSelectGearSlot={openGearSlot}
+            compact={compact}
+          />
+        </View>
 
-      <View style={[styles.layoutWrap, selectedSlot && styles.layoutWrapDim]}>
-        <MonsterEquipmentLayout
-          fighter={fighter}
-          equipment={equipment}
-          getGear={getGear}
-          selectedSlot={selectedSlot}
-          onSelectGearSlot={openGearSlot}
-          equippedPet={equippedPet}
-          equippedPassives={equippedPassives}
-          passiveSlotLimit={passiveLimit}
-          onSelectPet={openPetSlot}
-          onSelectSkills={openSkillsSlot}
-          compact={compact}
-        />
-      </View>
+        <View style={styles.petSkillRow}>
+          <PetSlotBox
+            pet={equippedPet}
+            selected={selectedSlot?.kind === 'pet'}
+            onPress={openPetSlot}
+            compact={compact}
+          />
+          <SkillSlotPanel
+            equippedPassives={equippedPassives}
+            slotLimit={passiveLimit}
+            selected={selectedSlot?.kind === 'skills'}
+            onPress={openSkillsSlot}
+            compact={compact}
+          />
+        </View>
 
-      {!selectedSlot ? (
-        <Text style={styles.hint}>Tap a slot around your monster to change gear, pet, or skills.</Text>
-      ) : null}
+        <MonsterFinalStatsPanel fighter={fighter} compact={compact} />
+      </ScrollView>
 
       <CompatibleItemPanel
         selectedSlot={selectedSlot}
@@ -276,15 +285,21 @@ const styles = StyleSheet.create({
   monsterTitle: { fontWeight: '800', color: GEAR_UI.sub, fontSize: 12, marginTop: 2 },
   coins: { color: GEAR_UI.coins, fontWeight: '900', fontSize: 13, minWidth: 72, textAlign: 'right' },
   coinsSpacer: { minWidth: 72 },
-  layoutWrap: { flex: 1, justifyContent: 'center', minHeight: 0 },
-  layoutWrapDim: { opacity: 0.92 },
-  hint: {
-    textAlign: 'center',
-    color: GEAR_UI.muted,
-    fontSize: 11,
-    fontWeight: '800',
+  contentScroll: { flex: 1 },
+  contentInner: { paddingBottom: 12 },
+  equipStage: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  dim: { opacity: 0.92 },
+  petSkillRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 4,
     marginBottom: 8,
-    paddingHorizontal: 12,
   },
   empty: { padding: 24, alignItems: 'center' },
   emptyTxt: { color: GEAR_UI.muted, fontWeight: '800', marginBottom: 16 },

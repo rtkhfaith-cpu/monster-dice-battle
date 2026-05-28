@@ -22,7 +22,7 @@ export default function MonsterSelectorRow({ monsters, selectedId, onSelect }) {
             onPress={() => onSelect?.(m.id)}
             activeOpacity={0.88}
           >
-            <MonsterPreview templateId={m.templateId} monsterParts={m.monsterParts} size={40} mood="happy" />
+            <MonsterPreview templateId={m.templateId} monsterParts={m.monsterParts} size={32} mood="happy" />
             <Text style={[styles.name, on && styles.nameOn]} numberOfLines={1}>
               {m.nickname || m.templateId}
             </Text>
@@ -34,22 +34,22 @@ export default function MonsterSelectorRow({ monsters, selectedId, onSelect }) {
 }
 
 const styles = StyleSheet.create({
-  scroll: { maxHeight: 72, marginBottom: 8 },
-  content: { gap: 8, paddingHorizontal: 2 },
+  scroll: { maxHeight: 64, marginBottom: 6 },
+  content: { gap: 6, paddingHorizontal: 2 },
   chip: {
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: GEAR_UI.panelBorder,
     backgroundColor: GEAR_UI.panel,
-    minWidth: 72,
+    minWidth: 60,
   },
   chipOn: {
     borderColor: GEAR_UI.accent,
     backgroundColor: GEAR_UI.setActive,
   },
-  name: { fontSize: 9, fontWeight: '900', color: GEAR_UI.sub, marginTop: 4, maxWidth: 68 },
+  name: { fontSize: 9, fontWeight: '900', color: GEAR_UI.sub, marginTop: 2, maxWidth: 64 },
   nameOn: { color: GEAR_UI.title },
 });

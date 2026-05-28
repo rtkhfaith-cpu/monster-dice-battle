@@ -734,12 +734,12 @@ export function buyMonster(gameData, playerId, monsterTypeId) {
   return { gameData: gd, ownedMonster: om };
 }
 
-/** Buy generated gear instance (Rare/Epic). */
-export function buyGearItem(gameData, playerId, gearId, rarity = 'rare') {
+/** Buy a single generated gear piece (Rare/Epic). */
+export function buyGearItem(gameData, playerId, gearId, rarity = 'rare', opts = {}) {
   const gd = cloneGameData(gameData);
   const wallet = playerId ? gd.players.find((p) => p.id === playerId) : gd.guest;
   if (!wallet) return { gameData: gd, error: 'No wallet' };
-  const res = buyGeneratedGear(wallet, gearId, rarity);
+  const res = buyGeneratedGear(wallet, gearId, rarity, opts);
   if (!res.ok) return { gameData: gd, error: res.error };
   return { gameData: gd, gear: res.gear, price: res.price };
 }

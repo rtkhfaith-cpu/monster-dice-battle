@@ -4,7 +4,8 @@ import MonsterPreview from './MonsterPreview';
 import { RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate, LADDER_MONSTER_CATALOG } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { GEAR_DROP_TABLES } from '../src/gameSystems/gear/gearConstants';
-import { GEAR_SETS_FOR_DISPLAY } from '../src/gameSystems/gear/gearDefinitions';
+import { GEAR_TEMPLATE_LIST } from '../src/gameSystems/gear/gearDefinitions';
+import { GearIcon } from './gear/gearUiTheme';
 import { getLadderTheme } from '../utils/monsterLadder/ladderLevelThemes';
 import { mergeLadderMonsterParts } from '../utils/monsterLadder/ladderProfile';
 import { computeLadderBattleStats } from '../utils/monsterLadder/ladderStatsCalc';
@@ -268,31 +269,37 @@ function CatalogByRarity({ items, type, onItemPress }) {
   });
 }
 
-function GearSetsCodex() {
+function GearPiecesCodex() {
   return GEAR_CHEST_RARITY_ORDER.map((rarity) => {
-    const group = GEAR_SETS_FOR_DISPLAY.filter((s) => s.rarity === rarity);
+    const group = GEAR_TEMPLATE_LIST.filter((t) => t.rarity === rarity);
     if (!group.length) return null;
     return (
-      <View key={`gear-sets-${rarity}`} style={styles.rarityGroup}>
+      <View key={`gear-pieces-${rarity}`} style={styles.rarityGroup}>
         <View style={styles.rarityGroupHeader}>
           <Text style={[styles.rarityGroupTitle, { color: RARITY_TONE[rarity] ?? '#fff' }]}>
-            {rarityLabel(rarity)} tier
+            {rarityLabel(rarity)} pieces
           </Text>
-          <Text style={styles.rarityGroupChance}>5 sets · 40 pieces each tier</Text>
+          <Text style={styles.rarityGroupChance}>{group.length} possible drops</Text>
         </View>
         <View style={styles.catalogGrid}>
-          {group.map((set) => (
+          {group.map((piece) => (
             <View
-              key={set.setId}
-              style={[styles.catalogChip, styles.catalogChipSet, { borderColor: RARITY_TONE[rarity] ?? '#fff' }]}
+              key={piece.gearId}
+              style={[
+                styles.catalogChip,
+                styles.catalogChipSet,
+                { borderColor: RARITY_TONE[rarity] ?? '#fff' },
+              ]}
             >
-              <Text style={styles.catalogIcon}>{set.emoji}</Text>
+              <View style={styles.catalogPieceIcon}>
+                <GearIcon gear={piece} size={22} />
+              </View>
               <View style={styles.catalogCopy}>
                 <Text style={styles.catalogName} numberOfLines={2}>
-                  {set.setName}
+                  {piece.name}
                 </Text>
-                <Text style={[styles.catalogMeta, { color: RARITY_TONE[rarity] }]}>
-                  {BUILD_TYPE_LABELS[set.buildType] ?? set.buildType}
+                <Text style={[styles.catalogMeta, { color: RARITY_TONE[rarity] }]} numberOfLines={1}>
+                  {capitalizeText(piece.slot)} · {piece.setName}
                 </Text>
               </View>
             </View>
@@ -301,6 +308,11 @@ function GearSetsCodex() {
       </View>
     );
   });
+}
+
+function capitalizeText(s) {
+  if (!s) return '';
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function CodexMonsterCard({ templateId, onClose }) {
@@ -400,9 +412,10 @@ function RewardsCodexOverlay({ onClose }) {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.codexScroll}>
           <Text style={styles.codexIntro}>
-            Beat Sub 5 Mini Bosses for Gear Chests. Beat Sub 10 Bosses for Monster Chests. Gear chests add
-            randomized Rare, Epic, or Mythic gear to your profile stash (Iron Guard, Dragon Guard, and the other
-            main sets). Equip from Equipment on any monster. Monster chests still drop ladder-exclusive monsters.
+            Beat Sub 5 Mini Bosses for Gear Chests. Beat Sub 10 Bosses for Monster Chests. Each Gear Chest drops one
+            individual gear piece (Rare, Epic, or Mythic) — for example an Iron Guard Helm or a Venomfang Dagger —
+            into your profile stash. Set name is shown for reference; full set bonuses only activate when matching
+            pieces from the same set are equipped together. Monster chests drop ladder-exclusive monsters.
           </Text>
 
           <View style={styles.codexRatesBlock}>
@@ -430,12 +443,13 @@ function RewardsCodexOverlay({ onClose }) {
             <ChestOddsCard title="Monster Chest" sub="Ladder-exclusive monsters" type="monster" />
           </View>
 
-          <Text style={styles.sectionTitle}>Gear chest — set pools</Text>
+          <Text style={styles.sectionTitle}>Gear chest — possible piece drops</Text>
           <Text style={styles.codexRatesSub}>
-            Old ladder-only items (Glitch Core, Sauce Cannon, etc.) are no longer dropped. Each open picks a random
-            piece from one of these sets.
+            Each chest drops one individual gear piece (not a full set). Stats and sockets are rolled per drop. Set
+            bonuses only activate when matching head, body, weapon, hand and legs from the same set are equipped
+            together.
           </Text>
-          <GearSetsCodex />
+          <GearPiecesCodex />
 
           <Text style={styles.sectionTitle}>Monster chest drops</Text>
           <CatalogByRarity items={LADDER_MONSTER_CATALOG} type="monster" onItemPress={handleCatalogPress} />
@@ -1642,6 +1656,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
     textAlign: 'center',
+  },
+  catalogPieceIcon: {
+    width: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   catalogMonsterPortrait: {
     width: 42,

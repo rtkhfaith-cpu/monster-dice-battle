@@ -11,11 +11,8 @@ const STAT_LABELS = {
   crit: 'Crit',
   dodge: 'Dodge',
   hitRate: 'Hit',
-  healPower: 'Heal',
-  firePower: 'Fire',
-  poisonPower: 'Poison',
-  skillPower: 'Skill',
 };
+const HIDDEN_PLAYER_STATS = new Set(['healPower', 'firePower', 'poisonPower', 'skillPower']);
 
 function statMap(gear) {
   const m = {};
@@ -31,6 +28,7 @@ export default function GearComparisonPanel({ currentGear, selectedGear, setPrev
     const types = new Set([...Object.keys(cur), ...Object.keys(sel)]);
     const lines = [];
     for (const type of types) {
+      if (HIDDEN_PLAYER_STATS.has(type)) continue;
       const diff = (sel[type] ?? 0) - (cur[type] ?? 0);
       if (diff !== 0) lines.push({ type, diff });
     }

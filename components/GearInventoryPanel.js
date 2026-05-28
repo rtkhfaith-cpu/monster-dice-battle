@@ -7,7 +7,7 @@ import {
 } from '../src/gameSystems/gear/inventoryGearUtils';
 import {
   GEAR_UI,
-  emojiForGear,
+  GearIcon,
   gearRarityUi,
   isMythicRarity,
 } from './gear/gearUiTheme';
@@ -95,7 +95,9 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip }) {
                 ]}
               >
                 <View style={styles.cardTop}>
-                  <Text style={styles.cardEmoji}>{emojiForGear(g)}</Text>
+                  <View style={styles.cardEmoji}>
+                    <GearIcon gear={g} size={28} />
+                  </View>
                   <View style={styles.cardMid}>
                     <Text style={[styles.cardName, { color: ui.color }]}>{card.name}</Text>
                     <View style={styles.cardMetaRow}>
@@ -194,7 +196,7 @@ const styles = StyleSheet.create({
   },
   cardEquipped: { opacity: 0.92, borderStyle: 'solid' },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  cardEmoji: { fontSize: 28, width: 36, textAlign: 'center' },
+  cardEmoji: { width: 40, alignItems: 'center', justifyContent: 'flex-start' },
   cardMid: { flex: 1, minWidth: 0 },
   cardName: { fontWeight: '900', fontSize: 15 },
   cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' },

@@ -29,8 +29,17 @@ export function normalizeProfileGear(profile) {
   }
 }
 
-/** Buy generated gear instance (Rare/Epic templates only). */
-export function buyGeneratedGear(profile, gearId, rarityHint = null) {
+/**
+ * Buy a single generated gear piece (Rare/Epic templates only).
+ *
+ * @param {object} profile
+ * @param {string} gearId
+ * @param {string|null} rarityHint
+ * @param {{ seed?: string, price?: number }} [opts]
+ *   `seed` (optional) lets the caller pass the shop offer's deterministic seed
+ *   so the purchased item matches the exact stats/sockets shown in the shop.
+ */
+export function buyGeneratedGear(profile, gearId, rarityHint = null, opts = {}) {
   normalizeProfileGear(profile);
   const template = getGearTemplate(gearId);
   if (!template) return { ok: false, error: 'Unknown gear' };
@@ -42,10 +51,13 @@ export function buyGeneratedGear(profile, gearId, rarityHint = null) {
   }
 
   const rarity = template.rarity;
-  const price = shopPriceForGear(rarity, `${profile.id}_${gearId}_${rarity}`);
+  const priceSeed = opts.seed ?? `${profile.id}_${gearId}_${rarity}`;
+  const price = typeof opts.price === 'number'
+    ? opts.price
+    : shopPriceForGear(rarity, priceSeed);
   if (profile.coins < price) return { ok: false, error: 'Not enough coins' };
 
-  const instance = generateGearInstance(gearId);
+  const instance = generateGearInstance(gearId, opts.seed ? { seed: opts.seed } : {});
   if (!instance) return { ok: false, error: 'Failed to generate gear' };
   const grant = addGearToInventory(profile, instance);
   if (!grant.ok) return grant;

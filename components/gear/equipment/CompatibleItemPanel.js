@@ -19,7 +19,7 @@ import {
 import { calculatePetStats } from '../../../src/gameSystems/pets';
 import { describePetSkill } from '../../../src/gameSystems/petSkills';
 import GearComparisonPanel from './GearComparisonPanel';
-import { GEAR_UI, emojiForGear, gearRarityUi, isMythicRarity } from '../gearUiTheme';
+import { GEAR_UI, GearIcon, gearRarityUi, isMythicRarity } from '../gearUiTheme';
 
 const SLOT_TITLES = {
   head: 'Head',
@@ -106,7 +106,9 @@ export default function CompatibleItemPanel({
                     onPress={() => onSelectGear(g.instanceId)}
                     activeOpacity={0.86}
                   >
-                    <Text style={styles.rowEmoji}>{emojiForGear(g)}</Text>
+                    <View style={styles.rowEmojiBox}>
+                      <GearIcon gear={g} size={24} />
+                    </View>
                     <View style={styles.rowBody}>
                       <Text style={[styles.rowName, { color: ui.color }]}>{g.name}</Text>
                       <Text style={styles.rowMeta}>
@@ -304,6 +306,7 @@ const styles = StyleSheet.create({
   rowMythic: { borderWidth: 2, borderColor: '#e84393' },
   rowOff: { opacity: 0.45 },
   rowEmoji: { fontSize: 24, width: 32, textAlign: 'center' },
+  rowEmojiBox: { width: 36, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1, minWidth: 0 },
   rowName: { fontWeight: '900', fontSize: 13 },
   rowMeta: { fontWeight: '800', color: '#c4b5fd', fontSize: 10, marginTop: 2 },

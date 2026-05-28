@@ -1276,10 +1276,13 @@ export default function App() {
     openMonsterGear(setupActiveSlot);
   }
 
-  function handleBuyGearMart(gearId, rarity = 'rare') {
+  function handleBuyGearMart(gearId, rarity = 'rare', price = null, seed = null) {
     if (!gameData) return;
     const profileId = activeProfileId || setupP1ProfileId || null;
-    const res = buyGearItem(gameData, profileId, gearId, rarity);
+    const opts = {};
+    if (seed) opts.seed = seed;
+    if (typeof price === 'number') opts.price = price;
+    const res = buyGearItem(gameData, profileId, gearId, rarity, opts);
     if (res.error) {
       showNotice('Gear & Skill Shop', res.error);
       return;

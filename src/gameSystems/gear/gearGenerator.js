@@ -1,5 +1,8 @@
 /**
  * Generate unique gear instances from templates (fixed rarity per template).
+ *
+ * Shop offers use a deterministic seed so the rolled stats / sockets the
+ * player sees BEFORE purchase match the gear they receive AFTER purchase.
  */
 import {
   GEAR_STAT_LINE_COUNT,
@@ -16,49 +19,63 @@ function newInstanceId() {
   return `gear_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function rollInt(min, max) {
-  return min + Math.floor(Math.random() * (max - min + 1));
+/** Deterministic LCG seeded from a string — used to keep shop preview === purchase. */
+function makeSeededRng(seedStr) {
+  let s = 0;
+  for (let i = 0; i < seedStr.length; i += 1) {
+    s = (s * 31 + seedStr.charCodeAt(i)) | 0;
+  }
+  s = (s >>> 0) || 1;
+  return function rng() {
+    s = (1664525 * s + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
 }
 
-function pickRandom(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+function rollInt(rng, min, max) {
+  return min + Math.floor(rng() * (max - min + 1));
 }
 
-function rollStatValue(statType, rarity) {
+function pickRandom(rng, arr) {
+  return arr[Math.floor(rng() * arr.length)];
+}
+
+function rollStatValue(rng, statType, rarity) {
   const range = GEAR_STAT_RANGES[rarity]?.[statType];
-  if (!range) return rollInt(1, 3);
-  return rollInt(range[0], range[1]);
+  if (!range) return rollInt(rng, 1, 3);
+  return rollInt(rng, range[0], range[1]);
 }
 
-function rollSockets(rarity) {
+function rollSockets(rng, rarity) {
   if (rarity === 'rare') return [];
   if (rarity === 'epic') {
-    const count = Math.random() < 0.5 ? 0 : 1;
+    const count = rng() < 0.5 ? 0 : 1;
     return Array.from({ length: count }, (_, i) => ({
       id: `socket_${i + 1}`,
       gem: null,
     }));
   }
-  const count = Math.random() < 0.5 ? 1 : 2;
+  const count = rng() < 0.5 ? 1 : 2;
   return Array.from({ length: count }, (_, i) => ({
     id: `socket_${i + 1}`,
     gem: null,
   }));
 }
 
-function rollStatsForTemplate(template, rarity) {
+function rollStatsForTemplate(rng, template, rarity) {
   const count = GEAR_STAT_LINE_COUNT[rarity] ?? 1;
   const pool = [...(template.allowedStats || [])];
   const stats = [];
   for (let i = 0; i < count && pool.length; i += 1) {
-    const idx = Math.floor(Math.random() * pool.length);
+    const idx = Math.floor(rng() * pool.length);
     const type = pool.splice(idx, 1)[0];
-    stats.push({ type, value: rollStatValue(type, rarity) });
+    stats.push({ type, value: rollStatValue(rng, type, rarity) });
   }
   return stats;
 }
 
-function instanceFromTemplate(template) {
+function instanceFromTemplate(template, rng) {
+  const r = rng ?? Math.random;
   const rarity = template.rarity;
   return {
     instanceId: newInstanceId(),
@@ -69,21 +86,24 @@ function instanceFromTemplate(template) {
     setId: template.setId,
     setName: template.setName,
     buildType: template.buildType,
-    stats: rollStatsForTemplate(template, rarity),
-    sockets: rollSockets(rarity),
+    stats: rollStatsForTemplate(r, template, rarity),
+    sockets: rollSockets(r, rarity),
     equippedToMonsterId: null,
     acquiredAt: new Date().toISOString(),
   };
 }
 
 /**
- * Create an instance from a template. Rarity comes from the template only.
+ * Create an instance from a template. Rarity comes from the template.
+ * Pass `opts.seed` to make stat/socket rolls deterministic.
  * @param {string} gearId
+ * @param {{ seed?: string }} [opts]
  */
-export function generateGearInstance(gearId) {
+export function generateGearInstance(gearId, opts = {}) {
   const template = getGearTemplate(gearId);
   if (!template) return null;
-  return instanceFromTemplate(template);
+  const rng = opts.seed ? makeSeededRng(opts.seed) : null;
+  return instanceFromTemplate(template, rng);
 }
 
 /** Pick a random template from the rarity pool, then generate an instance. */
@@ -92,8 +112,9 @@ export function generateRandomGearInstance(rarity, opts = {}) {
   if (opts.slot) pool = pool.filter((t) => t.slot === opts.slot);
   if (opts.setId) pool = pool.filter((t) => t.setId === opts.setId);
   if (!pool.length) return null;
-  const template = pickRandom(pool);
-  return instanceFromTemplate(template);
+  const rng = opts.seed ? makeSeededRng(opts.seed) : Math.random;
+  const template = pickRandom(rng, pool);
+  return instanceFromTemplate(template, opts.seed ? rng : null);
 }
 
 export function shopPriceForGear(rarity, seed = '') {
@@ -105,7 +126,8 @@ export function shopPriceForGear(rarity, seed = '') {
     const span = range.max - range.min + 1;
     return range.min + (Math.abs(h) % span);
   }
-  return rollInt(range.min, range.max);
+  const rng = Math.random;
+  return rollInt(rng, range.min, range.max);
 }
 
 function hashSeed(str) {
@@ -114,10 +136,18 @@ function hashSeed(str) {
   return Math.abs(h);
 }
 
-/** Shop stock row from a specific template in the rarity pool. */
-export function buildShopGearOffer(profileId, template, index = 0) {
+/**
+ * Shop offer for one template — single piece (not a set).
+ * Stats/sockets are pre-rolled with a deterministic seed so they match the
+ * exact item the player receives on purchase.
+ */
+export function buildShopGearOffer(profileId, template, index = 0, dateKey = '') {
   const rarity = template.rarity;
-  const price = shopPriceForGear(rarity, `${profileId}_${template.gearId}_${index}`);
+  const seed = `${profileId}_${template.gearId}_${index}_${dateKey}`;
+  const price = shopPriceForGear(rarity, seed);
+  const rng = makeSeededRng(seed);
+  const previewStats = rollStatsForTemplate(rng, template, rarity);
+  const previewSockets = rollSockets(rng, rarity);
   return {
     gearId: template.gearId,
     name: template.name,
@@ -128,22 +158,29 @@ export function buildShopGearOffer(profileId, template, index = 0) {
     rarity,
     price,
     statLineCount: GEAR_STAT_LINE_COUNT[rarity],
-    maxSockets: rarity === 'epic' ? 1 : 0,
+    maxSockets: rarity === 'epic' ? 1 : rarity === 'mythic' ? 2 : 0,
+    previewStats,
+    previewSockets,
+    offerSeed: seed,
   };
 }
 
-/** Rotating shop: 12 Rare + 8 Epic offers from rarity-specific template pools. */
+/**
+ * Rotating shop: 12 Rare + 8 Epic individual gear offers.
+ * Each offer is one piece (e.g. Iron Guard Helm), not a full set.
+ */
 export function buildGearShopCatalog(profileId = '') {
   const rarePool = gearTemplatesForShopRarity('rare');
   const epicPool = gearTemplatesForShopRarity('epic');
-  const daySeed = profileId ? hashSeed(`${profileId}_${new Date().toISOString().slice(0, 10)}`) : 0;
+  const dateKey = new Date().toISOString().slice(0, 10);
+  const daySeed = profileId ? hashSeed(`${profileId}_${dateKey}`) : 0;
 
   const pickRotating = (pool, count) => {
     if (!pool.length) return [];
     const offers = [];
     for (let i = 0; i < count; i += 1) {
       const idx = (daySeed + i * 7) % pool.length;
-      offers.push(buildShopGearOffer(profileId, pool[idx], i));
+      offers.push(buildShopGearOffer(profileId, pool[idx], i, dateKey));
     }
     return offers;
   };
@@ -156,6 +193,7 @@ export function buildGearShopCatalog(profileId = '') {
 
 export function formatGearStatLines(stats) {
   if (!Array.isArray(stats)) return [];
+  const hiddenPlayerStats = new Set(['healPower', 'firePower', 'poisonPower', 'skillPower']);
   const labels = {
     attack: 'ATK',
     defense: 'DEF',
@@ -164,10 +202,8 @@ export function formatGearStatLines(stats) {
     crit: 'Crit',
     dodge: 'Dodge',
     hitRate: 'Hit',
-    healPower: 'Heal',
-    firePower: 'Fire',
-    poisonPower: 'Poison',
-    skillPower: 'Skill',
   };
-  return stats.map((s) => `+${s.value} ${labels[s.type] ?? s.type}`);
+  return stats
+    .filter((s) => !hiddenPlayerStats.has(s.type))
+    .map((s) => `+${s.value} ${labels[s.type] ?? s.type}`);
 }

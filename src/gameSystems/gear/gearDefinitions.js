@@ -8,9 +8,10 @@
 const BUILD_ALLOWED_STATS = {
   tank: ['hp', 'defense', 'dodge', 'hitRate'],
   attack: ['attack', 'crit', 'speed', 'hitRate'],
-  recovery: ['hp', 'defense', 'healPower', 'dodge'],
-  poison: ['attack', 'poisonPower', 'speed', 'hitRate'],
-  fire: ['attack', 'firePower', 'crit', 'skillPower'],
+  // Player-facing pools only include battle-proven active stats for now.
+  recovery: ['hp', 'defense', 'dodge', 'hitRate'],
+  poison: ['attack', 'speed', 'hitRate', 'crit'],
+  fire: ['attack', 'crit', 'speed', 'hitRate'],
 };
 
 const BUILD_EMOJI = {
