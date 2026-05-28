@@ -41,6 +41,9 @@ export default function MonsterEquipmentLayout({
 
   const monsterSize = compact ? 120 : 140;
   const sideGap = compact ? 6 : 8;
+  const slotWidth = compact ? 72 : 80;
+  // Total width of the weapon row (Wpn1 + spacer + Wpn2).
+  const outerRowWidth = slotWidth * 2 + sideGap * 2 + monsterSize;
 
   const SpacerCenter = () => (
     <View style={[styles.centerCol, { width: monsterSize, marginHorizontal: sideGap }]} />
@@ -48,9 +51,9 @@ export default function MonsterEquipmentLayout({
 
   return (
     <View style={styles.stage}>
-      {/* Row 1: HEAD */}
-      <View style={styles.rowTop}>
-        <View style={[styles.topSide, styles.topSidePet]}>{petSlotNode}</View>
+      {/* Row 1: HEAD (outer edges of Pet/Skills aligned with Weapon row outer edges) */}
+      <View style={[styles.rowTop, { width: outerRowWidth }]}>
+        <View style={styles.topSidePet}>{petSlotNode}</View>
         <EquipmentSlotBox
           label="Head"
           slotKey="head"
@@ -59,7 +62,7 @@ export default function MonsterEquipmentLayout({
           onPress={() => onSelectGearSlot('head', 0)}
           compact={compact}
         />
-        <View style={styles.topSide}>{skillSlotNode}</View>
+        <View>{skillSlotNode}</View>
       </View>
 
       {/* Row 2: WEAPON 1 · WEAPON 2 */}
@@ -163,10 +166,9 @@ const styles = StyleSheet.create({
   stage: { alignItems: 'center', paddingVertical: 4 },
   rowTop: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 6,
-    gap: 8,
   },
   rowCenter: {
     flexDirection: 'row',
@@ -186,13 +188,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  topSide: {
-    width: 104,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   topSidePet: {
-    transform: [{ translateY: -30 }],
+    transform: [{ translateY: -10 }],
   },
   rowBottom: {
     transform: [{ translateY: -4 }],
