@@ -11,7 +11,7 @@ import {
 } from './gearSets';
 import { ensureMonsterEquipment } from './equipmentSystem';
 import { getGearInstance } from './inventoryGearUtils';
-import { sumEquippedGemStats } from '../gems/gemInventory';
+import { sumGearSocketGemStats } from '../gems/gemInventory';
 
 function sumGearFlatStats(gearInstances) {
   const flat = {
@@ -137,7 +137,7 @@ export function computeFinalBattleStats(baseStats, profile, ownedMonster, equipp
   const flat = sumGearFlatStats(gearInstances);
   let stats = applyFlatGearToStats(baseStats, flat);
 
-  const gemFlat = sumEquippedGemStats(profile, ownedMonster);
+  const gemFlat = sumGearSocketGemStats(gearInstances);
   stats = applyGemStatsToStats(stats, gemFlat);
 
   const setBonus = detectActiveGearSet(profile, equipment);

@@ -2,8 +2,8 @@
  * Gem system definitions — stat gems that boost monster battle stats.
  *
  * Gems are stackable per (rarity, stat). Duplicate copies are spent to upgrade
- * a gem's level (each level = +10% value). A monster can equip up to 3 gems:
- * one offensive, one defensive, one utility.
+ * a gem's level (each level = +10% value), plus a coin fee per merge.
+ * Socket gems into epic/mythic gear that has sockets — stats apply only when socketed.
  *
  * Source rules (enforced by drop/shop code, documented here):
  *   - Rare gems: shop only.
@@ -137,6 +137,26 @@ export const RARE_GEM_SHOP_ITEMS = GEM_STATS.map((stat) => gemKey('rare', stat))
 /** Suggested shop prices: rare normal gem = 500, rare HP gem = 800. */
 export function rareGemShopPrice(stat) {
   return stat === 'hp' ? 800 : 500;
+}
+
+/** Base coin fees by gem rarity (socket / remove / merge). */
+const GEM_SERVICE_COIN_BASE = { rare: 250, epic: 500, mythic: 1000 };
+
+/** Coins to insert a gem into an empty gear socket. */
+export function gemSocketInsertCoinCost(rarity) {
+  return GEM_SERVICE_COIN_BASE[rarity] ?? GEM_SERVICE_COIN_BASE.rare;
+}
+
+/** Coins to remove a gem from a gear socket (gem returns to inventory). */
+export function gemSocketRemoveCoinCost(rarity) {
+  const base = GEM_SERVICE_COIN_BASE[rarity] ?? GEM_SERVICE_COIN_BASE.rare;
+  return Math.round(base * 0.75);
+}
+
+/** Coins to merge/upgrade a gem one level (in addition to duplicate copies). */
+export function gemUpgradeCoinCost(rarity, currentLevel) {
+  const base = GEM_SERVICE_COIN_BASE[rarity] ?? GEM_SERVICE_COIN_BASE.rare;
+  return base + Math.max(1, Math.floor(currentLevel)) * 50;
 }
 
 /** Epic gem drop chance (percent) per source. */

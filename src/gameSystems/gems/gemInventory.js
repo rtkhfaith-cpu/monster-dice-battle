@@ -1,26 +1,29 @@
 /**
- * Gem inventory — own, upgrade (consume duplicates), equip to monster slots.
+ * Gem inventory — own, upgrade (consume duplicates + coins), socket into gear.
  *
  * Data model:
  *   profile.gemInventory: Array<{ key, rarity, stat, level, copies }>
  *     - one stack per (rarity, stat); `copies` are spare duplicates used to upgrade
- *   ownedMonster.equippedGems: { offensive: key|null, defensive: key|null, utility: key|null }
+ *   gear.sockets[].gem: { key, rarity, stat, level, copies } | null
+ *     - socketed gems are removed from gemInventory until unsocketed
  *
- * Equipping references a gem stack by key and uses its current level for stats.
- * Owning at least one copy (or any level) is required to equip.
+ * Gems only apply battle stats when socketed into epic/mythic gear with sockets.
  */
 import {
   GEM_RARITIES,
   GEM_STATS,
   GEM_MAX_LEVEL,
   gemKey,
-  gemSlotForStat,
   gemBaseValue,
   gemDisplayName,
   gemStatValue,
   getRequiredGemsForUpgrade,
+  gemUpgradeCoinCost,
+  gemSocketInsertCoinCost,
+  gemSocketRemoveCoinCost,
   makeGemDef,
 } from './gemDefinitions';
+import { ensureGearInventory, getGearInstance } from '../gear/inventoryGearUtils';
 
 function isValidGemKey(key) {
   return GEM_DEF_BY_KEY.has(key);
@@ -51,6 +54,11 @@ export function normalizeGemStack(row) {
   };
 }
 
+/** Normalize a gem stored inside a gear socket. */
+export function normalizeSocketedGem(gem) {
+  return normalizeGemStack(gem);
+}
+
 /** @param {object} profile */
 export function ensureGemInventory(profile) {
   if (!profile) return;
@@ -63,29 +71,46 @@ export function ensureGemInventory(profile) {
       seen.add(g.key);
       return true;
     });
+  ensureGearInventory(profile);
+  for (const gear of profile.gearInventory || []) {
+    for (let i = 0; i < (gear.sockets?.length ?? 0); i++) {
+      const socket = gear.sockets[i];
+      if (!socket) continue;
+      socket.gem = normalizeSocketedGem(socket.gem);
+    }
+  }
+  // Legacy monster gem slots are no longer used — gems live in gear sockets only.
   for (const om of profile.ownedMonsters || []) {
-    om.equippedGems = normalizeEquippedGems(om.equippedGems, profile);
+    om.equippedGems = { offensive: null, defensive: null, utility: null };
   }
-}
-
-export function normalizeEquippedGems(equippedGems, profile = null) {
-  const out = { offensive: null, defensive: null, utility: null };
-  if (!equippedGems || typeof equippedGems !== 'object') return out;
-  for (const slot of ['offensive', 'defensive', 'utility']) {
-    const key = equippedGems[slot];
-    if (!key || !isValidGemKey(key)) continue;
-    const parsed = parseGemKey(key);
-    if (gemSlotForStat(parsed.stat) !== slot) continue;
-    // Only keep if the stack is owned (avoids ghost gems after data loss).
-    if (profile && !findGemStack(profile, key)) continue;
-    out[slot] = key;
-  }
-  return out;
 }
 
 export function findGemStack(profile, key) {
   if (!profile?.gemInventory) return null;
   return profile.gemInventory.find((g) => g.key === key) ?? null;
+}
+
+/** All gems currently socketed in gear. */
+export function listSocketedGems(profile) {
+  ensureGemInventory(profile);
+  const out = [];
+  for (const gear of profile.gearInventory || []) {
+    for (let i = 0; i < (gear.sockets?.length ?? 0); i++) {
+      const gem = normalizeSocketedGem(gear.sockets[i]?.gem);
+      if (!gem) continue;
+      out.push({
+        gearInstanceId: gear.instanceId,
+        gearName: gear.name,
+        socketIndex: i,
+        gem,
+      });
+    }
+  }
+  return out;
+}
+
+export function isGemKeySocketed(profile, key) {
+  return listSocketedGems(profile).some((row) => row.gem.key === key);
 }
 
 /** Grant N copies of a gem (rarity+stat). Creates the stack if needed. */
@@ -110,11 +135,14 @@ export function grantGemByKey(profile, key, quantity = 1) {
   return grantGem(profile, parsed.rarity, parsed.stat, quantity);
 }
 
-/** Upgrade a gem one level, consuming the required duplicate copies. */
+/** Upgrade a gem one level, consuming duplicate copies (coins handled by caller). */
 export function upgradeGem(profile, key) {
   ensureGemInventory(profile);
   const stack = findGemStack(profile, key);
   if (!stack) return { ok: false, error: 'Gem not owned' };
+  if (isGemKeySocketed(profile, key)) {
+    return { ok: false, error: 'Unsocket the gem before upgrading.' };
+  }
   if (stack.level >= GEM_MAX_LEVEL) return { ok: false, error: 'Gem already at max level' };
   const need = getRequiredGemsForUpgrade(stack.level);
   if (stack.copies < need) {
@@ -126,42 +154,76 @@ export function upgradeGem(profile, key) {
   return { ok: true, gem: stack, level: stack.level };
 }
 
-/** Equip a gem to a monster's matching slot. */
-export function equipGem(profile, monsterId, key) {
+/** Insert a gem from inventory into a gear socket. */
+export function socketGemInGear(profile, gearInstanceId, socketIndex, key) {
   ensureGemInventory(profile);
-  const om = (profile.ownedMonsters || []).find((m) => m.id === monsterId);
-  if (!om) return { ok: false, error: 'Monster not found' };
+  const gear = getGearInstance(profile, gearInstanceId);
+  if (!gear) return { ok: false, error: 'Gear not found' };
+  if (!gear.sockets?.length) return { ok: false, error: 'This gear has no sockets.' };
+
+  const idx = Math.floor(socketIndex);
+  if (idx < 0 || idx >= gear.sockets.length) return { ok: false, error: 'Invalid socket.' };
+  if (gear.sockets[idx].gem) return { ok: false, error: 'Socket already filled.' };
+
   const parsed = parseGemKey(key);
   if (!parsed) return { ok: false, error: 'Unknown gem' };
   const stack = findGemStack(profile, key);
-  if (!stack) return { ok: false, error: 'Gem not owned' };
-  const slot = gemSlotForStat(parsed.stat);
-  if (!slot) return { ok: false, error: 'Gem has no slot' };
-  om.equippedGems = normalizeEquippedGems(om.equippedGems, profile);
-  om.equippedGems[slot] = key;
+  if (!stack) return { ok: false, error: 'Gem not in inventory' };
+  if (isGemKeySocketed(profile, key)) return { ok: false, error: 'Gem already socketed elsewhere.' };
+
+  const invIdx = profile.gemInventory.findIndex((g) => g.key === key);
+  if (invIdx < 0) return { ok: false, error: 'Gem not in inventory' };
+  const [removed] = profile.gemInventory.splice(invIdx, 1);
+
+  gear.sockets[idx].gem = {
+    key: removed.key,
+    rarity: removed.rarity,
+    stat: removed.stat,
+    level: removed.level,
+    copies: removed.copies,
+  };
   profile.updatedAt = new Date().toISOString();
-  return { ok: true, slot, gem: stack };
+  return {
+    ok: true,
+    gem: gear.sockets[idx].gem,
+    gear,
+    insertCost: gemSocketInsertCoinCost(parsed.rarity),
+  };
 }
 
-export function unequipGem(profile, monsterId, slot) {
+/** Remove a gem from a gear socket back into inventory. */
+export function unsocketGemFromGear(profile, gearInstanceId, socketIndex) {
   ensureGemInventory(profile);
-  const om = (profile.ownedMonsters || []).find((m) => m.id === monsterId);
-  if (!om) return { ok: false, error: 'Monster not found' };
-  om.equippedGems = normalizeEquippedGems(om.equippedGems, profile);
-  if (!['offensive', 'defensive', 'utility'].includes(slot)) {
-    return { ok: false, error: 'Invalid slot' };
+  const gear = getGearInstance(profile, gearInstanceId);
+  if (!gear) return { ok: false, error: 'Gear not found' };
+  if (!gear.sockets?.length) return { ok: false, error: 'This gear has no sockets.' };
+
+  const idx = Math.floor(socketIndex);
+  if (idx < 0 || idx >= gear.sockets.length) return { ok: false, error: 'Invalid socket.' };
+
+  const socketGem = normalizeSocketedGem(gear.sockets[idx].gem);
+  if (!socketGem) return { ok: false, error: 'Socket is empty.' };
+
+  let stack = findGemStack(profile, socketGem.key);
+  if (stack) {
+    stack.copies += 1;
+  } else {
+    profile.gemInventory.push({ ...socketGem });
   }
-  om.equippedGems[slot] = null;
+  gear.sockets[idx].gem = null;
   profile.updatedAt = new Date().toISOString();
-  return { ok: true };
+  return {
+    ok: true,
+    gem: socketGem,
+    gear,
+    removeCost: gemSocketRemoveCoinCost(socketGem.rarity),
+  };
 }
 
 /**
- * Flat gem stat bonuses for one monster, keyed by internal stat names used by
- * the battle stat pipeline: hp, attack, magicAttack, defence, magicDefence,
- * dodge, hitRate.
+ * Flat gem stat bonuses from all socketed gems on equipped gear instances.
  */
-export function sumEquippedGemStats(profile, ownedMonster) {
+export function sumGearSocketGemStats(gearInstances) {
   const flat = {
     hp: 0,
     attack: 0,
@@ -171,17 +233,20 @@ export function sumEquippedGemStats(profile, ownedMonster) {
     dodge: 0,
     hitRate: 0,
   };
-  if (!profile || !ownedMonster) return flat;
-  const equipped = normalizeEquippedGems(ownedMonster.equippedGems, profile);
-  for (const slot of ['offensive', 'defensive', 'utility']) {
-    const key = equipped[slot];
-    if (!key) continue;
-    const stack = findGemStack(profile, key);
-    if (!stack) continue;
-    const value = gemStatValue(stack.rarity, stack.stat, stack.level);
-    if (flat[stack.stat] != null) flat[stack.stat] += value;
+  for (const gear of gearInstances || []) {
+    for (const socket of gear.sockets || []) {
+      const gem = normalizeSocketedGem(socket.gem);
+      if (!gem) continue;
+      const value = gemStatValue(gem.rarity, gem.stat, gem.level);
+      if (flat[gem.stat] != null) flat[gem.stat] += value;
+    }
   }
   return flat;
+}
+
+/** @deprecated Gems no longer equip directly to monsters. */
+export function normalizeEquippedGems() {
+  return { offensive: null, defensive: null, utility: null };
 }
 
 /** UI summary rows for the gems screen. */
@@ -191,11 +256,13 @@ export function listGemStacks(profile) {
     .map((stack) => {
       const def = makeGemDef(stack.rarity, stack.stat);
       const need = getRequiredGemsForUpgrade(stack.level);
+      const mergeCoinCost = gemUpgradeCoinCost(stack.rarity, stack.level);
       return {
         ...def,
         level: stack.level,
         copies: stack.copies,
         upgradeCost: need,
+        mergeCoinCost,
         canUpgrade: stack.level < GEM_MAX_LEVEL && stack.copies >= need,
         atMaxLevel: stack.level >= GEM_MAX_LEVEL,
         currentValue: gemStatValue(stack.rarity, stack.stat, stack.level),
@@ -203,6 +270,7 @@ export function listGemStacks(profile) {
           stack.level < GEM_MAX_LEVEL
             ? gemStatValue(stack.rarity, stack.stat, stack.level + 1)
             : null,
+        socketed: false,
       };
     })
     .sort((a, b) => {
@@ -213,4 +281,30 @@ export function listGemStacks(profile) {
     });
 }
 
-export { gemDisplayName, gemBaseValue };
+/** Gear pieces with at least one socket (for gem insertion UI). */
+export function listGearWithSockets(profile) {
+  ensureGemInventory(profile);
+  return (profile.gearInventory || [])
+    .filter((g) => (g.sockets?.length ?? 0) > 0)
+    .map((g) => ({
+      instanceId: g.instanceId,
+      name: g.name,
+      rarity: g.rarity,
+      slot: g.slot,
+      equippedToMonsterId: g.equippedToMonsterId,
+      sockets: (g.sockets || []).map((sk, i) => ({
+        index: i,
+        id: sk.id,
+        gem: normalizeSocketedGem(sk.gem),
+        removeCost: sk.gem ? gemSocketRemoveCoinCost(normalizeSocketedGem(sk.gem)?.rarity ?? 'rare') : null,
+      })),
+    }));
+}
+
+export {
+  gemDisplayName,
+  gemBaseValue,
+  gemSocketInsertCoinCost,
+  gemSocketRemoveCoinCost,
+  gemUpgradeCoinCost,
+};

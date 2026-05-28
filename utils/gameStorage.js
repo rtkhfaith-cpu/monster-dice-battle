@@ -77,11 +77,19 @@ import {
   grantGem,
   grantGemByKey,
   upgradeGem,
-  equipGem,
-  unequipGem,
+  socketGemInGear,
+  unsocketGemFromGear,
   parseGemKey,
+  normalizeSocketedGem,
 } from '../src/gameSystems/gems/gemInventory';
-import { RARE_GEM_SHOP_ITEMS, rareGemShopPrice } from '../src/gameSystems/gems/gemDefinitions';
+import {
+  RARE_GEM_SHOP_ITEMS,
+  rareGemShopPrice,
+  gemUpgradeCoinCost,
+  gemSocketInsertCoinCost,
+  gemSocketRemoveCoinCost,
+} from '../src/gameSystems/gems/gemDefinitions';
+import { getGearInstance } from '../src/gameSystems/gear/inventoryGearUtils';
 import { grantDungeonRewards } from './dungeon/dungeonRewards';
 import { getDungeonBoss } from './dungeon/dungeonBosses';
 import { getPetDef } from '../src/gameSystems/pets';
@@ -780,32 +788,55 @@ export function buyGemForProfile(gameData, profileId, gemKeyId) {
   return { gameData: gd, gem: grant.gem, price };
 }
 
-/** Upgrade an owned gem one level (consumes duplicate copies). */
+/** Upgrade an owned gem one level (consumes duplicate copies + coins). */
 export function upgradeGemForProfile(gameData, profileId, gemKeyId) {
   const gd = cloneGameData(gameData);
   const wallet = walletForProfile(gd, profileId);
   if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const stack = wallet.gemInventory?.find((g) => g.key === gemKeyId);
+  if (!stack) return { gameData: gd, error: 'Gem not owned' };
+  const coinCost = gemUpgradeCoinCost(stack.rarity, stack.level);
+  if (wallet.coins < coinCost) return { gameData: gd, error: `Need 🪙 ${coinCost} to merge gems` };
   const res = upgradeGem(wallet, gemKeyId);
   if (!res.ok) return { gameData: gd, error: res.error };
-  return { gameData: gd, gem: res.gem, level: res.level };
+  wallet.coins -= coinCost;
+  wallet.updatedAt = new Date().toISOString();
+  return { gameData: gd, gem: res.gem, level: res.level, coinCost };
 }
 
-export function equipGemForMonster(gameData, profileId, monsterId, gemKeyId) {
+export function socketGemInGearForProfile(gameData, profileId, gearInstanceId, socketIndex, gemKeyId) {
   const gd = cloneGameData(gameData);
   const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'Profile not found' };
-  const res = equipGem(profile, monsterId, gemKeyId);
+  const wallet = walletForProfile(gd, profileId);
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const parsed = parseGemKey(gemKeyId);
+  if (!parsed) return { gameData: gd, error: 'Unknown gem' };
+  const price = gemSocketInsertCoinCost(parsed.rarity);
+  if (wallet.coins < price) return { gameData: gd, error: `Need 🪙 ${price} to socket gem` };
+  const res = socketGemInGear(profile, gearInstanceId, socketIndex, gemKeyId);
   if (!res.ok) return { gameData: gd, error: res.error };
-  return { gameData: gd, slot: res.slot };
+  wallet.coins -= price;
+  wallet.updatedAt = new Date().toISOString();
+  return { gameData: gd, gem: res.gem, gear: res.gear, price };
 }
 
-export function unequipGemForMonster(gameData, profileId, monsterId, slot) {
+export function unsocketGemFromGearForProfile(gameData, profileId, gearInstanceId, socketIndex) {
   const gd = cloneGameData(gameData);
   const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'Profile not found' };
-  const res = unequipGem(profile, monsterId, slot);
+  const wallet = walletForProfile(gd, profileId);
+  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const gear = getGearInstance(profile, gearInstanceId);
+  const socketGem = normalizeSocketedGem(gear?.sockets?.[Math.floor(socketIndex)]?.gem);
+  if (!socketGem) return { gameData: gd, error: 'Socket is empty.' };
+  const price = gemSocketRemoveCoinCost(socketGem.rarity);
+  if (wallet.coins < price) return { gameData: gd, error: `Need 🪙 ${price} to remove gem` };
+  const res = unsocketGemFromGear(profile, gearInstanceId, socketIndex);
   if (!res.ok) return { gameData: gd, error: res.error };
-  return { gameData: gd };
+  wallet.coins -= price;
+  wallet.updatedAt = new Date().toISOString();
+  return { gameData: gd, gem: res.gem, gear: res.gear, price };
 }
 
 /** Grant gem copies directly to a profile (used by chest / dungeon drops). */

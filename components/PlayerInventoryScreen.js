@@ -41,8 +41,8 @@ export default function PlayerInventoryScreen({
   onSell,
   onOpenEquip,
   onUpgradeGem,
-  onEquipGem,
-  onUnequipGem,
+  onSocketGem,
+  onUnsocketGem,
 }) {
   const [tab, setTab] = useState('gear');
 
@@ -168,10 +168,10 @@ export default function PlayerInventoryScreen({
             {tab === 'gems' ? (
               <GemManagerPanel
                 profile={profile}
-                monsters={ownedMonsters}
+                coins={coins}
                 onUpgrade={onUpgradeGem}
-                onEquip={onEquipGem}
-                onUnequip={onUnequipGem}
+                onSocket={onSocketGem}
+                onUnsocket={onUnsocketGem}
               />
             ) : null}
           </View>

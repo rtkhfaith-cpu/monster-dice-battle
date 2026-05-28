@@ -91,8 +91,8 @@ import {
   buyPetForProfile,
   buyGemForProfile,
   upgradeGemForProfile,
-  equipGemForMonster,
-  unequipGemForMonster,
+  socketGemInGearForProfile,
+  unsocketGemFromGearForProfile,
   buyMonster as purchaseMonsterRow,
   equipPassiveSkillOnMonster,
   equipPetForMonster,
@@ -1419,34 +1419,50 @@ export default function App() {
   }
 
   function handleUpgradeGem(gemKeyId) {
-    if (!gameData || !inventoryProfileId) return;
-    const res = upgradeGemForProfile(gameData, inventoryProfileId, gemKeyId);
+    const profileId = inventoryProfileId || gearProfileId;
+    if (!gameData || !profileId) return;
+    const res = upgradeGemForProfile(gameData, profileId, gemKeyId);
     if (res.error) {
       showNotice('Gem Upgrade', res.error);
       return;
     }
-    persistSave(res.gameData, 'gem_upgraded', inventoryProfileId);
-    showNotice('Gem upgraded', `Now level ${res.level}`);
+    persistSave(res.gameData, 'gem_upgraded', profileId);
+    showNotice('Gem merged', `Now level ${res.level} · 🪙 ${res.coinCost}`);
   }
 
-  function handleEquipGem(monsterId, gemKeyId) {
-    if (!gameData || !inventoryProfileId) return;
-    const res = equipGemForMonster(gameData, inventoryProfileId, monsterId, gemKeyId);
+  function handleSocketGem(gearInstanceId, socketIndex, gemKeyId) {
+    const profileId = gearProfileId || inventoryProfileId;
+    if (!gameData || !profileId) return;
+    const res = socketGemInGearForProfile(
+      gameData,
+      profileId,
+      gearInstanceId,
+      socketIndex,
+      gemKeyId,
+    );
     if (res.error) {
-      showNotice('Equip Gem', res.error);
+      showNotice('Socket Gem', res.error);
       return;
     }
-    persistSave(res.gameData, 'gem_equipped', inventoryProfileId);
+    persistSave(res.gameData, 'gem_socketed', profileId);
+    showNotice('Gem socketed', `🪙 ${res.price} paid`);
   }
 
-  function handleUnequipGem(monsterId, slot) {
-    if (!gameData || !inventoryProfileId) return;
-    const res = unequipGemForMonster(gameData, inventoryProfileId, monsterId, slot);
+  function handleUnsocketGem(gearInstanceId, socketIndex) {
+    const profileId = gearProfileId || inventoryProfileId;
+    if (!gameData || !profileId) return;
+    const res = unsocketGemFromGearForProfile(
+      gameData,
+      profileId,
+      gearInstanceId,
+      socketIndex,
+    );
     if (res.error) {
-      showNotice('Unequip Gem', res.error);
+      showNotice('Remove Gem', res.error);
       return;
     }
-    persistSave(res.gameData, 'gem_unequipped', inventoryProfileId);
+    persistSave(res.gameData, 'gem_unsocketed', profileId);
+    showNotice('Gem removed', `Returned to inventory · 🪙 ${res.price} paid`);
   }
 
   function handleBuyGearMart(gearId, rarity = 'rare', price = null, seed = null) {
@@ -2845,8 +2861,8 @@ export default function App() {
         onSell={handleSellInventoryGear}
         onOpenEquip={openEquipFromInventory}
         onUpgradeGem={handleUpgradeGem}
-        onEquipGem={handleEquipGem}
-        onUnequipGem={handleUnequipGem}
+        onSocketGem={handleSocketGem}
+        onUnsocketGem={handleUnsocketGem}
       />
 
       <MonsterGearScreen
@@ -2889,6 +2905,8 @@ export default function App() {
         onUnequipPet={handleUnequipPet}
         onEquipPassiveBook={handleEquipPassiveBook}
         onRemovePassive={handleRemovePassive}
+        onSocketGem={handleSocketGem}
+        onUnsocketGem={handleUnsocketGem}
       />
 
       <GearMartModal

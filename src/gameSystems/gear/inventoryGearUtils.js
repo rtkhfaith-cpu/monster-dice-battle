@@ -6,6 +6,17 @@ import { formatGearStatLines } from './gearGenerator';
 import { GEAR_SET_IDS, getGearTemplate } from './gearDefinitions';
 import { gearRarityColor } from '../../../utils/gearRarityUi';
 
+function normalizeSocketGemRaw(gem) {
+  if (!gem || typeof gem !== 'object' || !gem.key) return null;
+  return {
+    key: String(gem.key),
+    rarity: gem.rarity,
+    stat: gem.stat,
+    level: Math.max(1, Math.min(10, Math.floor(gem.level || 1))),
+    copies: Math.max(0, Math.floor(gem.copies || 0)),
+  };
+}
+
 export function ensureGearInventory(profile) {
   if (!profile) return;
   if (!Array.isArray(profile.gearInventory)) profile.gearInventory = [];
@@ -45,7 +56,10 @@ export function normalizeGearInstance(row) {
     buildType: template.buildType,
     stats: Array.isArray(row.stats) ? row.stats.map((s) => ({ type: s.type, value: Math.round(s.value) })) : [],
     sockets: Array.isArray(row.sockets)
-      ? row.sockets.slice(0, socketCount).map((sk, i) => ({ id: sk.id || `socket_${i + 1}`, gem: sk.gem ?? null }))
+      ? row.sockets.slice(0, socketCount).map((sk, i) => ({
+          id: sk.id || `socket_${i + 1}`,
+          gem: normalizeSocketGemRaw(sk.gem),
+        }))
       : [],
     equippedToMonsterId: row.equippedToMonsterId ?? null,
     acquiredAt: row.acquiredAt || new Date().toISOString(),
