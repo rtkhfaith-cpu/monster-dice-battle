@@ -63,7 +63,7 @@ export default function MonsterEquipmentLayout({
       </View>
 
       {/* Row 2: WEAPON 1 · WEAPON 2 */}
-      <View style={styles.rowSides}>
+      <View style={[styles.rowSides, styles.rowBottom]}>
         <EquipmentSlotBox
           label="Wpn 1"
           slotKey="weapon"
@@ -181,7 +181,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   topSidePet: {
-    transform: [{ translateY: -10 }],
+    transform: [{ translateY: -20 }],
+  },
+  rowBottom: {
+    // Push legs/body row down slightly (~3%) for better visual balance.
+    transform: [{ translateY: 10 }],
   },
   centerCol: {},
   monsterCore: {
