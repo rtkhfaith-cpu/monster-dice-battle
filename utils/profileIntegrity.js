@@ -120,12 +120,6 @@ export function sanitizePlayerProfile(profile, opts = {}) {
   profile.passiveSkillBooksOwned = (profile.passiveSkillBooksOwned || []).filter((b) =>
     getPassiveSkillDef(b?.skillId),
   );
-  const seenSkills = new Set();
-  profile.passiveSkillBooksOwned = profile.passiveSkillBooksOwned.filter((b) => {
-    if (seenSkills.has(b.skillId)) return false;
-    seenSkills.add(b.skillId);
-    return true;
-  });
 
   const gearBefore = (profile.cosmeticsOwned || []).length;
   profile.cosmeticsOwned = (profile.cosmeticsOwned || []).filter((id) => {
