@@ -15,17 +15,20 @@ export default function PetSlotBox({ pet, selected, onPress, compact }) {
       ]}
     >
       <Text style={styles.icon}>{pet ? pet.emoji : '🐾'}</Text>
-      <Text style={styles.lbl}>Pet</Text>
       {pet ? (
         <>
           <Text style={styles.name} numberOfLines={1}>
             {pet.name}
           </Text>
-          <Text style={styles.meta}>Lv {pet.level}</Text>
-          <Text style={[styles.rarity, { color: pet.rarityColor ?? GEAR_UI.sub }]}>{pet.rarity}</Text>
+          <Text style={[styles.metaLine, { color: pet.rarityColor ?? GEAR_UI.sub }]} numberOfLines={1}>
+            Lv {pet.level} · {pet.rarity}
+          </Text>
         </>
       ) : (
-        <Text style={styles.emptyTxt}>Empty</Text>
+        <>
+          <Text style={styles.lbl}>Pet</Text>
+          <Text style={styles.emptyTxt}>Empty</Text>
+        </>
       )}
     </TouchableOpacity>
   );
@@ -33,17 +36,18 @@ export default function PetSlotBox({ pet, selected, onPress, compact }) {
 
 const styles = StyleSheet.create({
   box: {
-    width: 100,
+    width: 96,
+    maxWidth: 96,
     height: 84,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: GEAR_UI.slotEmptyBorder,
-    paddingVertical: 6,
+    paddingVertical: 4,
     paddingHorizontal: 4,
     alignItems: 'center',
     backgroundColor: GEAR_UI.panelDeep,
   },
-  compact: { width: 88, height: 76 },
+  compact: { width: 86, maxWidth: 86, height: 76 },
   empty: { borderStyle: 'dashed', backgroundColor: GEAR_UI.slotEmptyBg },
   filled: { borderColor: '#86efac', backgroundColor: 'rgba(18, 53, 40, 0.65)' },
   selected: {
@@ -55,9 +59,8 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   icon: { fontSize: 22 },
-  lbl: { fontSize: 8, fontWeight: '900', color: GEAR_UI.muted, textTransform: 'uppercase', marginTop: 2 },
-  name: { fontSize: 9, fontWeight: '900', color: GEAR_UI.title, marginTop: 3, textAlign: 'center' },
-  meta: { fontSize: 8, fontWeight: '800', color: GEAR_UI.sub, marginTop: 2 },
-  rarity: { fontSize: 7, fontWeight: '900', textTransform: 'uppercase', marginTop: 2 },
-  emptyTxt: { fontSize: 9, fontWeight: '800', color: GEAR_UI.sub, marginTop: 6 },
+  lbl: { fontSize: 9, fontWeight: '900', color: GEAR_UI.muted, textTransform: 'uppercase', marginTop: 2 },
+  name: { fontSize: 9, fontWeight: '900', color: GEAR_UI.title, marginTop: 2, textAlign: 'center' },
+  metaLine: { fontSize: 8, fontWeight: '900', textTransform: 'uppercase', marginTop: 1, textAlign: 'center' },
+  emptyTxt: { fontSize: 9, fontWeight: '800', color: GEAR_UI.sub, marginTop: 4 },
 });

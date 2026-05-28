@@ -195,13 +195,14 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -30 }],
   },
   rowBottom: {
-    transform: [{ translateY: 12 }],
+    transform: [{ translateY: -4 }],
+    marginBottom: 4,
   },
   centerCol: {},
   monsterCore: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -64,
+    marginTop: -90,
   },
   levelTxt: {
     marginTop: -2,
