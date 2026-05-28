@@ -50,7 +50,7 @@ export default function MonsterEquipmentLayout({
     <View style={styles.stage}>
       {/* Row 1: HEAD */}
       <View style={styles.rowTop}>
-        <View style={styles.topSide}>{petSlotNode}</View>
+        <View style={[styles.topSide, styles.topSidePet]}>{petSlotNode}</View>
         <EquipmentSlotBox
           label="Head"
           slotKey="head"
@@ -179,6 +179,9 @@ const styles = StyleSheet.create({
     minWidth: 116,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  topSidePet: {
+    transform: [{ translateY: -10 }],
   },
   centerCol: {},
   monsterCore: {
