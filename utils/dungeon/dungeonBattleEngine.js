@@ -399,7 +399,11 @@ function resolvePosition2PetSupport(state, monster) {
           heal = Math.round(heal * healMult);
           ally.hp = Math.min(ally.maxHp, ally.hp + heal);
         }
-        logLine(state, `${pet.emoji ?? '🐾'} ${pet.name} healed the team.`, 'heal');
+        logLine(state, `${pet.emoji ?? '🐾'} ${pet.name} healed the team.`, 'heal', {
+          type: 'heal',
+          targetIds: allies.map((a) => a.id),
+          teamWide: true,
+        });
       }
     } else if (skillType === 'cleanse' || skillType === 'cleanseDebuff') {
       for (const ally of allies) {
