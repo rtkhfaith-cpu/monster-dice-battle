@@ -66,6 +66,7 @@ import {
   ensurePetInventory,
   equipPetOnMonster,
   getCoinBonusPctForMonster,
+  getExpBonusPctForMonster,
   grantPet,
   spendPetExpDustOnPet,
   unequipPetFromMonster,
@@ -923,6 +924,14 @@ function tuneProfileAiMeta(profile, payload) {
   }
 }
 
+function applyExpBonus(profile, monsterId, expAmount) {
+  const exp = Math.floor(expAmount);
+  if (exp <= 0 || !profile || !monsterId) return exp;
+  const bonusPct = getExpBonusPctForMonster(profile, monsterId);
+  if (bonusPct <= 0) return exp;
+  return Math.floor((exp * (100 + bonusPct)) / 100);
+}
+
 export function awardBattleRewards(gameData, payload) {
   const gd = cloneGameData(gameData);
   const p1ProfileId = payload.p1ProfileId ?? gd.session.activeProfileId ?? null;
@@ -1017,10 +1026,10 @@ export function awardBattleRewards(gameData, payload) {
     }
   }
 
-  const r1 = grantExpInWallet(walletP1, payload.p1OwnedId, expP1);
+  const r1 = grantExpInWallet(walletP1, payload.p1OwnedId, applyExpBonus(profileP1, payload.p1OwnedId, expP1));
   const r2 = walletP2
-    ? grantExpInWallet(walletP2, payload.p2OwnedId, expP2)
-    : grantExpInWallet(walletP1, payload.p2OwnedId, expP2);
+    ? grantExpInWallet(walletP2, payload.p2OwnedId, applyExpBonus(profileP2, payload.p2OwnedId, expP2))
+    : grantExpInWallet(walletP1, payload.p2OwnedId, applyExpBonus(profileP1, payload.p2OwnedId, expP2));
 
   let petExpP1 = null;
   let petExpP2 = null;

@@ -51,6 +51,11 @@ const PET_SKILL_SCALING = {
     epic: { coinBonusPct: 10 },
     mythic: { coinBonusPct: 18 },
   },
+  exp_boost: {
+    rare: { expBonusPct: 5 },
+    epic: { expBonusPct: 10 },
+    mythic: { expBonusPct: 18 },
+  },
 };
 
 function getPetSkillEffect(skillType, rarity) {

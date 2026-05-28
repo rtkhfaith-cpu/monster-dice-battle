@@ -106,6 +106,11 @@ export function generateGearInstance(gearId, opts = {}) {
   return instanceFromTemplate(template, rng);
 }
 
+/** Sample rolled stats for reward codex / preview (deterministic per template). */
+export function buildCodexGearPreview(gearId) {
+  return generateGearInstance(gearId, { seed: `codex_preview_${gearId}` });
+}
+
 /** Pick a random template from the rarity pool, then generate an instance. */
 export function generateRandomGearInstance(rarity, opts = {}) {
   let pool = [...(GEAR_TEMPLATES_BY_RARITY[rarity] || [])];

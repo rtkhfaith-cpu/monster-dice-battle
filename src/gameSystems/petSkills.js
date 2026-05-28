@@ -2,7 +2,7 @@
  * Pet skill definitions — strength by pet rarity only (NOT by pet level).
  */
 
-/** @typedef {'heal'|'crit_boost'|'dodge_boost'|'poison_bite'|'fire_aura'|'shield'|'energy_gain'|'cleanse'|'counter_spark'|'lucky_coins'} PetSkillType */
+/** @typedef {'heal'|'crit_boost'|'dodge_boost'|'poison_bite'|'fire_aura'|'shield'|'energy_gain'|'cleanse'|'counter_spark'|'lucky_coins'|'exp_boost'} PetSkillType */
 
 /** @type {Record<PetSkillType, Record<'rare'|'epic'|'mythic', object>>} */
 export const PET_SKILL_SCALING = {
@@ -56,6 +56,11 @@ export const PET_SKILL_SCALING = {
     epic: { coinBonusPct: 10 },
     mythic: { coinBonusPct: 18 },
   },
+  exp_boost: {
+    rare: { expBonusPct: 5 },
+    epic: { expBonusPct: 10 },
+    mythic: { expBonusPct: 18 },
+  },
 };
 
 export const PET_SKILL_LABELS = {
@@ -69,6 +74,7 @@ export const PET_SKILL_LABELS = {
   cleanse: 'Cleanse',
   counter_spark: 'Counter Spark',
   lucky_coins: 'Lucky Coins',
+  exp_boost: 'EXP Boost',
 };
 
 /** @param {PetSkillType} skillType @param {'rare'|'epic'|'mythic'} rarity */
@@ -102,6 +108,8 @@ export function describePetSkill(skillType, rarity) {
       return `${e.chancePct}% counter · ${e.atkDamagePct}% ATK`;
     case 'lucky_coins':
       return `+${e.coinBonusPct}% battle coins`;
+    case 'exp_boost':
+      return `+${e.expBonusPct}% battle EXP`;
     default:
       return skillType;
   }

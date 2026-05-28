@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RARITY_UI } from '../utils/monsterTemplates';
 import { getLadderGear } from '../utils/monsterLadder/ladderGearCatalog';
 import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { chestDropSubtitle, chestDropTitle } from '../utils/mainBattleChest';
+import GearItemDetailModal from './gear/GearItemDetailModal';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { gameSurfaceDataProps, WEB_DECORATIVE_IMAGE_PROPS } from '../utils/webGameTouch';
 import { RESCUE_COLORS } from './monsterRescue/rescueUiTheme';
@@ -47,12 +48,14 @@ export default function MonsterLadderChestRevealModal({
   kicker = 'Monster Ladder Chest',
 }) {
   const [opened, setOpened] = useState(false);
+  const [gearDetailOpen, setGearDetailOpen] = useState(false);
   const chestDropY = useRef(new Animated.Value(-280)).current;
   const revealOpacity = useRef(new Animated.Value(0)).current;
   const useNativeDriver = Platform.OS !== 'web';
 
   useEffect(() => {
     if (!visible || !drop) return;
+    setGearDetailOpen(false);
     const revealNow = !!autoReveal;
     setOpened(revealNow);
     chestDropY.setValue(-280);
@@ -132,6 +135,11 @@ export default function MonsterLadderChestRevealModal({
                   {drop.rarity === 'mythic' ? 'MYTHIC SIGNAL LOCKED.' : 'LEGENDARY SIGNAL FOUND.'}
                 </Text>
               ) : null}
+              {drop.kind === 'gear_instance' && drop.gear ? (
+                <TouchableOpacity style={styles.detailBtn} onPress={() => setGearDetailOpen(true)} activeOpacity={0.86}>
+                  <Text style={styles.detailBtnTxt}>View gear details</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           )}
           <TouchableOpacity
@@ -142,6 +150,12 @@ export default function MonsterLadderChestRevealModal({
           </TouchableOpacity>
         </View>
       </View>
+      <GearItemDetailModal
+        visible={gearDetailOpen && !!drop?.gear}
+        gear={drop?.gear}
+        mode="reward"
+        onClose={() => setGearDetailOpen(false)}
+      />
     </Modal>
   );
 }
@@ -222,6 +236,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#f9a8d4',
     letterSpacing: 1,
+  },
+  detailBtn: {
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.55)',
+    backgroundColor: 'rgba(92, 57, 143, 0.45)',
+  },
+  detailBtnTxt: {
+    color: '#ffe08a',
+    fontWeight: '900',
+    fontSize: 12,
+    textTransform: 'uppercase',
   },
   btn: {
     width: '100%',

@@ -55,6 +55,7 @@ import { getActionTiming } from '../utils/battleActionTiming';
 import { GAME_ASSETS } from '../utils/gameAssetPaths';
 import { chestDropSubtitle, chestDropTitle } from '../utils/mainBattleChest';
 import { RARITY_UI } from '../utils/monsterTemplates';
+import GearItemDetailModal from './gear/GearItemDetailModal';
 import { getGear, compactGearIds } from '../utils/cosmetics';
 import {
   gameSurfaceDataProps,
@@ -288,6 +289,7 @@ export default function BattleScreen({
   const [mainChestDrop, setMainChestDrop] = useState(null);
   const [mainChestGameData, setMainChestGameData] = useState(null);
   const [mainChestBusy, setMainChestBusy] = useState(false);
+  const [mainChestGearDetail, setMainChestGearDetail] = useState(false);
   const chestDropY = useRef(new Animated.Value(-220)).current;
 
   const effectSeqRef = useRef(0);
@@ -2005,6 +2007,11 @@ export default function BattleScreen({
                 <Text style={styles.mainChestRevealEmoji}>⚔️</Text>
               ) : null}
               <Text style={styles.mainChestRevealSub}>{chestDropSubtitle(mainChestDrop)}</Text>
+              {(mainChestDrop.kind === 'gear' || mainChestDrop.kind === 'gear_instance') && mainChestDrop.gear ? (
+                <Pressable style={styles.mainChestDetailBtn} onPress={() => setMainChestGearDetail(true)}>
+                  <Text style={styles.mainChestDetailTxt}>View gear details</Text>
+                </Pressable>
+              ) : null}
               <Pressable style={styles.mainChestContinueBtn} onPress={handleMainChestContinue}>
                 <Text style={styles.mainChestContinueTxt}>Continue</Text>
               </Pressable>
@@ -2012,6 +2019,12 @@ export default function BattleScreen({
           ) : null}
         </View>
       ) : null}
+      <GearItemDetailModal
+        visible={mainChestGearDetail && !!mainChestDrop?.gear}
+        gear={mainChestDrop?.gear}
+        mode="reward"
+        onClose={() => setMainChestGearDetail(false)}
+      />
       {fleeConfirmOpen ? (
         <View style={styles.fleeOverlay}>
           <View style={styles.fleePanel}>
@@ -2654,6 +2667,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 20,
+  },
+  mainChestDetailBtn: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.55)',
+    backgroundColor: 'rgba(92, 57, 143, 0.45)',
+  },
+  mainChestDetailTxt: {
+    color: '#ffe08a',
+    fontWeight: '900',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   mainChestContinueBtn: {
     marginTop: 16,

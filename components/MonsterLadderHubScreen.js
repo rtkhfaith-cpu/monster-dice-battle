@@ -5,7 +5,9 @@ import { RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
 import { getLadderMonsterTemplate, LADDER_MONSTER_CATALOG } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { GEAR_DROP_TABLES } from '../src/gameSystems/gear/gearConstants';
 import { GEAR_TEMPLATE_LIST } from '../src/gameSystems/gear/gearDefinitions';
+import { buildCodexGearPreview } from '../src/gameSystems/gear/gearGenerator';
 import { GearIcon } from './gear/gearUiTheme';
+import GearItemDetailModal from './gear/GearItemDetailModal';
 import { getLadderTheme } from '../utils/monsterLadder/ladderLevelThemes';
 import { mergeLadderMonsterParts } from '../utils/monsterLadder/ladderProfile';
 import { computeLadderBattleStats } from '../utils/monsterLadder/ladderStatsCalc';
@@ -269,7 +271,7 @@ function CatalogByRarity({ items, type, onItemPress }) {
   });
 }
 
-function GearPiecesCodex() {
+function GearPiecesCodex({ onPiecePress }) {
   return GEAR_CHEST_RARITY_ORDER.map((rarity) => {
     const group = GEAR_TEMPLATE_LIST.filter((t) => t.rarity === rarity);
     if (!group.length) return null;
@@ -279,12 +281,14 @@ function GearPiecesCodex() {
           <Text style={[styles.rarityGroupTitle, { color: RARITY_TONE[rarity] ?? '#fff' }]}>
             {rarityLabel(rarity)} pieces
           </Text>
-          <Text style={styles.rarityGroupChance}>{group.length} possible drops</Text>
+          <Text style={styles.rarityGroupChance}>{group.length} possible drops · tap for details</Text>
         </View>
         <View style={styles.catalogGrid}>
           {group.map((piece) => (
-            <View
+            <TouchableOpacity
               key={piece.gearId}
+              activeOpacity={0.86}
+              onPress={() => onPiecePress?.(piece)}
               style={[
                 styles.catalogChip,
                 styles.catalogChipSet,
@@ -301,8 +305,9 @@ function GearPiecesCodex() {
                 <Text style={[styles.catalogMeta, { color: RARITY_TONE[rarity] }]} numberOfLines={1}>
                   {capitalizeText(piece.slot)} · {piece.setName}
                 </Text>
+                <Text style={styles.catalogTapHint}>Details</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       </View>
@@ -391,9 +396,15 @@ function ChestOddsCard({ title, sub, type, rateWeights }) {
 
 function RewardsCodexOverlay({ onClose }) {
   const [detailMonsterId, setDetailMonsterId] = useState(null);
+  const [detailGear, setDetailGear] = useState(null);
 
   function handleCatalogPress(item, type) {
     if (type === 'monster') setDetailMonsterId(item.id);
+  }
+
+  function handleGearPiecePress(piece) {
+    const preview = buildCodexGearPreview(piece.gearId);
+    if (preview) setDetailGear(preview);
   }
 
   return (
@@ -449,12 +460,18 @@ function RewardsCodexOverlay({ onClose }) {
             bonuses only activate when matching head, body, weapon, hand and legs from the same set are equipped
             together.
           </Text>
-          <GearPiecesCodex />
+          <GearPiecesCodex onPiecePress={handleGearPiecePress} />
 
           <Text style={styles.sectionTitle}>Monster chest drops</Text>
           <CatalogByRarity items={LADDER_MONSTER_CATALOG} type="monster" onItemPress={handleCatalogPress} />
         </ScrollView>
         <CodexMonsterCard templateId={detailMonsterId} onClose={() => setDetailMonsterId(null)} />
+        <GearItemDetailModal
+          visible={!!detailGear}
+          gear={detailGear}
+          mode="reward"
+          onClose={() => setDetailGear(null)}
+        />
       </View>
     </View>
   );

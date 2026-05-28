@@ -15,7 +15,7 @@ import {
 } from './ladderProfile';
 import { cloneGameData, getPlayerProfile } from '../gameStorage';
 import { applyPetChestDrop, rollPetChestDrop, rollPetExpDustDrop } from '../petChest';
-import { awardPetExpToEquippedMonster } from '../../src/gameSystems/petInventory';
+import { awardPetExpToEquippedMonster, getExpBonusPctForMonster } from '../../src/gameSystems/petInventory';
 
 function ensureChestInventory(ml) {
   if (!ml.chestInventory || typeof ml.chestInventory !== 'object') {
@@ -106,6 +106,10 @@ export function applyMonsterLadderBattleRewards(gameData, profileId, payload) {
   const om = profile.ownedMonsters?.find((m) => m.id === payload.ownedMonsterId);
   let expPack = null;
   if (om && expDelta !== 0) {
+    if (expDelta > 0 && payload.ownedMonsterId) {
+      const bonusPct = getExpBonusPctForMonster(profile, payload.ownedMonsterId);
+      if (bonusPct > 0) expDelta = Math.floor((expDelta * (100 + bonusPct)) / 100);
+    }
     const prevLevel = om.level;
     const res = expDelta >= 0
       ? addExperience({ level: om.level, exp: om.exp }, expDelta)

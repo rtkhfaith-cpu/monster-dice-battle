@@ -28,8 +28,8 @@ export const PET_CATALOG = {
 
   dragon_wisp: { id: 'dragon_wisp', name: 'Dragon Wisp', emoji: '🐉', rarity: 'mythic', skills: ['fire_aura', 'crit_boost'], shopPrice: null },
   star_unicorn: { id: 'star_unicorn', name: 'Star Unicorn', emoji: '🦄', rarity: 'mythic', skills: ['heal', 'cleanse'], shopPrice: null },
-  solar_lion: { id: 'solar_lion', name: 'Solar Lion', emoji: '🦁', rarity: 'mythic', skills: ['shield', 'lucky_coins'], shopPrice: null },
-  thunder_eagle: { id: 'thunder_eagle', name: 'Thunder Eagle', emoji: '🦅', rarity: 'mythic', skills: ['energy_gain', 'dodge_boost'], shopPrice: null },
+  solar_lion: { id: 'solar_lion', name: 'Solar Lion', emoji: '🦁', rarity: 'mythic', skills: ['shield', 'dodge_boost'], shopPrice: null },
+  thunder_eagle: { id: 'thunder_eagle', name: 'Thunder Eagle', emoji: '🦅', rarity: 'mythic', skills: ['exp_boost', 'lucky_coins'], shopPrice: null },
   shadow_drake: { id: 'shadow_drake', name: 'Shadow Drake', emoji: '🐲', rarity: 'mythic', skills: ['poison_bite', 'counter_spark'], shopPrice: null },
 };
 
@@ -51,7 +51,8 @@ export function getPetBaseStats(rarity) {
 }
 
 /**
- * Pet stats at level — level affects stats only, not skill power.
+ * Pet stats at level — base HP/ATK/DEF/SPD scale with pet level (max 60).
+ * Skill power uses pet rarity; equip pets and battle to level them up.
  * @param {{ rarity: PetRarity, level?: number }} params
  */
 export function calculatePetStats({ rarity, level = 1 }) {

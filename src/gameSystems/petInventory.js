@@ -96,11 +96,13 @@ export function petBattleSnapshot(ownedPet) {
   let petCritBonusPct = 0;
   let petDodgeBonusPct = 0;
   let coinBonusPct = 0;
+  let expBonusPct = 0;
   for (const skillType of def.skills) {
     const e = getPetSkillEffect(skillType, ownedPet.rarity);
     if (skillType === 'crit_boost') petCritBonusPct += e.petCritBonusPct ?? 0;
     if (skillType === 'dodge_boost') petDodgeBonusPct += e.petDodgeBonusPct ?? 0;
     if (skillType === 'lucky_coins') coinBonusPct += e.coinBonusPct ?? 0;
+    if (skillType === 'exp_boost') expBonusPct += e.expBonusPct ?? 0;
   }
   return {
     instanceId: ownedPet.instanceId,
@@ -114,6 +116,7 @@ export function petBattleSnapshot(ownedPet) {
     petCritBonusPct,
     petDodgeBonusPct,
     coinBonusPct,
+    expBonusPct,
     skillDescriptions: def.skills.map((s) => describePetSkill(s, ownedPet.rarity)),
   };
 }
@@ -218,6 +221,14 @@ export function getCoinBonusPctForMonster(profile, monsterId) {
   if (!pet) return 0;
   const snap = petBattleSnapshot(pet);
   return snap?.coinBonusPct ?? 0;
+}
+
+/** EXP bonus % from equipped pet exp_boost (battle rewards). */
+export function getExpBonusPctForMonster(profile, monsterId) {
+  const pet = petEquippedToMonster(profile, monsterId);
+  if (!pet) return 0;
+  const snap = petBattleSnapshot(pet);
+  return snap?.expBonusPct ?? 0;
 }
 
 /**
