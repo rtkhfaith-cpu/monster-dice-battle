@@ -128,6 +128,7 @@ import { recordSyncClick } from './utils/syncActivityLevel';
 import {
   defaultBattleMonsterId,
   getBattleRoster,
+  getOwnedRoster,
   resolveBattleMonsterId,
 } from './utils/rosterInventory';
 import { emitSaveStatus, subscribeSaveStatus } from './src/services/saveStatusBus';
@@ -786,21 +787,39 @@ export default function App() {
   const wallet = slotWallet;
   const coins = wallet?.coins ?? 0;
   const gearInventory = wallet?.gearInventory ?? [];
-  const gearOwnedMonster = useMemo(
-    () => {
-      const roster = wallet?.ownedMonsters;
-      if (!gearMonsterId || !roster?.length) return null;
-      const battleId = resolveBattleMonsterId(roster, gearMonsterId);
-      return roster.find((x) => x.id === battleId) ?? null;
-    },
-    [wallet, gearMonsterId],
-  );
   const gearProfileId = useMemo(() => {
     if (!gearMonsterId || !gameData) return slotProfileId;
     if (setupP1Id === gearMonsterId) return setupP1ProfileId;
     if (setupP2Id === gearMonsterId) return setupP2ProfileId;
+    const roster = wallet?.ownedMonsters ?? [];
+    if (roster.some((m) => m.id === gearMonsterId)) return slotProfileId;
+    for (const p of gameData.players || []) {
+      if ((p.ownedMonsters || []).some((m) => m.id === gearMonsterId)) return p.id;
+    }
     return activeProfileId ?? slotProfileId;
-  }, [gearMonsterId, gameData, setupP1Id, setupP2Id, setupP1ProfileId, setupP2ProfileId, activeProfileId, slotProfileId]);
+  }, [gearMonsterId, gameData, setupP1Id, setupP2Id, setupP1ProfileId, setupP2ProfileId, activeProfileId, slotProfileId, wallet]);
+  const gearProfile = useMemo(
+    () => (gearProfileId && gameData ? getPlayerProfile(gameData, gearProfileId) : null),
+    [gameData, gearProfileId],
+  );
+  const gearWallet = useMemo(
+    () => (gearProfileId && gameData ? walletForProfile(gameData, gearProfileId) : wallet),
+    [gameData, gearProfileId, wallet],
+  );
+  const gearOwnedMonsters = useMemo(() => getOwnedRoster(gearProfile), [gearProfile]);
+  const gearOwnedMonster = useMemo(() => {
+    const roster = gearWallet?.ownedMonsters;
+    if (!gearMonsterId || !roster?.length) return null;
+    return (
+      roster.find((x) => x.id === gearMonsterId)
+      ?? roster.find((x) => x.id === resolveBattleMonsterId(roster, gearMonsterId))
+      ?? null
+    );
+  }, [gearWallet, gearMonsterId]);
+  const gearBattleMonsterId = useMemo(() => {
+    if (!gearProfile?.selectedMonsterId || !gearWallet?.ownedMonsters?.length) return null;
+    return resolveBattleMonsterId(gearWallet.ownedMonsters, gearProfile.selectedMonsterId);
+  }, [gearProfile, gearWallet]);
   const ladderAvailable = useMemo(() => {
     if (!gameData || !setupP1ProfileId) return false;
     const profile = getPlayerProfile(gameData, setupP1ProfileId);
@@ -1283,6 +1302,23 @@ export default function App() {
     if (!om) return null;
     const prof = getPlayerProfile(gameData, profileId);
     return fighterFromOwned(om, prof);
+  }
+
+  function handleGearSelectMonster(id) {
+    setGearMonsterId(id);
+    if (!gameData) return;
+    const profId =
+      gameData.players?.find((p) => (p.ownedMonsters || []).some((m) => m.id === id))?.id
+      ?? gearProfileId
+      ?? null;
+    if (!profId) return;
+    const prof = getPlayerProfile(gameData, profId);
+    const roster = getOwnedRoster(prof);
+    const battleId = resolveBattleMonsterId(roster, id) ?? id;
+    const nextGd = setProfileSelectedMonster(gameData, profId, battleId);
+    persistSave(nextGd, 'monster_selected', profId);
+    if (profId === setupP1ProfileId) setSetupP1Id(battleId);
+    if (profId === setupP2ProfileId) setSetupP2Id(battleId);
   }
 
   function openMonsterGear(slot) {
@@ -2677,7 +2713,7 @@ export default function App() {
         coins={coins}
         ownedGearIds={[]}
         ownedMonster={gearOwnedMonster}
-        profile={gearProfileId ? getPlayerProfile(gameData, gearProfileId) : null}
+        profile={gearProfile}
         onClose={() => setGearOpen(false)}
         onEquip={handleEquipGear}
         onUnequip={handleUnequipGear}
@@ -2687,7 +2723,9 @@ export default function App() {
         onEquipPet={handleEquipPet}
         onUnequipPet={handleUnequipPet}
         onSpendPetDust={handleSpendPetDust}
-        onSelectMonster={(id) => setGearMonsterId(id)}
+        ownedMonsters={gearOwnedMonsters}
+        battleMonsterId={gearBattleMonsterId}
+        onSelectMonster={handleGearSelectMonster}
         onSellGear={handleSellGear}
         onOpenGearMart={() => {
           setGearOpen(false);
@@ -2698,10 +2736,11 @@ export default function App() {
       <MonsterEquipmentScreen
         visible={equipmentOpen}
         ownedMonster={gearOwnedMonster}
-        profile={gearProfileId ? getPlayerProfile(gameData, gearProfileId) : null}
+        profile={gearProfile}
         coins={coins}
-        ownedMonsters={wallet?.ownedMonsters}
-        onSelectMonster={(id) => setGearMonsterId(id)}
+        ownedMonsters={gearOwnedMonsters}
+        battleMonsterId={gearBattleMonsterId}
+        onSelectMonster={handleGearSelectMonster}
         onClose={() => setEquipmentOpen(false)}
         onEquip={handleEquipGear}
         onUnequip={handleUnequipGear}

@@ -16,6 +16,11 @@ import { passiveSlotLimitForRarity } from '../../../src/gameSystems/passiveSkill
 import { petEquippedToMonster } from '../../../src/gameSystems/petInventory';
 import { getMonsterTemplate } from '../../../utils/monsterTemplates';
 import { getLadderMonsterTemplate } from '../../../utils/monsterLadder/ladderMonsterCatalog';
+import {
+  getBattleRoster,
+  pickBattleInstance,
+  rosterInstancesForTemplate,
+} from '../../../utils/rosterInventory';
 import { GEAR_UI, gearModalStyles } from '../gearUiTheme';
 import MonsterEquipmentLayout from './MonsterEquipmentLayout';
 import MonsterFinalStatsPanel from './MonsterFinalStatsPanel';
@@ -35,6 +40,7 @@ export default function EquipmentScreen({
   profile,
   coins,
   ownedMonsters,
+  battleMonsterId,
   onSelectMonster,
   onClose,
   onEquip,
@@ -62,6 +68,18 @@ export default function EquipmentScreen({
   const equippedPassives = monsterEquippedPassives(ownedMonster);
   const passiveBooks = useMemo(() => listUnequippedBooks(profile), [profile]);
 
+  const selectorMonsters = useMemo(
+    () => getBattleRoster({ ownedMonsters }),
+    [ownedMonsters],
+  );
+
+  const selectorSelectedId = useMemo(() => {
+    if (!ownedMonster) return null;
+    if (selectorMonsters.some((m) => m.id === ownedMonster.id)) return ownedMonster.id;
+    const instances = rosterInstancesForTemplate(ownedMonsters ?? [], ownedMonster.templateId);
+    return pickBattleInstance(instances)?.id ?? ownedMonster.id;
+  }, [ownedMonster, ownedMonsters, selectorMonsters]);
+
   const equippedPetRow = petEquippedToMonster(profile, ownedMonster?.id);
   const equippedPet = equippedPetRow
     ? {
@@ -85,13 +103,14 @@ export default function EquipmentScreen({
   const compatibleGear = useMemo(() => {
     if (selectedSlot?.kind !== 'gear' || !profile?.gearInventory) return [];
     return profile.gearInventory.filter(
-      (g) =>
-        g.slot === selectedSlot.slot
-        && (!g.equippedToMonsterId || g.equippedToMonsterId === ownedMonster?.id),
+      (g) => g.slot === selectedSlot.slot && !g.equippedToMonsterId,
     );
-  }, [selectedSlot, profile, ownedMonster?.id]);
+  }, [selectedSlot, profile]);
 
-  const pets = useMemo(() => profile?.ownedPets ?? [], [profile]);
+  const pets = useMemo(() => {
+    const all = profile?.ownedPets ?? [];
+    return all.filter((p) => p.equippedToMonsterId !== ownedMonster?.id);
+  }, [profile, ownedMonster?.id]);
 
   const setPreviewMessage = useMemo(() => {
     if (selectedSlot?.kind !== 'gear' || !selectedGearId) return null;
@@ -195,8 +214,9 @@ export default function EquipmentScreen({
       </View>
 
       <MonsterSelectorRow
-        monsters={ownedMonsters}
-        selectedId={ownedMonster.id}
+        monsters={selectorMonsters}
+        selectedId={selectorSelectedId}
+        battleMonsterId={battleMonsterId}
         onSelect={onSelectMonster}
       />
 
@@ -247,6 +267,7 @@ export default function EquipmentScreen({
         onSelectGear={setSelectedGearId}
         setPreviewMessage={setPreviewMessage}
         pets={pets}
+        ownedMonsters={ownedMonsters}
         equippedPetId={equippedPetRow?.instanceId}
         selectedPetId={selectedPetId}
         onSelectPet={setSelectedPetId}

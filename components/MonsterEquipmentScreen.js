@@ -12,6 +12,7 @@ export default function MonsterEquipmentScreen({
   profile,
   coins,
   ownedMonsters,
+  battleMonsterId,
   onSelectMonster,
   onClose,
   onEquip,
@@ -32,6 +33,7 @@ export default function MonsterEquipmentScreen({
             profile={profile}
             coins={coins}
             ownedMonsters={ownedMonsters}
+            battleMonsterId={battleMonsterId}
             onSelectMonster={onSelectMonster}
             onClose={onClose}
             onEquip={onEquip}

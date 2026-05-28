@@ -32,6 +32,12 @@ const SLOT_TITLES = {
 const PASSIVE_RARITY = { rare: '#60a5fa', epic: '#c084fc', legendary: '#fbbf24', mythic: '#f472b6' };
 const PET_RARITY = { rare: '#60a5fa', epic: '#c084fc', mythic: '#f472b6' };
 
+function monsterDisplayName(ownedMonsters, monsterId) {
+  const om = ownedMonsters?.find((m) => m.id === monsterId);
+  if (!om) return 'another monster';
+  return om.nickname || om.templateId;
+}
+
 export default function CompatibleItemPanel({
   selectedSlot,
   currentGear,
@@ -40,6 +46,7 @@ export default function CompatibleItemPanel({
   onSelectGear,
   setPreviewMessage,
   pets,
+  ownedMonsters,
   equippedPetId,
   selectedPetId,
   onSelectPet,
@@ -98,7 +105,6 @@ export default function CompatibleItemPanel({
               compatibleGear.map((g) => {
                 const ui = gearRarityUi(g.rarity);
                 const on = selectedGearId === g.instanceId;
-                const onOther = g.equippedToMonsterId && g.equippedToMonsterId !== monster?.id;
                 return (
                   <TouchableOpacity
                     key={g.instanceId}
@@ -116,7 +122,6 @@ export default function CompatibleItemPanel({
                         {` · Socket: ${Math.max(0, g.sockets?.length ?? 0)}`}
                       </Text>
                       <Text style={styles.rowStats}>{formatGearStatLines(g.stats).join(' · ')}</Text>
-                      {onOther ? <Text style={styles.otherMon}>On another monster</Text> : null}
                     </View>
                     {on ? <Text style={styles.check}>✓</Text> : null}
                   </TouchableOpacity>
@@ -139,18 +144,25 @@ export default function CompatibleItemPanel({
               </TouchableOpacity>
             ) : null}
             {pets?.length === 0 ? (
-              <Text style={styles.muted}>No pets owned. Get pets from the Gear Mart.</Text>
+              <Text style={styles.muted}>
+                {equippedPetId
+                  ? 'No other pets in stash. Unequip the current pet or free one from another monster.'
+                  : 'No pets owned. Get pets from the Gear Mart.'}
+              </Text>
             ) : (
               pets.map((p) => {
                 const stats = calculatePetStats({ rarity: p.rarity, level: p.level });
                 const on = selectedPetId === p.instanceId;
-                const elsewhere = p.equippedToMonsterId && p.equippedToMonsterId !== monster?.id;
+                const onOther = !!p.equippedToMonsterId;
+                const otherName = onOther
+                  ? monsterDisplayName(ownedMonsters, p.equippedToMonsterId)
+                  : null;
                 return (
                   <TouchableOpacity
                     key={p.instanceId}
-                    style={[styles.row, on && styles.rowOn]}
+                    style={[styles.row, on && styles.rowOn, onOther && styles.rowOff]}
                     onPress={() => onSelectPet(p.instanceId)}
-                    disabled={elsewhere}
+                    disabled={onOther}
                     activeOpacity={0.86}
                   >
                     <Text style={styles.rowEmoji}>{p.emoji}</Text>
@@ -163,7 +175,9 @@ export default function CompatibleItemPanel({
                           .map((s) => describePetSkill(s, p.rarity))
                           .join(' · ')}
                       </Text>
-                      {elsewhere ? <Text style={styles.otherMon}>Equipped elsewhere</Text> : null}
+                      {onOther ? (
+                        <Text style={styles.otherMon}>Equipped on {otherName}</Text>
+                      ) : null}
                     </View>
                     {on ? <Text style={styles.check}>✓</Text> : null}
                   </TouchableOpacity>

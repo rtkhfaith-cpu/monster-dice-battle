@@ -224,6 +224,8 @@ export default function MonsterGearScreen({
   onUnequipPet,
   onSpendPetDust,
   onSelectMonster,
+  ownedMonsters,
+  battleMonsterId,
   onSellGear,
 }) {
   const type = useReadableType();
@@ -292,7 +294,8 @@ export default function MonsterGearScreen({
               ownedMonster={ownedMonster}
               profile={profile}
               coins={coins}
-              ownedMonsters={profile?.ownedMonsters}
+              ownedMonsters={ownedMonsters ?? profile?.ownedMonsters}
+              battleMonsterId={battleMonsterId}
               onSelectMonster={onSelectMonster}
               onClose={onClose}
               onEquip={onEquip}
