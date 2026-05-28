@@ -1,7 +1,7 @@
 /**
  * Gear inventory helpers — filter, sort, lookup.
  */
-import { ARRAY_GEAR_SLOTS } from './gearConstants';
+import { ARRAY_GEAR_SLOTS, GEAR_SELL_VALUES } from './gearConstants';
 import { formatGearStatLines } from './gearGenerator';
 import { GEAR_SET_IDS, getGearTemplate } from './gearDefinitions';
 import { gearRarityColor } from '../../../utils/gearRarityUi';
@@ -158,4 +158,10 @@ export function collectEquippedInstanceIds(equipment) {
     }
   }
   return ids;
+}
+
+/** Coin payout when selling unequipped gear (matches sellGearInstance). */
+export function gearSellCoinValue(gearOrRarity) {
+  const rarity = typeof gearOrRarity === 'string' ? gearOrRarity : gearOrRarity?.rarity;
+  return GEAR_SELL_VALUES[rarity] ?? 20;
 }

@@ -10,10 +10,8 @@ import {
 } from 'react-native';
 import { calculatePetStats } from '../src/gameSystems/pets';
 import { describePetSkill } from '../src/gameSystems/petSkills';
-import {
-  formatBookLabel,
-  getPassiveDescription,
-} from '../src/gameSystems/passiveInventory';
+import { formatBookLabel } from '../src/gameSystems/passiveInventory';
+import { getPassiveDescription } from '../src/gameSystems/passiveSkills';
 import GearInventoryPanel from './GearInventoryPanel';
 import { GEAR_UI, gearModalStyles, gearRarityUi } from './gear/gearUiTheme';
 
@@ -24,8 +22,6 @@ const TABS = [
 ];
 
 const PET_RARITY = { rare: '#60a5fa', epic: '#c084fc', mythic: '#f472b6' };
-const BOOK_RARITY = { rare: '#60a5fa', epic: '#c084fc', legendary: '#fbbf24', mythic: '#f472b6' };
-
 function monsterDisplayName(ownedMonsters, monsterId) {
   const om = ownedMonsters?.find((m) => m.id === monsterId);
   if (!om) return 'another monster';
@@ -54,10 +50,13 @@ export default function PlayerInventoryScreen({
     [pets],
   );
 
-  const bookRows = useMemo(
-    () => [...books].sort((a, b) => a.skillName?.localeCompare(b.skillName ?? '') ?? 0),
-    [books],
-  );
+  const bookRows = useMemo(() => {
+    return [...books].sort((a, b) => {
+      const na = a.skillName ?? a.skillId ?? '';
+      const nb = b.skillName ?? b.skillId ?? '';
+      return na.localeCompare(nb);
+    });
+  }, [books]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>

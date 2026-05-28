@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import ConfirmDialog from './ConfirmDialog';
 import {
   filterGearInventory,
   sortGearInventory,
   gearCardSummary,
+  gearSellCoinValue,
 } from '../src/gameSystems/gear/inventoryGearUtils';
 import {
   GEAR_UI,
@@ -29,6 +31,26 @@ const FILTERS = [
 export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullHeight }) {
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('rarity');
+  const [mythicSellConfirm, setMythicSellConfirm] = useState(null);
+
+  function requestSell(gear) {
+    if (!onSell) return;
+    if (isMythicRarity(gear.rarity)) {
+      setMythicSellConfirm({
+        instanceId: gear.instanceId,
+        name: gear.name,
+        sellCoins: gearSellCoinValue(gear),
+      });
+      return;
+    }
+    onSell(gear.instanceId);
+  }
+
+  function confirmMythicSell() {
+    if (!mythicSellConfirm || !onSell) return;
+    onSell(mythicSellConfirm.instanceId);
+    setMythicSellConfirm(null);
+  }
 
   const list = useMemo(() => {
     const raw = profile?.gearInventory ?? [];
@@ -38,6 +60,20 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullH
 
   return (
     <View style={styles.wrap}>
+      <ConfirmDialog
+        visible={!!mythicSellConfirm}
+        title="Sell mythic gear?"
+        message={
+          mythicSellConfirm
+            ? `Sell ${mythicSellConfirm.name} for 🪙 ${mythicSellConfirm.sellCoins}? This cannot be undone.`
+            : ''
+        }
+        confirmLabel={`Sell · 🪙 ${mythicSellConfirm?.sellCoins ?? ''}`}
+        cancelLabel="Keep"
+        destructive
+        onCancel={() => setMythicSellConfirm(null)}
+        onConfirm={confirmMythicSell}
+      />
       <View style={styles.hdrRow}>
         <Text style={styles.title}>Gear ({list.length})</Text>
         {onOpenEquip ? (
@@ -88,6 +124,7 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullH
             const ui = gearRarityUi(g.rarity);
             const mythic = isMythicRarity(g.rarity);
             const equipped = !!g.equippedToMonsterId;
+            const sellCoins = gearSellCoinValue(g);
             return (
               <View
                 key={g.instanceId}
@@ -120,11 +157,16 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullH
                   </Text>
                 </View>
                 <Text style={[styles.cardEquipped, equipped && styles.cardEquippedOn]}>
-                  {equipped ? `Equipped: ${card.equippedMonsterName}` : 'Not equipped'}
+                  {equipped
+                    ? `Equipped: ${card.equippedMonsterName} · cannot sell`
+                    : 'Not equipped'}
                 </Text>
+                {!equipped ? (
+                  <Text style={styles.sellValue}>Sell value: 🪙 {sellCoins}</Text>
+                ) : null}
                 {onSell && !equipped ? (
-                  <TouchableOpacity style={styles.sellBtn} onPress={() => onSell(g.instanceId)}>
-                    <Text style={styles.sellTxt}>Sell</Text>
+                  <TouchableOpacity style={styles.sellBtn} onPress={() => requestSell(g)}>
+                    <Text style={styles.sellTxt}>Sell · 🪙 {sellCoins}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -233,6 +275,12 @@ const styles = StyleSheet.create({
   socketBadgeTxtOff: { color: GEAR_UI.muted },
   cardEquipped: { color: GEAR_UI.muted, fontSize: 10, marginTop: 6, fontWeight: '800' },
   cardEquippedOn: { color: '#fcd34d' },
+  sellValue: {
+    color: GEAR_UI.coins,
+    fontSize: 11,
+    fontWeight: '900',
+    marginTop: 6,
+  },
   sellBtn: {
     alignSelf: 'flex-start',
     marginTop: 8,
