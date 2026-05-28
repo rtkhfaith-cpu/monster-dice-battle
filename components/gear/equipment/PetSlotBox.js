@@ -33,17 +33,17 @@ export default function PetSlotBox({ pet, selected, onPress, compact }) {
 
 const styles = StyleSheet.create({
   box: {
-    width: 118,
+    width: 100,
     height: 84,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: GEAR_UI.slotEmptyBorder,
     paddingVertical: 6,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     alignItems: 'center',
     backgroundColor: GEAR_UI.panelDeep,
   },
-  compact: { width: 102, height: 76 },
+  compact: { width: 88, height: 76 },
   empty: { borderStyle: 'dashed', backgroundColor: GEAR_UI.slotEmptyBg },
   filled: { borderColor: '#86efac', backgroundColor: 'rgba(18, 53, 40, 0.65)' },
   selected: {

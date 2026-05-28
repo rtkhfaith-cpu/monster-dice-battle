@@ -63,7 +63,7 @@ export default function MonsterEquipmentLayout({
       </View>
 
       {/* Row 2: WEAPON 1 · WEAPON 2 */}
-      <View style={[styles.rowSides, styles.rowBottom]}>
+      <View style={styles.rowSides}>
         <EquipmentSlotBox
           label="Wpn 1"
           slotKey="weapon"
@@ -116,8 +116,8 @@ export default function MonsterEquipmentLayout({
         />
       </View>
 
-      {/* Row 4: LEG 1 · BODY · LEG 2 (same height) */}
-      <View style={styles.rowSides}>
+      {/* Row 4: LEG 1 · BODY (centered) · LEG 2 — same height */}
+      <View style={[styles.rowSides, styles.rowBottom]}>
         <EquipmentSlotBox
           label="Leg 1"
           slotKey="legs"
@@ -126,15 +126,26 @@ export default function MonsterEquipmentLayout({
           onPress={() => onSelectGearSlot('legs', 0)}
           compact={compact}
         />
-        <SpacerCenter />
-        <EquipmentSlotBox
-          label="Body"
-          slotKey="body"
-          gear={gear('body')}
-          selected={isSelected('body')}
-          onPress={() => onSelectGearSlot('body', 0)}
-          compact={compact}
-        />
+        <View
+          style={[
+            styles.centerCol,
+            {
+              width: monsterSize,
+              marginHorizontal: sideGap,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+          ]}
+        >
+          <EquipmentSlotBox
+            label="Body"
+            slotKey="body"
+            gear={gear('body')}
+            selected={isSelected('body')}
+            onPress={() => onSelectGearSlot('body', 0)}
+            compact={compact}
+          />
+        </View>
         <EquipmentSlotBox
           label="Leg 2"
           slotKey="legs"
@@ -176,22 +187,21 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   topSide: {
-    minWidth: 116,
+    width: 104,
     alignItems: 'center',
     justifyContent: 'center',
   },
   topSidePet: {
-    transform: [{ translateY: -20 }],
+    transform: [{ translateY: -30 }],
   },
   rowBottom: {
-    // Push legs/body row down slightly (~3%) for better visual balance.
-    transform: [{ translateY: 10 }],
+    transform: [{ translateY: 12 }],
   },
   centerCol: {},
   monsterCore: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -20,
+    marginTop: -64,
   },
   levelTxt: {
     marginTop: -2,
