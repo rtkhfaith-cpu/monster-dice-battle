@@ -410,7 +410,12 @@ function resolvePosition2PetSupport(state, monster) {
         delete ally.statuses.damageTakenPct;
         delete ally.statuses.speedDodgeDown;
       }
-      logLine(state, `${pet.emoji ?? '🐾'} ${pet.name} cleansed team debuffs.`, 'heal');
+      logLine(state, `${pet.emoji ?? '🐾'} ${pet.name} cleansed team debuffs.`, 'heal', {
+        type: 'heal',
+        targetIds: allies.map((a) => a.id),
+        teamWide: true,
+        cleanse: true,
+      });
     } else if (!teamWide) {
       // damage / poison / burn pets hit the boss only (no team-wide AOE abuse).
       // handled implicitly: no-op here; their stat bonuses already counted.
@@ -428,7 +433,13 @@ function playerAttackBoss(state, monster) {
   // Boss dodge.
   const dodgeChance = clamp((state.boss.stats.dodge ?? 0) - (monster.stats.hitRate ?? 0), 0, 60);
   if (rollPct(dodgeChance)) {
-    logLine(state, `${state.boss.name} dodged ${monster.name}'s attack!`, 'dodge');
+    logLine(state, `${state.boss.name} dodged ${monster.name}'s attack!`, 'dodge', {
+      type: 'attack',
+      source: 'monster',
+      sourceId: monster.id,
+      targetId: 'boss',
+      dodged: true,
+    });
     return;
   }
 
@@ -445,37 +456,64 @@ function playerAttackBoss(state, monster) {
     state,
     `${monster.name} hits ${state.boss.name} for ${dmg}${crit ? ' (CRIT!)' : ''}${useMagic ? ' ✨' : ''}.`,
     crit ? 'crit' : 'playerHit',
+    {
+      type: 'attack',
+      source: 'monster',
+      sourceId: monster.id,
+      targetId: 'boss',
+      damage: dmg,
+      crit,
+      magic: useMagic,
+    },
   );
 }
 
 function checkOutcome(state) {
   if (state.boss.hp <= 0) {
     state.phase = 'win';
-    logLine(state, 'Dungeon Cleared!', 'win');
+    logLine(state, 'Dungeon Cleared!', 'win', { type: 'win' });
     return true;
   }
   if (aliveMonsters(state).length === 0) {
     state.phase = 'lose';
-    logLine(state, 'Dungeon Failed.', 'lose');
+    logLine(state, 'Dungeon Failed.', 'lose', { type: 'lose' });
     return true;
   }
   return false;
 }
 
 function bossTurn(state) {
-  logLine(state, `— ${state.boss.name}'s turn —`, 'turnBanner');
+  logLine(state, `— ${state.boss.name}'s turn —`, 'turnBanner', {
+    type: 'turn',
+    actor: 'boss',
+    name: state.boss.name,
+  });
   maybeEnrage(state);
   const skill = pickBossSkill(state);
   if (!skill) {
     state.boss.patternIndex += 1;
     return;
   }
-  logLine(state, `${state.boss.name} uses ${skill.name}.`, 'boss');
+  logLine(state, `${state.boss.name} uses ${skill.name}.`, 'boss', {
+    type: 'skill',
+    source: 'boss',
+    skillName: skill.name,
+    aoe: skill.type === 'aoeAttack' || skill.target === 'all',
+  });
 
   if (skill.type === 'aoeAttack') {
     for (const m of aliveMonsters(state)) {
       const dmg = bossHitMonster(state, m, skill, { isAoe: true });
-      if (dmg > 0) logLine(state, `${skill.name} hits ${m.name} for ${dmg}.`, 'bossHit');
+      if (dmg > 0) {
+        logLine(state, `${skill.name} hits ${m.name} for ${dmg}.`, 'bossHit', {
+          type: 'attack',
+          source: 'boss',
+          targetId: m.id,
+          damage: dmg,
+          skillName: skill.name,
+          aoe: true,
+        });
+      }
       if (skill.effect === 'burn' && m.alive) applyBurn(state, m, skill);
     }
   } else if (skill.type === 'stun' && skill.target === 'all') {
@@ -483,7 +521,16 @@ function bossTurn(state) {
     for (const m of aliveMonsters(state)) {
       if ((skill.multiplier ?? 0) > 0) {
         const dmg = bossHitMonster(state, m, skill, { isAoe: true });
-        if (dmg > 0) logLine(state, `${skill.name} hits ${m.name} for ${dmg}.`, 'bossHit');
+        if (dmg > 0) {
+          logLine(state, `${skill.name} hits ${m.name} for ${dmg}.`, 'bossHit', {
+            type: 'attack',
+            source: 'boss',
+            targetId: m.id,
+            damage: dmg,
+            skillName: skill.name,
+            aoe: true,
+          });
+        }
       }
       applyControlEffect(state, m, skill);
     }
@@ -492,7 +539,15 @@ function bossTurn(state) {
   } else if (skill.type === 'trueDamage') {
     for (const m of aliveMonsters(state)) {
       const dmg = bossHitMonster(state, m, skill, { isAoe: true });
-      logLine(state, `${skill.name} deals ${dmg} TRUE damage to ${m.name}.`, 'bossHit');
+      logLine(state, `${skill.name} deals ${dmg} TRUE damage to ${m.name}.`, 'bossHit', {
+        type: 'attack',
+        source: 'boss',
+        targetId: m.id,
+        damage: dmg,
+        skillName: skill.name,
+        aoe: true,
+        trueDamage: true,
+      });
     }
     state.boss.finalBreathCd = skill.cooldownTurns ?? 4;
   } else {
@@ -501,7 +556,15 @@ function bossTurn(state) {
     if (target) {
       if ((skill.multiplier ?? 0) > 0) {
         const dmg = bossHitMonster(state, target, skill);
-        if (dmg > 0) logLine(state, `${skill.name} hits ${target.name} for ${dmg}.`, 'bossHit');
+        if (dmg > 0) {
+          logLine(state, `${skill.name} hits ${target.name} for ${dmg}.`, 'bossHit', {
+            type: 'attack',
+            source: 'boss',
+            targetId: target.id,
+            damage: dmg,
+            skillName: skill.name,
+          });
+        }
       }
       if (skill.type === 'stun' || skill.type === 'freeze') applyControlEffect(state, target, skill);
       if (skill.type === 'debuff') applyDebuff(state, target, skill);
