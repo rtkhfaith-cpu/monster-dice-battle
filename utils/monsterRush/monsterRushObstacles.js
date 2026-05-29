@@ -125,13 +125,25 @@ export function obstacleTypeDef(type) {
 /** Shrink hitbox inside visual bounds for fair collisions. */
 export function hazardHitbox(entity) {
   const scale = entity.hitScale ?? 0.85;
-  const w = entity.width * scale;
-  const h = entity.height * scale;
+  let w = entity.width * scale;
+  let h = entity.height * scale;
   const padX = (entity.width - w) / 2;
-  const padY = (entity.height - h) / 2;
+  let padY = (entity.height - h) / 2;
+  let y = entity.y + padY;
+
+  if (entity.shape === 'spike') {
+    const bodyH = h * 0.58;
+    y += h - bodyH;
+    h = bodyH;
+    w *= 0.88;
+  } else if (entity.shape === 'ceiling_spike') {
+    h *= 0.58;
+    w *= 0.88;
+  }
+
   return {
-    x: entity.x + padX,
-    y: entity.y + padY,
+    x: entity.x + padX + (entity.width * scale - w) / 2,
+    y,
     width: w,
     height: h,
   };

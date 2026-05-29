@@ -12,6 +12,7 @@
     "build": "npm run prebuild && expo export -p web",
     "verify:hitrate": "node scripts/verify-hitrate-dodge.mjs",
     "sim:dungeons": "npx --yes tsx scripts/dungeon-boss-sim/cli.mjs",
+    "sim:monster-rush": "npx --yes tsx scripts/monster-rush-sim.mjs",
     "server": "npm run start --prefix server",
     "dev:all": "concurrently \"npm run web:local\" \"npm run server\"",
     "crop:monsters": "powershell -ExecutionPolicy Bypass -File scripts/crop-monster-sheet.ps1",

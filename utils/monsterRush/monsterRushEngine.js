@@ -66,6 +66,8 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
     lastPatternDifficulty: 1,
     wasOnGround: true,
     shakeMs: 0,
+    /** No hazard damage until this reaches 0 (ms). */
+    safeMsRemaining: 0,
     player: {
       x: playerX,
       y: groundY,
@@ -77,15 +79,20 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
   };
 }
 
+function runwayPx(gameWidth) {
+  return Math.max(320, Math.floor(gameWidth * 0.52));
+}
+
 export function startMonsterRushRun(state) {
   if (!state || state.isGameOver) return false;
   if (!state.awaitingStart && state.isRunning) return true;
   state.awaitingStart = false;
   state.isRunning = true;
   state.isPaused = false;
-  state.spawnCooldownPx = 0;
-  state.lastPatternEndX = state.gameWidth + 36;
-  trySpawnPattern(state);
+  state.safeMsRemaining = 2600;
+  const lead = runwayPx(state.gameWidth);
+  state.spawnCooldownPx = lead;
+  state.lastPatternEndX = state.gameWidth + lead;
   return true;
 }
 
@@ -149,13 +156,13 @@ function spawnPatternCoins(state, baseX, item) {
 function spawnPattern(state, pattern) {
   const tier = rushDifficultyTier(state.distanceM);
   const spacing = patternSpacingPx(tier);
-  const rightEdge = state.gameWidth + 36;
+  const rightEdge = state.gameWidth + Math.max(48, Math.floor(runwayPx(state.gameWidth) * 0.22));
   const hasWorld = state.hazards.length > 0
     || state.platforms.length > 0
     || state.gaps.length > 0;
   const baseX = hasWorld
     ? Math.max(rightEdge, state.lastPatternEndX + spacing * 0.35)
-    : rightEdge;
+    : Math.max(rightEdge, state.lastPatternEndX);
 
   for (const item of pattern.items) {
     if (item.type === 'gap') {
@@ -363,10 +370,15 @@ export function tickMonsterRush(state, dtMs) {
   state.spawnCooldownPx = Math.max(0, state.spawnCooldownPx - movePx);
   trySpawnPattern(state);
 
+  if (state.safeMsRemaining > 0) {
+    state.safeMsRemaining = Math.max(0, state.safeMsRemaining - dtMs);
+  }
+
   const pBox = playerCollisionBox(state);
   const hazards = state.hazards;
   for (let i = 0; i < hazards.length; i += 1) {
     const h = hazards[i];
+    if (state.safeMsRemaining > 0) break;
     if (h.x > state.gameWidth + 20) continue;
     if (rectsOverlap(pBox, hazardHitbox(h))) {
       state.isGameOver = true;
@@ -381,7 +393,7 @@ export function tickMonsterRush(state, dtMs) {
     if (rectsOverlap(pBox, coin)) {
       state.coinsCollected += 1;
       state.rushPointsThisRun = Math.floor(state.distanceM / 10) + state.coinsCollected;
-      if (state.particles.length < 4) addParticle(coin.x, coin.y, '+1', 280);
+      if (state.particles.length < 4) addParticle(state, coin.x, coin.y, '+1', 280);
       state.coins.splice(i, 1);
     }
   }
