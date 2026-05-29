@@ -27,7 +27,7 @@ function PlayerBox({ templateId, jumping }) {
         <Image
           source={{ uri: asset.path }}
           style={styles.playerImg}
-          resizeMode="contain"
+          resizeMode="cover"
           {...WEB_DECORATIVE_IMAGE_PROPS}
         />
       ) : (
@@ -37,18 +37,32 @@ function PlayerBox({ templateId, jumping }) {
   );
 }
 
-export default function MonsterRushGameView({ templateId, onGameOver, onJump, onCoinCollect }) {
+export default function MonsterRushGameView({
+  templateId,
+  gameWidth,
+  gameHeight,
+  onGameOver,
+  onJump,
+  onCoinCollect,
+  onQuit,
+}) {
   const gameRef = useRef(null);
   const [, setFrame] = useState(0);
   const rafRef = useRef(null);
   const lastTsRef = useRef(0);
   const endedRef = useRef(false);
-  const gameW = 360;
-  const gameH = 260;
+  const sizeKeyRef = useRef('');
 
-  if (!gameRef.current) {
-    gameRef.current = createMonsterRushRun({ gameWidth: gameW, gameHeight: gameH });
+  const w = Math.max(320, Math.floor(gameWidth || 640));
+  const h = Math.max(200, Math.floor(gameHeight || 360));
+  const sizeKey = `${w}x${h}`;
+
+  if (!gameRef.current || sizeKeyRef.current !== sizeKey) {
+    sizeKeyRef.current = sizeKey;
+    gameRef.current = createMonsterRushRun({ gameWidth: w, gameHeight: h });
     gameRef.current.nextSpawnMs = 1800;
+    endedRef.current = false;
+    lastTsRef.current = 0;
   }
 
   const bump = useCallback(() => setFrame((f) => f + 1), []);
@@ -117,12 +131,13 @@ export default function MonsterRushGameView({ templateId, onGameOver, onJump, on
   if (!state) return null;
 
   const scrollOffset = (state.scrollPx * 0.15) % 200;
+  const groundH = Math.max(32, Math.round(h * 0.14));
 
   return (
-    <Pressable style={styles.wrap} onPress={handleJump}>
-      <View style={[styles.sky, { width: gameW, height: gameH }]}>
-        <View style={[styles.hills, { transform: [{ translateX: -scrollOffset }] }]} />
-        <View style={[styles.hills, styles.hills2, { transform: [{ translateX: -scrollOffset * 1.4 }] }]} />
+    <Pressable style={[styles.wrap, { width: w, height: h }]} onPress={handleJump}>
+      <View style={[styles.sky, { width: w, height: h }]}>
+        <View style={[styles.hills, { bottom: groundH + 8, transform: [{ translateX: -scrollOffset }] }]} />
+        <View style={[styles.hills, styles.hills2, { bottom: groundH, transform: [{ translateX: -scrollOffset * 1.4 }] }]} />
 
         {state.obstacles.map((obs) => (
           <View
@@ -154,7 +169,7 @@ export default function MonsterRushGameView({ templateId, onGameOver, onJump, on
           </Text>
         ))}
 
-        <View style={[styles.ground, { top: state.groundSurfaceY }]} />
+        <View style={[styles.ground, { top: state.groundSurfaceY, height: groundH }]} />
 
         <View style={{ position: 'absolute', left: state.player.x, top: state.player.y }}>
           <PlayerBox templateId={templateId} jumping={!state.player.isOnGround} />
@@ -167,48 +182,60 @@ export default function MonsterRushGameView({ templateId, onGameOver, onJump, on
         ) : null}
       </View>
 
-      <View style={styles.hud}>
-        <Text style={styles.hudTxt}>Distance: {state.distanceM}m</Text>
-        <Text style={styles.hudTxt}>Rush Pts: {state.rushPointsThisRun}</Text>
-        <Text style={styles.hudTxt}>Coins: {state.coinsCollected}</Text>
-        <TouchableOpacity
-          style={styles.pauseBtn}
-          onPress={(e) => {
-            e?.stopPropagation?.();
-            togglePauseMonsterRush(gameRef.current);
-            bump();
-          }}
-        >
-          <Text style={styles.pauseBtnTxt}>{state.isPaused ? '▶' : '⏸'}</Text>
-        </TouchableOpacity>
+      <View style={styles.hudOverlay} pointerEvents="box-none">
+        <View style={styles.hudTop} pointerEvents="box-none">
+          <TouchableOpacity style={styles.quitBtn} onPress={onQuit}>
+            <Text style={styles.quitBtnTxt}>← Quit</Text>
+          </TouchableOpacity>
+          <View style={styles.hudStats}>
+            <Text style={styles.hudTxt}>Distance: {state.distanceM}m</Text>
+            <Text style={styles.hudTxt}>Rush: {state.rushPointsThisRun}</Text>
+            <Text style={styles.hudTxt}>Coins: {state.coinsCollected}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.pauseBtn}
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              togglePauseMonsterRush(gameRef.current);
+              bump();
+            }}
+          >
+            <Text style={styles.pauseBtnTxt}>{state.isPaused ? '▶' : '⏸'}</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.hint}>Tap · click · Space to jump</Text>
       </View>
-
-      <Text style={styles.hint}>Tap · click · Space to jump</Text>
     </Pressable>
   );
 }
 
+const PS = MONSTER_RUSH_PHYSICS.playerSize;
+
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center' },
+  wrap: {
+    alignSelf: 'center',
+    flex: 1,
+    width: '100%',
+    maxWidth: '100%',
+  },
   sky: {
-    borderRadius: 14,
+    borderRadius: Platform.OS === 'web' ? 0 : 10,
     overflow: 'hidden',
-    borderWidth: 3,
+    borderWidth: Platform.OS === 'web' ? 0 : 2,
     borderColor: '#f7c948',
     backgroundColor: '#7dd3fc',
+    flex: 1,
   },
   hills: {
     position: 'absolute',
-    bottom: 48,
     left: 0,
-    width: 600,
+    width: '200%',
     height: 60,
     backgroundColor: 'rgba(34,197,94,0.45)',
     borderTopLeftRadius: 80,
     borderTopRightRadius: 80,
   },
   hills2: {
-    bottom: 40,
     height: 40,
     backgroundColor: 'rgba(22,163,74,0.35)',
   },
@@ -216,30 +243,29 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    height: 40,
     backgroundColor: '#92400e',
     borderTopWidth: 4,
     borderTopColor: '#fde68a',
   },
   playerBox: {
-    width: MONSTER_RUSH_PHYSICS.playerSize,
-    height: MONSTER_RUSH_PHYSICS.playerSize,
-    borderRadius: 12,
+    width: PS,
+    height: PS,
+    borderRadius: 8,
     overflow: 'hidden',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#f7c948',
     backgroundColor: '#fef3c7',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#92400e',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4,
     shadowRadius: 0,
     elevation: 4,
   },
   playerBoxJump: { transform: [{ rotate: '-8deg' }] },
-  playerImg: { width: '100%', height: '100%', padding: 4 },
-  playerFallback: { fontSize: 28 },
+  playerImg: { width: '110%', height: '110%' },
+  playerFallback: { fontSize: 16 },
   obstacle: {
     position: 'absolute',
     borderRadius: 8,
@@ -249,30 +275,50 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingBottom: 2,
   },
-  obsEmoji: { fontSize: 16, fontWeight: '900' },
+  obsEmoji: { fontSize: 14, fontWeight: '900' },
   coin: {
     position: 'absolute',
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  coinTxt: { fontSize: 22 },
+  coinTxt: { fontSize: 18 },
   particle: {
     position: 'absolute',
     color: '#fde047',
     fontWeight: '900',
-    fontSize: 14,
+    fontSize: 12,
   },
-  hud: {
+  hudOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
+    padding: 6,
+  },
+  hudTop: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 6,
   },
-  hudTxt: { color: '#fff4cf', fontWeight: '900', fontSize: 12 },
+  hudStats: { flex: 1, alignItems: 'center', gap: 2 },
+  hudTxt: {
+    color: '#fff4cf',
+    fontWeight: '900',
+    fontSize: 11,
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  quitBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(30,58,95,0.88)',
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+  },
+  quitBtnTxt: { color: '#ffe08a', fontWeight: '900', fontSize: 10 },
   pauseBtn: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -282,7 +328,15 @@ const styles = StyleSheet.create({
     borderColor: '#93c5fd',
   },
   pauseBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 12 },
-  hint: { color: '#94a3b8', fontWeight: '800', fontSize: 10, marginTop: 4 },
+  hint: {
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '800',
+    fontSize: 9,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   pauseOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',

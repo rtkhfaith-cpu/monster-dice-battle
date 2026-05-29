@@ -14,6 +14,7 @@ const RESCUE_BGM = [
   '/audio/bgm/Monster_ladder.mp3',
 ];
 const BATTLE_BGM = ['/audio/bgm/Main_Battle_1.mp3', '/audio/bgm/Main_Battle_2.mp3'];
+const RUSH_BGM = ['/audio/bgm/rush.mpeg'];
 const MINI_BOSS_BGM = ['/audio/bgm/Mini_Boss.mp3'];
 const BOSS_BGM = ['/audio/bgm/Boss.mp3'];
 
@@ -534,6 +535,7 @@ function normalizeMenuMusicKind(input) {
   const raw = typeof input === 'string' ? input : input?.kind ?? input?.phase;
   if (raw === 'ladder') return 'ladder';
   if (raw === 'rescue') return 'rescue';
+  if (raw === 'rush') return 'rush';
   return 'menu';
 }
 
@@ -556,9 +558,19 @@ export function startRescueMusic() {
   startMenuMusic({ kind: 'rescue' });
 }
 
+export function startRushMusic() {
+  startMenuMusic({ kind: 'rush' });
+}
+
 function playMenuTrack(kind = menuMusicKind) {
   const tracks =
-    kind === 'ladder' ? LADDER_BGM : kind === 'rescue' ? RESCUE_BGM : MENU_BGM;
+    kind === 'ladder'
+      ? LADDER_BGM
+      : kind === 'rescue'
+        ? RESCUE_BGM
+        : kind === 'rush'
+          ? RUSH_BGM
+          : MENU_BGM;
   const path = menuPick && tracks.includes(menuPick) ? menuPick : pickRandom(tracks);
   const fallbacks = tracks.filter((t) => t !== path);
   startBgm(path, 'menu', fallbacks[0] ?? '', fallbacks.slice(1));

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Image,
   Platform,
@@ -17,6 +17,10 @@ import { getMonsterImageAsset } from '../../utils/monsterImageAssets';
 import { getMonsterRushState } from '../../utils/monsterRush/monsterRushProgress';
 import { RUSH_EXCHANGE_ITEMS } from '../../utils/monsterRush/monsterRushExchange';
 import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
+import {
+  activateMonsterRushWebLayout,
+  deactivateMonsterRushWebLayout,
+} from '../../utils/monsterRush/monsterRushWebLayout';
 import { WEB_DECORATIVE_IMAGE_PROPS } from '../../utils/webGameTouch';
 
 const RARITY_COLOR = {
@@ -27,14 +31,21 @@ const RARITY_COLOR = {
   mythic: '#f472b6',
 };
 
+const PREVIEW_SIZE = MONSTER_RUSH_PHYSICS.playerSize;
+
 function MonsterBoxPreview({ templateId }) {
   const asset = getMonsterImageAsset(templateId);
   return (
     <View style={styles.previewBox}>
       {asset?.path ? (
-        <Image source={{ uri: asset.path }} style={styles.previewImg} resizeMode="contain" {...WEB_DECORATIVE_IMAGE_PROPS} />
+        <Image
+          source={{ uri: asset.path }}
+          style={styles.previewImg}
+          resizeMode="cover"
+          {...WEB_DECORATIVE_IMAGE_PROPS}
+        />
       ) : (
-        <MonsterPreview parts={{ templateId }} size={40} mood="happy" />
+        <MonsterPreview parts={{ templateId }} size={22} mood="happy" />
       )}
     </View>
   );
@@ -54,10 +65,16 @@ export default function MonsterRushScreen({
   const [selectedMonsterId, setSelectedMonsterId] = useState(null);
   const [runKey, setRunKey] = useState(0);
   const [lastRun, setLastRun] = useState(null);
+  const [arenaSize, setArenaSize] = useState({ w: 0, h: 0 });
 
   const rushState = useMemo(() => getMonsterRushState(profile), [profile]);
   const roster = useMemo(() => getOwnedRoster(profile), [profile]);
   const selectedMonster = roster.find((m) => m.id === selectedMonsterId) ?? null;
+
+  useEffect(() => {
+    activateMonsterRushWebLayout();
+    return () => deactivateMonsterRushWebLayout();
+  }, []);
 
   function tplMeta(templateId) {
     return getMonsterTemplate(templateId) ?? getLadderMonsterTemplate(templateId);
@@ -72,21 +89,28 @@ export default function MonsterRushScreen({
     setView('over');
   }
 
+  const onArenaLayout = (e) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (width > 0 && height > 0) {
+      setArenaSize({ w: Math.floor(width), h: Math.floor(height) });
+    }
+  };
+
   if (view === 'game' && selectedMonster) {
     return (
-      <View style={styles.root}>
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => setView('hub')}>
-            <Text style={styles.back}>← Quit</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Endless Run</Text>
-          <View style={{ width: 48 }} />
+      <View style={styles.gameRoot}>
+        <View style={styles.arenaHost} onLayout={onArenaLayout}>
+          {arenaSize.w > 0 && arenaSize.h > 0 ? (
+            <MonsterRushGameView
+              key={runKey}
+              templateId={selectedMonster.templateId}
+              gameWidth={arenaSize.w}
+              gameHeight={arenaSize.h}
+              onGameOver={handleGameOver}
+              onQuit={() => setView('hub')}
+            />
+          ) : null}
         </View>
-        <MonsterRushGameView
-          key={runKey}
-          templateId={selectedMonster.templateId}
-          onGameOver={handleGameOver}
-        />
       </View>
     );
   }
@@ -198,7 +222,7 @@ export default function MonsterRushScreen({
         <TouchableOpacity
           style={[styles.primaryBtn, !selectedMonsterId && styles.btnOff]}
           disabled={!selectedMonsterId}
-          onPress={() => { setRunKey((k) => k + 1); setView('game'); }}
+          onPress={() => { setRunKey((k) => k + 1); setArenaSize({ w: 0, h: 0 }); setView('game'); }}
         >
           <Text style={styles.primaryBtnTxt}>Start Run</Text>
         </TouchableOpacity>
@@ -232,7 +256,7 @@ export default function MonsterRushScreen({
 
         <View style={styles.demoBox}>
           <MonsterBoxPreview templateId={roster[0]?.templateId ?? 'bubble_tea_slime'} />
-          <Text style={styles.demoCaption}>Your monster runs inside a {MONSTER_RUSH_PHYSICS.playerSize}px box</Text>
+          <Text style={styles.demoCaption}>Small runner box — monster face crops in (partial view OK)</Text>
         </View>
 
         <TouchableOpacity style={styles.primaryBtn} onPress={() => setView('select')}>
@@ -247,7 +271,31 @@ export default function MonsterRushScreen({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 8 },
+  gameRoot: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
+    backgroundColor: '#0c1224',
+    ...(Platform.OS === 'web'
+      ? { height: '100%', maxHeight: '100dvh' }
+      : {}),
+  },
+  arenaHost: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  root: {
+    flex: 1,
+    minHeight: 0,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    ...(Platform.OS === 'web'
+      ? { height: '100%', maxHeight: '100dvh' }
+      : {}),
+  },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   back: { color: '#ffe08a', fontWeight: '900', fontSize: 13, minWidth: 72 },
   title: { color: '#fff4cf', fontWeight: '900', fontSize: 18, textTransform: 'uppercase' },
@@ -269,18 +317,18 @@ const styles = StyleSheet.create({
   demoBox: { alignItems: 'center', marginVertical: 16 },
   demoCaption: { color: '#94a3b8', fontWeight: '700', fontSize: 10, marginTop: 8, textAlign: 'center' },
   previewBox: {
-    width: MONSTER_RUSH_PHYSICS.playerSize,
-    height: MONSTER_RUSH_PHYSICS.playerSize,
-    borderRadius: 12,
+    width: PREVIEW_SIZE,
+    height: PREVIEW_SIZE,
+    borderRadius: 8,
     overflow: 'hidden',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#f7c948',
     backgroundColor: '#fef3c7',
     alignItems: 'center',
     justifyContent: 'center',
-    ...(Platform.OS === 'web' ? { boxShadow: '0 4px 0 #92400e, 0 8px 16px rgba(0,0,0,0.25)' } : {}),
+    ...(Platform.OS === 'web' ? { boxShadow: '0 3px 0 #92400e, 0 6px 12px rgba(0,0,0,0.25)' } : {}),
   },
-  previewImg: { width: '100%', height: '100%', padding: 4 },
+  previewImg: { width: '110%', height: '110%' },
   primaryBtn: {
     width: '100%',
     marginTop: 10,

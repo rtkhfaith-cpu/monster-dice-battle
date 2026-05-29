@@ -6,9 +6,10 @@ export const RUSH_MODE = {
 };
 
 export const MONSTER_RUSH_PHYSICS = {
-  playerSize: 56,
-  collisionSize: 44,
-  playerX: 80,
+  /** Visual runner box — smaller; monster PNG may crop (cover). */
+  playerSize: 32,
+  collisionSize: 26,
+  playerX: 64,
   gravity: 0.8,
   jumpVelocity: -14,
   baseSpeed: 5,

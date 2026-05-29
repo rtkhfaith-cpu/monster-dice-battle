@@ -12,6 +12,8 @@ export const GAME_ASSETS = {
   ],
   /** Main-game 1v CPU mini boss encounter arena */
   battleGroundEncounter: '/assets/BattleGround/Encounter.png',
+  /** Same arenas as Monster Ladder battles (dungeon raids). */
+  dungeonBattleGround: '/assets/BattleGround/BattleGround.png',
   battleActions: {
     attack: '/assets/actions/action_attack.png',
     attack1: '/assets/actions/action_attack1.png',

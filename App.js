@@ -168,6 +168,7 @@ import {
   startLadderMusic,
   startMenuMusic,
   startRescueMusic,
+  startRushMusic,
   stopMenuMusic,
   unlockAudio,
 } from './utils/audioManager';
@@ -584,7 +585,23 @@ export default function App() {
     const body = document.body;
     const root = document.getElementById('root');
     const scrollableLobby = phase === 'menu' || phase === 'online' || phase === 'audioSettings' || phase === 'monsterRescueHub';
-    if (scrollableLobby) {
+    const monsterRushShell = phase === 'monsterRush';
+    if (monsterRushShell) {
+      html.style.overflow = 'hidden';
+      html.style.height = '100%';
+      html.style.minHeight = '100%';
+      body.style.overflow = 'hidden';
+      body.style.height = '100%';
+      body.style.minHeight = '100%';
+      body.style.touchAction = 'manipulation';
+      if (root) {
+        root.style.overflow = 'hidden';
+        root.style.height = '100%';
+        root.style.minHeight = '100%';
+        root.style.display = 'flex';
+        root.style.flexDirection = 'column';
+      }
+    } else if (scrollableLobby) {
       // Lobby scrolls inside the app (ScrollView), not the document — fixed viewport + inner overflow.
       html.style.overflow = 'hidden';
       html.style.height = '100%';
@@ -637,6 +654,8 @@ export default function App() {
       startLadderMusic();
     } else if (phase === 'monsterRescue' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward') {
       startRescueMusic();
+    } else if (phase === 'monsterRush') {
+      startRushMusic();
     } else if (LOBBY_PHASES.has(phase)) {
       startMenuMusic();
     } else if (phase === 'battle') {
@@ -1740,7 +1759,7 @@ export default function App() {
     }
     unlockAudio();
     setQuestHubOpen(false);
-    startMenuMusic();
+    startRushMusic();
     setPhase('monsterRush');
   }
 
@@ -2469,7 +2488,7 @@ export default function App() {
         onCancel={() => setNoticeDialog(null)}
         onConfirm={() => setNoticeDialog(null)}
       />
-      {phase !== 'menu' && phase !== 'ladder' && phase !== 'battle' && phase !== 'online' && phase !== 'dungeons' ? (
+      {phase !== 'menu' && phase !== 'ladder' && phase !== 'battle' && phase !== 'online' && phase !== 'dungeons' && phase !== 'monsterRush' ? (
         <>
           <Text style={styles.gameTitle}>
             {phase === 'monsterRush'
@@ -2517,6 +2536,8 @@ export default function App() {
               ? styles.cardShellReward
             : phase === 'monsterRescue' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward'
               ? [styles.cardShellRescue, lobbyMobile && styles.cardShellRescueMobile]
+            : phase === 'monsterRush'
+              ? styles.cardShellMonsterRush
             : phase === 'menu' || phase === 'ladder' || phase === 'dungeons'
               ? [styles.cardShellMenu, lobbyMobile && styles.cardShellMenuMobile]
               : styles.cardShell
@@ -3134,6 +3155,24 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 4,
     overflow: 'hidden',
+  },
+  cardShellMonsterRush: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+    backgroundColor: '#0c1224',
+    borderWidth: 0,
+    borderRadius: 0,
+    padding: 0,
+    ...(Platform.OS === 'web'
+      ? {
+          display: 'flex',
+          flexDirection: 'column',
+          width: '100%',
+          height: '100%',
+          maxHeight: '100dvh',
+        }
+      : {}),
   },
   cardShellRescue: {
     flex: 1,

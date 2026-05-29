@@ -217,7 +217,7 @@ export default function DungeonBattleArena({ state, bossImage, vfx, bannerText }
   return (
     <View style={styles.root}>
       <ImageBackground
-        source={{ uri: GAME_ASSETS.battleGroundEncounter }}
+        source={{ uri: GAME_ASSETS.dungeonBattleGround }}
         style={styles.bg}
         imageStyle={styles.bgImg}
         resizeMode="cover"
