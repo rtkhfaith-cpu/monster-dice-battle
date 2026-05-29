@@ -129,9 +129,14 @@ export default function MonsterRescueView({
           applyWebCanvasTouchGuards(game.canvas);
 
           const handleReady = (scene) => markReady(scene);
-          const handleFinish = (payload) => onFinishRef.current?.(payload);
           const handleBootError = (err) => {
             markError(err?.message || 'Monster Rescue failed to start.');
+          };
+          let finishEmitted = false;
+          const handleFinish = (payload) => {
+            if (finishEmitted) return;
+            finishEmitted = true;
+            onFinishRef.current?.(payload);
           };
 
           game.events.once('monster-rescue-ready', handleReady);

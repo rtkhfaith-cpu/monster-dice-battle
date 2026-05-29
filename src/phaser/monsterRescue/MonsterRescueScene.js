@@ -759,6 +759,7 @@ export function createMonsterRescueScene(Phaser) {
     }
 
     _checkEnd() {
+      if (this.gameOver) return;
       const summary = this.rewardManager.getSummary();
       const cleared = this.bubbleSystem.getModel().isCleared();
       const won = cleared;

@@ -235,6 +235,20 @@ export const rescueUiStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  finishOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(8, 12, 28, 0.82)',
+    paddingHorizontal: 16,
+  },
+  finishOverlayText: {
+    color: RESCUE_COLORS.title,
+    fontWeight: '900',
+    fontSize: 14,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
   rewardScroll: {
     flex: 1,
     minHeight: 0,

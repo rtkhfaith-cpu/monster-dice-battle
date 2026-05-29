@@ -261,6 +261,7 @@ export default function App() {
   const [noticeDialog, setNoticeDialog] = useState(null);
   const [rescueStageId, setRescueStageId] = useState(1);
   const [rescueRewardPayload, setRescueRewardPayload] = useState(null);
+  const rescueFinishHandledRef = useRef(false);
   const [questHubOpen, setQuestHubOpen] = useState(false);
   const cloudMergeSessionRef = useRef(new Set());
   const [saveConflict, setSaveConflict] = useState(null);
@@ -1819,55 +1820,86 @@ export default function App() {
     startRescueMusic();
     setRescueStageId(stageId);
     setRescueRewardPayload(null);
+    rescueFinishHandledRef.current = false;
     setPhase('monsterRescue');
   }
 
   async function handleMonsterRescueFinish(payload) {
-    if (!gameData || !setupP1ProfileId) return;
-    const won = !!payload?.won;
-    const { gameData: gd, rewards } = applyMonsterRescueStageResult(
-      gameData,
-      setupP1ProfileId,
-      payload?.stageId ?? rescueStageId,
-      payload?.summary ?? {},
-      won,
-    );
-    setGameData(gd);
-    const saveRes = await commitSave({
-      reason: 'monster_rescue_stage',
-      gameData: gd,
-      profileIDs: setupP1ProfileId,
-    });
-    let saveMessage = 'Progress saved on this device.';
-    if (saveRes?.cloudSynced) {
-      saveMessage = 'Progress saved and synced to cloud automatically.';
-    } else if (saveRes?.cloudNeedsKey) {
-      saveMessage =
-        'Progress saved on this device. Set a 4-digit Player Key on the home screen for automatic cloud backup.';
-    } else if (saveRes?.cloudFailed) {
-      saveMessage = 'Saved on this device. Cloud sync failed — your next cleared stage will try again.';
+    if (rescueFinishHandledRef.current) return;
+    rescueFinishHandledRef.current = true;
+
+    if (!gameData || !setupP1ProfileId) {
+      showNotice('Monster Rescue', 'Could not save results — please select a player profile first.');
+      setPhase('monsterRescueHub');
+      return;
     }
+
+    const won = !!payload?.won;
+    const stageId = payload?.stageId ?? rescueStageId;
+    let gd = gameData;
+    let rewards = null;
+
+    try {
+      const applied = applyMonsterRescueStageResult(
+        gameData,
+        setupP1ProfileId,
+        stageId,
+        payload?.summary ?? {},
+        won,
+      );
+      gd = applied.gameData;
+      rewards = applied.rewards;
+      setGameData(gd);
+    } catch (err) {
+      console.error('Monster Rescue reward apply failed', err);
+      showNotice('Monster Rescue', 'Could not apply stage rewards. Returning to stage list.');
+      setPhase('monsterRescueHub');
+      return;
+    }
+
     setRescueRewardPayload({
       won,
       timeUp: !!payload?.timeUp,
-      stageId: payload?.stageId ?? rescueStageId,
+      stageId,
       rewards,
       summary: payload?.summary,
-      saveMessage,
+      saveMessage: 'Saving progress…',
     });
     setPhase('monsterRescueReward');
+
     if (rewards?.chestDrop) {
       setLadderChestDrop(rewards.chestDrop);
       setLadderChestKicker('Monster Rescue Chest');
       setLadderChestAutoReveal(true);
     }
     if (rewards?.expPack?.levelsGained > 0) playSound('levelUp');
-    if (won) playSound('win');
-    else playSound('lose');
+
+    let saveMessage = 'Progress saved on this device.';
+    try {
+      const saveRes = await commitSave({
+        reason: 'monster_rescue_stage',
+        gameData: gd,
+        profileIDs: setupP1ProfileId,
+      });
+      if (saveRes?.cloudSynced) {
+        saveMessage = 'Progress saved and synced to cloud automatically.';
+      } else if (saveRes?.cloudNeedsKey) {
+        saveMessage =
+          'Progress saved on this device. Set a 4-digit Player Key on the home screen for automatic cloud backup.';
+      } else if (saveRes?.cloudFailed) {
+        saveMessage = 'Saved on this device. Cloud sync failed — your next cleared stage will try again.';
+      }
+    } catch (err) {
+      console.error('Monster Rescue save failed', err);
+      saveMessage = 'Rewards applied locally. Cloud save failed — try again from the home screen.';
+    }
+
+    setRescueRewardPayload((prev) => (prev ? { ...prev, saveMessage } : prev));
   }
 
   function exitMonsterRescueToHub() {
     setRescueRewardPayload(null);
+    rescueFinishHandledRef.current = false;
     setPhase('monsterRescueHub');
   }
 

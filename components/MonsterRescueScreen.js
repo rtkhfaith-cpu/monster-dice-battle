@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import MonsterRescueView from './MonsterRescueView';
 import RescueGameFrame from './monsterRescue/RescueGameFrame';
@@ -13,6 +13,13 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
 
   const { height: winH, width: winW } = useWindowDimensions();
   const [playSize, setPlaySize] = useState(null);
+  const [finishing, setFinishing] = useState(false);
+  const finishHandledRef = useRef(false);
+
+  useEffect(() => {
+    finishHandledRef.current = false;
+    setFinishing(false);
+  }, [stageId]);
 
   const fallbackW = Math.min(Math.max(winW - 24, 280), 520);
   const fallbackH = Math.min(Math.max(winH - 120, 360), 640);
@@ -29,6 +36,9 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
 
   const handleFinish = useCallback(
     (payload) => {
+      if (finishHandledRef.current) return;
+      finishHandledRef.current = true;
+      setFinishing(true);
       if (payload?.won) playSound('win');
       else playSound('lose');
       onFinish?.(payload);
@@ -68,6 +78,11 @@ export default function MonsterRescueScreen({ stageId, stageLabel, shooterMonste
             <Text style={rescueUiStyles.noticeText}>Open in a web browser to play Monster Rescue.</Text>
           </View>
         )}
+        {finishing ? (
+          <View style={rescueUiStyles.finishOverlay} pointerEvents="none">
+            <Text style={rescueUiStyles.finishOverlayText}>Stage complete — loading rewards…</Text>
+          </View>
+        ) : null}
       </View>
     </RescueGameFrame>
   );
