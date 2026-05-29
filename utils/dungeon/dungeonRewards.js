@@ -105,7 +105,13 @@ function applyCategoryGrant(profile, category, rarity, boss) {
     const key = gemKey(gemRarity, stat);
     const grant = grantGemByKey(profile, key, 1);
     if (!grant.ok) return null;
-    return { category, rarity: gemRarity, name: gemDisplayName(gemRarity, stat), emoji: gemEmoji(stat), kind: 'gem' };
+    return {
+      category,
+      rarity: gemRarity,
+      name: gemDisplayName(gemRarity, stat),
+      emoji: gemEmoji(stat, gemRarity),
+      kind: 'gem',
+    };
   }
   return null;
 }

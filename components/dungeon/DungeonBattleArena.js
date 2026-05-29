@@ -115,7 +115,8 @@ function BossSprite({ uri, enraged, attacking, hurt }) {
 /**
  * Visual dungeon raid arena — animated monsters vs boss with hit VFX.
  */
-export default function DungeonBattleArena({ state, bossImage, vfx, bannerText }) {
+export default function DungeonBattleArena({ state, bossImage, battleGroundUri, vfx, bannerText }) {
+  const bgUri = battleGroundUri || GAME_ASSETS.dungeonBattleGroundRescueArena;
   const [floaters, setFloaters] = useState([]);
   const [monsterPoses, setMonsterPoses] = useState({});
   const [bossHurt, setBossHurt] = useState(false);
@@ -217,7 +218,7 @@ export default function DungeonBattleArena({ state, bossImage, vfx, bannerText }
   return (
     <View style={styles.root}>
       <ImageBackground
-        source={{ uri: GAME_ASSETS.dungeonBattleGround }}
+        source={{ uri: bgUri }}
         style={styles.bg}
         imageStyle={styles.bgImg}
         resizeMode="cover"

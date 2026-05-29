@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { getMonsterImageAsset } from '../../utils/monsterImageAssets';
 import { WEB_DECORATIVE_IMAGE_PROPS } from '../../utils/webGameTouch';
+import { drawMonsterRushFrame } from '../../utils/monsterRush/monsterRushCanvas';
 import {
   createMonsterRushRun,
   jumpMonsterRush,
@@ -18,6 +19,10 @@ import {
 } from '../../utils/monsterRush/monsterRushEngine';
 import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
 import { playSound } from '../../utils/sounds';
+
+const USE_CANVAS = Platform.OS === 'web' && typeof document !== 'undefined';
+/** React fallback render rate (native / no canvas). */
+const REACT_RENDER_MS = 1000 / 15;
 
 function PlayerBox({ templateId, jumping }) {
   const asset = getMonsterImageAsset(templateId);
@@ -47,33 +52,104 @@ export default function MonsterRushGameView({
   onQuit,
 }) {
   const gameRef = useRef(null);
-  const [, setFrame] = useState(0);
   const rafRef = useRef(null);
   const lastTsRef = useRef(0);
+  const lastRenderRef = useRef(0);
   const endedRef = useRef(false);
+  const canvasRef = useRef(null);
+  const monsterImgRef = useRef(null);
+  const hudRefs = useRef({ distance: null, rush: null, coins: null });
+  const jumpHeldRef = useRef(false);
+  const lastJumpSfxRef = useRef(0);
+
+  const [hudSnap, setHudSnap] = useState({ distanceM: 0, rushPoints: 0, coins: 0, paused: false });
+  const [, setFrame] = useState(0);
 
   const w = Math.max(320, Math.floor(gameWidth || 640));
   const h = Math.max(200, Math.floor(gameHeight || 360));
 
-  const bump = useCallback(() => setFrame((f) => f + 1), []);
+  const syncHud = useCallback((state, forceReact = false) => {
+    if (!state) return;
+    const next = {
+      distanceM: state.distanceM,
+      rushPoints: state.rushPointsThisRun,
+      coins: state.coinsCollected,
+      paused: state.isPaused,
+    };
+    if (USE_CANVAS) {
+      const r = hudRefs.current;
+      if (r.distance) r.distance.textContent = `Distance: ${next.distanceM}m`;
+      if (r.rush) r.rush.textContent = `Rush: ${next.rushPoints}`;
+      if (r.coins) r.coins.textContent = `Coins: ${next.coins}`;
+      if (forceReact) setHudSnap(next);
+    } else {
+      setHudSnap(next);
+    }
+  }, []);
+
+  const bumpReact = useCallback(() => setFrame((f) => f + 1), []);
 
   useEffect(() => {
     gameRef.current = createMonsterRushRun({ gameWidth: w, gameHeight: h });
-    gameRef.current.nextSpawnMs = 1800;
+    jumpHeldRef.current = false;
     endedRef.current = false;
     lastTsRef.current = 0;
-    bump();
-  }, [w, h, bump]);
+    lastRenderRef.current = 0;
+    syncHud(gameRef.current, true);
+    if (!USE_CANVAS) bumpReact();
+  }, [w, h, bumpReact, syncHud]);
 
-  const handleJump = useCallback(() => {
-    const state = gameRef.current;
-    if (!state) return;
-    if (jumpMonsterRush(state)) {
-      playSound('fly');
-      onJump?.();
-      bump();
+  useEffect(() => {
+    if (!USE_CANVAS) return undefined;
+    const asset = getMonsterImageAsset(templateId);
+    if (!asset?.path) {
+      monsterImgRef.current = null;
+      return undefined;
     }
-  }, [bump, onJump]);
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = asset.path;
+    img.onload = () => {
+      monsterImgRef.current = img;
+    };
+    return () => {
+      monsterImgRef.current = null;
+    };
+  }, [templateId]);
+
+  useEffect(() => {
+    if (!USE_CANVAS || !canvasRef.current) return undefined;
+    const canvas = canvasRef.current;
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }, [w, h]);
+
+  const tryJump = useCallback(() => {
+    const state = gameRef.current;
+    if (!state || state.isPaused || state.isGameOver) return false;
+    if (!jumpMonsterRush(state)) return false;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (now - lastJumpSfxRef.current > 60) {
+      playSound('fly');
+      lastJumpSfxRef.current = now;
+    }
+    onJump?.();
+    return true;
+  }, [onJump]);
+
+  const onJumpPressIn = useCallback(() => {
+    jumpHeldRef.current = true;
+    tryJump();
+  }, [tryJump]);
+
+  const onJumpPressOut = useCallback(() => {
+    jumpHeldRef.current = false;
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -82,24 +158,60 @@ export default function MonsterRushGameView({
       if (!lastTsRef.current) lastTsRef.current = ts;
       const dt = Math.min(32, ts - lastTsRef.current);
       lastTsRef.current = ts;
+
       const state = gameRef.current;
       if (state?.isRunning && !state.isPaused && !endedRef.current) {
         const prevCoins = state.coinsCollected;
         tickMonsterRush(state, dt);
+
+        if (jumpHeldRef.current) {
+          tryJump();
+        }
+
         if (state.coinsCollected > prevCoins) {
           playSound('coin');
           onCoinCollect?.();
+          syncHud(state);
         }
+
         if (state.isGameOver && !endedRef.current) {
           endedRef.current = true;
+          syncHud(state, true);
           onGameOver?.({
             distanceM: state.distanceM,
             coinsCollected: state.coinsCollected,
             rushPointsThisRun: state.rushPointsThisRun,
           });
         }
-        bump();
+
+        if (USE_CANVAS) {
+          const canvas = canvasRef.current;
+          const ctx = canvas?.getContext?.('2d');
+          if (ctx) {
+            drawMonsterRushFrame(ctx, state, {
+              monsterImg: monsterImgRef.current,
+              scrollOffset: (state.scrollPx * 0.15) % 200,
+            });
+          }
+          if (ts - lastRenderRef.current >= 250) {
+            lastRenderRef.current = ts;
+            syncHud(state);
+          }
+        } else if (ts - lastRenderRef.current >= REACT_RENDER_MS) {
+          lastRenderRef.current = ts;
+          syncHud(state);
+          bumpReact();
+        }
+      } else if (USE_CANVAS && state?.isPaused) {
+        const ctx = canvasRef.current?.getContext?.('2d');
+        if (ctx) {
+          drawMonsterRushFrame(ctx, state, {
+            monsterImg: monsterImgRef.current,
+            scrollOffset: (state.scrollPx * 0.15) % 200,
+          });
+        }
       }
+
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -107,28 +219,66 @@ export default function MonsterRushGameView({
       mounted = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [bump, onCoinCollect, onGameOver]);
+  }, [bumpReact, onCoinCollect, onGameOver, syncHud, tryJump]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
-    const onKey = (e) => {
-      if (e.code === 'Space' || e.code === 'ArrowUp') {
+    const jumpKeys = new Set(['Space', 'ArrowUp']);
+    const onKeyDown = (e) => {
+      if (jumpKeys.has(e.code)) {
         e.preventDefault();
-        handleJump();
+        if (!jumpHeldRef.current) {
+          jumpHeldRef.current = true;
+          tryJump();
+        }
       }
       if (e.code === 'KeyP') {
-        togglePauseMonsterRush(gameRef.current);
-        bump();
+        const state = gameRef.current;
+        if (state) {
+          togglePauseMonsterRush(state);
+          syncHud(state, !USE_CANVAS);
+        }
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [bump, handleJump]);
+    const onKeyUp = (e) => {
+      if (jumpKeys.has(e.code)) {
+        jumpHeldRef.current = false;
+      }
+    };
+    const releaseHold = () => {
+      jumpHeldRef.current = false;
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', releaseHold);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', releaseHold);
+    };
+  }, [tryJump, syncHud]);
+
+  const togglePause = (e) => {
+    e?.stopPropagation?.();
+    const state = gameRef.current;
+    if (state) {
+      togglePauseMonsterRush(state);
+      syncHud(state, !USE_CANVAS);
+      if (USE_CANVAS) {
+        const ctx = canvasRef.current?.getContext?.('2d');
+        if (ctx) {
+          drawMonsterRushFrame(ctx, state, {
+            monsterImg: monsterImgRef.current,
+            scrollOffset: (state.scrollPx * 0.15) % 200,
+          });
+        }
+      } else {
+        bumpReact();
+      }
+    }
+  };
 
   const state = gameRef.current;
-
-  const scrollOffset = state ? (state.scrollPx * 0.15) % 200 : 0;
-  const groundH = Math.max(32, Math.round(h * 0.14));
 
   if (!state) {
     return (
@@ -140,28 +290,102 @@ export default function MonsterRushGameView({
     );
   }
 
+  if (USE_CANVAS) {
+    return (
+      <Pressable
+        style={[styles.wrap, styles.wrapFill]}
+        onPressIn={onJumpPressIn}
+        onPressOut={onJumpPressOut}
+      >
+        <canvas
+          ref={canvasRef}
+          style={{
+            width: w,
+            height: h,
+            display: 'block',
+            touchAction: 'manipulation',
+            cursor: 'pointer',
+          }}
+        />
+        <View style={styles.hudOverlay} pointerEvents="box-none">
+          <View style={styles.hudTop} pointerEvents="box-none">
+            <TouchableOpacity style={styles.quitBtn} onPress={onQuit}>
+              <Text style={styles.quitBtnTxt}>← Quit</Text>
+            </TouchableOpacity>
+            <View style={styles.hudStats}>
+              <Text ref={(el) => { hudRefs.current.distance = el; }} style={styles.hudTxt}>
+                Distance: {hudSnap.distanceM}m
+              </Text>
+              <Text ref={(el) => { hudRefs.current.rush = el; }} style={styles.hudTxt}>
+                Rush: {hudSnap.rushPoints}
+              </Text>
+              <Text ref={(el) => { hudRefs.current.coins = el; }} style={styles.hudTxt}>
+                Coins: {hudSnap.coins}
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.pauseBtn} onPress={togglePause}>
+              <Text style={styles.pauseBtnTxt}>{hudSnap.paused ? '▶' : '⏸'}</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.hint}>Hold to jump · Space</Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  const scrollOffset = (state.scrollPx * 0.15) % 200;
+  const groundH = Math.max(32, Math.round(h * 0.14));
+
   return (
-    <Pressable style={[styles.wrap, styles.wrapFill]} onPress={handleJump}>
+    <Pressable
+      style={[styles.wrap, styles.wrapFill]}
+      onPressIn={onJumpPressIn}
+      onPressOut={onJumpPressOut}
+    >
       <View style={[styles.sky, styles.skyFill]}>
         <View style={[styles.hills, { bottom: groundH + 8, transform: [{ translateX: -scrollOffset }] }]} />
         <View style={[styles.hills, styles.hills2, { bottom: groundH, transform: [{ translateX: -scrollOffset * 1.4 }] }]} />
 
-        {state.obstacles.map((obs) => (
+        {(state.gaps ?? []).map((gap) => (
           <View
-            key={obs.id}
+            key={gap.id}
+            style={[
+              styles.gapPit,
+              { left: gap.x, top: state.groundSurfaceY, width: gap.width, height: groundH + 20 },
+            ]}
+          />
+        ))}
+
+        {(state.platforms ?? []).map((plat) => (
+          <View
+            key={plat.id}
+            style={[
+              styles.platform,
+              {
+                left: plat.x,
+                top: plat.y,
+                width: plat.width,
+                height: plat.height,
+                backgroundColor: plat.color || '#65a30d',
+              },
+            ]}
+          />
+        ))}
+
+        {(state.hazards ?? []).map((hz) => (
+          <View
+            key={hz.id}
             style={[
               styles.obstacle,
               {
-                left: obs.x,
-                top: obs.y,
-                width: obs.width,
-                height: obs.height,
-                backgroundColor: obs.color,
+                left: hz.x,
+                top: hz.y,
+                width: hz.width,
+                height: hz.height,
+                backgroundColor: hz.color,
               },
             ]}
-          >
-            <Text style={styles.obsEmoji}>{obs.emoji}</Text>
-          </View>
+          />
         ))}
 
         {state.coins.map((coin) => (
@@ -195,22 +419,15 @@ export default function MonsterRushGameView({
             <Text style={styles.quitBtnTxt}>← Quit</Text>
           </TouchableOpacity>
           <View style={styles.hudStats}>
-            <Text style={styles.hudTxt}>Distance: {state.distanceM}m</Text>
-            <Text style={styles.hudTxt}>Rush: {state.rushPointsThisRun}</Text>
-            <Text style={styles.hudTxt}>Coins: {state.coinsCollected}</Text>
+            <Text style={styles.hudTxt}>Distance: {hudSnap.distanceM}m</Text>
+            <Text style={styles.hudTxt}>Rush: {hudSnap.rushPoints}</Text>
+            <Text style={styles.hudTxt}>Coins: {hudSnap.coins}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.pauseBtn}
-            onPress={(e) => {
-              e?.stopPropagation?.();
-              togglePauseMonsterRush(gameRef.current);
-              bump();
-            }}
-          >
-            <Text style={styles.pauseBtnTxt}>{state.isPaused ? '▶' : '⏸'}</Text>
+          <TouchableOpacity style={styles.pauseBtn} onPress={togglePause}>
+            <Text style={styles.pauseBtnTxt}>{hudSnap.paused ? '▶' : '⏸'}</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.hint}>Tap · click · Space to jump</Text>
+        <Text style={styles.hint}>Hold to jump · Space</Text>
       </View>
     </Pressable>
   );
@@ -294,6 +511,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingBottom: 2,
   },
+  gapPit: { position: 'absolute', backgroundColor: '#1c1917' },
+  platform: { position: 'absolute', borderRadius: 4, borderWidth: 2, borderColor: '#3f6212' },
   obsEmoji: { fontSize: 14, fontWeight: '900' },
   coin: {
     position: 'absolute',

@@ -2003,6 +2003,9 @@ export default function BattleScreen({
                 </Text>
               ) : null}
               <Text style={styles.mainChestRevealTitle}>{chestDropTitle(mainChestDrop)}</Text>
+              {mainChestDrop.kind === 'gem' ? (
+                <Text style={styles.mainChestRevealEmoji}>{mainChestDrop.emoji ?? '💎'}</Text>
+              ) : null}
               {mainChestDrop.kind === 'gear' || mainChestDrop.kind === 'gear_instance' ? (
                 <Text style={styles.mainChestRevealEmoji}>⚔️</Text>
               ) : null}

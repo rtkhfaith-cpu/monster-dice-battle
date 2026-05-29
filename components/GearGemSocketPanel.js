@@ -92,7 +92,7 @@ export default function GearGemSocketPanel({
                 <Text style={styles.socketLbl}>Socket {socket.index + 1}</Text>
                 {filled && parsed ? (
                   <>
-                    <Text style={styles.socketEmoji}>{gemEmoji(parsed.stat)}</Text>
+                    <Text style={styles.socketEmoji}>{gemEmoji(parsed.stat, parsed.rarity)}</Text>
                     <Text style={[styles.socketGem, { color: GEM_RARITY_UI[parsed.rarity]?.color }]} numberOfLines={2}>
                       {gemShortName(parsed.stat, parsed.rarity)}
                     </Text>

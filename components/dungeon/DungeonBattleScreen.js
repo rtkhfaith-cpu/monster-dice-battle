@@ -142,6 +142,7 @@ export default function DungeonBattleScreen({ boss, team, profile, onExit, onCla
       <DungeonBattleArena
         state={state}
         bossImage={boss?.image}
+        battleGroundUri={boss?.battleGround}
         vfx={currentVfx}
         bannerText={bannerText}
       />

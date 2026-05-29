@@ -144,7 +144,7 @@ export default function GearMartModal({
                   return (
                     <View key={key} style={[gearModalStyles.row, styles.itemRow, { borderColor: '#0984e3' }]}>
                       <View style={styles.emojiCol}>
-                        <Text style={{ fontSize: 26 }}>{gemEmoji(parsed.stat)}</Text>
+                        <Text style={{ fontSize: 26 }}>{gemEmoji(parsed.stat, parsed.rarity)}</Text>
                       </View>
                       <View style={styles.mid}>
                         <Text style={[styles.name, { color: '#74b9ff' }]} numberOfLines={1}>

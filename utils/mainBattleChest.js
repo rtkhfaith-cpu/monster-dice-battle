@@ -8,7 +8,13 @@ import { profileOwnsMonsterTemplate } from './monsterLadder/ladderProfile';
 import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
 import { rollPassiveSkillBookDrop } from './passiveSkillChest';
 import { rollPetChestDrop, rollPetExpDustDrop } from './petChest';
-import { EPIC_GEM_DROP_RATES, GEM_STATS, gemKey, gemDisplayName } from '../src/gameSystems/gems/gemDefinitions';
+import {
+  EPIC_GEM_DROP_RATES,
+  GEM_STATS,
+  gemKey,
+  gemDisplayName,
+  gemEmoji,
+} from '../src/gameSystems/gems/gemDefinitions';
 
 /** 20% chance for a main-menu CPU battle to spawn a catalog mini boss (testing). */
 export const MAIN_MINI_BOSS_CHANCE = 0.2;
@@ -226,6 +232,7 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
       rarity: 'epic',
       label: `Epic ${stat} gem`,
       gemName: gemDisplayName('epic', stat),
+      emoji: gemEmoji(stat, 'epic'),
     };
   }
 

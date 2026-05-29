@@ -72,19 +72,6 @@ export function rushDifficultyTier(distanceM) {
   if (distanceM < 300) return 0;
   if (distanceM < 800) return 1;
   if (distanceM < 1500) return 2;
-  return 3;
-}
-
-export function obstaclePoolForTier(tier) {
-  if (tier <= 0) return ['spike'];
-  if (tier === 1) return ['spike', 'rock'];
-  if (tier === 2) return ['spike', 'rock', 'double_spike', 'fire_trap'];
-  return ['spike', 'rock', 'double_spike', 'fire_trap', 'ice_block'];
-}
-
-export function spawnIntervalMsForTier(tier) {
-  if (tier <= 0) return { min: 1800, max: 2500 };
-  if (tier === 1) return { min: 1500, max: 2200 };
-  if (tier === 2) return { min: 1200, max: 1900 };
-  return { min: 1000, max: 1600 };
+  if (distanceM < 2500) return 3;
+  return 4;
 }

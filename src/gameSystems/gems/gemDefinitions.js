@@ -55,15 +55,45 @@ export const GEM_RARITY_UI = {
   mythic: { label: 'Mythic', color: '#e84393', chipBg: '#fd79a8', chipFg: '#6c1339' },
 };
 
-/** Gem / crystal icons only (no weapons, hearts, targets, etc.). */
-const GEM_STAT_EMOJI = {
-  attack: '💎',
-  magicAttack: '🔮',
-  defence: '💠',
-  magicDefence: '🔷',
-  dodge: '🔹',
-  hitRate: '🔸',
-  hp: '🧊',
+/**
+ * Gem / crystal icons only — every rarity uses diamonds, gems, or crystal shapes.
+ * @type {Record<GemRarity, Record<GemStat, string>>}
+ */
+const GEM_EMOJI_BY_RARITY = {
+  rare: {
+    attack: '💎',
+    magicAttack: '🔹',
+    defence: '💠',
+    magicDefence: '🔷',
+    dodge: '🔸',
+    hitRate: '🔶',
+    hp: '💍',
+  },
+  epic: {
+    attack: '💠',
+    magicAttack: '🔮',
+    defence: '🔷',
+    magicDefence: '💎',
+    dodge: '🔹',
+    hitRate: '🔸',
+    hp: '💍',
+  },
+  mythic: {
+    attack: '🔮',
+    magicAttack: '💎',
+    defence: '💠',
+    magicDefence: '🔷',
+    dodge: '🔶',
+    hitRate: '🔹',
+    hp: '💍',
+  },
+};
+
+/** Default crystal per rarity when stat is unknown. */
+export const GEM_RARITY_EMOJI = {
+  rare: '💎',
+  epic: '💠',
+  mythic: '🔮',
 };
 
 /** Canonical key for a gem stack — one upgradeable stack per (rarity, stat). */
@@ -90,8 +120,10 @@ export function gemDisplayName(rarity, stat) {
   return `${r} ${GEM_STAT_LABELS[stat] ?? stat} Gem`;
 }
 
-export function gemEmoji(stat) {
-  return GEM_STAT_EMOJI[stat] ?? '💎';
+/** @param {GemStat} stat @param {GemRarity} [rarity] */
+export function gemEmoji(stat, rarity = 'rare') {
+  const tier = GEM_EMOJI_BY_RARITY[rarity] ?? GEM_EMOJI_BY_RARITY.rare;
+  return tier?.[stat] ?? GEM_RARITY_EMOJI[rarity] ?? GEM_RARITY_EMOJI.rare;
 }
 
 /** Duplicate copies required to go from `currentLevel` to the next level. */
@@ -123,7 +155,7 @@ export function makeGemDef(rarity, stat) {
     stat,
     slot: gemSlotForStat(stat),
     baseValue: gemBaseValue(rarity, stat),
-    emoji: gemEmoji(stat),
+    emoji: gemEmoji(stat, rarity),
   };
 }
 

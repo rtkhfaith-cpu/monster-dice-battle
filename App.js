@@ -650,7 +650,7 @@ export default function App() {
       stopMenuMusic();
       return;
     }
-    if (phase === 'ladder') {
+    if (phase === 'ladder' || phase === 'dungeons') {
       startLadderMusic();
     } else if (phase === 'monsterRescue' || phase === 'monsterRescueHub' || phase === 'monsterRescueReward') {
       startRescueMusic();
