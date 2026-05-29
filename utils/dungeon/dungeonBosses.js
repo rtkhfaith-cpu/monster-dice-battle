@@ -59,24 +59,24 @@ export const TEAM_WIDE_POSITION2_PET_SKILLS = [
 const deathKnightSkills = [
   { name: 'Dark Slash', type: 'singleAttack', damageType: 'physical', multiplier: 1.5, description: 'Heavy single-target attack, usually aimed at Position 1.' },
   { name: 'Grave Stun', type: 'stun', damageType: 'physical', multiplier: 0.8, stunChance: 35, durationTurns: 1, description: 'Damages and may stun one monster for 1 turn.' },
-  { name: 'Cursed Cleave', type: 'aoeAttack', damageType: 'physical', multiplier: 0.85, description: 'AOE attack that hits all player monsters.' },
+  { name: 'Cursed Cleave', type: 'aoeAttack', damageType: 'physical', multiplier: 0.72, description: 'AOE attack that hits all player monsters.' },
   { name: 'Death Mark', type: 'debuff', effect: 'increaseDamageTaken', value: 20, durationTurns: 2, description: 'Marked monster takes more damage.' },
 ];
 
 const iceQueenSkills = [
   { name: 'Ice Spear', type: 'singleAttack', damageType: 'magic', multiplier: 1.6, description: 'Heavy magic attack on one monster.' },
   { name: 'Frozen Prison', type: 'freeze', damageType: 'magic', multiplier: 0.7, freezeChance: 40, durationTurns: 1, description: 'Damages and may freeze one monster.' },
-  { name: 'Blizzard', type: 'aoeAttack', damageType: 'magic', multiplier: 1.0, description: 'AOE magic attack that hits all monsters.' },
+  { name: 'Blizzard', type: 'aoeAttack', damageType: 'magic', multiplier: 0.78, description: 'AOE magic attack that hits all monsters.' },
   { name: 'Frostbite Curse', type: 'debuff', effect: 'reduceSpeedAndDodge', value: 25, durationTurns: 2, target: 'all', description: 'Reduces speed and dodge for all monsters.' },
 ];
 
 const blackDragonSkills = [
   { name: 'Dragon Claw', type: 'singleAttack', damageType: 'physical', multiplier: 1.8, description: 'Very heavy single-target attack.' },
-  { name: 'Hellfire Breath', type: 'aoeAttack', damageType: 'magic', multiplier: 1.2, effect: 'burn', burnDamagePercent: 5, durationTurns: 3, description: 'AOE fire attack that burns all monsters.' },
-  { name: 'Dark Wing Storm', type: 'aoeAttack', damageType: 'physical', multiplier: 1.0, description: 'AOE physical attack that hits all monsters.' },
+  { name: 'Hellfire Breath', type: 'aoeAttack', damageType: 'magic', multiplier: 0.85, effect: 'burn', burnDamagePercent: 4, durationTurns: 3, description: 'AOE fire attack that burns all monsters.' },
+  { name: 'Dark Wing Storm', type: 'aoeAttack', damageType: 'physical', multiplier: 0.75, description: 'AOE physical attack that hits all monsters.' },
   { name: 'Dragon Fear', type: 'stun', damageType: 'none', stunChance: 30, target: 'all', durationTurns: 1, description: 'Chance to stun each monster.' },
   { name: 'Black Dragon Rage', type: 'rage', triggerBelowHpPercent: 30, effect: { attackIncrease: 25, magicAttackIncrease: 25, hitRateIncrease: 15 }, description: 'Below 30% HP, Black Dragon becomes stronger.' },
-  { name: 'Final Breath', type: 'trueDamage', target: 'all', multiplier: 1.3, triggerBelowHpPercent: 20, cooldownTurns: 4, description: 'Dangerous AOE true damage attack below 20% HP.' },
+  { name: 'Final Breath', type: 'trueDamage', target: 'all', multiplier: 0.95, triggerBelowHpPercent: 20, cooldownTurns: 4, description: 'Dangerous AOE true damage attack below 20% HP.' },
 ];
 
 /** Boss skill rotation by name (engine resolves names → skill objects). */
@@ -94,12 +94,12 @@ export const DUNGEON_BOSSES = [
     image: GAME_ASSETS.dungeonDeathKnight,
     battleGround: GAME_ASSETS.dungeonBattleGroundRescueArena,
     spawnFrequencyDays: 1,
-    recommendedPower: 120000,
+    recommendedPower: 80000,
     rewardsText: 'Drops 3 random Epic or Legendary items',
     blurb: 'Physical dark boss. Tests whether your Position 1 can tank stun and cleave.',
     stats: {
-      hp: 180000, attack: 8500, magicAttack: 4500, defence: 3500, magicDefence: 2500,
-      dodge: 12, hitRate: 85, critRate: 15, critDamage: 150,
+      hp: 165000, attack: 6200, magicAttack: 3400, defence: 3200, magicDefence: 2400,
+      dodge: 12, hitRate: 85, critRate: 12, critDamage: 140,
     },
     skills: deathKnightSkills,
     pattern: DEATH_KNIGHT_PATTERN,
@@ -118,12 +118,12 @@ export const DUNGEON_BOSSES = [
     image: GAME_ASSETS.dungeonIceQueen,
     battleGround: GAME_ASSETS.dungeonBattleGroundIceQueen,
     spawnFrequencyDays: 2,
-    recommendedPower: 220000,
+    recommendedPower: 140000,
     rewardsText: 'Drops 1 random Mythic item and 2 random Epic items',
     blurb: 'Magic-control boss. Tests Magic Defence, healing, cleanse and freeze resistance.',
     stats: {
-      hp: 320000, attack: 5000, magicAttack: 11000, defence: 4200, magicDefence: 6200,
-      dodge: 18, hitRate: 90, critRate: 18, critDamage: 160,
+      hp: 290000, attack: 3800, magicAttack: 8200, defence: 4000, magicDefence: 5800,
+      dodge: 18, hitRate: 90, critRate: 15, critDamage: 145,
     },
     skills: iceQueenSkills,
     pattern: ICE_QUEEN_PATTERN,
@@ -144,12 +144,12 @@ export const DUNGEON_BOSSES = [
     image: GAME_ASSETS.dungeonBlackDragon,
     battleGround: GAME_ASSETS.dungeonBattleGroundRescueArena,
     spawnFrequencyDays: 3,
-    recommendedPower: 420000,
+    recommendedPower: 280000,
     rewardsText: 'Drops 3 random Mythic items, including possible Mythic Gems',
     blurb: 'End-game raid boss. Demands a real team: tank, healer/support, damager, pets and gems.',
     stats: {
-      hp: 650000, attack: 15000, magicAttack: 15000, defence: 8000, magicDefence: 8000,
-      dodge: 22, hitRate: 95, critRate: 25, critDamage: 180,
+      hp: 520000, attack: 11000, magicAttack: 11000, defence: 7200, magicDefence: 7200,
+      dodge: 22, hitRate: 95, critRate: 20, critDamage: 155,
     },
     skills: blackDragonSkills,
     pattern: BLACK_DRAGON_PATTERN_NORMAL,
@@ -165,9 +165,9 @@ export const DUNGEON_BOSSES = [
 ];
 
 export const DUNGEON_RECOMMENDED_POWER = {
-  death_knight: 120000,
-  ice_queen: 220000,
-  black_dragon: 420000,
+  death_knight: 80000,
+  ice_queen: 140000,
+  black_dragon: 280000,
 };
 
 export function getDungeonBoss(id) {

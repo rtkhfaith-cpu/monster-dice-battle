@@ -22,16 +22,21 @@ import { hasCorrectDungeonFormation } from './dungeonRoles';
 import { healingMultiplier } from '../../src/gameSystems/statusEffects';
 
 /**
- * Tuning knobs — percentage-based mitigation keeps battles meaningful across the
- * project's stat magnitudes (player attack ~hundreds–1k, boss HP 180k–650k).
- * Bump PLAYER_DMG_SCALE down / BOSS_DMG_SCALE up to make dungeons harder.
+ * Tuning knobs — player atk is hundreds–low thousands; boss HP is 120k–500k.
+ * Boss atk was 8k–15k with BOSS_DMG_SCALE 0.85 → one-shots; targets below assume
+ * ~3k–12k HP monsters (level + gear + formation).
+ *
+ * Rough target (Death Knight, geared tank @ pos 1): main hit ~1.2k–2k, AOE ~600–900.
  */
-const PLAYER_DMG_SCALE = 6; // scales player output vs huge boss HP pools
-const BOSS_DMG_SCALE = 0.85;
-const BOSS_DEF_K = 6000; // boss defence softening constant
-const MON_DEF_K = 4000; // monster defence softening constant
-const MAX_MITIGATION = 0.75; // cap on defence-based % reduction
-const MAX_DAMAGE_REDUCTION = 70; // cap on Position 1 / tanker / formation stacking
+const PLAYER_DMG_SCALE = 6;
+const BOSS_DMG_SCALE = 0.2;
+/** Extra trim when a skill hits every living monster (cleave / blizzard). */
+const BOSS_AOE_DMG_SCALE = 0.72;
+const BOSS_DEF_K = 6000;
+const MON_DEF_K = 12000;
+const MAX_MITIGATION = 0.78;
+const MAX_DAMAGE_REDUCTION = 70;
+const BOSS_CRIT_MULT_CAP = 1.35;
 const BASE_CRIT_MULT = 1.5;
 
 function defenceReduction(defStat, k) {
@@ -224,10 +229,11 @@ function bossHitMonster(state, monster, skill, { isAoe = false } = {}) {
 
   const mult = skill.multiplier ?? 1;
   let raw = bossAttackStat(state, damageType) * mult * BOSS_DMG_SCALE;
+  if (isAoe) raw *= BOSS_AOE_DMG_SCALE;
 
-  // Boss crit.
   if (rollPct(state.boss.stats.critRate ?? 0)) {
-    raw *= (state.boss.stats.critDamage ?? 150) / 100;
+    const critMult = Math.min(BOSS_CRIT_MULT_CAP, (state.boss.stats.critDamage ?? 150) / 100);
+    raw *= critMult;
   }
 
   if (!trueDamage) {
