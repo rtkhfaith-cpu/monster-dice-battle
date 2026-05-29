@@ -68,6 +68,8 @@ export default function MonsterRushGameView({
   const lastRenderRef = useRef(0);
   const endedRef = useRef(false);
   const canvasRef = useRef(null);
+  const canvasCtxRef = useRef(null);
+  const isMobileWebRef = useRef(false);
   const monsterImgRef = useRef(null);
   const hudRefs = useRef({ distance: null, rush: null, coins: null });
   const jumpHeldRef = useRef(false);
@@ -169,18 +171,27 @@ export default function MonsterRushGameView({
   }, [templateId]);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      isMobileWebRef.current = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!USE_CANVAS || !canvasRef.current) return undefined;
     const canvas = canvasRef.current;
     const dpr = canvasDprCap();
     const bufW = Math.floor(w * dpr);
     const bufH = Math.floor(h * dpr);
-    if (canvas.width === bufW && canvas.height === bufH) return undefined;
+    if (canvas.width === bufW && canvas.height === bufH && canvasCtxRef.current) return undefined;
     canvas.width = bufW;
     canvas.height = bufH;
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
     const ctx = canvas.getContext('2d');
-    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (ctx) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvasCtxRef.current = ctx;
+    }
   }, [w, h]);
 
   const tryJump = useCallback(() => {
@@ -257,12 +268,13 @@ export default function MonsterRushGameView({
           const shouldDraw = runActive || state.awaitingStart || state.isPaused || ts - lastDrawTs >= 16;
           if (shouldDraw) {
             lastDrawTs = ts;
-            const ctx = canvasRef.current?.getContext?.('2d');
+            const ctx = canvasCtxRef.current;
             if (ctx) {
               const parallaxW = state.gameWidth + 160;
               drawMonsterRushFrame(ctx, state, {
                 monsterImg: monsterImgRef.current,
                 scrollOffset: state.scrollPx % parallaxW,
+                simpleBg: isMobileWebRef.current,
               });
             }
           }
@@ -334,11 +346,12 @@ export default function MonsterRushGameView({
       togglePauseMonsterRush(state);
       syncHud(state, !USE_CANVAS);
       if (USE_CANVAS) {
-        const ctx = canvasRef.current?.getContext?.('2d');
+        const ctx = canvasCtxRef.current;
         if (ctx) {
           drawMonsterRushFrame(ctx, state, {
             monsterImg: monsterImgRef.current,
             scrollOffset: state.scrollPx % (state.gameWidth + 160),
+            simpleBg: isMobileWebRef.current,
           });
         }
       } else {

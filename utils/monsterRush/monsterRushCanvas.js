@@ -21,6 +21,7 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
   const scrollOffset = opts.scrollOffset ?? (state.scrollPx % (w + 160));
   const groundH = Math.max(32, Math.round(h * 0.14));
   const ps = MONSTER_RUSH_PHYSICS.playerSize;
+  const simpleBg = opts.simpleBg === true;
   const shakeX = state.shakeMs > 0 ? (state.shakeMs % 8) - 4 : 0;
   const shakeY = state.shakeMs > 0 ? ((state.shakeMs * 1.3) % 6) - 3 : 0;
 
@@ -31,10 +32,15 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
   ctx.fillRect(0, 0, w, h);
 
   const hillY = state.groundSurfaceY - groundH - 8;
-  ctx.fillStyle = 'rgba(34,197,94,0.45)';
-  ctx.fillRect(-scrollOffset, hillY + 18, w * 2 + 120, 36);
-  ctx.fillStyle = 'rgba(22,163,74,0.35)';
-  ctx.fillRect(-scrollOffset * 1.35, hillY + 32, w * 2 + 120, 24);
+  if (simpleBg) {
+    ctx.fillStyle = 'rgba(34,197,94,0.42)';
+    ctx.fillRect(-scrollOffset, hillY + 22, w + 140, 30);
+  } else {
+    ctx.fillStyle = 'rgba(34,197,94,0.45)';
+    ctx.fillRect(-scrollOffset, hillY + 18, w * 2 + 120, 36);
+    ctx.fillStyle = 'rgba(22,163,74,0.35)';
+    ctx.fillRect(-scrollOffset * 1.35, hillY + 32, w * 2 + 120, 24);
+  }
 
   drawGroundWithGaps(ctx, state, w, groundH);
 
@@ -46,7 +52,7 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
   const hazards = state.hazards ?? [];
   for (let i = 0; i < hazards.length; i += 1) {
     const hz = hazards[i];
-    if (hz.x > w + 40) continue;
+    if (hz.x + hz.width < -8 || hz.x > w + 40) continue;
     drawHazard(ctx, hz);
     if (MONSTER_RUSH_DEBUG) drawHitbox(ctx, hazardHitbox(hz));
   }
@@ -54,7 +60,7 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
   const coins = state.coins ?? [];
   for (let i = 0; i < coins.length; i += 1) {
     const coin = coins[i];
-    if (coin.x > w + 30) continue;
+    if (coin.x + coin.width < -8 || coin.x > w + 30) continue;
     drawCoin(ctx, coin);
   }
 
@@ -132,8 +138,16 @@ function drawCoin(ctx, coin) {
 function drawGroundWithGaps(ctx, state, w, groundH) {
   const y = state.groundSurfaceY;
   const gaps = state.gaps ?? [];
-  let cursor = 0;
 
+  if (gaps.length === 0) {
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(0, y, w, groundH);
+    ctx.fillStyle = '#fde68a';
+    ctx.fillRect(0, y, w, 4);
+    return;
+  }
+
+  let cursor = 0;
   ctx.fillStyle = '#92400e';
   for (let i = 0; i < gaps.length; i += 1) {
     const gap = gaps[i];

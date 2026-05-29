@@ -11,10 +11,11 @@ import {
   chainSpacingForTier,
   distanceTier,
   validatePattern,
+  RUSH_LEVEL_RULES,
 } from './monsterRushLevelRules';
 import { rushSpeedForDistance } from './monsterRushConfig';
 
-/** Rhythm cycle — avoids constant jumping or long dead zones. */
+/** Full rhythm cycle — includes coin-only rest beats. */
 const RHYTHM_CYCLE = [
   'single',
   'rest',
@@ -26,12 +27,24 @@ const RHYTHM_CYCLE = [
   'rest',
 ];
 
+/** Tutorial: hazards only, no coin-only rest stretches. */
+const TUTORIAL_RHYTHM = [
+  'single',
+  'combo',
+  'single',
+  'elevation',
+  'single',
+  'combo',
+  'gap',
+  'single',
+];
+
 const REST_PATTERN = {
   id: 'rest_coins',
   tier: 'easy',
   minScrollPx: 0,
   width: 180,
-  recovery: 160,
+  recovery: 120,
   rhythm: 'rest',
   tags: ['rest'],
   items: [
@@ -40,18 +53,36 @@ const REST_PATTERN = {
   ],
 };
 
+/** Pre-built pools — avoids filtering the full library every spawn. */
+const POOL_CACHE = new Map();
+
 function poolForPhase(tier, phase) {
-  const all = RUSH_PATTERN_LIBRARY.filter((p) => p.rhythm === phase || (phase === 'rest' && p.id === 'rest_coins'));
   if (phase === 'rest') return [REST_PATTERN];
 
   let tierPool;
   if (tier === 'tutorial') tierPool = EASY_PATTERNS;
-  else if (tier === 'easy') tierPool = [...EASY_PATTERNS, ...MEDIUM_PATTERNS.filter((p) => p.tier === 'easy' || p.minScrollPx < 1200)];
-  else if (tier === 'medium') tierPool = [...EASY_PATTERNS, ...MEDIUM_PATTERNS];
+  else if (tier === 'easy') {
+    tierPool = [...EASY_PATTERNS, ...MEDIUM_PATTERNS.filter((p) => p.tier === 'easy' || p.minScrollPx < 1200)];
+  } else if (tier === 'medium') tierPool = [...EASY_PATTERNS, ...MEDIUM_PATTERNS];
   else tierPool = [...MEDIUM_PATTERNS, ...HARD_PATTERNS];
 
   const byRhythm = tierPool.filter((p) => p.rhythm === phase);
   return byRhythm.length ? byRhythm : tierPool;
+}
+
+function poolForPhaseCached(tier, phase) {
+  const key = `${tier}:${phase}`;
+  if (!POOL_CACHE.has(key)) {
+    POOL_CACHE.set(key, poolForPhase(tier, phase));
+  }
+  return POOL_CACHE.get(key);
+}
+
+function rhythmPhase(scrollPx, rhythmIndex) {
+  if (scrollPx < RUSH_LEVEL_RULES.distanceTiers.tutorialEnd) {
+    return TUTORIAL_RHYTHM[rhythmIndex % TUTORIAL_RHYTHM.length];
+  }
+  return RHYTHM_CYCLE[rhythmIndex % RHYTHM_CYCLE.length];
 }
 
 function weightedPick(candidates, ctx) {
@@ -71,6 +102,8 @@ function weightedPick(candidates, ctx) {
   return candidates[candidates.length - 1];
 }
 
+const MAX_VALIDATE_TRIES = 4;
+
 /**
  * Pick next validated pattern for current run state.
  * @param {number} scrollPx
@@ -78,10 +111,10 @@ function weightedPick(candidates, ctx) {
  */
 export function pickValidatedPattern(scrollPx, ctx = {}) {
   const tier = distanceTier(scrollPx);
-  const phase = RHYTHM_CYCLE[(ctx.rhythmIndex ?? 0) % RHYTHM_CYCLE.length];
+  const phase = rhythmPhase(scrollPx, ctx.rhythmIndex ?? 0);
   const speedStat = rushSpeedForDistance(ctx.distanceM ?? Math.floor(scrollPx / 10));
 
-  let candidates = poolForPhase(tier, phase).filter((p) => p.minScrollPx <= scrollPx + 120);
+  let candidates = poolForPhaseCached(tier, phase).filter((p) => p.minScrollPx <= scrollPx + 120);
 
   if (tier === 'tutorial') {
     candidates = candidates.filter((p) => p.tier === 'easy' && !p.tags?.includes('top_bottom'));
@@ -98,8 +131,13 @@ export function pickValidatedPattern(scrollPx, ctx = {}) {
     speedStat,
   };
 
-  const shuffled = [...candidates].sort(() => Math.random() - 0.5);
-  for (const pattern of shuffled) {
+  const tried = new Set();
+  const tries = Math.min(MAX_VALIDATE_TRIES, candidates.length);
+  for (let t = 0; t < tries; t += 1) {
+    const remaining = candidates.filter((p) => !tried.has(p.id));
+    if (!remaining.length) break;
+    const pattern = weightedPick(remaining, ctx);
+    tried.add(pattern.id);
     const v = validatePattern(pattern, validationCtx);
     if (v.ok) {
       return {
@@ -115,7 +153,8 @@ export function pickValidatedPattern(scrollPx, ctx = {}) {
     }
   }
 
-  for (const pattern of EASY_PATTERNS) {
+  for (let i = 0; i < Math.min(3, EASY_PATTERNS.length); i += 1) {
+    const pattern = EASY_PATTERNS[i];
     const v = validatePattern(pattern, validationCtx);
     if (v.ok) {
       return {

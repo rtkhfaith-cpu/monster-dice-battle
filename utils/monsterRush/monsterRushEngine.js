@@ -66,6 +66,7 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
     repeatPatternStreak: 0,
     lastPatternDifficulty: 1,
     rhythmIndex: 0,
+    patternsSpawned: 0,
     lastSpawnDebug: null,
     wasOnGround: true,
     shakeMs: 0,
@@ -82,13 +83,23 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
   };
 }
 
-/** Lead distance before first pattern (~2.6s at current speed). */
+/** Seconds of scroll before first pattern spawn (invincibility is separate). */
+const RUNWAY_SEC = 1.15;
+/** How far past the right screen edge patterns may be planned. */
+const SPAWN_HORIZON_SEC = 2.0;
+/** First hazard appears this far past the right edge (~1s preview). */
+const FIRST_PATTERN_AHEAD_SEC = 0.85;
+
 function runwayPx(speedStat) {
-  return Math.max(300, Math.floor(scrollPxPerSecond(speedStat) * 2.6));
+  return Math.max(180, Math.floor(scrollPxPerSecond(speedStat) * RUNWAY_SEC));
 }
 
 function spawnHorizonPx(state) {
-  return state.player.x + scrollPxPerSecond(state.speed) * 2.75;
+  return state.gameWidth + scrollPxPerSecond(state.speed) * SPAWN_HORIZON_SEC;
+}
+
+function firstPatternBaseX(state) {
+  return state.gameWidth + Math.floor(scrollPxPerSecond(state.speed) * FIRST_PATTERN_AHEAD_SEC);
 }
 
 export function startMonsterRushRun(state) {
@@ -100,7 +111,8 @@ export function startMonsterRushRun(state) {
   state.safeMsRemaining = 2600;
   const lead = runwayPx(state.speed);
   state.spawnCooldownPx = lead;
-  state.lastPatternEndX = state.gameWidth + lead;
+  state.lastPatternEndX = state.gameWidth + 48;
+  state.patternsSpawned = 0;
   return true;
 }
 
@@ -163,13 +175,13 @@ function spawnPatternCoins(state, baseX, item) {
 
 function spawnPattern(state, pattern) {
   const chain = patternChainSpacing(state.scrollPx);
-  const rightEdge = spawnHorizonPx(state);
+  const horizon = spawnHorizonPx(state);
   const hasWorld = state.hazards.length > 0
     || state.platforms.length > 0
     || state.gaps.length > 0;
   const baseX = hasWorld
-    ? Math.max(rightEdge, state.lastPatternEndX + chain)
-    : Math.max(rightEdge, state.lastPatternEndX);
+    ? Math.max(horizon, state.lastPatternEndX + chain)
+    : firstPatternBaseX(state);
 
   for (const item of pattern.items) {
     if (item.type === 'gap') {
@@ -223,6 +235,7 @@ function spawnPattern(state, pattern) {
 
   state.lastPatternEndX = baseX + pattern.width;
   state.spawnCooldownPx = pattern.recovery ?? 140;
+  state.patternsSpawned = (state.patternsSpawned ?? 0) + 1;
 
   if (state.lastPatternId === pattern.id) {
     state.repeatPatternStreak += 1;
@@ -238,10 +251,10 @@ function trySpawnPattern(state) {
   const hasWorld = state.hazards.length > 0
     || state.platforms.length > 0
     || state.gaps.length > 0;
-  if (hasWorld && state.lastPatternEndX > spawnHorizonPx(state) + 120) return;
+  const horizon = spawnHorizonPx(state);
+  if (hasWorld && state.lastPatternEndX > horizon + 80) return;
 
-  const minFront = spawnHorizonPx(state);
-  if (state.lastPatternEndX < minFront) state.lastPatternEndX = minFront;
+  if (hasWorld && state.lastPatternEndX < horizon) state.lastPatternEndX = horizon;
 
   const { pattern, debug } = pickValidatedPattern(state.scrollPx, {
     lastPatternId: state.lastPatternId,

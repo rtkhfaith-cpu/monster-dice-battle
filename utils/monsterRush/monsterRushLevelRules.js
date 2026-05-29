@@ -29,8 +29,8 @@ export const RUSH_LEVEL_RULES = {
   minPlayerVisibleLeadPx: 500,
 
   chainSpacing: {
-    tutorial: [480, 620],
-    easy: [450, 650],
+    tutorial: [300, 400],
+    easy: [380, 520],
     medium: [350, 500],
     hard: [260, 420],
   },

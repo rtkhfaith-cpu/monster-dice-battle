@@ -143,6 +143,15 @@ for (const w of WIDTHS) {
 
   const early = startOnly.filter((r) => r.deathFrame != null && r.deathFrame < 120);
   if (early.length > TRIALS * 0.35) fail = true;
+
+  const firstNear = startOnly.map((r) => r.firstHazardNear?.frame).filter(Boolean);
+  if (firstNear.length) {
+    const avgFirst = firstNear.reduce((a, b) => a + b, 0) / firstNear.length;
+    console.log(`  first hazard avg frame: ${avgFirst.toFixed(0)} (${(avgFirst * DT / 1000).toFixed(2)}s)`);
+    if (avgFirst > 200) {
+      console.log('  WARN: first hazard later than ~3.3s on average');
+    }
+  }
 }
 
 if (fail) console.log('\nFAIL: jump-on-start still dies too fast on many trials');
