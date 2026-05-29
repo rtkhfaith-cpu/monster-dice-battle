@@ -1,6 +1,6 @@
 /**
  * Hidden player sync activity — unlimited levels, not shown in UI.
- * Used to compare saves when monster peak level is capped (e.g. Lv 100).
+ * Used to compare saves when monster peak level is capped (e.g. Lv 120).
  */
 
 export const SYNC_EXP_PER_LEVEL = 9999;

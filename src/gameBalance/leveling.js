@@ -11,5 +11,5 @@ export const LEVELING_TARGETS = {
   early: { range: [1, 50], feel: 'easy, frequent level-ups' },
   mid: { range: [51, 70], feel: 'medium progression' },
   late: { range: [71, 100], feel: 'hard progression' },
-  prestige: { range: [101, Infinity], feel: 'very hard endgame progression' },
+  prestige: { range: [101, 120], feel: 'very hard endgame progression' },
 };
