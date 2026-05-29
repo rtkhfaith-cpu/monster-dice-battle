@@ -106,7 +106,8 @@ export default function MonsterRushGameView({
       monsterImgRef.current = null;
       return undefined;
     }
-    const img = new Image();
+    // Must use DOM Image — `Image` from react-native is a component, not a constructor.
+    const img = document.createElement('img');
     img.decoding = 'async';
     img.src = asset.path;
     img.onload = () => {
