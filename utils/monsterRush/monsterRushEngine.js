@@ -60,7 +60,7 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
     coins: [],
     particles: [],
     spawnCooldownPx: 280,
-    lastPatternEndX: 0,
+    lastPatternEndX: gameWidth,
     lastPatternId: '',
     repeatPatternStreak: 0,
     lastPatternDifficulty: 1,
@@ -215,6 +215,8 @@ function spawnPattern(state, pattern) {
 
 function trySpawnPattern(state) {
   if (state.spawnCooldownPx > 0) return;
+  const minFront = state.gameWidth + 48;
+  if (state.lastPatternEndX < minFront) state.lastPatternEndX = minFront;
   const pattern = pickPattern(state.distanceM, {
     lastPatternId: state.lastPatternId,
     repeatStreak: state.repeatPatternStreak,
@@ -277,8 +279,26 @@ function applyGroundAndGaps(state, dtScale) {
   }
 }
 
-const MAX_PARTICLES = 20;
-const MAX_HAZARDS = 18;
+const MAX_PARTICLES = 12;
+const MAX_HAZARDS = 14;
+const MAX_PLATFORMS = 8;
+const MAX_GAPS = 5;
+const MAX_COINS = 10;
+const CULL_BEHIND = 80;
+const CULL_AHEAD = 120;
+
+function cullEntities(state) {
+  const maxX = state.gameWidth + CULL_AHEAD;
+  const minX = -CULL_BEHIND;
+  state.hazards = state.hazards.filter((h) => h.x + h.width > minX && h.x < maxX);
+  state.platforms = state.platforms.filter((p) => p.x + p.width > minX && p.x < maxX);
+  state.gaps = state.gaps.filter((g) => g.x + g.width > minX && g.x < maxX);
+  state.coins = state.coins.filter((c) => c.x + c.width > minX && c.x < maxX);
+  if (state.hazards.length > MAX_HAZARDS) state.hazards.splice(0, state.hazards.length - MAX_HAZARDS);
+  if (state.platforms.length > MAX_PLATFORMS) state.platforms.splice(0, state.platforms.length - MAX_PLATFORMS);
+  if (state.gaps.length > MAX_GAPS) state.gaps.splice(0, state.gaps.length - MAX_GAPS);
+  if (state.coins.length > MAX_COINS) state.coins.splice(0, state.coins.length - MAX_COINS);
+}
 
 function addParticle(state, x, y, text, life = 400) {
   if (state.particles.length >= MAX_PARTICLES) {
@@ -317,26 +337,15 @@ export function tickMonsterRush(state, dtMs) {
   applyGroundAndGaps(state, dtScale);
 
   const landedNow = p.isOnGround;
-  if (landedNow && !state.wasOnGround && p.velocityY === 0) {
-    addParticle(state, p.x + playerSize / 2, p.y + playerSize, '·', 220);
-  }
   state.wasOnGround = landedNow;
 
   for (const h of state.hazards) h.x -= movePx;
   for (const plat of state.platforms) plat.x -= movePx;
   for (const gap of state.gaps) gap.x -= movePx;
-  for (const coin of state.coins) {
-    coin.x -= movePx;
-    coin.spin += 0.12 * dtScale;
-  }
+  for (const coin of state.coins) coin.x -= movePx;
 
-  state.hazards = state.hazards.filter((h) => h.x + h.width > -50);
-  if (state.hazards.length > MAX_HAZARDS) {
-    state.hazards.splice(0, state.hazards.length - MAX_HAZARDS);
-  }
-  state.platforms = state.platforms.filter((pl) => pl.x + pl.width > -50);
-  state.gaps = state.gaps.filter((g) => g.x + g.width > -50);
-  state.coins = state.coins.filter((c) => c.x + c.width > -20);
+  state.lastPatternEndX -= movePx;
+  cullEntities(state);
 
   state.particles = state.particles.filter((pt) => pt.life > 0);
   for (const pt of state.particles) {
@@ -345,18 +354,14 @@ export function tickMonsterRush(state, dtMs) {
     pt.y += pt.vy * dtScale;
   }
 
-  if (state.hazards.length) {
-    state.lastPatternEndX = Math.max(
-      state.lastPatternEndX,
-      Math.max(...state.hazards.map((h) => h.x + h.width)),
-    );
-  }
-
   state.spawnCooldownPx = Math.max(0, state.spawnCooldownPx - movePx);
   trySpawnPattern(state);
 
   const pBox = playerCollisionBox(state);
-  for (const h of state.hazards) {
+  const hazards = state.hazards;
+  for (let i = 0; i < hazards.length; i += 1) {
+    const h = hazards[i];
+    if (h.x > state.gameWidth + 20) continue;
     if (rectsOverlap(pBox, hazardHitbox(h))) {
       state.isGameOver = true;
       state.isRunning = false;
@@ -370,7 +375,7 @@ export function tickMonsterRush(state, dtMs) {
     if (rectsOverlap(pBox, coin)) {
       state.coinsCollected += 1;
       state.rushPointsThisRun = Math.floor(state.distanceM / 10) + state.coinsCollected;
-      addParticle(coin.x, coin.y, '+1', 350);
+      if (state.particles.length < 4) addParticle(coin.x, coin.y, '+1', 280);
       state.coins.splice(i, 1);
     }
   }

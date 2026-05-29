@@ -23,7 +23,12 @@ import { clampPlayfieldToViewport, getViewportLandscapeSize } from '../../utils/
 import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
 import { runnerBoxImageStyle } from '../../utils/monsterRush/monsterRushRunnerImage';
 
-const MAX_CANVAS_DPR = 1.25;
+/** Mobile Safari/Chrome struggle with high-DPI canvas buffers on long runs. */
+function canvasDprCap() {
+  if (typeof window === 'undefined') return 1;
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  return isMobile ? 1 : Math.min(1.25, window.devicePixelRatio || 1);
+}
 import { playSound } from '../../utils/sounds';
 
 const USE_CANVAS = Platform.OS === 'web' && typeof document !== 'undefined';
@@ -166,9 +171,7 @@ export default function MonsterRushGameView({
   useEffect(() => {
     if (!USE_CANVAS || !canvasRef.current) return undefined;
     const canvas = canvasRef.current;
-    const dpr = typeof window !== 'undefined'
-      ? Math.min(MAX_CANVAS_DPR, window.devicePixelRatio || 1)
-      : 1;
+    const dpr = canvasDprCap();
     const bufW = Math.floor(w * dpr);
     const bufH = Math.floor(h * dpr);
     if (canvas.width === bufW && canvas.height === bufH) return undefined;
@@ -208,6 +211,12 @@ export default function MonsterRushGameView({
 
   useEffect(() => {
     let mounted = true;
+    let lastDrawTs = 0;
+    const isMobileWeb = USE_CANVAS
+      && typeof navigator !== 'undefined'
+      && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const drawIntervalMs = isMobileWeb ? 33 : 16;
+
     const loop = (ts) => {
       if (!mounted) return;
       if (!lastTsRef.current) lastTsRef.current = ts;
@@ -246,14 +255,18 @@ export default function MonsterRushGameView({
         wasOnGroundRef.current = state.player.isOnGround;
 
         if (USE_CANVAS) {
-          const ctx = canvasRef.current?.getContext?.('2d');
-          if (ctx) {
-            drawMonsterRushFrame(ctx, state, {
-              monsterImg: monsterImgRef.current,
-              scrollOffset: (state.scrollPx * 0.15) % 200,
-            });
+          const shouldDraw = ts - lastDrawTs >= drawIntervalMs || state.awaitingStart || state.isPaused;
+          if (shouldDraw) {
+            lastDrawTs = ts;
+            const ctx = canvasRef.current?.getContext?.('2d');
+            if (ctx) {
+              drawMonsterRushFrame(ctx, state, {
+                monsterImg: monsterImgRef.current,
+                scrollOffset: (state.scrollPx * 0.15) % 200,
+              });
+            }
           }
-          if (state.isRunning && ts - lastRenderRef.current >= 400) {
+          if (state.isRunning && ts - lastRenderRef.current >= 500) {
             lastRenderRef.current = ts;
             syncHudRef.current?.(state);
           }
