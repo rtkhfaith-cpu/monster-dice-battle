@@ -277,7 +277,13 @@ function applyGroundAndGaps(state, dtScale) {
   }
 }
 
+const MAX_PARTICLES = 20;
+const MAX_HAZARDS = 18;
+
 function addParticle(state, x, y, text, life = 400) {
+  if (state.particles.length >= MAX_PARTICLES) {
+    state.particles.shift();
+  }
   state.particles.push({
     id: nextId('pt'),
     x,
@@ -325,6 +331,9 @@ export function tickMonsterRush(state, dtMs) {
   }
 
   state.hazards = state.hazards.filter((h) => h.x + h.width > -50);
+  if (state.hazards.length > MAX_HAZARDS) {
+    state.hazards.splice(0, state.hazards.length - MAX_HAZARDS);
+  }
   state.platforms = state.platforms.filter((pl) => pl.x + pl.width > -50);
   state.gaps = state.gaps.filter((g) => g.x + g.width > -50);
   state.coins = state.coins.filter((c) => c.x + c.width > -20);

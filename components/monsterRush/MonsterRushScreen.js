@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Platform,
@@ -10,7 +10,6 @@ import {
   View,
 } from 'react-native';
 import MonsterRushGameView from './MonsterRushGameView';
-import MonsterPreview from '../MonsterPreview';
 import { getOwnedRoster } from '../../utils/rosterInventory';
 import { getMonsterTemplate } from '../../utils/monsterTemplates';
 import { getLadderMonsterTemplate } from '../../utils/monsterLadder/ladderMonsterCatalog';
@@ -18,6 +17,7 @@ import { getMonsterImageAsset } from '../../utils/monsterImageAssets';
 import { getMonsterRushState } from '../../utils/monsterRush/monsterRushProgress';
 import { RUSH_EXCHANGE_ITEMS } from '../../utils/monsterRush/monsterRushExchange';
 import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
+import { runnerBoxImageStyle } from '../../utils/monsterRush/monsterRushRunnerImage';
 import { getLandscapeGameFrameSize, mergeArenaSize } from '../../utils/monsterRush/monsterRushArenaSize';
 import {
   activateMonsterRushWebLayout,
@@ -37,10 +37,11 @@ const RARITY_COLOR = {
 
 const PREVIEW_SIZE = MONSTER_RUSH_PHYSICS.playerSize;
 
-function MonsterBoxPreview({ templateId }) {
+/** Same small cropped runner box as in-game (not full monster art). */
+function MonsterBoxPreview({ templateId, selected = false }) {
   const asset = getMonsterImageAsset(templateId);
   return (
-    <View style={styles.previewBox}>
+    <View style={[styles.previewBox, selected && styles.previewBoxOn]}>
       {asset?.path ? (
         <Image
           source={{ uri: asset.path }}
@@ -49,7 +50,7 @@ function MonsterBoxPreview({ templateId }) {
           {...WEB_DECORATIVE_IMAGE_PROPS}
         />
       ) : (
-        <MonsterPreview parts={{ templateId }} size={22} mood="happy" />
+        <Text style={styles.previewFallback}>👾</Text>
       )}
     </View>
   );
@@ -68,6 +69,7 @@ export default function MonsterRushScreen({
   const [view, setView] = useState('hub');
   const [selectedMonsterId, setSelectedMonsterId] = useState(null);
   const [runKey, setRunKey] = useState(0);
+  const runTemplateRef = useRef(null);
   const [lastRun, setLastRun] = useState(null);
   const [arenaSize, setArenaSize] = useState({ w: 0, h: 0 });
   const { width: winW, height: winH } = useWindowDimensions();
@@ -122,6 +124,7 @@ export default function MonsterRushScreen({
   );
 
   if (view === 'game' && selectedMonster) {
+    const runTemplateId = runTemplateRef.current ?? selectedMonster.templateId;
     return (
       <View
         style={styles.gameRoot}
@@ -141,7 +144,7 @@ export default function MonsterRushScreen({
         >
           <MonsterRushGameView
             key={runKey}
-            templateId={selectedMonster.templateId}
+            templateId={runTemplateId}
             gameWidth={playSize.w}
             gameHeight={playSize.h}
             onGameOver={handleGameOver}
@@ -226,32 +229,30 @@ export default function MonsterRushScreen({
           <TouchableOpacity onPress={() => setView('hub')}>
             <Text style={styles.back}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Select Monster</Text>
+          <Text style={styles.title}>Pick Runner</Text>
           <View style={{ width: 48 }} />
         </View>
-        {selectedMonster ? (
-          <View style={styles.selectedPreview}>
-            <Text style={styles.selectedLbl}>Runner preview</Text>
-            <MonsterBoxPreview templateId={selectedMonster.templateId} />
-            <Text style={styles.selectedName}>{selectedMonster.nickname || selectedMonster.templateId}</Text>
-          </View>
-        ) : null}
-        <ScrollView style={styles.list} contentContainerStyle={styles.grid}>
+        <Text style={styles.selectHint}>Tap a box — same look as in the run</Text>
+        <ScrollView style={styles.list} contentContainerStyle={styles.runnerGrid}>
           {roster.map((m) => {
             const tpl = tplMeta(m.templateId);
             const rarity = tpl?.rarity ?? 'common';
             const on = m.id === selectedMonsterId;
+            const label = m.nickname || tpl?.name || m.templateId;
             return (
               <TouchableOpacity
                 key={m.id}
-                style={[styles.monCard, on && styles.monCardOn, { borderColor: RARITY_COLOR[rarity] ?? '#94a3b8' }]}
+                style={[
+                  styles.runnerCell,
+                  on && styles.runnerCellOn,
+                  { borderColor: on ? '#4ade80' : (RARITY_COLOR[rarity] ?? '#94a3b8') },
+                ]}
                 onPress={() => setSelectedMonsterId(m.id)}
+                activeOpacity={0.85}
               >
-                <MonsterPreview parts={m.monsterParts} size={36} mood="happy" />
-                <Text style={styles.monName} numberOfLines={1}>{m.nickname || m.templateId}</Text>
-                <Text style={[styles.monMeta, { color: RARITY_COLOR[rarity] }]}>
-                  {rarity} · Lv {m.level ?? 1}
-                </Text>
+                <MonsterBoxPreview templateId={m.templateId} selected={on} />
+                <Text style={styles.runnerName} numberOfLines={1}>{label}</Text>
+                <Text style={[styles.runnerLv, { color: RARITY_COLOR[rarity] }]}>Lv {m.level ?? 1}</Text>
               </TouchableOpacity>
             );
           })}
@@ -260,6 +261,7 @@ export default function MonsterRushScreen({
           style={[styles.primaryBtn, !selectedMonsterId && styles.btnOff]}
           disabled={!selectedMonsterId}
           onPress={() => {
+            if (selectedMonster) runTemplateRef.current = selectedMonster.templateId;
             tryMonsterRushFullscreen();
             setRunKey((k) => k + 1);
             setArenaSize({ w: 0, h: 0 });
@@ -298,7 +300,7 @@ export default function MonsterRushScreen({
 
         <View style={styles.demoBox}>
           <MonsterBoxPreview templateId={roster[0]?.templateId ?? 'bubble_tea_slime'} />
-          <Text style={styles.demoCaption}>Small runner box — monster face crops in (partial view OK)</Text>
+          <Text style={styles.demoCaption}>Your monster runs inside a small box — face cropped like the game</Text>
         </View>
 
         <TouchableOpacity style={styles.primaryBtn} onPress={() => setView('select')}>
@@ -388,6 +390,7 @@ const styles = StyleSheet.create({
     height: PREVIEW_SIZE,
     borderRadius: 8,
     overflow: 'hidden',
+    position: 'relative',
     borderWidth: 2,
     borderColor: '#f7c948',
     backgroundColor: '#fef3c7',
@@ -395,7 +398,56 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...(Platform.OS === 'web' ? { boxShadow: '0 3px 0 #92400e, 0 6px 12px rgba(0,0,0,0.25)' } : {}),
   },
-  previewImg: { width: '110%', height: '110%' },
+  previewImg: runnerBoxImageStyle,
+  previewFallback: { fontSize: 16 },
+  previewBoxOn: {
+    borderColor: '#4ade80',
+    borderWidth: 3,
+    transform: [{ scale: 1.06 }],
+  },
+  selectHint: {
+    color: '#94a3b8',
+    fontWeight: '700',
+    fontSize: 11,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  runnerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+    paddingBottom: 12,
+    paddingHorizontal: 4,
+  },
+  runnerCell: {
+    width: 76,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    borderWidth: 2,
+    backgroundColor: 'rgba(12,20,40,0.9)',
+    alignItems: 'center',
+    gap: 4,
+  },
+  runnerCellOn: {
+    backgroundColor: 'rgba(34,197,94,0.22)',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 0 0 2px rgba(74,222,128,0.45)' }
+      : {}),
+  },
+  runnerName: {
+    color: '#fff4cf',
+    fontWeight: '800',
+    fontSize: 9,
+    maxWidth: 68,
+    textAlign: 'center',
+  },
+  runnerLv: {
+    fontWeight: '900',
+    fontSize: 8,
+    textTransform: 'capitalize',
+  },
   primaryBtn: {
     width: '100%',
     marginTop: 10,
@@ -421,22 +473,6 @@ const styles = StyleSheet.create({
   btnOff: { opacity: 0.45 },
   list: { flex: 1 },
   listContent: { paddingBottom: 20 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 12 },
-  monCard: {
-    width: '31%',
-    minWidth: 96,
-    padding: 8,
-    borderRadius: 12,
-    borderWidth: 2,
-    backgroundColor: 'rgba(12,20,40,0.85)',
-    alignItems: 'center',
-  },
-  monCardOn: { backgroundColor: 'rgba(34,197,94,0.2)', borderColor: '#4ade80' },
-  monName: { color: '#fff4cf', fontWeight: '800', fontSize: 9, marginTop: 4, maxWidth: 90, textAlign: 'center' },
-  monMeta: { fontWeight: '900', fontSize: 8, marginTop: 2, textTransform: 'capitalize' },
-  selectedPreview: { alignItems: 'center', marginBottom: 10 },
-  selectedLbl: { color: '#fcd34d', fontWeight: '900', fontSize: 10, textTransform: 'uppercase', marginBottom: 6 },
-  selectedName: { color: '#fff4cf', fontWeight: '900', fontSize: 13, marginTop: 6 },
   overContent: { paddingBottom: 24, alignItems: 'center' },
   overTitle: { color: '#f87171', fontWeight: '900', fontSize: 26, textTransform: 'uppercase', marginTop: 12 },
   overSub: { color: '#bfdbfe', fontWeight: '800', fontSize: 13, marginTop: 6 },

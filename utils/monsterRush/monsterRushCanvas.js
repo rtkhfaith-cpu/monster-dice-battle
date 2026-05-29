@@ -1,5 +1,6 @@
 import { MONSTER_RUSH_PHYSICS } from './monsterRushConfig';
 import { MONSTER_RUSH_DEBUG, hazardHitbox } from './monsterRushObstacles';
+import { drawRunnerImageCover } from './monsterRushRunnerImage';
 
 /**
  * Draw one Monster Rush frame to a 2D canvas (web performance path).
@@ -94,7 +95,8 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
     ctx.save();
     roundRect(ctx, pad, pad, ps - pad * 2, ps - pad * 2, 6);
     ctx.clip();
-    ctx.drawImage(img, pad, pad, ps - pad * 2, ps - pad * 2);
+    const inner = ps - pad * 2;
+    drawRunnerImageCover(ctx, img, pad, pad, inner);
     ctx.restore();
   } else {
     ctx.font = '16px system-ui, sans-serif';

@@ -2433,7 +2433,9 @@ export default function App() {
       ]}
     >
       <StatusBar style="dark" />
-      <SyncStatusIndicator suppressRoutine={phase === 'battle' || phase === 'gameOver' || phase === 'ladder'} />
+      {phase !== 'monsterRush' ? (
+        <SyncStatusIndicator suppressRoutine={phase === 'battle' || phase === 'gameOver' || phase === 'ladder'} />
+      ) : null}
       <PlayerKeyModal
         visible={!!keyModal}
         mode={keyModal?.mode ?? 'login'}

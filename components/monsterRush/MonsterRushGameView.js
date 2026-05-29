@@ -21,6 +21,9 @@ import {
 } from '../../utils/monsterRush/monsterRushEngine';
 import { clampPlayfieldToViewport, getViewportLandscapeSize } from '../../utils/monsterRush/monsterRushArenaSize';
 import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
+import { runnerBoxImageStyle } from '../../utils/monsterRush/monsterRushRunnerImage';
+
+const MAX_CANVAS_DPR = 1.25;
 import { playSound } from '../../utils/sounds';
 
 const USE_CANVAS = Platform.OS === 'web' && typeof document !== 'undefined';
@@ -63,7 +66,13 @@ export default function MonsterRushGameView({
   const monsterImgRef = useRef(null);
   const hudRefs = useRef({ distance: null, rush: null, coins: null });
   const jumpHeldRef = useRef(false);
+  const wasOnGroundRef = useRef(true);
   const lastJumpSfxRef = useRef(0);
+  const tryJumpRef = useRef(null);
+  const onGameOverRef = useRef(onGameOver);
+  const onCoinCollectRef = useRef(onCoinCollect);
+  const syncHudRef = useRef(null);
+  const playfieldRef = useRef({ w: 0, h: 0 });
 
   const [hudSnap, setHudSnap] = useState({ distanceM: 0, rushPoints: 0, coins: 0, paused: false });
   const [, setFrame] = useState(0);
@@ -71,7 +80,10 @@ export default function MonsterRushGameView({
 
   const applyPlayfieldSize = useCallback((lw, lh) => {
     const capped = clampPlayfieldToViewport(lw, lh);
-    setPlayfield((prev) => (prev.w === capped.w && prev.h === capped.h ? prev : capped));
+    const prev = playfieldRef.current;
+    if (Math.abs(prev.w - capped.w) < 4 && Math.abs(prev.h - capped.h) < 4) return;
+    playfieldRef.current = capped;
+    setPlayfield(capped);
   }, []);
 
   const onPlayfieldLayout = useCallback((e) => {
@@ -80,24 +92,11 @@ export default function MonsterRushGameView({
   }, [applyPlayfieldSize]);
 
   useEffect(() => {
-    if (!USE_CANVAS || typeof window === 'undefined') return undefined;
-    const bootstrapFromViewport = () => {
-      setPlayfield((prev) => {
-        if (prev.w > 0 && prev.h > 0) return prev;
-        return clampPlayfieldToViewport(
-          getViewportLandscapeSize().w,
-          getViewportLandscapeSize().h,
-        );
-      });
-    };
-    bootstrapFromViewport();
-    const vv = window.visualViewport;
-    vv?.addEventListener('resize', bootstrapFromViewport);
-    window.addEventListener('resize', bootstrapFromViewport);
-    return () => {
-      vv?.removeEventListener('resize', bootstrapFromViewport);
-      window.removeEventListener('resize', bootstrapFromViewport);
-    };
+    if (playfieldRef.current.w > 0) return undefined;
+    const vp = getViewportLandscapeSize();
+    playfieldRef.current = vp;
+    setPlayfield(vp);
+    return undefined;
   }, []);
 
   const vpFallback = getViewportLandscapeSize();
@@ -130,6 +129,7 @@ export default function MonsterRushGameView({
     if (!gameRef.current) {
       gameRef.current = createMonsterRushRun({ gameWidth: w, gameHeight: h });
       jumpHeldRef.current = false;
+      wasOnGroundRef.current = true;
       endedRef.current = false;
       lastTsRef.current = 0;
       lastRenderRef.current = 0;
@@ -137,8 +137,11 @@ export default function MonsterRushGameView({
       if (!USE_CANVAS) bumpReact();
       return;
     }
-    resizeMonsterRushRun(gameRef.current, w, h);
-    if (!USE_CANVAS) bumpReact();
+    const g = gameRef.current;
+    if (g.gameWidth !== w || g.gameHeight !== h) {
+      resizeMonsterRushRun(g, w, h);
+      if (!USE_CANVAS) bumpReact();
+    }
   }, [w, h, bumpReact, syncHud]);
 
   useEffect(() => {
@@ -163,9 +166,14 @@ export default function MonsterRushGameView({
   useEffect(() => {
     if (!USE_CANVAS || !canvasRef.current) return undefined;
     const canvas = canvasRef.current;
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-    canvas.width = Math.floor(w * dpr);
-    canvas.height = Math.floor(h * dpr);
+    const dpr = typeof window !== 'undefined'
+      ? Math.min(MAX_CANVAS_DPR, window.devicePixelRatio || 1)
+      : 1;
+    const bufW = Math.floor(w * dpr);
+    const bufH = Math.floor(h * dpr);
+    if (canvas.width === bufW && canvas.height === bufH) return undefined;
+    canvas.width = bufW;
+    canvas.height = bufH;
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
     const ctx = canvas.getContext('2d');
@@ -177,13 +185,17 @@ export default function MonsterRushGameView({
     if (!state || state.isPaused || state.isGameOver) return false;
     if (!jumpMonsterRush(state)) return false;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    if (now - lastJumpSfxRef.current > 60) {
+    if (now - lastJumpSfxRef.current > 120) {
       playSound('fly');
       lastJumpSfxRef.current = now;
     }
-    onJump?.();
     return true;
-  }, [onJump]);
+  }, []);
+
+  tryJumpRef.current = tryJump;
+  onGameOverRef.current = onGameOver;
+  onCoinCollectRef.current = onCoinCollect;
+  syncHudRef.current = syncHud;
 
   const onJumpPressIn = useCallback(() => {
     jumpHeldRef.current = true;
@@ -204,24 +216,26 @@ export default function MonsterRushGameView({
 
       const state = gameRef.current;
       if (state && !state.isGameOver && !endedRef.current) {
+        const wasOnGround = wasOnGroundRef.current;
+
         if (state.isRunning && !state.isPaused) {
           const prevCoins = state.coinsCollected;
           tickMonsterRush(state, dt);
 
-          if (jumpHeldRef.current) {
-            tryJump();
+          if (jumpHeldRef.current && state.player.isOnGround && !wasOnGround) {
+            tryJumpRef.current?.();
           }
 
           if (state.coinsCollected > prevCoins) {
             playSound('coin');
-            onCoinCollect?.();
-            syncHud(state);
+            onCoinCollectRef.current?.();
+            syncHudRef.current?.(state);
           }
 
           if (state.isGameOver && !endedRef.current) {
             endedRef.current = true;
-            syncHud(state, true);
-            onGameOver?.({
+            syncHudRef.current?.(state, true);
+            onGameOverRef.current?.({
               distanceM: state.distanceM,
               coinsCollected: state.coinsCollected,
               rushPointsThisRun: state.rushPointsThisRun,
@@ -229,22 +243,23 @@ export default function MonsterRushGameView({
           }
         }
 
+        wasOnGroundRef.current = state.player.isOnGround;
+
         if (USE_CANVAS) {
-          const canvas = canvasRef.current;
-          const ctx = canvas?.getContext?.('2d');
+          const ctx = canvasRef.current?.getContext?.('2d');
           if (ctx) {
             drawMonsterRushFrame(ctx, state, {
               monsterImg: monsterImgRef.current,
               scrollOffset: (state.scrollPx * 0.15) % 200,
             });
           }
-          if (state.isRunning && ts - lastRenderRef.current >= 250) {
+          if (state.isRunning && ts - lastRenderRef.current >= 400) {
             lastRenderRef.current = ts;
-            syncHud(state);
+            syncHudRef.current?.(state);
           }
         } else if (state.isRunning && ts - lastRenderRef.current >= REACT_RENDER_MS) {
           lastRenderRef.current = ts;
-          syncHud(state);
+          syncHudRef.current?.(state);
           bumpReact();
         } else if (!state.isRunning && !USE_CANVAS) {
           bumpReact();
@@ -258,7 +273,7 @@ export default function MonsterRushGameView({
       mounted = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [bumpReact, onCoinCollect, onGameOver, syncHud, tryJump]);
+  }, [bumpReact]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -543,6 +558,7 @@ const styles = StyleSheet.create({
     height: PS,
     borderRadius: 8,
     overflow: 'hidden',
+    position: 'relative',
     borderWidth: 2,
     borderColor: '#f7c948',
     backgroundColor: '#fef3c7',
@@ -555,7 +571,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   playerBoxJump: { transform: [{ rotate: '-8deg' }] },
-  playerImg: { width: '110%', height: '110%' },
+  playerImg: runnerBoxImageStyle,
   playerFallback: { fontSize: 16 },
   obstacle: {
     position: 'absolute',
