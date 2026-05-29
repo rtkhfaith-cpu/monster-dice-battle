@@ -206,6 +206,13 @@ export function getPlayerProfile(gameData, profileId) {
   return gameData.players.find((x) => x.id === profileId) ?? null;
 }
 
+/** Profile used for inventory, shop, gems, and gear (player row or guest fallback). */
+export function resolveGameProfile(gameData, profileId) {
+  const profile = getPlayerProfile(gameData, profileId) ?? walletForProfile(gameData, profileId);
+  if (profile) ensureGemInventory(profile);
+  return profile ?? null;
+}
+
 /** Meta used for 1P AI scaling — per profile when available. */
 export function metaForProfile(gameData, profileId) {
   const p = profileId ? getPlayerProfile(gameData, profileId) : null;
@@ -774,7 +781,7 @@ export function buyGearItem(gameData, playerId, gearId, rarity = 'rare', opts = 
 /** Buy a Rare gem into the profile gem inventory (shop only). */
 export function buyGemForProfile(gameData, profileId, gemKeyId) {
   const gd = cloneGameData(gameData);
-  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  const profile = resolveGameProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'No wallet' };
   if (!RARE_GEM_SHOP_ITEMS.includes(gemKeyId)) {
     return { gameData: gd, error: 'This gem is not sold here.' };
@@ -795,7 +802,7 @@ export function buyGemForProfile(gameData, profileId, gemKeyId) {
 /** Upgrade an owned gem one level (consumes duplicate copies + coins). */
 export function upgradeGemForProfile(gameData, profileId, gemKeyId) {
   const gd = cloneGameData(gameData);
-  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  const profile = resolveGameProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'No wallet' };
   const stack = profile.gemInventory?.find((g) => g.key === gemKeyId);
   if (!stack) return { gameData: gd, error: 'Gem not owned' };
@@ -810,36 +817,32 @@ export function upgradeGemForProfile(gameData, profileId, gemKeyId) {
 
 export function socketGemInGearForProfile(gameData, profileId, gearInstanceId, socketIndex, gemKeyId) {
   const gd = cloneGameData(gameData);
-  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  const profile = resolveGameProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'Profile not found' };
-  const wallet = walletForProfile(gd, profileId);
-  if (!wallet) return { gameData: gd, error: 'No wallet' };
   const parsed = parseGemKey(gemKeyId);
   if (!parsed) return { gameData: gd, error: 'Unknown gem' };
   const price = gemSocketInsertCoinCost(parsed.rarity);
-  if (wallet.coins < price) return { gameData: gd, error: `Need 🪙 ${price} to socket gem` };
+  if ((profile.coins ?? 0) < price) return { gameData: gd, error: `Need 🪙 ${price} to socket gem` };
   const res = socketGemInGear(profile, gearInstanceId, socketIndex, gemKeyId);
   if (!res.ok) return { gameData: gd, error: res.error };
-  wallet.coins -= price;
-  wallet.updatedAt = new Date().toISOString();
+  profile.coins -= price;
+  profile.updatedAt = new Date().toISOString();
   return { gameData: gd, gem: res.gem, gear: res.gear, price };
 }
 
 export function unsocketGemFromGearForProfile(gameData, profileId, gearInstanceId, socketIndex) {
   const gd = cloneGameData(gameData);
-  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  const profile = resolveGameProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'Profile not found' };
-  const wallet = walletForProfile(gd, profileId);
-  if (!wallet) return { gameData: gd, error: 'No wallet' };
   const gear = getGearInstance(profile, gearInstanceId);
   const socketGem = normalizeSocketedGem(gear?.sockets?.[Math.floor(socketIndex)]?.gem);
   if (!socketGem) return { gameData: gd, error: 'Socket is empty.' };
   const price = gemSocketRemoveCoinCost(socketGem.rarity);
-  if (wallet.coins < price) return { gameData: gd, error: `Need 🪙 ${price} to remove gem` };
+  if ((profile.coins ?? 0) < price) return { gameData: gd, error: `Need 🪙 ${price} to remove gem` };
   const res = unsocketGemFromGear(profile, gearInstanceId, socketIndex);
   if (!res.ok) return { gameData: gd, error: res.error };
-  wallet.coins -= price;
-  wallet.updatedAt = new Date().toISOString();
+  profile.coins -= price;
+  profile.updatedAt = new Date().toISOString();
   return { gameData: gd, gem: res.gem, gear: res.gear, price };
 }
 

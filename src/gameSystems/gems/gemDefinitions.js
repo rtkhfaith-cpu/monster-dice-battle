@@ -101,6 +101,24 @@ export function gemKey(rarity, stat) {
   return `${rarity}_${stat}_gem`;
 }
 
+const GEM_DEF_BY_KEY = new Map();
+for (const rarity of GEM_RARITIES) {
+  for (const stat of GEM_STATS) {
+    GEM_DEF_BY_KEY.set(gemKey(rarity, stat), { rarity, stat });
+  }
+}
+
+/** Resolve a stored gem key (supports legacy formats). */
+export function parseGemKey(key) {
+  const k = String(key || '').trim();
+  if (GEM_DEF_BY_KEY.has(k)) return GEM_DEF_BY_KEY.get(k);
+  if (k && !k.endsWith('_gem')) {
+    const legacy = `${k}_gem`;
+    if (GEM_DEF_BY_KEY.has(legacy)) return GEM_DEF_BY_KEY.get(legacy);
+  }
+  return null;
+}
+
 /** @param {string} stat */
 export function gemSlotForStat(stat) {
   for (const slot of Object.keys(GEM_SLOT_CATEGORIES)) {
@@ -126,9 +144,10 @@ export function gemEmoji(stat, rarity = 'rare') {
   return tier?.[stat] ?? GEM_RARITY_EMOJI[rarity] ?? GEM_RARITY_EMOJI.rare;
 }
 
-/** Duplicate copies required to go from `currentLevel` to the next level. */
+/** Spare duplicate gems required to merge up from `currentLevel` (stack = owned gem). */
 export function getRequiredGemsForUpgrade(currentLevel) {
-  return Math.pow(2, Math.max(1, Math.floor(currentLevel)));
+  const lvl = Math.max(1, Math.floor(currentLevel));
+  return Math.pow(2, lvl - 1);
 }
 
 /** Raw final value of a gem at a given level (each level = +10%). */

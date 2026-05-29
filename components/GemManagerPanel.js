@@ -4,8 +4,9 @@ import { GEAR_UI } from './gear/gearUiTheme';
 import {
   GEM_RARITY_UI,
   GEM_STAT_LABELS,
+  gemEmoji,
 } from '../src/gameSystems/gems/gemDefinitions';
-import { listGemStacks } from '../src/gameSystems/gems/gemInventory';
+import { listGemStacks, listSocketedGems } from '../src/gameSystems/gems/gemInventory';
 
 /**
  * Gem management — merge/upgrade gems. Socket gems from Inventory → Gear → tap item.
@@ -16,19 +17,40 @@ export default function GemManagerPanel({
   onUpgrade,
 }) {
   const stacks = useMemo(() => listGemStacks(profile), [profile]);
+  const socketed = useMemo(() => listSocketedGems(profile), [profile]);
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.intro}>
-        Merge gems here. To socket a gem, open Inventory → Gear, tap a piece with sockets, then tap a socket slot.
+        Merge gems here. To socket a gem, open Inventory → Gear, tap a piece with sockets, then tap Insert gem.
       </Text>
+
+      {socketed.length > 0 ? (
+        <>
+          <Text style={styles.sectionLbl}>Socketed on gear ({socketed.length})</Text>
+          {socketed.map((row) => {
+            const ui = GEM_RARITY_UI[row.gem.rarity] ?? GEM_RARITY_UI.rare;
+            return (
+              <View key={`${row.gearInstanceId}-${row.socketIndex}`} style={[styles.socketedRow, { borderColor: ui.color }]}>
+                <Text style={styles.socketedEmoji}>{gemEmoji(row.gem.stat, row.gem.rarity)}</Text>
+                <View style={styles.socketedBody}>
+                  <Text style={[styles.socketedName, { color: ui.color }]}>
+                    {GEM_STAT_LABELS[row.gem.stat] ?? row.gem.stat} · Lv {row.gem.level}
+                  </Text>
+                  <Text style={styles.socketedMeta}>{row.gearName}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </>
+      ) : null}
 
       <Text style={styles.sectionLbl}>Your gems ({stacks.length})</Text>
       <ScrollView style={styles.list} nestedScrollEnabled keyboardShouldPersistTaps="handled">
         {stacks.length === 0 ? (
           <Text style={styles.muted}>
-            No gems in inventory. Buy Rare gems in the Shop, or earn Epic/Mythic gems from chests and dungeon bosses.
-            Socketed gems appear on your gear until removed.
+            No gems in stash. Buy Rare gems in the Shop, or earn Epic/Mythic gems from chests and dungeon bosses.
+            Socketed gems appear under “Socketed on gear” above.
           </Text>
         ) : (
           stacks.map((g) => {
@@ -50,7 +72,8 @@ export default function GemManagerPanel({
                       {g.nextValue != null ? `   Next: +${g.nextValue}` : '   (max)'}
                     </Text>
                     <Text style={styles.cardCopies}>
-                      Copies: {g.copies}{g.atMaxLevel ? '' : ` / ${g.upgradeCost}`}
+                      Duplicates: {g.copies}
+                      {g.atMaxLevel ? '' : ` · merge needs ${g.upgradeCost}`}
                     </Text>
                   </View>
                 </View>
@@ -71,7 +94,9 @@ export default function GemManagerPanel({
                     </TouchableOpacity>
                   ) : (
                     <View style={[styles.btn, styles.btnOff]}>
-                      <Text style={styles.btnTxt}>Need {g.upgradeCost} copies</Text>
+                      <Text style={styles.btnTxt}>
+                        Need {g.upgradeCost} duplicate{g.upgradeCost === 1 ? '' : 's'}
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -123,4 +148,18 @@ const styles = StyleSheet.create({
   btnTxt: { fontWeight: '900', fontSize: 10, color: GEAR_UI.tabTxtOn, textTransform: 'uppercase' },
   btnUpgrade: { backgroundColor: GEAR_UI.btnPrimary, borderColor: GEAR_UI.btnPrimaryBorder },
   btnOff: { backgroundColor: 'rgba(148,163,184,0.18)', borderColor: 'rgba(148,163,184,0.4)' },
+  socketedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 8,
+    marginBottom: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    backgroundColor: GEAR_UI.panelDeep,
+  },
+  socketedEmoji: { fontSize: 20, width: 28, textAlign: 'center' },
+  socketedBody: { flex: 1, minWidth: 0 },
+  socketedName: { fontWeight: '900', fontSize: 11 },
+  socketedMeta: { color: GEAR_UI.sub, fontSize: 10, fontWeight: '800', marginTop: 2 },
 });

@@ -5,13 +5,21 @@ import { ARRAY_GEAR_SLOTS, GEAR_SELL_VALUES } from './gearConstants';
 import { formatGearStatLines } from './gearGenerator';
 import { GEAR_SET_IDS, getGearTemplate } from './gearDefinitions';
 import { gearRarityColor } from '../../../utils/gearRarityUi';
+import { gemKey, parseGemKey } from '../gems/gemDefinitions';
 
 function normalizeSocketGemRaw(gem) {
-  if (!gem || typeof gem !== 'object' || !gem.key) return null;
+  if (!gem || typeof gem !== 'object') return null;
+  let key = String(gem.key || '').trim();
+  let parsed = parseGemKey(key);
+  if (!parsed && gem.rarity && gem.stat) {
+    key = gemKey(gem.rarity, gem.stat);
+    parsed = parseGemKey(key);
+  }
+  if (!parsed) return null;
   return {
-    key: String(gem.key),
-    rarity: gem.rarity,
-    stat: gem.stat,
+    key,
+    rarity: parsed.rarity,
+    stat: parsed.stat,
     level: Math.max(1, Math.min(10, Math.floor(gem.level || 1))),
     copies: Math.max(0, Math.floor(gem.copies || 0)),
   };

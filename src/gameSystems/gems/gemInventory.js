@@ -22,28 +22,22 @@ import {
   gemSocketInsertCoinCost,
   gemSocketRemoveCoinCost,
   makeGemDef,
+  parseGemKey,
 } from './gemDefinitions';
 import { ensureGearInventory, getGearInstance } from '../gear/inventoryGearUtils';
 
 function isValidGemKey(key) {
-  return GEM_DEF_BY_KEY.has(key);
-}
-
-const GEM_DEF_BY_KEY = new Map();
-for (const rarity of GEM_RARITIES) {
-  for (const stat of GEM_STATS) {
-    GEM_DEF_BY_KEY.set(gemKey(rarity, stat), { rarity, stat });
-  }
-}
-
-export function parseGemKey(key) {
-  return GEM_DEF_BY_KEY.get(key) ?? null;
+  return !!parseGemKey(key);
 }
 
 export function normalizeGemStack(row) {
   if (!row || typeof row !== 'object') return null;
-  const key = String(row.key || '');
-  const parsed = parseGemKey(key);
+  let key = String(row.key || '').trim();
+  let parsed = parseGemKey(key);
+  if (!parsed && row.rarity && row.stat) {
+    key = gemKey(row.rarity, row.stat);
+    parsed = parseGemKey(key);
+  }
   if (!parsed) return null;
   return {
     key,
@@ -122,7 +116,7 @@ export function isGemKeySocketed(profile, key) {
   return listSocketedGems(profile).some((row) => row.gem.key === key);
 }
 
-/** Grant N copies of a gem (rarity+stat). Creates the stack if needed. */
+/** Grant gem(s) (rarity+stat). First grant creates the owned stack; extras become merge duplicates. */
 export function grantGem(profile, rarity, stat, quantity = 1) {
   ensureGemInventory(profile);
   const key = gemKey(rarity, stat);
@@ -130,10 +124,11 @@ export function grantGem(profile, rarity, stat, quantity = 1) {
   const qty = Math.max(1, Math.floor(quantity));
   let stack = findGemStack(profile, key);
   if (!stack) {
-    stack = { key, rarity, stat, level: 1, copies: 0 };
+    stack = { key, rarity, stat, level: 1, copies: Math.max(0, qty - 1) };
     profile.gemInventory.push(stack);
+  } else {
+    stack.copies += qty;
   }
-  stack.copies += qty;
   profile.updatedAt = new Date().toISOString();
   return { ok: true, gem: stack, granted: qty };
 }
@@ -155,7 +150,10 @@ export function upgradeGem(profile, key) {
   if (stack.level >= GEM_MAX_LEVEL) return { ok: false, error: 'Gem already at max level' };
   const need = getRequiredGemsForUpgrade(stack.level);
   if (stack.copies < need) {
-    return { ok: false, error: `Need ${need} copies (have ${stack.copies}).` };
+    return {
+      ok: false,
+      error: `Need ${need} duplicate gem${need === 1 ? '' : 's'} to merge (have ${stack.copies}).`,
+    };
   }
   stack.copies -= need;
   stack.level += 1;
@@ -259,11 +257,17 @@ export function normalizeEquippedGems() {
   return { offensive: null, defensive: null, utility: null };
 }
 
+/** Gems in inventory that can be inserted into a gear socket. */
+export function listSocketableGemStacks(profile) {
+  ensureGemInventory(profile);
+  return listGemStacks(profile).filter((g) => !isGemKeySocketed(profile, g.id));
+}
+
 /** UI summary rows for the gems screen. */
 export function listGemStacks(profile) {
   ensureGemInventory(profile);
   return [...(profile.gemInventory || [])]
-    .filter((stack) => stack && (stack.copies > 0 || stack.level >= 1))
+    .filter((stack) => stack && stack.level >= 1)
     .map((stack) => {
       const def = makeGemDef(stack.rarity, stack.stat);
       const need = getRequiredGemsForUpgrade(stack.level);
@@ -321,4 +325,5 @@ export {
   gemSocketInsertCoinCost,
   gemSocketRemoveCoinCost,
   gemUpgradeCoinCost,
-};
+  parseGemKey,
+} from './gemDefinitions';

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { formatGearStatLines } from '../../src/gameSystems/gear/gearGenerator';
 import { GEAR_SET_BONUSES } from '../../src/gameSystems/gear/gearSets';
@@ -37,12 +37,17 @@ export default function GearItemDetailModal({
   onSocketGem,
   onUnsocketGem,
 }) {
-  if (!visible || !gear) return null;
-  const rarity = gear.rarity;
+  const liveGear = useMemo(
+    () => (gear && profile?.gearInventory?.find((g) => g.instanceId === gear.instanceId)) ?? gear ?? null,
+    [profile?.gearInventory, gear],
+  );
+
+  if (!visible || !gear || !liveGear) return null;
+  const rarity = liveGear.rarity ?? gear.rarity;
   const ui = gearRarityUi(rarity);
   const mythic = isMythicRarity(rarity);
-  const stats = gear.previewStats ?? gear.stats ?? [];
-  const sockets = gear.previewSockets ?? gear.sockets ?? [];
+  const stats = liveGear.stats ?? gear.previewStats ?? gear.stats ?? [];
+  const sockets = liveGear.sockets ?? gear.previewSockets ?? gear.sockets ?? [];
   const showSockets = mode !== 'shop';
   const statLines = formatGearStatLines(stats);
   const setBonus = GEAR_SET_BONUSES[gear.setId] ?? null;
@@ -63,7 +68,7 @@ export default function GearItemDetailModal({
             <GearIcon gear={gear} size={48} />
           </View>
           <Text style={[styles.name, { color: ui.color }]} numberOfLines={2}>
-            {gear.name}
+            {liveGear.name ?? gear.name}
           </Text>
           <Text style={styles.meta}>
             <Text style={[styles.metaRarity, { color: ui.color }]}>
@@ -101,9 +106,10 @@ export default function GearItemDetailModal({
                 <Text style={styles.sectionTitle}>Gem sockets</Text>
                 <Text style={styles.socketHint}>Tap a socket to insert or remove a gem.</Text>
                 <GearGemSocketPanel
+                  key={`${liveGear.instanceId}-${profile?.updatedAt ?? ''}-${sockets.filter((s) => s.gem).length}`}
                   profile={profile}
                   coins={coins}
-                  gearFilter={gear.instanceId}
+                  gearFilter={liveGear.instanceId}
                   onSocket={(gearId, socketIndex, gemKey) =>
                     onSocketGem?.(gearId, socketIndex, gemKey)
                   }

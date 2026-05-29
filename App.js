@@ -24,6 +24,7 @@ import MonsterLadderHubScreen from './components/MonsterLadderHubScreen';
 import QuestHubScreen from './components/QuestHubScreen';
 import MonsterRescueHubScreen from './components/MonsterRescueHubScreen';
 import MonsterRescueScreen from './components/MonsterRescueScreen';
+import MonsterRescueRewardScreen from './components/MonsterRescueRewardScreen';
 import MonsterRushScreen from './components/monsterRush/MonsterRushScreen';
 import MonsterLadderCollectionScreen from './components/MonsterLadderCollectionScreen';
 import MonsterLadderGearScreen from './components/MonsterLadderGearScreen';
@@ -388,6 +389,7 @@ export default function App() {
   );
 
   function shopProfileId() {
+    if (gameMode === 'onePlayer') return setupP1ProfileId || slotProfileId || activeProfileId || null;
     return slotProfileId || setupP1ProfileId || activeProfileId || null;
   }
 
@@ -857,7 +859,11 @@ export default function App() {
     return slotProfileId || setupP1ProfileId || activeProfileId;
   }, [gameMode, setupP1ProfileId, slotProfileId, activeProfileId]);
   const inventoryProfile = useMemo(
-    () => (inventoryProfileId && gameData ? getPlayerProfile(gameData, inventoryProfileId) : null),
+    () =>
+      inventoryProfileId && gameData
+        ? getPlayerProfile(gameData, inventoryProfileId) ??
+          walletForProfile(gameData, inventoryProfileId)
+        : null,
     [gameData, inventoryProfileId],
   );
   const ladderAvailable = useMemo(() => {
@@ -1439,7 +1445,11 @@ export default function App() {
 
   function handleBuyGem(gemKeyId) {
     if (!gameData) return;
-    const profileId = shopProfileId();
+    const profileId = inventoryProfileId || shopProfileId();
+    if (!profileId) {
+      showNotice('Gem Shop', 'No player profile loaded.');
+      return;
+    }
     const res = buyGemForProfile(gameData, profileId, gemKeyId);
     if (res.error) {
       showNotice('Gem Shop', res.error);
@@ -1452,7 +1462,10 @@ export default function App() {
 
   function handleUpgradeGem(gemKeyId) {
     const profileId = inventoryProfileId || gearProfileId;
-    if (!gameData || !profileId) return;
+    if (!gameData || !profileId) {
+      showNotice('Gem Upgrade', 'No player profile loaded.');
+      return;
+    }
     const res = upgradeGemForProfile(gameData, profileId, gemKeyId);
     if (res.error) {
       showNotice('Gem Upgrade', res.error);
@@ -1463,7 +1476,7 @@ export default function App() {
   }
 
   function handleSocketGem(gearInstanceId, socketIndex, gemKeyId) {
-    const profileId = inventoryProfileId || gearProfileId;
+    const profileId = inventoryProfileId || gearProfileId || shopProfileId();
     if (!gameData || !profileId) {
       showNotice('Socket Gem', 'No player profile loaded.');
       return;
@@ -1480,7 +1493,7 @@ export default function App() {
       return;
     }
     persistSave(res.gameData, 'gem_socketed', profileId);
-    showNotice('Gem socketed', `🪙 ${res.price} paid`);
+    showNotice('Gem socketed', `Forged into gear · 🪙 ${res.price} paid`);
   }
 
   function handleUnsocketGem(gearInstanceId, socketIndex) {
@@ -3039,8 +3052,8 @@ export default function App() {
       <GearMartModal
         visible={gearMartOpen}
         coins={coins}
-        profileId={shopProfileId() || ''}
-        profile={shopProfileId() ? getPlayerProfile(gameData, shopProfileId()) : null}
+        profileId={inventoryProfileId || shopProfileId() || ''}
+        profile={inventoryProfile}
         onClose={() => setGearMartOpen(false)}
         onBuy={handleBuyGearMart}
         onBuyPassiveBook={handleBuyPassiveSkillBook}

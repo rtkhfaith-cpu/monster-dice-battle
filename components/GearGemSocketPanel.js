@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GEAR_UI, gearRarityUi } from './gear/gearUiTheme';
 import {
   GEM_RARITY_UI,
@@ -8,9 +8,8 @@ import {
   gemSocketInsertCoinCost,
 } from '../src/gameSystems/gems/gemDefinitions';
 import {
-  isGemKeySocketed,
-  listGemStacks,
   listGearWithSockets,
+  listSocketableGemStacks,
   parseGemKey,
 } from '../src/gameSystems/gems/gemInventory';
 
@@ -29,10 +28,7 @@ export default function GearGemSocketPanel({
   compact = false,
   gearFilter = null,
 }) {
-  const stacks = useMemo(
-    () => listGemStacks(profile).filter((g) => !isGemKeySocketed(profile, g.id)),
-    [profile],
-  );
+  const stacks = useMemo(() => listSocketableGemStacks(profile), [profile]);
   const gearRows = useMemo(() => {
     const rows = listGearWithSockets(profile);
     if (!gearFilter) return rows;
@@ -41,6 +37,14 @@ export default function GearGemSocketPanel({
 
   const [selectedGearId, setSelectedGearId] = useState(gearFilter ?? gearRows[0]?.instanceId ?? null);
   const [pickSocketIndex, setPickSocketIndex] = useState(null);
+
+  useEffect(() => {
+    if (gearFilter) setSelectedGearId(gearFilter);
+  }, [gearFilter]);
+
+  useEffect(() => {
+    setPickSocketIndex(null);
+  }, [profile?.updatedAt, stacks.length]);
 
   const selectedGear = gearRows.find((g) => g.instanceId === selectedGearId) ?? gearRows[0] ?? null;
 
@@ -103,15 +107,16 @@ export default function GearGemSocketPanel({
                       {gemShortName(parsed.stat, parsed.rarity)}
                     </Text>
                     <Text style={styles.socketVal}>Lv {socket.gem.level}</Text>
-                    <Pressable
+                    <TouchableOpacity
                       style={[styles.socketBtn, !removeAffordable && styles.socketBtnOff]}
                       disabled={!removeAffordable}
+                      activeOpacity={0.85}
                       onPress={() => onUnsocket?.(selectedGear.instanceId, socketIndex)}
                     >
                       <Text style={styles.socketBtnTxt}>
                         Remove · 🪙 {socket.removeCost}
                       </Text>
-                    </Pressable>
+                    </TouchableOpacity>
                   </>
                 ) : (
                   <>
@@ -119,20 +124,21 @@ export default function GearGemSocketPanel({
                     <Text style={styles.socketEmptyTxt}>
                       {stacks.length === 0 ? 'No gems free' : 'Empty'}
                     </Text>
-                    <Pressable
+                    <TouchableOpacity
                       style={[
                         styles.socketBtn,
                         styles.socketBtnInsert,
-                        (!canInsert || picking) && styles.socketBtnActive,
+                        picking && styles.socketBtnActive,
                         !canInsert && styles.socketBtnOff,
                       ]}
                       disabled={!canInsert}
+                      activeOpacity={0.85}
                       onPress={() => setPickSocketIndex(picking ? null : socketIndex)}
                     >
                       <Text style={styles.socketBtnTxt}>
                         {picking ? 'Cancel' : 'Insert gem'}
                       </Text>
-                    </Pressable>
+                    </TouchableOpacity>
                   </>
                 )}
                 {picking && !filled ? (
@@ -144,10 +150,11 @@ export default function GearGemSocketPanel({
                         const insertCost = gemSocketInsertCoinCost(g.rarity);
                         const insertAff = typeof coins !== 'number' || coins >= insertCost;
                         return (
-                          <Pressable
+                          <TouchableOpacity
                             key={g.id}
                             style={[styles.pickRow, !insertAff && styles.pickRowOff]}
                             disabled={!insertAff}
+                            activeOpacity={0.85}
                             onPress={() => {
                               onSocket?.(selectedGear.instanceId, socketIndex, g.id);
                               setPickSocketIndex(null);
@@ -162,7 +169,7 @@ export default function GearGemSocketPanel({
                                 Lv {g.level} · +{g.currentValue} · 🪙 {insertCost}
                               </Text>
                             </View>
-                          </Pressable>
+                          </TouchableOpacity>
                         );
                       })
                     )}
