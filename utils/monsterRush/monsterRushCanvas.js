@@ -11,7 +11,7 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
 
   const w = state.gameWidth;
   const h = state.gameHeight;
-  const scrollOffset = opts.scrollOffset ?? (state.scrollPx * 0.15) % 200;
+  const scrollOffset = opts.scrollOffset ?? (state.scrollPx % (w + 160));
   const groundH = Math.max(32, Math.round(h * 0.14));
   const ps = MONSTER_RUSH_PHYSICS.playerSize;
   const shakeX = state.shakeMs > 0 ? (state.shakeMs % 8) - 4 : 0;
@@ -25,9 +25,9 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
 
   const hillY = state.groundSurfaceY - groundH - 8;
   ctx.fillStyle = 'rgba(34,197,94,0.45)';
-  ctx.fillRect(-scrollOffset, hillY + 18, w + 200, 36);
+  ctx.fillRect(-scrollOffset, hillY + 18, w * 2 + 120, 36);
   ctx.fillStyle = 'rgba(22,163,74,0.35)';
-  ctx.fillRect(-scrollOffset * 0.6, hillY + 32, w + 200, 24);
+  ctx.fillRect(-scrollOffset * 1.35, hillY + 32, w * 2 + 120, 24);
 
   drawGroundWithGaps(ctx, state, w, groundH);
 

@@ -202,6 +202,8 @@ export default function MonsterRushGameView({
 
   const onJumpPressIn = useCallback(() => {
     jumpHeldRef.current = true;
+    const state = gameRef.current;
+    if (state?.awaitingStart) startMonsterRushRun(state);
     tryJump();
   }, [tryJump]);
 
@@ -212,10 +214,6 @@ export default function MonsterRushGameView({
   useEffect(() => {
     let mounted = true;
     let lastDrawTs = 0;
-    const isMobileWeb = USE_CANVAS
-      && typeof navigator !== 'undefined'
-      && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const drawIntervalMs = isMobileWeb ? 33 : 16;
 
     const loop = (ts) => {
       if (!mounted) return;
@@ -227,7 +225,7 @@ export default function MonsterRushGameView({
       if (state && !state.isGameOver && !endedRef.current) {
         const wasOnGround = wasOnGroundRef.current;
 
-        if (state.isRunning && !state.isPaused) {
+        if (!state.awaitingStart && !state.isPaused) {
           const prevCoins = state.coinsCollected;
           tickMonsterRush(state, dt);
 
@@ -255,26 +253,28 @@ export default function MonsterRushGameView({
         wasOnGroundRef.current = state.player.isOnGround;
 
         if (USE_CANVAS) {
-          const shouldDraw = ts - lastDrawTs >= drawIntervalMs || state.awaitingStart || state.isPaused;
+          const runActive = !state.awaitingStart && !state.isPaused;
+          const shouldDraw = runActive || state.awaitingStart || state.isPaused || ts - lastDrawTs >= 16;
           if (shouldDraw) {
             lastDrawTs = ts;
             const ctx = canvasRef.current?.getContext?.('2d');
             if (ctx) {
+              const parallaxW = state.gameWidth + 160;
               drawMonsterRushFrame(ctx, state, {
                 monsterImg: monsterImgRef.current,
-                scrollOffset: (state.scrollPx * 0.15) % 200,
+                scrollOffset: state.scrollPx % parallaxW,
               });
             }
           }
-          if (state.isRunning && ts - lastRenderRef.current >= 500) {
+          if (runActive && ts - lastRenderRef.current >= 500) {
             lastRenderRef.current = ts;
             syncHudRef.current?.(state);
           }
-        } else if (state.isRunning && ts - lastRenderRef.current >= REACT_RENDER_MS) {
+        } else if (!state.awaitingStart && ts - lastRenderRef.current >= REACT_RENDER_MS) {
           lastRenderRef.current = ts;
           syncHudRef.current?.(state);
           bumpReact();
-        } else if (!state.isRunning && !USE_CANVAS) {
+        } else if (state.awaitingStart && !USE_CANVAS) {
           bumpReact();
         }
       }
@@ -296,6 +296,8 @@ export default function MonsterRushGameView({
         e.preventDefault();
         if (!jumpHeldRef.current) {
           jumpHeldRef.current = true;
+          const state = gameRef.current;
+          if (state?.awaitingStart) startMonsterRushRun(state);
           tryJump();
         }
       }
@@ -336,7 +338,7 @@ export default function MonsterRushGameView({
         if (ctx) {
           drawMonsterRushFrame(ctx, state, {
             monsterImg: monsterImgRef.current,
-            scrollOffset: (state.scrollPx * 0.15) % 200,
+            scrollOffset: state.scrollPx % (state.gameWidth + 160),
           });
         }
       } else {
@@ -395,7 +397,7 @@ export default function MonsterRushGameView({
     );
   }
 
-  const scrollOffset = (state.scrollPx * 0.15) % 200;
+  const scrollOffset = state.scrollPx % (w + 160);
   const groundH = Math.max(32, Math.round(h * 0.14));
 
   return (

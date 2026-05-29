@@ -59,8 +59,8 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
     gaps: [],
     coins: [],
     particles: [],
-    spawnCooldownPx: 280,
-    lastPatternEndX: gameWidth,
+    spawnCooldownPx: 48,
+    lastPatternEndX: gameWidth + 36,
     lastPatternId: '',
     repeatPatternStreak: 0,
     lastPatternDifficulty: 1,
@@ -83,6 +83,9 @@ export function startMonsterRushRun(state) {
   state.awaitingStart = false;
   state.isRunning = true;
   state.isPaused = false;
+  state.spawnCooldownPx = 0;
+  state.lastPatternEndX = state.gameWidth + 36;
+  trySpawnPattern(state);
   return true;
 }
 
@@ -106,7 +109,7 @@ export function resizeMonsterRushRun(state, gameWidth, gameHeight) {
 
 export function jumpMonsterRush(state) {
   if (state.awaitingStart) startMonsterRushRun(state);
-  if (!state.isRunning || state.isPaused || state.isGameOver) return false;
+  if (state.awaitingStart || state.isPaused || state.isGameOver) return false;
   if (!state.player.isOnGround) return false;
   state.player.velocityY = MONSTER_RUSH_PHYSICS.jumpVelocity;
   state.player.isOnGround = false;
@@ -146,10 +149,13 @@ function spawnPatternCoins(state, baseX, item) {
 function spawnPattern(state, pattern) {
   const tier = rushDifficultyTier(state.distanceM);
   const spacing = patternSpacingPx(tier);
-  const baseX = Math.max(
-    state.gameWidth + 60,
-    state.lastPatternEndX + spacing,
-  );
+  const rightEdge = state.gameWidth + 36;
+  const hasWorld = state.hazards.length > 0
+    || state.platforms.length > 0
+    || state.gaps.length > 0;
+  const baseX = hasWorld
+    ? Math.max(rightEdge, state.lastPatternEndX + spacing * 0.35)
+    : rightEdge;
 
   for (const item of pattern.items) {
     if (item.type === 'gap') {
@@ -284,11 +290,11 @@ const MAX_HAZARDS = 14;
 const MAX_PLATFORMS = 8;
 const MAX_GAPS = 5;
 const MAX_COINS = 10;
-const CULL_BEHIND = 80;
-const CULL_AHEAD = 120;
+const CULL_BEHIND = 96;
+const CULL_AHEAD_MIN = 360;
 
 function cullEntities(state) {
-  const maxX = state.gameWidth + CULL_AHEAD;
+  const maxX = state.gameWidth + Math.max(CULL_AHEAD_MIN, Math.floor(state.gameWidth * 0.45));
   const minX = -CULL_BEHIND;
   state.hazards = state.hazards.filter((h) => h.x + h.width > minX && h.x < maxX);
   state.platforms = state.platforms.filter((p) => p.x + p.width > minX && p.x < maxX);
@@ -316,7 +322,7 @@ function addParticle(state, x, y, text, life = 400) {
 }
 
 export function tickMonsterRush(state, dtMs) {
-  if (!state.isRunning || state.isPaused || state.isGameOver) return state;
+  if (state.awaitingStart || state.isPaused || state.isGameOver) return state;
 
   const dtScale = Math.min(2.5, dtMs / 16.67);
   state.elapsedMs += dtMs;
