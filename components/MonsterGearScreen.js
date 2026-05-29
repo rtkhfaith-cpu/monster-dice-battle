@@ -227,8 +227,6 @@ export default function MonsterGearScreen({
   ownedMonsters,
   battleMonsterId,
   onSellGear,
-  onSocketGem,
-  onUnsocketGem,
 }) {
   const type = useReadableType();
   const useNewGear = Array.isArray(profile?.gearInventory);
@@ -306,8 +304,6 @@ export default function MonsterGearScreen({
               onUnequipPet={onUnequipPet}
               onEquipPassiveBook={onEquipPassiveBook}
               onRemovePassive={onRemovePassive}
-              onSocketGem={onSocketGem}
-              onUnsocketGem={onUnsocketGem}
             />
           </View>
         </View>

@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import GearGemSocketPanel from './GearGemSocketPanel';
 import { GEAR_UI } from './gear/gearUiTheme';
 import {
   GEM_RARITY_UI,
@@ -9,31 +8,20 @@ import {
 import { listGemStacks } from '../src/gameSystems/gems/gemInventory';
 
 /**
- * Gem management — merge/upgrade gems and socket them into gear with coins.
+ * Gem management — merge/upgrade gems. Socket gems from Inventory → Gear → tap item.
  */
 export default function GemManagerPanel({
   profile,
   coins,
   onUpgrade,
-  onSocket,
-  onUnsocket,
 }) {
   const stacks = useMemo(() => listGemStacks(profile), [profile]);
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.intro}>
-        Gems boost stats only when socketed into epic or mythic gear. Merging, socketing, and removing all cost coins.
+        Merge gems here. To socket a gem, open Inventory → Gear, tap a piece with sockets, then tap a socket slot.
       </Text>
-
-      <Text style={styles.sectionLbl}>Socket gems into gear</Text>
-      <GearGemSocketPanel
-        profile={profile}
-        coins={coins}
-        onSocket={onSocket}
-        onUnsocket={onUnsocket}
-        compact
-      />
 
       <Text style={styles.sectionLbl}>Your gems ({stacks.length})</Text>
       <ScrollView style={styles.list} nestedScrollEnabled keyboardShouldPersistTaps="handled">

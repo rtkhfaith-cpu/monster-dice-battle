@@ -21,8 +21,6 @@ export default function MonsterEquipmentScreen({
   onUnequipPet,
   onEquipPassiveBook,
   onRemovePassive,
-  onSocketGem,
-  onUnsocketGem,
 }) {
   const { height } = useWindowDimensions();
 
@@ -44,8 +42,6 @@ export default function MonsterEquipmentScreen({
             onUnequipPet={onUnequipPet}
             onEquipPassiveBook={onEquipPassiveBook}
             onRemovePassive={onRemovePassive}
-            onSocketGem={onSocketGem}
-            onUnsocketGem={onUnsocketGem}
           />
         </View>
       </View>

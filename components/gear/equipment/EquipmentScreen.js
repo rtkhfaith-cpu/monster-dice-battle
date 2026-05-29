@@ -49,8 +49,6 @@ export default function EquipmentScreen({
   onUnequipPet,
   onEquipPassiveBook,
   onRemovePassive,
-  onSocketGem,
-  onUnsocketGem,
 }) {
   const { width, height } = useWindowDimensions();
   const compact = width < 380 || height < 640;
@@ -283,10 +281,6 @@ export default function EquipmentScreen({
         onUnequip={handleUnequip}
         onRemovePassive={onRemovePassive}
         onClose={closePanel}
-        coins={coins}
-        profile={profile}
-        onSocketGem={onSocketGem}
-        onUnsocketGem={onUnsocketGem}
       />
     </View>
   );

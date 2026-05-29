@@ -91,8 +91,11 @@ export default function PlayerInventoryScreen({
             {tab === 'gear' ? (
               <GearInventoryPanel
                 profile={profile}
+                coins={coins}
                 onSell={onSell}
                 onOpenEquip={onOpenEquip}
+                onSocketGem={onSocketGem}
+                onUnsocketGem={onUnsocketGem}
                 fullHeight
               />
             ) : null}
@@ -170,8 +173,6 @@ export default function PlayerInventoryScreen({
                 profile={profile}
                 coins={coins}
                 onUpgrade={onUpgradeGem}
-                onSocket={onSocketGem}
-                onUnsocket={onUnsocketGem}
               />
             ) : null}
           </View>

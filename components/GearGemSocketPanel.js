@@ -88,8 +88,20 @@ export default function GearGemSocketPanel({
             const parsed = socket.gem?.key ? parseGemKey(socket.gem.key) : null;
             const picking = pickSocketIndex === socketIndex;
             const removeAffordable = typeof coins !== 'number' || coins >= (socket.removeCost ?? 0);
+            const togglePick = () => {
+              if (!filled && stacks.length > 0) {
+                setPickSocketIndex(picking ? null : socketIndex);
+              }
+            };
+
             return (
-              <View key={socket.id || `sk-${socketIndex}`} style={styles.socketBox}>
+              <TouchableOpacity
+                key={socket.id || `sk-${socketIndex}`}
+                style={styles.socketBox}
+                onPress={togglePick}
+                disabled={filled || stacks.length === 0}
+                activeOpacity={filled ? 1 : 0.85}
+              >
                 <Text style={styles.socketLbl}>Socket {socketIndex + 1}</Text>
                 {filled && parsed ? (
                   <>
@@ -101,7 +113,10 @@ export default function GearGemSocketPanel({
                     <TouchableOpacity
                       style={[styles.socketBtn, !removeAffordable && styles.socketBtnOff]}
                       disabled={!removeAffordable}
-                      onPress={() => onUnsocket?.(selectedGear.instanceId, socketIndex)}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        onUnsocket?.(selectedGear.instanceId, socketIndex);
+                      }}
                     >
                       <Text style={styles.socketBtnTxt}>
                         Remove · 🪙 {socket.removeCost}
@@ -115,7 +130,10 @@ export default function GearGemSocketPanel({
                     <TouchableOpacity
                       style={[styles.socketBtn, styles.socketBtnInsert]}
                       disabled={stacks.length === 0}
-                      onPress={() => setPickSocketIndex(picking ? null : socketIndex)}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        setPickSocketIndex(picking ? null : socketIndex);
+                      }}
                     >
                       <Text style={styles.socketBtnTxt}>Insert gem</Text>
                     </TouchableOpacity>
@@ -154,7 +172,7 @@ export default function GearGemSocketPanel({
                     )}
                   </View>
                 ) : null}
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>

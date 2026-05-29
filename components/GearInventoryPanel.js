@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ConfirmDialog from './ConfirmDialog';
 import {
@@ -7,6 +7,7 @@ import {
   gearCardSummary,
   gearSellCoinValue,
 } from '../src/gameSystems/gear/inventoryGearUtils';
+import GearItemDetailModal from './gear/GearItemDetailModal';
 import {
   GEAR_UI,
   GearIcon,
@@ -28,10 +29,19 @@ const FILTERS = [
   { id: 'unequipped', label: 'Free' },
 ];
 
-export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullHeight }) {
+export default function GearInventoryPanel({
+  profile,
+  coins,
+  onSell,
+  onOpenEquip,
+  onSocketGem,
+  onUnsocketGem,
+  fullHeight,
+}) {
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('rarity');
   const [mythicSellConfirm, setMythicSellConfirm] = useState(null);
+  const [inspectGear, setInspectGear] = useState(null);
 
   function requestSell(gear) {
     if (!onSell) return;
@@ -57,6 +67,12 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullH
     const filtered = filterGearInventory(raw, filter);
     return sortGearInventory(filtered, sortBy);
   }, [profile, filter, sortBy]);
+
+  useEffect(() => {
+    if (!inspectGear?.instanceId) return;
+    const updated = profile?.gearInventory?.find((g) => g.instanceId === inspectGear.instanceId);
+    if (updated) setInspectGear(updated);
+  }, [profile?.gearInventory, inspectGear?.instanceId]);
 
   return (
     <View style={styles.wrap}>
@@ -126,7 +142,7 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullH
             const equipped = !!g.equippedToMonsterId;
             const sellCoins = gearSellCoinValue(g);
             return (
-              <View
+              <TouchableOpacity
                 key={g.instanceId}
                 style={[
                   styles.card,
@@ -134,6 +150,8 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullH
                   mythic && styles.cardMythic,
                   equipped && styles.cardEquipped,
                 ]}
+                onPress={() => setInspectGear(g)}
+                activeOpacity={0.88}
               >
                 <View style={styles.cardTop}>
                   <View style={styles.cardEmoji}>
@@ -165,15 +183,37 @@ export default function GearInventoryPanel({ profile, onSell, onOpenEquip, fullH
                   <Text style={styles.sellValue}>Sell value: 🪙 {sellCoins}</Text>
                 ) : null}
                 {onSell && !equipped ? (
-                  <TouchableOpacity style={styles.sellBtn} onPress={() => requestSell(g)}>
+                  <TouchableOpacity
+                    style={styles.sellBtn}
+                    onPress={(e) => {
+                      e?.stopPropagation?.();
+                      requestSell(g);
+                    }}
+                  >
                     <Text style={styles.sellTxt}>Sell · 🪙 {sellCoins}</Text>
                   </TouchableOpacity>
                 ) : null}
-              </View>
+                {(card.socketCount ?? 0) > 0 ? (
+                  <Text style={styles.tapHint}>Tap to manage gem sockets</Text>
+                ) : (
+                  <Text style={styles.tapHint}>Tap for details</Text>
+                )}
+              </TouchableOpacity>
             );
           })
         )}
       </ScrollView>
+
+      <GearItemDetailModal
+        visible={!!inspectGear}
+        gear={inspectGear}
+        mode="inventory"
+        profile={profile}
+        coins={coins}
+        onSocketGem={onSocketGem}
+        onUnsocketGem={onUnsocketGem}
+        onClose={() => setInspectGear(null)}
+      />
     </View>
   );
 }
@@ -294,4 +334,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#450a0a',
   },
   sellTxt: { color: '#fecaca', fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
+  tapHint: {
+    color: GEAR_UI.accent,
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
 });

@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { formatGearStatLines } from '../../src/gameSystems/gear/gearGenerator';
 import { GEAR_SET_BONUSES } from '../../src/gameSystems/gear/gearSets';
+import GearGemSocketPanel from '../GearGemSocketPanel';
 import {
   GEAR_UI,
   GearBuildPill,
@@ -31,6 +32,10 @@ export default function GearItemDetailModal({
   onBuy,
   onEquip,
   onClose,
+  profile,
+  coins,
+  onSocketGem,
+  onUnsocketGem,
 }) {
   if (!visible || !gear) return null;
   const rarity = gear.rarity;
@@ -86,12 +91,28 @@ export default function GearItemDetailModal({
               ))
             )}
 
-            {showSockets ? (
+            {showSockets && sockets.length > 0 && profile ? (
+              <>
+                <Text style={styles.sectionTitle}>Gem sockets</Text>
+                <Text style={styles.socketHint}>Tap a socket to insert or remove a gem.</Text>
+                <GearGemSocketPanel
+                  profile={profile}
+                  coins={coins}
+                  gearFilter={gear.instanceId}
+                  onSocket={(gearId, socketIndex, gemKey) =>
+                    onSocketGem?.(gearId, socketIndex, gemKey)
+                  }
+                  onUnsocket={(gearId, socketIndex) =>
+                    onUnsocketGem?.(gearId, socketIndex)
+                  }
+                  compact
+                />
+              </>
+            ) : null}
+            {showSockets && sockets.length === 0 ? (
               <>
                 <Text style={styles.sectionTitle}>Sockets</Text>
-                <Text style={styles.statLine}>
-                  {`Socket: ${Math.max(0, sockets.length)}`}
-                </Text>
+                <Text style={styles.muted}>This piece has no gem sockets.</Text>
               </>
             ) : null}
 
@@ -210,6 +231,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   statLine: { fontSize: 13, fontWeight: '800', color: GEAR_UI.statPos, marginVertical: 2 },
+  socketHint: { fontSize: 11, fontWeight: '800', color: GEAR_UI.muted, marginBottom: 6, lineHeight: 15 },
   muted: { fontSize: 12, fontWeight: '800', color: GEAR_UI.muted, fontStyle: 'italic' },
   setName: { fontSize: 13, fontWeight: '900', color: GEAR_UI.title, marginTop: 2 },
   setDesc: { fontSize: 12, fontWeight: '800', color: '#c4b5fd', marginTop: 2, lineHeight: 16 },

@@ -18,7 +18,6 @@ import {
 } from '../../../src/gameSystems/passiveSkills';
 import { calculatePetStats } from '../../../src/gameSystems/pets';
 import { describePetSkill } from '../../../src/gameSystems/petSkills';
-import GearGemSocketPanel from '../../GearGemSocketPanel';
 import GearComparisonPanel from './GearComparisonPanel';
 import { GEAR_UI, GearIcon, gearRarityUi, isMythicRarity } from '../gearUiTheme';
 
@@ -60,10 +59,6 @@ export default function CompatibleItemPanel({
   onEquip,
   onUnequip,
   onClose,
-  coins,
-  profile,
-  onSocketGem,
-  onUnsocketGem,
 }) {
   if (!selectedSlot) return null;
 
@@ -93,22 +88,6 @@ export default function CompatibleItemPanel({
           <Text style={[styles.currentName, { color: gearRarityUi(currentGear.rarity).color }]}>
             {currentGear.name}
           </Text>
-        </View>
-      ) : null}
-
-      {kind === 'gear' && currentGear && (currentGear.sockets?.length ?? 0) > 0 ? (
-        <View style={styles.socketSection}>
-          <Text style={styles.socketTitle}>Gem sockets</Text>
-          <GearGemSocketPanel
-            profile={profile}
-            coins={coins}
-            gearFilter={currentGear.instanceId}
-            onSocket={(gearId, socketIndex, gemKey) =>
-              onSocketGem?.(gearId, socketIndex, gemKey)
-            }
-            onUnsocket={(gearId, socketIndex) => onUnsocketGem?.(gearId, socketIndex)}
-            compact
-          />
         </View>
       ) : null}
 
@@ -315,15 +294,6 @@ const styles = StyleSheet.create({
   currentRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8, alignItems: 'center' },
   currentLbl: { fontWeight: '800', color: GEAR_UI.muted, fontSize: 11 },
   currentName: { fontWeight: '900', fontSize: 12 },
-  socketSection: {
-    marginBottom: 10,
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: GEAR_UI.panelBorder,
-    backgroundColor: GEAR_UI.panelDeep,
-  },
-  socketTitle: { fontWeight: '900', color: GEAR_UI.accent, fontSize: 11, marginBottom: 6, textTransform: 'uppercase' },
   list: { maxHeight: 220 },
   clearRow: {
     padding: 10,

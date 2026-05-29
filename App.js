@@ -1461,7 +1461,7 @@ export default function App() {
   }
 
   function handleSocketGem(gearInstanceId, socketIndex, gemKeyId) {
-    const profileId = gearProfileId || inventoryProfileId;
+    const profileId = inventoryProfileId || gearProfileId;
     if (!gameData || !profileId) return;
     const res = socketGemInGearForProfile(
       gameData,
@@ -1479,7 +1479,7 @@ export default function App() {
   }
 
   function handleUnsocketGem(gearInstanceId, socketIndex) {
-    const profileId = gearProfileId || inventoryProfileId;
+    const profileId = inventoryProfileId || gearProfileId;
     if (!gameData || !profileId) return;
     const res = unsocketGemFromGearForProfile(
       gameData,
@@ -2970,8 +2970,6 @@ export default function App() {
         onEquipPet={handleEquipPet}
         onUnequipPet={handleUnequipPet}
         onSpendPetDust={handleSpendPetDust}
-        onSocketGem={handleSocketGem}
-        onUnsocketGem={handleUnsocketGem}
         ownedMonsters={gearOwnedMonsters}
         battleMonsterId={gearBattleMonsterId}
         onSelectMonster={handleGearSelectMonster}
@@ -2997,8 +2995,6 @@ export default function App() {
         onUnequipPet={handleUnequipPet}
         onEquipPassiveBook={handleEquipPassiveBook}
         onRemovePassive={handleRemovePassive}
-        onSocketGem={handleSocketGem}
-        onUnsocketGem={handleUnsocketGem}
       />
 
       <GearMartModal
