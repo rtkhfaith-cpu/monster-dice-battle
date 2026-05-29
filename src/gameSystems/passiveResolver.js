@@ -1,7 +1,12 @@
 /**
  * Passive skill combat resolution — integrates with battleLogic resolvers.
  */
-import { rollPercentChance } from '../../utils/battleLogic';
+import {
+  rollPercentChance,
+  isSupportMagicSkill,
+  resolveSupportMagicSkill,
+  tickSupportCooldowns,
+} from '../../utils/battleLogic';
 import {
   COMBAT_BALANCE,
   applyCombatDamageModifiers,
@@ -152,6 +157,25 @@ export function resolveAttackWithPassives({
 
   const magic = strikeKind === 'magic';
   const phantomBonus = sumPassive(def, PASSIVE_SKILL_IDS.PHANTOM_STEP, 'dodgeBonusPct');
+
+  if (magic && isSupportMagicSkill(skill)) {
+    const support = resolveSupportMagicSkill(atk, skill);
+    const log = support.message ? [support.message] : [];
+    return buildResult({
+      damage: 0,
+      dodged: false,
+      critical: false,
+      weak: false,
+      defended: false,
+      strikeKind,
+      supportMagic: true,
+      healing: support.healing ?? 0,
+      attacker: support.attacker,
+      defender: def,
+      popupsToShow: pickTopPopups(popups),
+      battleLogEntries: log,
+    });
+  }
 
   if (!rollPercentChance(attackHitChance(atk, def, magic))) {
     addPopup(popups, 'MISS');
@@ -336,6 +360,7 @@ export function resolveStartOfTurnPassives(fighter) {
   const popups = [];
   const battleLogEntries = [];
   let f = { ...fighter };
+  f = tickSupportCooldowns(f);
   ensureBattleState(f);
 
   const regenPassive = passivesOf(f).find((p) => p.skillId === PASSIVE_SKILL_IDS.REGENERATION_AURA);

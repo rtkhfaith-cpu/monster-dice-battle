@@ -43,32 +43,43 @@ const BASE_BY_RARITY = {
 /** Per-mythic tuning — overrides BASE_BY_RARITY.mythic when set on a def. */
 const MYTHIC_CUSTOM_BASE = {
   algorithm_angel: {
-    hp: 202,
-    mp: 102,
+    hp: 218,
+    mp: 128,
     attackMin: 12,
     attackMax: 17,
-    magicMin: 28,
-    magicMax: 40,
-    defMin: 11,
-    defMax: 16,
-    magicDefMin: 14,
-    magicDefMax: 20,
+    magicMin: 30,
+    magicMax: 42,
+    defMin: 12,
+    defMax: 17,
+    magicDefMin: 15,
+    magicDefMax: 21,
     critical: 12,
-    dodge: 9,
+    dodge: 10,
   },
   core_feed_beast: {
-    hp: 186,
-    mp: 96,
-    attackMin: 10,
-    attackMax: 15,
-    magicMin: 32,
-    magicMax: 46,
-    defMin: 9,
-    defMax: 14,
-    magicDefMin: 10,
-    magicDefMax: 15,
-    critical: 15,
-    dodge: 8,
+    // Mythic magic nuker — highest magic in the roster, squishier than shop mythics but not below mythic floor.
+    // Ladder growth is slower than shop mythics (hpPerLevel 4 vs ~7–9), so base must carry more weight.
+    hp: 245,
+    mp: 100,
+    attackMin: 11,
+    attackMax: 16,
+    magicMin: 36,
+    magicMax: 50,
+    defMin: 11,
+    defMax: 16,
+    magicDefMin: 12,
+    magicDefMax: 17,
+    critical: 16,
+    dodge: 9,
+  },
+};
+
+/** Optional growth overrides for ladder mythics. */
+const MYTHIC_CUSTOM_GROWTH = {
+  algorithm_angel: {
+    ...GROWTH,
+    mpPerLevel: 3.2,
+    magicEveryLevels: 3,
   },
 };
 
@@ -93,7 +104,7 @@ const DEFS = [
     faction: 'core_feed',
     colorIdx: 10,
     species: 21,
-    description: 'Mythic mage — Water / Metal. Counters Bubble Tea Slime.',
+    description: 'Mythic healer — Water / Metal. Heals allies and revives from the brink. Counters Bubble Tea Slime.',
   },
   { id: 'trash_panda_ronin', name: 'Trash Panda Ronin', rarity: 'rare', role: 'trickster', element: 'earth', elements: ['earth', 'earth'], faction: 'urban', colorIdx: 4, species: 22 },
   { id: 'pizza_meteor', name: 'Pizza Meteor', rarity: 'common', role: 'balanced', element: 'fire', elements: ['fire', 'earth'], faction: 'fast_food', colorIdx: 2, species: 23 },
@@ -136,7 +147,9 @@ function buildTemplate(def) {
     faction: def.faction,
     description: def.description ?? `Ladder-exclusive · ${def.faction}`,
     baseStats,
-    growthProfile: { ...GROWTH },
+    growthProfile: MYTHIC_CUSTOM_GROWTH[def.id]
+      ? { ...MYTHIC_CUSTOM_GROWTH[def.id] }
+      : { ...GROWTH },
     visualProfile: {
       defaultParts: {
         species: def.species,

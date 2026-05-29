@@ -126,6 +126,7 @@ function buildMonsterState(entry, formationCorrect) {
   let maxHpMult = 1 + allStatsPct / 100;
   if (tankerAt1) maxHpMult += ROLE_POSITION_BONUS.tanker.maxHpBonus / 100;
   const maxHp = Math.round((stats.hp ?? 100) * maxHpMult);
+  const maxMp = fighter.maxMp ?? stats.mp ?? 60;
 
   return {
     id: owned.id,
@@ -138,12 +139,98 @@ function buildMonsterState(entry, formationCorrect) {
     stats,
     petSnapshot: fighter.equippedPet ?? null,
     gearModifiers: fighter.gearModifiers ?? null,
+    magicSkills: fighter.skills?.magic ?? [],
     maxHp,
     hp: maxHp,
+    maxMp,
+    mp: maxMp,
     alive: true,
-    statuses: {}, // { stun, freeze, burn:{turns,dmg}, damageTakenPct:{turns,value}, speedDodgeDown:{turns,value} }
+    statuses: {},
+    supportState: { reviveCooldown: 0 },
     bonus: { damageReduction, outgoingMult, critRate, critMult },
   };
+}
+
+function findMagicSupportSkill(magicSkills, type) {
+  return (magicSkills || []).find((s) => s?.status?.type === type) ?? null;
+}
+
+function deadMonsters(state) {
+  return state.monsters.filter((m) => !m.alive || m.hp <= 0);
+}
+
+/** Position-2 healer: team heal + ally revive (high MP + cooldown). */
+function resolvePosition2HealerSupport(state, monster) {
+  if (monster.role !== 'healer') return;
+
+  const support = monster.supportState ?? {};
+  if ((support.reviveCooldown ?? 0) > 0) {
+    monster.supportState = { ...support, reviveCooldown: support.reviveCooldown - 1 };
+  }
+
+  const magic = monster.magicSkills || [];
+  const healSkill = findMagicSupportSkill(magic, 'heal');
+  const reviveSkill = findMagicSupportSkill(magic, 'revive');
+  const healMult = healingMultiplier({ gearModifiers: monster.gearModifiers });
+
+  if (reviveSkill && (monster.supportState?.reviveCooldown ?? 0) <= 0) {
+    const mpCost = reviveSkill.mpCost ?? 30;
+    const fallen = deadMonsters(state).filter((m) => m.id !== monster.id);
+    if (fallen.length > 0 && (monster.mp ?? 0) >= mpCost) {
+      const target = fallen.sort((a, b) => a.position - b.position)[0];
+      const pct = reviveSkill.status?.reviveHpPct ?? 35;
+      const cd = reviveSkill.status?.cooldownTurns ?? 5;
+      target.hp = Math.max(1, Math.round(target.maxHp * (pct / 100)));
+      target.alive = true;
+      target.statuses = {};
+      monster.mp = Math.max(0, monster.mp - mpCost);
+      monster.supportState = { ...monster.supportState, reviveCooldown: cd };
+      logLine(
+        state,
+        `${monster.name} spent ${mpCost} MP — revived ${target.name} at ${pct}% HP! (${cd}-turn cooldown)`,
+        'heal',
+        {
+          type: 'heal',
+          targetId: target.id,
+          sourceId: monster.id,
+          revive: true,
+          amount: target.hp,
+          mpCost,
+          cooldownTurns: cd,
+        },
+      );
+    }
+  }
+
+  if (healSkill) {
+    const mpCost = healSkill.mpCost ?? 0;
+    if ((monster.mp ?? 0) >= mpCost) {
+      const pct = healSkill.status?.healMaxHpPct ?? 16;
+      const allies = aliveMonsters(state);
+      let totalHeal = 0;
+      for (const ally of allies) {
+        let heal = Math.round(ally.maxHp * (pct / 100));
+        heal = Math.round(heal * healMult);
+        const missing = Math.max(0, ally.maxHp - ally.hp);
+        heal = Math.min(missing, heal);
+        if (heal > 0) {
+          ally.hp = Math.min(ally.maxHp, ally.hp + heal);
+          totalHeal += heal;
+        }
+      }
+      if (totalHeal > 0) {
+        if (mpCost > 0) monster.mp = Math.max(0, monster.mp - mpCost);
+        logLine(state, `${monster.name} mends the team (+${pct}% max HP each).`, 'heal', {
+          type: 'heal',
+          targetIds: allies.map((a) => a.id),
+          sourceId: monster.id,
+          teamWide: true,
+          amount: totalHeal,
+          mpCost,
+        });
+      }
+    }
+  }
 }
 
 function aliveMonsters(state) {
@@ -596,7 +683,10 @@ export function advanceDungeonStep(state) {
     if (monster && monster.alive && monster.hp > 0) {
       const up = monsterUpkeep(state, monster);
       if (!up.skip) {
-        if (monster.position === 2) resolvePosition2PetSupport(state, monster);
+        if (monster.position === 2) {
+          resolvePosition2HealerSupport(state, monster);
+          resolvePosition2PetSupport(state, monster);
+        }
         playerAttackBoss(state, monster);
       }
     }

@@ -1316,7 +1316,12 @@ export default function BattleScreen({
 
     battlePhaseRef.current = 'resolveAttack';
     setBattlePhase('resolveAttack');
-    showBanner(bannerText || skill?.name || 'Attack');
+    showBanner(
+      bannerText ||
+        (resolved.supportMagic ? resolved.battleLogEntries?.[0] : null) ||
+        skill?.name ||
+        'Attack',
+    );
 
     if (!usePhaserBattleRenderer || phaserFailed) {
       if (attackerId === PLAYER_ID) {
@@ -1371,6 +1376,7 @@ export default function BattleScreen({
     });
 
     schedule(timing.defenderAt, () => {
+      if (resolved.supportMagic) return;
       if (resolved.dodged) {
         if (!actionSfxRef.current.dodge) {
           actionSfxRef.current.dodge = true;
@@ -1399,6 +1405,11 @@ export default function BattleScreen({
     });
 
     schedule(timing.impactAt, () => {
+      if (resolved.supportMagic) {
+        applyPendingHp();
+        presentPassiveFromAttack(resolved, attackerId, defenderId);
+        return;
+      }
       if (!resolved.dodged) {
         applyPendingHp();
         applyImpactVisuals(defenderId, { ...effectPayload, damage: dmg });

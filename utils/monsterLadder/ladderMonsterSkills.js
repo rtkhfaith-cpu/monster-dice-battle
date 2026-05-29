@@ -83,9 +83,14 @@ export const LADDER_MONSTER_SKILL_SETS = {
   algorithm_angel: {
     physical: phys('viral_touch', 'Viral Touch', '👼', 0.95),
     magic: [
-      mag('auto_heal', 'Auto-Heal', '💚', 'water', 14, 1, 'normal', { type: 'heal', chance: 1, turns: 1 }),
-      mag('viral_blessing', 'Viral Blessing', '✨', 'metal', 13, 1.15, 'normal', { type: 'atkUp', chance: 1, turns: 2 }),
-      mag('rewrite_fate', 'Rewrite Fate', '📱', 'water', 20, 1.45, 'magic67'),
+      mag('viral_mending', 'Viral Mending', '💚', 'water', 11, 0, 'normal', { type: 'heal', chance: 1, healMaxHpPct: 28 }),
+      mag('angel_revival', 'Angel Revival', '🕊️', 'water', 34, 0, 'normal', {
+        type: 'revive',
+        chance: 1,
+        reviveHpPct: 55,
+        cooldownTurns: 3,
+      }),
+      mag('rewrite_fate', 'Rewrite Fate', '📱', 'water', 16, 1.3, 'magic67'),
     ],
   },
   trash_panda_ronin: {
@@ -105,7 +110,7 @@ export const LADDER_MONSTER_SKILL_SETS = {
   cloud_catfish: {
     physical: phys('mist_whisker', 'Mist Whisker', '🐟', 1),
     magic: [
-      mag('rain_heal', 'Rain Heal', '🌧️', 'water', 13, 1, 'water', { type: 'heal', chance: 1, turns: 1 }),
+      mag('rain_heal', 'Rain Heal', '🌧️', 'water', 13, 0, 'water', { type: 'heal', chance: 1, healMaxHpPct: 18 }),
       mag('thunder_drizzle', 'Thunder Drizzle', '⚡', 'wood', 15, 1.22, 'normal'),
     ],
   },

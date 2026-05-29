@@ -4,7 +4,7 @@
  */
 
 /** @typedef {'common'|'rare'|'epic'|'legendary'|'mythic'} MonsterRarity */
-/** @typedef {'speedster'|'tank'|'brawler'|'mage'|'trickster'|'balanced'|'mythic'|'tank_mage'} MonsterRole */
+/** @typedef {'speedster'|'tank'|'brawler'|'mage'|'healer'|'trickster'|'balanced'|'mythic'|'tank_mage'} MonsterRole */
 
 export const RARITY_ORDER = /** @type {const} */ (['common', 'rare', 'epic', 'legendary', 'mythic']);
 
@@ -27,6 +27,7 @@ export const ROLE_LABELS = {
   tank: 'Tank',
   brawler: 'Brawler',
   mage: 'Mage',
+  healer: 'Healer',
   trickster: 'Trickster',
   balanced: 'Balanced',
   mythic: 'Mythic',
@@ -477,21 +478,21 @@ export const MONSTER_CATALOG = [
     name: 'Tablet Wizard',
     price: 250,
     rarity: 'legendary',
-    role: 'mage',
-    description: 'Gesture casts straight out of homework apps.',
+    role: 'healer',
+    description: 'Legendary healer — buy in the Monster Mart. Wellness apps heal the team; Restore Ritual revives fallen allies.',
     baseStats: {
-      hp: 175,
-      mp: 120,
+      hp: 182,
+      mp: 108,
       attackMin: 12,
-      attackMax: 18,
-      magicMin: 26,
-      magicMax: 38,
-      defMin: 7,
-      defMax: 12,
+      attackMax: 17,
+      magicMin: 20,
+      magicMax: 30,
+      defMin: 9,
+      defMax: 13,
       magicDefMin: 13,
-      magicDefMax: 20,
-      critical: 12,
-      dodge: 10,
+      magicDefMax: 19,
+      critical: 9,
+      dodge: 9,
     },
     growthProfile: {
       hpPerLevel: 4,
@@ -506,8 +507,8 @@ export const MONSTER_CATALOG = [
     visualProfile: {
       defaultParts: { species: 3, body: 2, head: 2, eyes: 2, mouth: 2, horn: 0, tail: 1, hands: 3, legs: 2, colorIdx: 6 },
       auraColor: '#81ecec',
-      evolutionIdeas: ['Floating tablet orbit', 'Magic circles pulse', 'Screen glare beams'],
-      moveFlair: 'glyphBurst',
+      evolutionIdeas: ['Floating tablet orbit', 'Healing glyph pulse', 'Restore aura glow'],
+      moveFlair: 'healPulse',
     },
   },
   {

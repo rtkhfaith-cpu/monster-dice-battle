@@ -3,6 +3,7 @@
  */
 const { resolvePhysicalBattleDamage, resolveMagicBattleDamage } = require('./battleDamage');
 const { getPhysicalSkill, getMagicSkills, canAffordSkill } = require('./battleSkills');
+const { isSupportMagicSkill, resolveSupportMagicSkill, SUPPORT_STATUS_TYPES } = require('./battleSupport');
 const { applyPassivesToStrike, rollPhantomDodge, resolveStartOfTurn } = require('./passiveResolver');
 const {
   getPetDodgeBonus,
@@ -203,6 +204,32 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
     return { error: 'Not enough MP' };
   }
 
+  const mpCost = strikeKind === 'magic' ? skill.mpCost ?? 0 : 0;
+  atk.mp = Math.max(0, atk.mp - mpCost);
+
+  if (strikeKind === 'magic' && isSupportMagicSkill(skill)) {
+    const support = resolveSupportMagicSkill(atk, skill);
+    atk = support.attacker;
+    setFighter(battle, attackerId, atk);
+    setFighter(battle, defenderId, def);
+
+    battle.currentEffect = buildEffect(
+      skill,
+      { damage: 0, dodged: false, critical: false, weak: false },
+      attackerId,
+      defenderId,
+      strikeKind,
+    );
+    battle.currentEffect.seq = battle.seq;
+    battle.bannerMessage = support.message ?? skill.name;
+    pushLog(battle, support.message ?? `${atk.displayName || 'Attacker'} used ${skill.name}`);
+    checkWinner(battle);
+    battle.phase = 'resolveAttack';
+    battle.battleState = 'animating';
+    bump(battle);
+    return { ok: true };
+  }
+
   const resolved =
     strikeKind === 'magic'
       ? resolveMagicBattleDamage({
@@ -213,9 +240,6 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
           defElement: def.element,
         })
       : resolvePhysicalBattleDamage({ attacker: atk, defender: def, skill });
-
-  const mpCost = strikeKind === 'magic' ? skill.mpCost ?? 0 : 0;
-  atk.mp = Math.max(0, atk.mp - mpCost);
 
   if (!resolved.dodged && rollPhantomDodge(def)) {
     resolved.dodged = true;
@@ -257,7 +281,7 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
 
     if (resolved.damage > 0 && strikeKind === 'magic' && skill?.status) {
       const st = skill.status;
-      if (st.type && st.chance && Math.random() < st.chance) {
+      if (st.type && st.chance && !SUPPORT_STATUS_TYPES.has(st.type) && Math.random() < st.chance) {
         if (!def.statuses) def.statuses = {};
         const cur = def.statuses[st.type];
         // Match client `applyStatus` defaults so DoT ticks and stat-debuff multipliers

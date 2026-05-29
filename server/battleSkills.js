@@ -99,11 +99,31 @@ const MONSTER_SKILL_SETS = {
     ],
   },
   tablet_wizard: {
-    physical: { id: 'wand_tap', name: 'Wand Tap', kind: 'physical', effectType: 'normal', emoji: '🪄', power: 1 },
+    physical: { id: 'wand_tap', name: 'Wand Tap', kind: 'physical', effectType: 'normal', emoji: '🪄', power: 0.95 },
     magic: [
-      { id: 'spell_burst', name: 'Spell Burst', kind: 'magic', mpCost: 12, element: 'metal', power: 1.25, effectType: 'magic67', emoji: '✨' },
-      { id: 'wifi_blast', name: 'Wi-Fi Blast', kind: 'magic', mpCost: 15, element: 'metal', power: 1.22, effectType: 'normal', emoji: '📶' },
-      { id: 'screen_glare', name: 'Screen Glare', kind: 'magic', mpCost: 11, element: 'fire', power: 1.1, effectType: 'fire', emoji: '💡', status: { type: 'burn', chance: 0.35, turns: 2 } },
+      {
+        id: 'wellness_wave',
+        name: 'Wellness Wave',
+        kind: 'magic',
+        mpCost: 14,
+        element: 'metal',
+        power: 0,
+        effectType: 'normal',
+        emoji: '💚',
+        status: { type: 'heal', chance: 1, healMaxHpPct: 14 },
+      },
+      {
+        id: 'restore_ritual',
+        name: 'Restore Ritual',
+        kind: 'magic',
+        mpCost: 34,
+        element: 'metal',
+        power: 0,
+        effectType: 'normal',
+        emoji: '🕊️',
+        status: { type: 'revive', chance: 1, reviveHpPct: 28, cooldownTurns: 6 },
+      },
+      { id: 'glyph_spark', name: 'Glyph Spark', kind: 'magic', mpCost: 14, element: 'metal', power: 1.08, effectType: 'magic67', emoji: '✨' },
     ],
   },
   skibidi_bot: {
@@ -111,13 +131,6 @@ const MONSTER_SKILL_SETS = {
     magic: [
       { id: 'skibidi_beam', name: 'Skibidi Beam', kind: 'magic', mpCost: 14, element: 'earth', power: 1.3, effectType: 'normal', emoji: '🎵' },
       { id: 'camera_flash', name: 'Camera Flash', kind: 'magic', mpCost: 12, element: 'metal', power: 1.15, effectType: 'normal', emoji: '📸' },
-    ],
-  },
-  bubble_tea_slime: {
-    physical: { id: 'pearl_shield_bash', name: 'Pearl Shield Bash', kind: 'physical', effectType: 'normal', emoji: '🛡️', power: 1.05 },
-    magic: [
-      { id: 'mud_pearl', name: 'Mud Pearl', kind: 'magic', mpCost: 13, element: 'earth', power: 1.15, effectType: 'normal', emoji: '🪨', status: { type: 'defUp', chance: 1, turns: 2 } },
-      { id: 'tidal_boba', name: 'Tidal Boba', kind: 'magic', mpCost: 16, element: 'water', power: 1.25, effectType: 'water', emoji: '🧋' },
     ],
   },
   sixtyseven_rex: {
@@ -133,6 +146,13 @@ const MONSTER_SKILL_SETS = {
     magic: [
       { id: 'golden_wall', name: 'Golden Wall', kind: 'magic', mpCost: 15, element: 'metal', power: 1.38, effectType: 'normal', emoji: '🧱', status: { type: 'defDown', chance: 0.4, turns: 2 } },
       { id: 'market_quake', name: 'Market Quake', kind: 'magic', mpCost: 17, element: 'earth', power: 1.4, effectType: 'normal', emoji: '📉' },
+    ],
+  },
+  bubble_tea_slime: {
+    physical: { id: 'pearl_shield_bash', name: 'Pearl Shield Bash', kind: 'physical', effectType: 'normal', emoji: '🛡️', power: 1.05 },
+    magic: [
+      { id: 'mud_pearl', name: 'Mud Pearl', kind: 'magic', mpCost: 13, element: 'earth', power: 1.15, effectType: 'normal', emoji: '🪨', status: { type: 'defUp', chance: 1, turns: 2 } },
+      { id: 'tidal_boba', name: 'Tidal Boba', kind: 'magic', mpCost: 16, element: 'water', power: 1.25, effectType: 'water', emoji: '🧋' },
     ],
   },
 };

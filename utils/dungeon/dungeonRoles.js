@@ -16,6 +16,7 @@ const ROLE_MAP = {
   tank: 'tanker',
   tank_mage: 'tanker',
   mage: 'healer',
+  healer: 'healer',
   trickster: 'support',
   debuffer: 'support',
   brawler: 'damager',

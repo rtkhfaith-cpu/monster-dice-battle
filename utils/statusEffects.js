@@ -50,7 +50,7 @@ export function tickStatus(fighter) {
   const dict = { ...normalizeStatuses(fighter) };
   const nextDict = { ...dict };
 
-  for (const type of ['atkDown', 'defDown']) {
+  for (const type of ['atkDown', 'defDown', 'atkUp', 'defUp']) {
     const s = nextDict[type];
     if (!s || (s.turnsLeft ?? 0) <= 0) continue;
     const next = s.turnsLeft - 1;
@@ -75,6 +75,8 @@ export function statusStatMultiplier(fighter, statKind) {
   const dict = normalizeStatuses(fighter);
   if (statKind === 'attack' && (dict.atkDown?.turnsLeft ?? 0) > 0) return 0.85;
   if (statKind === 'def' && (dict.defDown?.turnsLeft ?? 0) > 0) return 0.85;
+  if (statKind === 'attack' && (dict.atkUp?.turnsLeft ?? 0) > 0) return 1.15;
+  if (statKind === 'def' && (dict.defUp?.turnsLeft ?? 0) > 0) return 1.15;
   return 1;
 }
 
