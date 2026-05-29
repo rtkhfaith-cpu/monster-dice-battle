@@ -42,7 +42,9 @@ function runTrial(gameWidth, strategy) {
   let deathFrame = null;
   let firstHazardNear = null;
 
-  while (!state.isGameOver && frames < 6000) {
+  const maxFrames = strategy === 'hold' ? 7200 : 6000;
+
+  while (!state.isGameOver && frames < maxFrames) {
     frames += 1;
     if (strategy === 'hold' && state.player.isOnGround && frames % 45 === 0) {
       jumpMonsterRush(state);
@@ -145,5 +147,16 @@ for (const w of WIDTHS) {
 
 if (fail) console.log('\nFAIL: jump-on-start still dies too fast on many trials');
 else console.log('\nPASS: jump-on-start survives long enough to react');
+
+const hold60 = [];
+for (let i = 0; i < 30; i += 1) {
+  hold60.push(runTrial(640, 'hold'));
+}
+const survived60 = hold60.filter((r) => r.survived || (r.deathFrame != null && r.deathFrame >= 3600)).length;
+console.log(`\n60s hold-jump survival (640w): ${survived60}/30 trials >= 60s`);
+if (survived60 < 24) {
+  console.log('WARN: fewer than 80% of hold-jump trials reach 60s');
+  fail = true;
+}
 
 process.exit(fail ? 1 : 0);

@@ -1,6 +1,13 @@
 import { MONSTER_RUSH_PHYSICS } from './monsterRushConfig';
 import { MONSTER_RUSH_DEBUG, hazardHitbox } from './monsterRushObstacles';
+import { getJumpMetricsForDebug } from './monsterRushLevelRules';
 import { drawRunnerImageCover } from './monsterRushRunnerImage';
+
+let _debugJumpMetrics;
+function debugJumpMetrics() {
+  if (!_debugJumpMetrics) _debugJumpMetrics = getJumpMetricsForDebug();
+  return _debugJumpMetrics;
+}
 
 /**
  * Draw one Monster Rush frame to a 2D canvas (web performance path).
@@ -146,9 +153,11 @@ function drawGroundWithGaps(ctx, state, w, groundH) {
 }
 
 function drawPlatform(ctx, plat) {
-  ctx.fillStyle = plat.color || '#65a30d';
+  ctx.fillStyle = plat.color || '#86efac';
   ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
-  ctx.strokeStyle = plat.stroke || '#3f6212';
+  ctx.fillStyle = '#bbf7d0';
+  ctx.fillRect(plat.x, plat.y, plat.width, 4);
+  ctx.strokeStyle = plat.stroke || '#15803d';
   ctx.lineWidth = 2;
   ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
 }
@@ -156,6 +165,17 @@ function drawPlatform(ctx, plat) {
 function drawHazard(ctx, hz) {
   if (hz.shape === 'spike' || hz.shape === 'ceiling_spike') {
     drawSpike(ctx, hz);
+    return;
+  }
+  if (hz.shape === 'fire') {
+    ctx.fillStyle = hz.color || '#ea580c';
+    ctx.fillRect(hz.x, hz.y + hz.height * 0.35, hz.width, hz.height * 0.65);
+    ctx.beginPath();
+    ctx.moveTo(hz.x + hz.width * 0.2, hz.y + hz.height * 0.4);
+    ctx.lineTo(hz.x + hz.width * 0.5, hz.y);
+    ctx.lineTo(hz.x + hz.width * 0.8, hz.y + hz.height * 0.4);
+    ctx.closePath();
+    ctx.fill();
     return;
   }
   ctx.fillStyle = hz.color || '#78716c';
@@ -187,4 +207,26 @@ function drawHitbox(ctx, box) {
   ctx.strokeStyle = 'rgba(239,68,68,0.75)';
   ctx.lineWidth = 1;
   ctx.strokeRect(box.x, box.y, box.width, box.height);
+}
+
+function drawDebugHud(ctx, state, w) {
+  const jm = debugJumpMetrics();
+  const dbg = state.lastSpawnDebug;
+  const chainGap = Math.max(0, Math.round(state.lastPatternEndX - state.gameWidth));
+  const lines = [
+    `jump H:${Math.round(jm.peakHeight)}px  dist:${Math.round(jm.maxJumpDistance)}px`,
+    `scroll:${Math.round(jm.scrollPxPerSec)}px/s  chain:${chainGap}px`,
+    dbg
+      ? `pattern:${dbg.patternId} [${dbg.tier}/${dbg.phase}] ok:${dbg.passed}`
+      : 'pattern:—',
+  ];
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(4, 4, Math.min(w - 8, 320), lines.length * 14 + 8);
+  ctx.fillStyle = '#fef08a';
+  for (let i = 0; i < lines.length; i += 1) {
+    ctx.fillText(lines[i], 8, 8 + i * 14);
+  }
 }

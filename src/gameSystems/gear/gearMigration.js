@@ -2,7 +2,11 @@
  * Migrate legacy cosmeticsOwned / equippedGear saves to new gear system.
  */
 import { ensureGearInventory } from './inventoryGearUtils';
-import { clearLegacyMonsterGearFields, ensureMonsterEquipment } from './equipmentSystem';
+import {
+  clearLegacyMonsterGearFields,
+  ensureMonsterEquipment,
+  repairMonsterEquipmentRefs,
+} from './equipmentSystem';
 import { getGearTemplate } from './gearDefinitions';
 
 export function migrateProfileToNewGear(profile) {
@@ -14,6 +18,7 @@ export function migrateProfileToNewGear(profile) {
   if (profile._gearSystemMigrated) {
     for (const om of profile.ownedMonsters || []) {
       ensureMonsterEquipment(om);
+      repairMonsterEquipmentRefs(profile, om);
       clearLegacyMonsterGearFields(om);
     }
     return;
@@ -21,6 +26,7 @@ export function migrateProfileToNewGear(profile) {
 
   for (const om of profile.ownedMonsters || []) {
     ensureMonsterEquipment(om);
+    repairMonsterEquipmentRefs(profile, om);
     clearLegacyMonsterGearFields(om);
   }
 

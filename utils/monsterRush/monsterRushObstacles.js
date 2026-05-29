@@ -5,7 +5,7 @@
 
 export const MONSTER_RUSH_DEBUG = false;
 
-/** @typedef {'spike'|'low_block'|'tall_pillar'|'rock'|'fire_trap'|'ice_block'|'platform'|'top_barrier'|'top_spike'|'bottom_pillar'|'top_pillar'|'gap'} RushEntityType */
+/** @typedef {'spike'|'low_block'|'tall_block'|'double_block'|'floating_barrier'|'tall_pillar'|'rock'|'fire_trap'|'ice_block'|'platform'|'step_platform'|'top_barrier'|'top_spike'|'bottom_pillar'|'top_pillar'|'gap'} RushEntityType */
 
 export const OBSTACLE_TYPES = {
   spike: {
@@ -19,12 +19,49 @@ export const OBSTACLE_TYPES = {
   },
   low_block: {
     width: 44,
-    height: 34,
+    height: 36,
     shape: 'block',
     color: '#78716c',
     stroke: '#44403c',
     hazard: true,
-    hitScale: 0.88,
+    hitScale: 0.86,
+  },
+  tall_block: {
+    width: 52,
+    height: 72,
+    shape: 'block',
+    color: '#57534e',
+    stroke: '#292524',
+    hazard: true,
+    hitScale: 0.84,
+  },
+  double_block: {
+    width: 100,
+    height: 52,
+    shape: 'block',
+    color: '#6b7280',
+    stroke: '#374151',
+    hazard: true,
+    hitScale: 0.85,
+  },
+  floating_barrier: {
+    width: 48,
+    height: 32,
+    shape: 'fire',
+    color: '#ea580c',
+    stroke: '#9a3412',
+    hazard: true,
+    hitScale: 0.82,
+  },
+  step_platform: {
+    width: 90,
+    height: 16,
+    shape: 'platform',
+    color: '#4ade80',
+    stroke: '#166534',
+    hazard: false,
+    platform: true,
+    hitScale: 1,
   },
   tall_pillar: {
     width: 42,
@@ -66,8 +103,8 @@ export const OBSTACLE_TYPES = {
     width: 80,
     height: 16,
     shape: 'platform',
-    color: '#65a30d',
-    stroke: '#3f6212',
+    color: '#86efac',
+    stroke: '#15803d',
     hazard: false,
     platform: true,
     hitScale: 1,

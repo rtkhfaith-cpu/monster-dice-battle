@@ -1,0 +1,322 @@
+/**
+ * Fair, hand-authored Monster Rush patterns.
+ * Spacing inside patterns respects jump physics; chain spacing is in level generator.
+ *
+ * @typedef {{ type: string, x: number, y?: string, width?: number, height?: number, coinPattern?: string }} PatternItem
+ * @typedef {'easy'|'medium'|'hard'} PatternTier
+ * @typedef {{ id: string, tier: PatternTier, minScrollPx: number, width: number, recovery: number, items: PatternItem[], tags?: string[], allowTightCombo?: boolean, rhythm?: string }} RushPattern
+ */
+
+/** @type {RushPattern[]} */
+export const RUSH_PATTERN_LIBRARY = [
+  // ─── TUTORIAL / EASY ─────────────────────────────────────────
+  {
+    id: 'easy_single_spike',
+    tier: 'easy',
+    minScrollPx: 0,
+    width: 56,
+    recovery: 200,
+    rhythm: 'single',
+    tags: ['ground'],
+    items: [{ type: 'spike', x: 0, y: 'ground', width: 40, height: 42 }],
+  },
+  {
+    id: 'easy_low_block',
+    tier: 'easy',
+    minScrollPx: 0,
+    width: 52,
+    recovery: 190,
+    rhythm: 'single',
+    tags: ['ground'],
+    items: [{ type: 'low_block', x: 0, y: 'ground', width: 44, height: 36 }],
+  },
+  {
+    id: 'easy_spike_coins',
+    tier: 'easy',
+    minScrollPx: 120,
+    width: 150,
+    recovery: 180,
+    rhythm: 'single',
+    tags: ['ground'],
+    items: [
+      { type: 'spike', x: 0, y: 'ground', width: 40, height: 40 },
+      { type: 'coin_arc', x: 8, coinPattern: 'smallArc' },
+    ],
+  },
+  {
+    id: 'easy_small_gap',
+    tier: 'easy',
+    minScrollPx: 200,
+    width: 200,
+    recovery: 220,
+    rhythm: 'gap',
+    tags: ['gap'],
+    items: [
+      { type: 'gap', x: 55, width: 95 },
+      { type: 'coin_arc', x: 50, coinPattern: 'gapGuide' },
+    ],
+  },
+  {
+    id: 'easy_one_step',
+    tier: 'easy',
+    minScrollPx: 300,
+    width: 130,
+    recovery: 200,
+    rhythm: 'elevation',
+    tags: ['elevation'],
+    items: [
+      { type: 'step_platform', x: 0, y: 'ground_minus_28', width: 100, height: 16 },
+      { type: 'coin_arc', x: 4, coinPattern: 'platformLine' },
+    ],
+  },
+  {
+    id: 'easy_run_under',
+    tier: 'easy',
+    minScrollPx: 400,
+    width: 200,
+    recovery: 210,
+    rhythm: 'single',
+    tags: ['top'],
+    items: [
+      { type: 'top_barrier', x: 50, y: 'ceiling', width: 56, height: 72 },
+      { type: 'coin_arc', x: 45, coinPattern: 'line' },
+    ],
+  },
+  {
+    id: 'easy_floating_hazard',
+    tier: 'easy',
+    minScrollPx: 500,
+    width: 140,
+    recovery: 200,
+    rhythm: 'single',
+    tags: ['ground'],
+    items: [
+      { type: 'floating_barrier', x: 20, y: 'ground_minus_52', width: 48, height: 32 },
+    ],
+  },
+
+  // ─── MEDIUM ─────────────────────────────────────────────────
+  {
+    id: 'med_double_spike',
+    tier: 'medium',
+    minScrollPx: 800,
+    width: 200,
+    recovery: 240,
+    rhythm: 'combo',
+    allowTightCombo: true,
+    tags: ['ground', 'combo'],
+    items: [
+      { type: 'spike', x: 0, y: 'ground', width: 38, height: 40 },
+      { type: 'spike', x: 118, y: 'ground', width: 38, height: 40 },
+    ],
+  },
+  {
+    id: 'med_spike_then_gap',
+    tier: 'medium',
+    minScrollPx: 900,
+    width: 280,
+    recovery: 250,
+    rhythm: 'gap',
+    tags: ['gap', 'combo'],
+    items: [
+      { type: 'spike', x: 0, y: 'ground', width: 40, height: 40 },
+      { type: 'gap', x: 130, width: 115 },
+      { type: 'coin_arc', x: 125, coinPattern: 'gapGuide' },
+    ],
+  },
+  {
+    id: 'med_stairs_up',
+    tier: 'medium',
+    minScrollPx: 1000,
+    width: 320,
+    recovery: 260,
+    rhythm: 'elevation',
+    tags: ['elevation'],
+    items: [
+      { type: 'step_platform', x: 0, y: 'ground_minus_30', width: 95, height: 16 },
+      { type: 'step_platform', x: 98, y: 'ground_minus_60', width: 95, height: 16 },
+      { type: 'step_platform', x: 196, y: 'ground_minus_90', width: 100, height: 16 },
+      { type: 'coin_arc', x: 0, coinPattern: 'platformLine' },
+    ],
+  },
+  {
+    id: 'med_stairs_down',
+    tier: 'medium',
+    minScrollPx: 1100,
+    width: 340,
+    recovery: 250,
+    rhythm: 'elevation',
+    tags: ['elevation'],
+    items: [
+      { type: 'step_platform', x: 0, y: 'ground_minus_90', width: 100, height: 16 },
+      { type: 'step_platform', x: 108, y: 'ground_minus_55', width: 100, height: 16 },
+      { type: 'step_platform', x: 216, y: 'ground_minus_28', width: 110, height: 16 },
+    ],
+  },
+  {
+    id: 'med_pillar_hop_two',
+    tier: 'medium',
+    minScrollPx: 1200,
+    width: 300,
+    recovery: 260,
+    rhythm: 'elevation',
+    tags: ['elevation', 'pillar_hop'],
+    items: [
+      { type: 'step_platform', x: 0, y: 'ground_minus_24', width: 88, height: 16 },
+      { type: 'step_platform', x: 128, y: 'ground_minus_48', width: 88, height: 16 },
+      { type: 'coin_arc', x: 0, coinPattern: 'platformLine' },
+    ],
+  },
+  {
+    id: 'med_block_then_spike',
+    tier: 'medium',
+    minScrollPx: 1300,
+    width: 260,
+    recovery: 240,
+    rhythm: 'combo',
+    tags: ['ground', 'combo'],
+    items: [
+      { type: 'low_block', x: 0, y: 'ground', width: 48, height: 38 },
+      { type: 'spike', x: 175, y: 'ground', width: 40, height: 40 },
+    ],
+  },
+  {
+    id: 'med_run_under_then_spike',
+    tier: 'medium',
+    minScrollPx: 1400,
+    width: 320,
+    recovery: 260,
+    rhythm: 'combo',
+    tags: ['top', 'ground'],
+    items: [
+      { type: 'top_barrier', x: 30, y: 'ceiling', width: 52, height: 78 },
+      { type: 'spike', x: 210, y: 'ground', width: 40, height: 40 },
+      { type: 'coin_arc', x: 25, coinPattern: 'line' },
+    ],
+  },
+  {
+    id: 'med_low_high_low',
+    tier: 'medium',
+    minScrollPx: 1500,
+    width: 340,
+    recovery: 270,
+    rhythm: 'elevation',
+    tags: ['elevation', 'ground'],
+    items: [
+      { type: 'spike', x: 0, y: 'ground', width: 38, height: 40 },
+      { type: 'step_platform', x: 110, y: 'ground_minus_55', width: 100, height: 16 },
+      { type: 'low_block', x: 250, y: 'ground', width: 44, height: 34 },
+    ],
+  },
+  {
+    id: 'med_medium_gap',
+    tier: 'medium',
+    minScrollPx: 1600,
+    width: 260,
+    recovery: 250,
+    rhythm: 'gap',
+    tags: ['gap'],
+    items: [
+      { type: 'gap', x: 60, width: 155 },
+      { type: 'coin_arc', x: 55, coinPattern: 'gapGuide' },
+    ],
+  },
+  {
+    id: 'med_tall_block',
+    tier: 'medium',
+    minScrollPx: 1700,
+    width: 72,
+    recovery: 230,
+    rhythm: 'single',
+    tags: ['ground'],
+    items: [{ type: 'tall_block', x: 0, y: 'ground', width: 52, height: 72 }],
+  },
+
+  // ─── HARD (fair combos only) ────────────────────────────────
+  {
+    id: 'hard_gap_then_step',
+    tier: 'hard',
+    minScrollPx: 2000,
+    width: 360,
+    recovery: 280,
+    rhythm: 'gap',
+    tags: ['gap', 'elevation'],
+    items: [
+      { type: 'gap', x: 40, width: 175 },
+      { type: 'step_platform', x: 250, y: 'ground_minus_32', width: 100, height: 16 },
+      { type: 'coin_arc', x: 35, coinPattern: 'gapGuide' },
+    ],
+  },
+  {
+    id: 'hard_pillar_hop_three',
+    tier: 'hard',
+    minScrollPx: 2200,
+    width: 380,
+    recovery: 290,
+    rhythm: 'elevation',
+    tags: ['elevation', 'pillar_hop'],
+    items: [
+      { type: 'step_platform', x: 0, y: 'ground_minus_22', width: 82, height: 16 },
+      { type: 'step_platform', x: 118, y: 'ground_minus_48', width: 82, height: 16 },
+      { type: 'step_platform', x: 236, y: 'ground_minus_70', width: 90, height: 16 },
+    ],
+  },
+  {
+    id: 'hard_spike_platform_drop',
+    tier: 'hard',
+    minScrollPx: 2400,
+    width: 400,
+    recovery: 300,
+    rhythm: 'elevation',
+    tags: ['elevation', 'ground'],
+    items: [
+      { type: 'spike', x: 0, y: 'ground', width: 40, height: 40 },
+      { type: 'step_platform', x: 130, y: 'ground_minus_58', width: 105, height: 16 },
+      { type: 'step_platform', x: 270, y: 'ground_minus_28', width: 115, height: 16 },
+    ],
+  },
+  {
+    id: 'hard_double_block',
+    tier: 'hard',
+    minScrollPx: 2600,
+    width: 130,
+    recovery: 270,
+    rhythm: 'combo',
+    allowTightCombo: true,
+    tags: ['ground', 'combo'],
+    items: [
+      { type: 'double_block', x: 0, y: 'ground', width: 100, height: 52 },
+    ],
+  },
+  {
+    id: 'hard_stair_then_gap',
+    tier: 'hard',
+    minScrollPx: 2800,
+    width: 420,
+    recovery: 300,
+    rhythm: 'gap',
+    tags: ['elevation', 'gap'],
+    items: [
+      { type: 'step_platform', x: 0, y: 'ground_minus_30', width: 90, height: 16 },
+      { type: 'step_platform', x: 95, y: 'ground_minus_58', width: 90, height: 16 },
+      { type: 'gap', x: 210, width: 185 },
+    ],
+  },
+  {
+    id: 'hard_top_lane_spike_late',
+    tier: 'hard',
+    minScrollPx: 3000,
+    width: 340,
+    recovery: 280,
+    rhythm: 'combo',
+    tags: ['top', 'ground'],
+    items: [
+      { type: 'top_barrier', x: 40, y: 'ceiling', width: 50, height: 80 },
+      { type: 'spike', x: 230, y: 'ground', width: 40, height: 40 },
+    ],
+  },
+];
+
+export const EASY_PATTERNS = RUSH_PATTERN_LIBRARY.filter((p) => p.tier === 'easy');
+export const MEDIUM_PATTERNS = RUSH_PATTERN_LIBRARY.filter((p) => p.tier === 'medium');
+export const HARD_PATTERNS = RUSH_PATTERN_LIBRARY.filter((p) => p.tier === 'hard');

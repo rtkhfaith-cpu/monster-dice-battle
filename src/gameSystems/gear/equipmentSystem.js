@@ -21,6 +21,21 @@ export function ensureMonsterEquipment(monster) {
   return eq;
 }
 
+/** Drop equipment refs that no longer exist in gearInventory (prevents equip UI crashes). */
+export function repairMonsterEquipmentRefs(profile, monster) {
+  if (!profile || !monster) return;
+  const eq = ensureMonsterEquipment(monster);
+  const keep = (id) => {
+    if (!id) return null;
+    return getGearInstance(profile, id) ? id : null;
+  };
+  eq.head = keep(eq.head);
+  eq.body = keep(eq.body);
+  for (const slot of ARRAY_GEAR_SLOTS) {
+    eq[slot] = (eq[slot] || [null, null]).map(keep);
+  }
+}
+
 export function clearLegacyMonsterGearFields(monster) {
   if (!monster) return;
   delete monster.equippedGear;

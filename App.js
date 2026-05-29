@@ -118,6 +118,7 @@ import {
   updatePlayer,
   walletForProfile,
 } from './utils/gameStorage';
+import { normalizeProfileGear } from './utils/gearStorage';
 import { loadGameSave, saveGameSave } from './src/services/saveService';
 import { listCloudPlayers } from './src/services/cloudSaveService';
 import {
@@ -1372,6 +1373,13 @@ export default function App() {
     if (!id) {
       showNotice('Monster Gear', `Pick a monster for Player ${slot} first.`);
       return;
+    }
+    const profileId = slot === 1 ? setupP1ProfileId : setupP2ProfileId;
+    if (gameData && profileId) {
+      const gd = cloneGameData(gameData);
+      const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+      if (profile) normalizeProfileGear(profile);
+      setGameData(gd);
     }
     setGearMonsterId(id);
     setGearOpen(true);
@@ -2962,6 +2970,8 @@ export default function App() {
         onEquipPet={handleEquipPet}
         onUnequipPet={handleUnequipPet}
         onSpendPetDust={handleSpendPetDust}
+        onSocketGem={handleSocketGem}
+        onUnsocketGem={handleUnsocketGem}
         ownedMonsters={gearOwnedMonsters}
         battleMonsterId={gearBattleMonsterId}
         onSelectMonster={handleGearSelectMonster}

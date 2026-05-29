@@ -37,3 +37,11 @@ export function coinOffsetsForArc(count = 5) {
   if (count <= 5) return COIN_PATTERNS.smallArc;
   return COIN_PATTERNS.highArc;
 }
+
+/** Offsets for a pattern coin_arc item (x relative to pattern base). */
+export function coinOffsetsForPatternItem(item) {
+  if (!item || item.type !== 'coin_arc') return null;
+  const pattern = COIN_PATTERNS[item.coinPattern] ?? COIN_PATTERNS.smallArc;
+  const origin = item.x ?? 0;
+  return pattern.map((o) => ({ x: origin + o.x, yOffset: o.yOffset }));
+}

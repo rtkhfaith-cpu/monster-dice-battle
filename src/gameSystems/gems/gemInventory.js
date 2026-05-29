@@ -292,12 +292,15 @@ export function listGearWithSockets(profile) {
       rarity: g.rarity,
       slot: g.slot,
       equippedToMonsterId: g.equippedToMonsterId,
-      sockets: (g.sockets || []).map((sk, i) => ({
-        index: i,
-        id: sk.id,
-        gem: normalizeSocketedGem(sk.gem),
-        removeCost: sk.gem ? gemSocketRemoveCoinCost(normalizeSocketedGem(sk.gem)?.rarity ?? 'rare') : null,
-      })),
+      sockets: (g.sockets || []).map((sk, i) => {
+        const socketGem = normalizeSocketedGem(sk.gem);
+        return {
+          index: i,
+          id: sk.id || `socket_${i + 1}`,
+          gem: socketGem,
+          removeCost: socketGem ? gemSocketRemoveCoinCost(socketGem.rarity) : null,
+        };
+      }),
     }));
 }
 

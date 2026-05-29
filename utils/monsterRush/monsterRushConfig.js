@@ -10,12 +10,17 @@ export const MONSTER_RUSH_PHYSICS = {
   playerSize: 32,
   collisionSize: 26,
   playerX: 64,
-  gravity: 0.72,
-  jumpVelocity: -15,
-  baseSpeed: 5,
-  maxSpeed: 13,
-  speedIncreaseEveryDistance: 500,
-  speedIncreaseAmount: 0.5,
+  /** Tuned for ~120px peak height, ~0.7s air time at 60fps ticks. */
+  gravity: 0.78,
+  jumpVelocity: -14.2,
+  /** Internal speed stat (drives scrollPxPerSec below). */
+  baseSpeed: 3,
+  maxSpeed: 8,
+  speedIncreaseEveryDistance: 400,
+  speedIncreaseAmount: 0.45,
+  /** Target run speed ≈ 320–380 px/s at base; scales with speed stat. */
+  scrollPxPerSecBase: 340,
+  scrollPxPerSecPerSpeed: 26,
 };
 
 export const MONSTER_RUSH_OBSTACLES = [

@@ -1,13 +1,14 @@
 /**
  * Monster Rush endless runner — pattern spawning, platforms, gaps, hazards.
  */
-import { MONSTER_RUSH_PHYSICS, rushSpeedForDistance, rushDifficultyTier } from './monsterRushConfig';
+import { MONSTER_RUSH_PHYSICS, rushSpeedForDistance } from './monsterRushConfig';
 import { obstacleTypeDef, hazardHitbox } from './monsterRushObstacles';
+import { coinOffsetsForPatternItem } from './monsterRushCoinPatterns';
 import {
-  pickPattern,
-  patternSpacingPx,
-  coinOffsetsForPatternItem,
-} from './monsterRushPatterns';
+  pickValidatedPattern,
+  patternChainSpacing,
+} from './monsterRushLevelGenerator';
+import { scrollPxPerFrame, scrollPxPerSecond } from './monsterRushLevelRules';
 
 let entitySeq = 0;
 function nextId(prefix) {
@@ -64,6 +65,8 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
     lastPatternId: '',
     repeatPatternStreak: 0,
     lastPatternDifficulty: 1,
+    rhythmIndex: 0,
+    lastSpawnDebug: null,
     wasOnGround: true,
     shakeMs: 0,
     /** No hazard damage until this reaches 0 (ms). */
@@ -79,8 +82,13 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
   };
 }
 
-function runwayPx(gameWidth) {
-  return Math.max(320, Math.floor(gameWidth * 0.52));
+/** Lead distance before first pattern (~2.6s at current speed). */
+function runwayPx(speedStat) {
+  return Math.max(300, Math.floor(scrollPxPerSecond(speedStat) * 2.6));
+}
+
+function spawnHorizonPx(state) {
+  return state.player.x + scrollPxPerSecond(state.speed) * 2.75;
 }
 
 export function startMonsterRushRun(state) {
@@ -90,7 +98,7 @@ export function startMonsterRushRun(state) {
   state.isRunning = true;
   state.isPaused = false;
   state.safeMsRemaining = 2600;
-  const lead = runwayPx(state.gameWidth);
+  const lead = runwayPx(state.speed);
   state.spawnCooldownPx = lead;
   state.lastPatternEndX = state.gameWidth + lead;
   return true;
@@ -154,14 +162,13 @@ function spawnPatternCoins(state, baseX, item) {
 }
 
 function spawnPattern(state, pattern) {
-  const tier = rushDifficultyTier(state.distanceM);
-  const spacing = patternSpacingPx(tier);
-  const rightEdge = state.gameWidth + Math.max(48, Math.floor(runwayPx(state.gameWidth) * 0.22));
+  const chain = patternChainSpacing(state.scrollPx);
+  const rightEdge = spawnHorizonPx(state);
   const hasWorld = state.hazards.length > 0
     || state.platforms.length > 0
     || state.gaps.length > 0;
   const baseX = hasWorld
-    ? Math.max(rightEdge, state.lastPatternEndX + spacing * 0.35)
+    ? Math.max(rightEdge, state.lastPatternEndX + chain)
     : Math.max(rightEdge, state.lastPatternEndX);
 
   for (const item of pattern.items) {
@@ -215,7 +222,7 @@ function spawnPattern(state, pattern) {
   }
 
   state.lastPatternEndX = baseX + pattern.width;
-  state.spawnCooldownPx = (pattern.recovery ?? 120) + spacing * 0.35;
+  state.spawnCooldownPx = pattern.recovery ?? 140;
 
   if (state.lastPatternId === pattern.id) {
     state.repeatPatternStreak += 1;
@@ -223,18 +230,26 @@ function spawnPattern(state, pattern) {
     state.lastPatternId = pattern.id;
     state.repeatPatternStreak = 1;
   }
-  state.lastPatternDifficulty = pattern.difficulty;
+  state.lastPatternDifficulty = pattern.tier === 'hard' ? 3 : pattern.tier === 'medium' ? 2 : 1;
 }
 
 function trySpawnPattern(state) {
   if (state.spawnCooldownPx > 0) return;
-  const minFront = state.gameWidth + 48;
+  if (state.lastPatternEndX > spawnHorizonPx(state) + 120) return;
+
+  const minFront = spawnHorizonPx(state);
   if (state.lastPatternEndX < minFront) state.lastPatternEndX = minFront;
-  const pattern = pickPattern(state.distanceM, {
+
+  const { pattern, debug } = pickValidatedPattern(state.scrollPx, {
     lastPatternId: state.lastPatternId,
     repeatStreak: state.repeatPatternStreak,
-    lastDifficulty: state.lastPatternDifficulty,
+    rhythmIndex: state.rhythmIndex ?? 0,
+    gameHeight: state.gameHeight,
+    distanceM: state.distanceM,
   });
+  state.rhythmIndex = (state.rhythmIndex ?? 0) + 1;
+  state.lastSpawnDebug = debug;
+
   spawnPattern(state, pattern);
 }
 
@@ -298,10 +313,11 @@ const MAX_PLATFORMS = 8;
 const MAX_GAPS = 5;
 const MAX_COINS = 10;
 const CULL_BEHIND = 96;
-const CULL_AHEAD_MIN = 360;
+/** Hazards visible this far ahead of the runner (fixed, not screen-width scaled). */
+const CULL_AHEAD_PLAYER = 500;
 
 function cullEntities(state) {
-  const maxX = state.gameWidth + Math.max(CULL_AHEAD_MIN, Math.floor(state.gameWidth * 0.45));
+  const maxX = state.player.x + CULL_AHEAD_PLAYER;
   const minX = -CULL_BEHIND;
   state.hazards = state.hazards.filter((h) => h.x + h.width > minX && h.x < maxX);
   state.platforms = state.platforms.filter((p) => p.x + p.width > minX && p.x < maxX);
@@ -336,7 +352,7 @@ export function tickMonsterRush(state, dtMs) {
   if (state.shakeMs > 0) state.shakeMs -= dtMs;
 
   state.speed = rushSpeedForDistance(state.distanceM);
-  const movePx = state.speed * dtScale * 2.2;
+  const movePx = scrollPxPerFrame(state.speed, dtMs);
   state.scrollPx += movePx;
   state.distanceM = Math.floor(state.scrollPx / 10);
   state.rushPointsThisRun = Math.floor(state.distanceM / 10) + state.coinsCollected;
