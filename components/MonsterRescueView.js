@@ -64,8 +64,8 @@ export default function MonsterRescueView({
       try {
         const [PhaserModule, sceneModule, bootModule] = await Promise.all([
           import('phaser'),
-          import('../../src/phaser/monsterRescue/MonsterRescueScene'),
-          import('../../src/phaser/monsterRescue/bootConfig'),
+          import('../src/phaser/monsterRescue/MonsterRescueScene'),
+          import('../src/phaser/monsterRescue/bootConfig'),
         ]);
         const Phaser = PhaserModule.default ?? PhaserModule;
         const { createMonsterRescueScene } = sceneModule;
