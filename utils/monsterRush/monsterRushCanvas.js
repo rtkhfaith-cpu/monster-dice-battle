@@ -115,7 +115,18 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
     });
   }
 
-  if (state.isPaused) {
+  if (state.awaitingStart) {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.font = 'bold 20px system-ui, sans-serif';
+    ctx.fillStyle = '#fff4cf';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Tap · click · Space to start', w / 2, h / 2);
+    ctx.font = '600 13px system-ui, sans-serif';
+    ctx.fillStyle = '#bfdbfe';
+    ctx.fillText('Hold to jump', w / 2, h / 2 + 28);
+  } else if (state.isPaused) {
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
     ctx.fillRect(0, 0, w, h);
     ctx.font = 'bold 22px system-ui, sans-serif';

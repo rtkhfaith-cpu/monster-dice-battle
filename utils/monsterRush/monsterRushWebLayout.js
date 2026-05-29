@@ -70,8 +70,47 @@ function ensureStyleTag() {
       display: flex !important;
       flex-direction: column !important;
     }
+    /* In-run: lock to one landscape screen — no document scroll, no overflow */
+    html[data-monster-rush-game] {
+      height: 100% !important;
+      overflow: hidden !important;
+    }
+    html[data-monster-rush-game] body {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-height: 100dvh !important;
+      max-width: 100dvw !important;
+      overflow: hidden !important;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+        env(safe-area-inset-bottom) env(safe-area-inset-left) !important;
+      box-sizing: border-box !important;
+    }
+    html[data-monster-rush-game] #root,
+    html[data-monster-rush-game] #root > div,
+    html[data-monster-rush-game] #root > div > div {
+      flex: 1 !important;
+      min-height: 0 !important;
+      max-height: 100% !important;
+      height: 100% !important;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
   `;
   document.head.appendChild(tag);
+}
+
+/** Tight fullscreen frame while a run is active (landscape phone viewport). */
+export function setMonsterRushGameLayout(active) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  if (active) {
+    document.documentElement.setAttribute('data-monster-rush-game', 'true');
+    void lockLandscape();
+  } else {
+    document.documentElement.removeAttribute('data-monster-rush-game');
+  }
 }
 
 /** Immersive layout for Monster Rush (CSS only — avoids RN-web fullscreen black screen). */

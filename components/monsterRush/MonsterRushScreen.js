@@ -18,10 +18,11 @@ import { getMonsterImageAsset } from '../../utils/monsterImageAssets';
 import { getMonsterRushState } from '../../utils/monsterRush/monsterRushProgress';
 import { RUSH_EXCHANGE_ITEMS } from '../../utils/monsterRush/monsterRushExchange';
 import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
-import { mergeArenaSize } from '../../utils/monsterRush/monsterRushArenaSize';
+import { getLandscapeGameFrameSize, mergeArenaSize } from '../../utils/monsterRush/monsterRushArenaSize';
 import {
   activateMonsterRushWebLayout,
   deactivateMonsterRushWebLayout,
+  setMonsterRushGameLayout,
   tryMonsterRushFullscreen,
 } from '../../utils/monsterRush/monsterRushWebLayout';
 import { WEB_DECORATIVE_IMAGE_PROPS } from '../../utils/webGameTouch';
@@ -77,8 +78,17 @@ export default function MonsterRushScreen({
 
   useEffect(() => {
     activateMonsterRushWebLayout();
-    return () => deactivateMonsterRushWebLayout();
+    return () => {
+      setMonsterRushGameLayout(false);
+      deactivateMonsterRushWebLayout();
+    };
   }, []);
+
+  useEffect(() => {
+    const inRun = view === 'game' && !!selectedMonster;
+    setMonsterRushGameLayout(inRun);
+    return () => setMonsterRushGameLayout(false);
+  }, [view, selectedMonster]);
 
   function tplMeta(templateId) {
     return getMonsterTemplate(templateId) ?? getLadderMonsterTemplate(templateId);
@@ -106,12 +116,31 @@ export default function MonsterRushScreen({
     [arenaSize, winW, winH],
   );
 
+  const gameFrame = useMemo(
+    () => getLandscapeGameFrameSize(winW, winH),
+    [winW, winH],
+  );
+
   if (view === 'game' && selectedMonster) {
     return (
-      <View style={styles.gameRoot}>
-        <View style={styles.arenaHost} onLayout={onArenaLayout}>
+      <View
+        style={styles.gameRoot}
+        {...(Platform.OS === 'web' ? { dataSet: { monsterRushShell: 'game' } } : {})}
+      >
+        <View
+          style={[
+            styles.landscapeFrame,
+            gameFrame.letterbox && {
+              width: gameFrame.width,
+              height: gameFrame.height,
+              maxWidth: '100%',
+              maxHeight: '100%',
+            },
+          ]}
+          onLayout={onArenaLayout}
+        >
           <MonsterRushGameView
-            key={`${runKey}_${playSize.w}x${playSize.h}`}
+            key={runKey}
             templateId={selectedMonster.templateId}
             gameWidth={playSize.w}
             gameHeight={playSize.h}
@@ -286,19 +315,43 @@ export default function MonsterRushScreen({
 const styles = StyleSheet.create({
   gameRoot: {
     flex: 1,
-    minHeight: 280,
+    minHeight: 0,
     width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#0c1224',
+    overflow: 'hidden',
     ...(Platform.OS === 'web'
-      ? { height: '100%', maxHeight: '100dvh', minHeight: '100%' }
+      ? {
+          maxHeight: '100dvh',
+          maxWidth: '100dvw',
+          height: '100%',
+        }
+      : {}),
+  },
+  landscapeFrame: {
+    flex: 1,
+    minHeight: 0,
+    width: '100%',
+    alignSelf: 'stretch',
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: '#f7c948',
+    borderRadius: Platform.OS === 'web' ? 10 : 0,
+    backgroundColor: '#7dd3fc',
+    ...(Platform.OS === 'web'
+      ? {
+          maxHeight: '100dvh',
+          maxWidth: '100dvw',
+        }
       : {}),
   },
   arenaHost: {
     flex: 1,
-    minHeight: 240,
+    minHeight: 0,
     width: '100%',
     alignSelf: 'stretch',
-    ...(Platform.OS === 'web' ? { minHeight: '100%' } : {}),
+    overflow: 'hidden',
   },
   root: {
     flex: 1,

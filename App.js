@@ -3174,7 +3174,7 @@ const styles = StyleSheet.create({
   },
   cardShellMonsterRush: {
     flex: 1,
-    minHeight: 280,
+    minHeight: 0,
     overflow: 'hidden',
     backgroundColor: '#0c1224',
     borderWidth: 0,
@@ -3186,9 +3186,8 @@ const styles = StyleSheet.create({
           flexDirection: 'column',
           width: '100%',
           height: '100%',
-          minHeight: '100%',
           maxHeight: '100dvh',
-          flex: 1,
+          maxWidth: '100dvw',
         }
       : {}),
   },

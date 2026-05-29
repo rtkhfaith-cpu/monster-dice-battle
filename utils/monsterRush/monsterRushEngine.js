@@ -31,16 +31,21 @@ function resolveItemY(state, item, def) {
   return g - h;
 }
 
+function groundSurfaceForHeight(gameHeight) {
+  return gameHeight - Math.max(40, Math.round(gameHeight * 0.1));
+}
+
 export function createMonsterRushRun({ gameWidth, gameHeight }) {
   const { playerSize, playerX } = MONSTER_RUSH_PHYSICS;
-  const groundSurfaceY = gameHeight - 40;
+  const groundSurfaceY = groundSurfaceForHeight(gameHeight);
   const groundY = groundSurfaceY - playerSize;
 
   return {
     gameWidth,
     gameHeight,
     groundSurfaceY,
-    isRunning: true,
+    awaitingStart: true,
+    isRunning: false,
     isPaused: false,
     isGameOver: false,
     distanceM: 0,
@@ -72,7 +77,35 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
   };
 }
 
+export function startMonsterRushRun(state) {
+  if (!state || state.isGameOver) return false;
+  if (!state.awaitingStart && state.isRunning) return true;
+  state.awaitingStart = false;
+  state.isRunning = true;
+  state.isPaused = false;
+  return true;
+}
+
+/** Resize playfield when the arena layout changes (keeps runner on the ground). */
+export function resizeMonsterRushRun(state, gameWidth, gameHeight) {
+  if (!state) return;
+  const { playerSize } = MONSTER_RUSH_PHYSICS;
+  const prevGroundY = state.groundSurfaceY - playerSize;
+  const onGround = state.player.isOnGround && Math.abs(state.player.y - prevGroundY) < 12;
+
+  state.gameWidth = gameWidth;
+  state.gameHeight = gameHeight;
+  state.groundSurfaceY = groundSurfaceForHeight(gameHeight);
+  const groundY = state.groundSurfaceY - playerSize;
+
+  if (onGround) {
+    state.player.y = groundY;
+    state.player.velocityY = 0;
+  }
+}
+
 export function jumpMonsterRush(state) {
+  if (state.awaitingStart) startMonsterRushRun(state);
   if (!state.isRunning || state.isPaused || state.isGameOver) return false;
   if (!state.player.isOnGround) return false;
   state.player.velocityY = MONSTER_RUSH_PHYSICS.jumpVelocity;

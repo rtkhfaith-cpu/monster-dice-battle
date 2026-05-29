@@ -14,9 +14,12 @@ import { drawMonsterRushFrame } from '../../utils/monsterRush/monsterRushCanvas'
 import {
   createMonsterRushRun,
   jumpMonsterRush,
+  resizeMonsterRushRun,
+  startMonsterRushRun,
   tickMonsterRush,
   togglePauseMonsterRush,
 } from '../../utils/monsterRush/monsterRushEngine';
+import { clampPlayfieldToViewport, getViewportLandscapeSize } from '../../utils/monsterRush/monsterRushArenaSize';
 import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
 import { playSound } from '../../utils/sounds';
 
@@ -64,9 +67,42 @@ export default function MonsterRushGameView({
 
   const [hudSnap, setHudSnap] = useState({ distanceM: 0, rushPoints: 0, coins: 0, paused: false });
   const [, setFrame] = useState(0);
+  const [playfield, setPlayfield] = useState({ w: 0, h: 0 });
 
-  const w = Math.max(320, Math.floor(gameWidth || 640));
-  const h = Math.max(200, Math.floor(gameHeight || 360));
+  const applyPlayfieldSize = useCallback((lw, lh) => {
+    const capped = clampPlayfieldToViewport(lw, lh);
+    setPlayfield((prev) => (prev.w === capped.w && prev.h === capped.h ? prev : capped));
+  }, []);
+
+  const onPlayfieldLayout = useCallback((e) => {
+    const { width, height } = e.nativeEvent.layout;
+    applyPlayfieldSize(Math.floor(width), Math.floor(height));
+  }, [applyPlayfieldSize]);
+
+  useEffect(() => {
+    if (!USE_CANVAS || typeof window === 'undefined') return undefined;
+    const bootstrapFromViewport = () => {
+      setPlayfield((prev) => {
+        if (prev.w > 0 && prev.h > 0) return prev;
+        return clampPlayfieldToViewport(
+          getViewportLandscapeSize().w,
+          getViewportLandscapeSize().h,
+        );
+      });
+    };
+    bootstrapFromViewport();
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', bootstrapFromViewport);
+    window.addEventListener('resize', bootstrapFromViewport);
+    return () => {
+      vv?.removeEventListener('resize', bootstrapFromViewport);
+      window.removeEventListener('resize', bootstrapFromViewport);
+    };
+  }, []);
+
+  const vpFallback = getViewportLandscapeSize();
+  const w = playfield.w > 0 ? playfield.w : Math.min(vpFallback.w, Math.floor(gameWidth || vpFallback.w));
+  const h = playfield.h > 0 ? playfield.h : Math.min(vpFallback.h, Math.floor(gameHeight || vpFallback.h));
 
   const syncHud = useCallback((state, forceReact = false) => {
     if (!state) return;
@@ -78,9 +114,9 @@ export default function MonsterRushGameView({
     };
     if (USE_CANVAS) {
       const r = hudRefs.current;
-      if (r.distance) r.distance.textContent = `Distance: ${next.distanceM}m`;
-      if (r.rush) r.rush.textContent = `Rush: ${next.rushPoints}`;
-      if (r.coins) r.coins.textContent = `Coins: ${next.coins}`;
+      if (r.distance) r.distance.textContent = `${next.distanceM}m`;
+      if (r.rush) r.rush.textContent = `⚡${next.rushPoints}`;
+      if (r.coins) r.coins.textContent = `🪙${next.coins}`;
       if (forceReact) setHudSnap(next);
     } else {
       setHudSnap(next);
@@ -90,12 +126,18 @@ export default function MonsterRushGameView({
   const bumpReact = useCallback(() => setFrame((f) => f + 1), []);
 
   useEffect(() => {
-    gameRef.current = createMonsterRushRun({ gameWidth: w, gameHeight: h });
-    jumpHeldRef.current = false;
-    endedRef.current = false;
-    lastTsRef.current = 0;
-    lastRenderRef.current = 0;
-    syncHud(gameRef.current, true);
+    if (w < 120 || h < 120) return;
+    if (!gameRef.current) {
+      gameRef.current = createMonsterRushRun({ gameWidth: w, gameHeight: h });
+      jumpHeldRef.current = false;
+      endedRef.current = false;
+      lastTsRef.current = 0;
+      lastRenderRef.current = 0;
+      syncHud(gameRef.current, true);
+      if (!USE_CANVAS) bumpReact();
+      return;
+    }
+    resizeMonsterRushRun(gameRef.current, w, h);
     if (!USE_CANVAS) bumpReact();
   }, [w, h, bumpReact, syncHud]);
 
@@ -161,28 +203,30 @@ export default function MonsterRushGameView({
       lastTsRef.current = ts;
 
       const state = gameRef.current;
-      if (state?.isRunning && !state.isPaused && !endedRef.current) {
-        const prevCoins = state.coinsCollected;
-        tickMonsterRush(state, dt);
+      if (state && !state.isGameOver && !endedRef.current) {
+        if (state.isRunning && !state.isPaused) {
+          const prevCoins = state.coinsCollected;
+          tickMonsterRush(state, dt);
 
-        if (jumpHeldRef.current) {
-          tryJump();
-        }
+          if (jumpHeldRef.current) {
+            tryJump();
+          }
 
-        if (state.coinsCollected > prevCoins) {
-          playSound('coin');
-          onCoinCollect?.();
-          syncHud(state);
-        }
+          if (state.coinsCollected > prevCoins) {
+            playSound('coin');
+            onCoinCollect?.();
+            syncHud(state);
+          }
 
-        if (state.isGameOver && !endedRef.current) {
-          endedRef.current = true;
-          syncHud(state, true);
-          onGameOver?.({
-            distanceM: state.distanceM,
-            coinsCollected: state.coinsCollected,
-            rushPointsThisRun: state.rushPointsThisRun,
-          });
+          if (state.isGameOver && !endedRef.current) {
+            endedRef.current = true;
+            syncHud(state, true);
+            onGameOver?.({
+              distanceM: state.distanceM,
+              coinsCollected: state.coinsCollected,
+              rushPointsThisRun: state.rushPointsThisRun,
+            });
+          }
         }
 
         if (USE_CANVAS) {
@@ -194,22 +238,16 @@ export default function MonsterRushGameView({
               scrollOffset: (state.scrollPx * 0.15) % 200,
             });
           }
-          if (ts - lastRenderRef.current >= 250) {
+          if (state.isRunning && ts - lastRenderRef.current >= 250) {
             lastRenderRef.current = ts;
             syncHud(state);
           }
-        } else if (ts - lastRenderRef.current >= REACT_RENDER_MS) {
+        } else if (state.isRunning && ts - lastRenderRef.current >= REACT_RENDER_MS) {
           lastRenderRef.current = ts;
           syncHud(state);
           bumpReact();
-        }
-      } else if (USE_CANVAS && state?.isPaused) {
-        const ctx = canvasRef.current?.getContext?.('2d');
-        if (ctx) {
-          drawMonsterRushFrame(ctx, state, {
-            monsterImg: monsterImgRef.current,
-            scrollOffset: (state.scrollPx * 0.15) % 200,
-          });
+        } else if (!state.isRunning && !USE_CANVAS) {
+          bumpReact();
         }
       }
 
@@ -295,40 +333,35 @@ export default function MonsterRushGameView({
     return (
       <Pressable
         style={[styles.wrap, styles.wrapFill]}
+        onLayout={onPlayfieldLayout}
         onPressIn={onJumpPressIn}
         onPressOut={onJumpPressOut}
       >
         <canvas
           ref={canvasRef}
-          style={{
-            width: w,
-            height: h,
-            display: 'block',
-            touchAction: 'manipulation',
-            cursor: 'pointer',
-          }}
+          style={styles.canvasFill}
         />
         <View style={styles.hudOverlay} pointerEvents="box-none">
           <View style={styles.hudTop} pointerEvents="box-none">
             <TouchableOpacity style={styles.quitBtn} onPress={onQuit}>
-              <Text style={styles.quitBtnTxt}>← Quit</Text>
+              <Text style={styles.quitBtnTxt}>Quit</Text>
             </TouchableOpacity>
-            <View style={styles.hudStats}>
-              <Text ref={(el) => { hudRefs.current.distance = el; }} style={styles.hudTxt}>
-                Distance: {hudSnap.distanceM}m
-              </Text>
-              <Text ref={(el) => { hudRefs.current.rush = el; }} style={styles.hudTxt}>
-                Rush: {hudSnap.rushPoints}
-              </Text>
-              <Text ref={(el) => { hudRefs.current.coins = el; }} style={styles.hudTxt}>
-                Coins: {hudSnap.coins}
-              </Text>
-            </View>
+            <Text ref={(el) => { hudRefs.current.distance = el; }} style={styles.hudCompact}>
+              {hudSnap.distanceM}m
+            </Text>
+            <Text ref={(el) => { hudRefs.current.rush = el; }} style={styles.hudCompact}>
+              ⚡{hudSnap.rushPoints}
+            </Text>
+            <Text ref={(el) => { hudRefs.current.coins = el; }} style={styles.hudCompact}>
+              🪙{hudSnap.coins}
+            </Text>
             <TouchableOpacity style={styles.pauseBtn} onPress={togglePause}>
               <Text style={styles.pauseBtnTxt}>{hudSnap.paused ? '▶' : '⏸'}</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.hint}>Hold to jump · Space</Text>
+          <Text style={styles.hint}>
+            {state.awaitingStart ? 'Tap to start' : 'Hold to jump'}
+          </Text>
         </View>
       </Pressable>
     );
@@ -340,6 +373,7 @@ export default function MonsterRushGameView({
   return (
     <Pressable
       style={[styles.wrap, styles.wrapFill]}
+      onLayout={onPlayfieldLayout}
       onPressIn={onJumpPressIn}
       onPressOut={onJumpPressOut}
     >
@@ -407,7 +441,13 @@ export default function MonsterRushGameView({
           <PlayerBox templateId={templateId} jumping={!state.player.isOnGround} />
         </View>
 
-        {state.isPaused ? (
+        {state.awaitingStart ? (
+          <View style={styles.pauseOverlay}>
+            <Text style={styles.pauseTxt}>Tap to start</Text>
+            <Text style={styles.startSub}>Hold to jump</Text>
+          </View>
+        ) : null}
+        {state.isPaused && !state.awaitingStart ? (
           <View style={styles.pauseOverlay}>
             <Text style={styles.pauseTxt}>Paused</Text>
           </View>
@@ -428,7 +468,9 @@ export default function MonsterRushGameView({
             <Text style={styles.pauseBtnTxt}>{hudSnap.paused ? '▶' : '⏸'}</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.hint}>Hold to jump · Space</Text>
+        <Text style={styles.hint}>
+          {state.awaitingStart ? 'Tap to start' : 'Hold to jump · Space'}
+        </Text>
       </View>
     </Pressable>
   );
@@ -445,6 +487,18 @@ const styles = StyleSheet.create({
   wrapFill: {
     flex: 1,
     minHeight: 200,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  canvasFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: '100%',
+    height: '100%',
+    display: 'block',
+    touchAction: 'manipulation',
+    cursor: 'pointer',
   },
   bootOverlay: {
     flex: 1,
@@ -532,13 +586,15 @@ const styles = StyleSheet.create({
   hudOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'space-between',
-    padding: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
   },
   hudTop: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 6,
+    gap: 4,
+    paddingHorizontal: 2,
   },
   hudStats: { flex: 1, alignItems: 'center', gap: 2 },
   hudTxt: {
@@ -549,29 +605,40 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
+  hudCompact: {
+    color: '#fff4cf',
+    fontWeight: '900',
+    fontSize: 10,
+    minWidth: 36,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   quitBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
     backgroundColor: 'rgba(30,58,95,0.88)',
     borderWidth: 1,
     borderColor: '#93c5fd',
   },
-  quitBtnTxt: { color: '#ffe08a', fontWeight: '900', fontSize: 10 },
+  quitBtnTxt: { color: '#ffe08a', fontWeight: '900', fontSize: 9 },
   pauseBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
     backgroundColor: 'rgba(30,58,95,0.9)',
     borderWidth: 1,
     borderColor: '#93c5fd',
   },
-  pauseBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 12 },
+  pauseBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 11 },
   hint: {
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.8)',
     fontWeight: '800',
-    fontSize: 9,
+    fontSize: 8,
     textAlign: 'center',
+    marginBottom: 2,
     textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
@@ -583,4 +650,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pauseTxt: { color: '#fff', fontWeight: '900', fontSize: 22 },
+  startSub: { color: '#bfdbfe', fontWeight: '800', fontSize: 13, marginTop: 8 },
 });
