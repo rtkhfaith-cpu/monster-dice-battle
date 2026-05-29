@@ -45,7 +45,8 @@ export default function DungeonsHubScreen({ onBack, onEnterBoss, unlockAllBosses
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
         {DUNGEON_BOSSES.map((boss) => {
           const available = isDungeonBossAvailable(boss, now, availOpts);
-          const daysLeft = available ? 0 : daysUntilDungeonBoss(boss, now);
+          const daysLeft = available ? 0 : daysUntilDungeonBoss(boss, now, availOpts);
+          const comingSoon = daysLeft == null;
           const accent = ELEMENT_COLORS[boss.element] ?? '#a78bfa';
           return (
             <View key={boss.id} style={[styles.card, { borderColor: accent }]}>
@@ -58,7 +59,11 @@ export default function DungeonsHubScreen({ onBack, onEnterBoss, unlockAllBosses
                   </Text>
                   <View style={[styles.statusPill, available ? styles.statusOn : styles.statusOff]}>
                     <Text style={styles.statusTxt}>
-                      {available ? 'AVAILABLE NOW' : `Available in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`}
+                      {available
+                        ? 'AVAILABLE NOW'
+                        : comingSoon
+                          ? 'COMING SOON'
+                          : `Available in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`}
                     </Text>
                   </View>
                 </View>

@@ -189,20 +189,17 @@ export function getDaysSinceGameStart(currentDate = new Date()) {
 export function isDungeonBossAvailable(boss, currentDate = new Date(), opts = {}) {
   if (!boss) return false;
   if (opts.unlockAll) return true;
-  const days = getDaysSinceGameStart(currentDate);
-  if (boss.id === 'death_knight') return true;
-  if (boss.id === 'ice_queen') return days % 2 === 0;
-  if (boss.id === 'black_dragon') return days % 3 === 0;
-  return false;
+  return boss.id === 'death_knight';
 }
 
-/** Whole days until the boss is next available (0 if available now). */
-export function daysUntilDungeonBoss(boss, currentDate = new Date()) {
-  if (!boss) return 0;
-  if (isDungeonBossAvailable(boss, currentDate)) return 0;
+/** Whole days until the boss is next available (0 if available now, null = coming soon). */
+export function daysUntilDungeonBoss(boss, currentDate = new Date(), opts = {}) {
+  if (!boss) return null;
+  if (isDungeonBossAvailable(boss, currentDate, opts)) return 0;
+  if (!opts.unlockAll && boss.id !== 'death_knight') return null;
   for (let i = 1; i <= 7; i += 1) {
     const probe = new Date(currentDate.getTime() + i * 24 * 60 * 60 * 1000);
-    if (isDungeonBossAvailable(boss, probe)) return i;
+    if (isDungeonBossAvailable(boss, probe, opts)) return i;
   }
   return 1;
 }

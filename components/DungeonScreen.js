@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import DungeonsHubScreen from './dungeon/DungeonsHubScreen';
 import DungeonTeamSelectScreen from './dungeon/DungeonTeamSelectScreen';
 import DungeonBattleScreen from './dungeon/DungeonBattleScreen';
-import { getDungeonBoss } from '../utils/dungeon/dungeonBosses';
+import { getDungeonBoss, isDungeonBossAvailable } from '../utils/dungeon/dungeonBosses';
 
 /**
  * Dungeon mode orchestrator: hub → team select → battle. Rendered while
@@ -60,6 +60,10 @@ export default function DungeonScreen({ profile, onExit, onClaimRewards, unlockA
       onBack={onExit}
       unlockAllBosses={unlockAllBosses}
       onEnterBoss={(id) => {
+        const b = getDungeonBoss(id);
+        if (!b || !isDungeonBossAvailable(b, new Date(), unlockAllBosses ? { unlockAll: true } : {})) {
+          return;
+        }
         setBossId(id);
         setView('team');
       }}
