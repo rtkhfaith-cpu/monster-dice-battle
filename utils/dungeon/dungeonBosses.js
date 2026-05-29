@@ -98,7 +98,7 @@ export const DUNGEON_BOSSES = [
     rewardsText: 'Drops 3 random Epic or Legendary items',
     blurb: 'Physical dark boss. Tests whether your Position 1 can tank stun and cleave.',
     stats: {
-      hp: 165000, attack: 6200, magicAttack: 3400, defence: 3200, magicDefence: 2400,
+      hp: 165000, attack: 4960, magicAttack: 2720, defence: 3200, magicDefence: 2400,
       dodge: 12, hitRate: 85, critRate: 12, critDamage: 140,
     },
     skills: deathKnightSkills,
