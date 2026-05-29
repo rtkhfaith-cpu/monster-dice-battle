@@ -55,14 +55,15 @@ export const GEM_RARITY_UI = {
   mythic: { label: 'Mythic', color: '#e84393', chipBg: '#fd79a8', chipFg: '#6c1339' },
 };
 
+/** Gem / crystal icons only (no weapons, hearts, targets, etc.). */
 const GEM_STAT_EMOJI = {
-  attack: '⚔️',
-  magicAttack: '✨',
-  defence: '🛡️',
-  magicDefence: '🔮',
-  dodge: '💨',
-  hitRate: '🎯',
-  hp: '❤️',
+  attack: '💎',
+  magicAttack: '🔮',
+  defence: '💠',
+  magicDefence: '🔷',
+  dodge: '🔹',
+  hitRate: '🔸',
+  hp: '🧊',
 };
 
 /** Canonical key for a gem stack — one upgradeable stack per (rarity, stat). */
