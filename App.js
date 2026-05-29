@@ -873,8 +873,15 @@ export default function App() {
     return !isLadderLevelLockedUntilReset(getMonsterLadderState(profile));
   }, [gameData, setupP1ProfileId]);
 
-  /** Dungeons beta — only Charming can enter while testing. */
+  /** Dungeons — Death Knight always available; Ice Queen / Black Dragon on rotation. */
   const dungeonsAvailable = useMemo(() => {
+    if (!gameData || !setupP1ProfileId) return false;
+    const profile = getPlayerProfile(gameData, setupP1ProfileId);
+    return !!profile;
+  }, [gameData, setupP1ProfileId]);
+
+  /** Beta: unlock all dungeon bosses on schedule bypass (Charming test profile). */
+  const unlockAllDungeonBosses = useMemo(() => {
     if (!gameData || !setupP1ProfileId) return false;
     const profile = getPlayerProfile(gameData, setupP1ProfileId);
     if (!profile) return false;
@@ -2748,7 +2755,7 @@ export default function App() {
             profile={setupP1ProfileId ? getPlayerProfile(gameData, setupP1ProfileId) : null}
             onExit={() => setPhase('menu')}
             onClaimRewards={handleClaimDungeonRewards}
-            unlockAllBosses={dungeonsAvailable}
+            unlockAllBosses={unlockAllDungeonBosses}
           />
         ) : null}
 
