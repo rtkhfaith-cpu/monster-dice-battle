@@ -24,7 +24,7 @@ import MonsterLadderHubScreen from './components/MonsterLadderHubScreen';
 import QuestHubScreen from './components/QuestHubScreen';
 import MonsterRescueHubScreen from './components/MonsterRescueHubScreen';
 import MonsterRescueScreen from './components/MonsterRescueScreen';
-import MonsterRescueRewardScreen from './components/MonsterRescueRewardScreen';
+import MonsterRushScreen from './components/monsterRush/MonsterRushScreen';
 import MonsterLadderCollectionScreen from './components/MonsterLadderCollectionScreen';
 import MonsterLadderGearScreen from './components/MonsterLadderGearScreen';
 import MonsterLadderChestRevealModal from './components/MonsterLadderChestRevealModal';
@@ -65,6 +65,7 @@ import {
   getMonsterRescueState,
   isRescueStagePlayable,
 } from './utils/monsterRescue/progress';
+import { getMonsterRushState } from './utils/monsterRush/monsterRushProgress';
 import { formatRescueWeeklyResetHint } from './utils/monsterRescue/rescueWeeklyReset';
 import { getRescueStage, RESCUE_TOTAL_LEVELS } from './utils/monsterRescue/stages';
 import {
@@ -83,6 +84,8 @@ import {
   activeWallet,
   awardBattleRewards,
   applyMonsterRescueStageResult,
+  applyMonsterRushRunForProfile,
+  exchangeMonsterRushItemForProfile,
   claimMainBattleMiniBossChest,
   claimDungeonRewards,
   buyGearItem,
@@ -170,7 +173,7 @@ import {
 } from './utils/audioManager';
 import { consumeMainMiniBossSkipNext } from './utils/mainBattleChest';
 
-const LOBBY_PHASES = new Set(['menu', 'ladder', 'monsterRescueHub', 'online', 'gameOver', 'audioSettings']);
+const LOBBY_PHASES = new Set(['menu', 'ladder', 'monsterRescueHub', 'monsterRush', 'online', 'gameOver', 'audioSettings']);
 const RESCUE_PHASES = new Set(['monsterRescue', 'monsterRescueHub', 'monsterRescueReward']);
 
 const BG = '#dceaf8';
@@ -1730,6 +1733,45 @@ export default function App() {
     setPhase('monsterRescueHub');
   }
 
+  function openMonsterRush() {
+    if (!setupP1ProfileId) {
+      showNotice('Monster Rush', 'Select or create a player profile first.');
+      return;
+    }
+    unlockAudio();
+    setQuestHubOpen(false);
+    startMenuMusic();
+    setPhase('monsterRush');
+  }
+
+  function handleMonsterRushRunComplete(summary) {
+    if (!gameData || !setupP1ProfileId) return {};
+    const res = applyMonsterRushRunForProfile(gameData, setupP1ProfileId, summary);
+    if (res.error) {
+      showNotice('Monster Rush', res.error);
+      return {};
+    }
+    persistSave(res.gameData, 'monster_rush_run', setupP1ProfileId);
+    playSound('lose');
+    return {
+      totalRushPoints: res.totalRushPoints,
+      newBestDistance: res.newBestDistance,
+      rushPointsEarned: res.rushPointsEarned,
+    };
+  }
+
+  function handleMonsterRushExchange(itemId) {
+    if (!gameData || !setupP1ProfileId) return;
+    const res = exchangeMonsterRushItemForProfile(gameData, setupP1ProfileId, itemId);
+    if (res.error) {
+      showNotice('Rush Exchange', res.error);
+      return;
+    }
+    persistSave(res.gameData, 'monster_rush_exchange', setupP1ProfileId);
+    playSound('shop');
+    showNotice('Rush Exchange', res.message);
+  }
+
   function returnToQuestPicker() {
     setPhase('menu');
     setQuestHubOpen(true);
@@ -2430,7 +2472,11 @@ export default function App() {
       {phase !== 'menu' && phase !== 'ladder' && phase !== 'battle' && phase !== 'online' && phase !== 'dungeons' ? (
         <>
           <Text style={styles.gameTitle}>
-            {RESCUE_PHASES.has(phase) ? 'Monster Rescue' : 'Monster Battle'}
+            {phase === 'monsterRush'
+              ? 'Monster Rush'
+              : RESCUE_PHASES.has(phase)
+                ? 'Monster Rescue'
+                : 'Monster Battle'}
           </Text>
           <View style={styles.coinsRow}>
             <Text style={styles.coinsStripText}>
@@ -2574,9 +2620,11 @@ export default function App() {
             visible
             profileName={gameData.players.find((p) => p.id === setupP1ProfileId)?.name ?? 'Handler'}
             rescueHighest={getMonsterRescueState(getPlayerProfile(gameData, setupP1ProfileId)).highestCleared}
+            rushBestDistance={getMonsterRushState(getPlayerProfile(gameData, setupP1ProfileId)).bestDistance}
             onClose={() => setQuestHubOpen(false)}
             onOpenMonsterLadder={openMonsterLadder}
             onOpenMonsterRescue={openMonsterRescueHub}
+            onOpenMonsterRush={openMonsterRush}
           />
         ) : null}
 
@@ -2599,6 +2647,15 @@ export default function App() {
             }
             onBack={returnToQuestPicker}
             onStartStage={startMonsterRescueStage}
+          />
+        ) : null}
+
+        {phase === 'monsterRush' ? (
+          <MonsterRushScreen
+            profile={setupP1ProfileId ? getPlayerProfile(gameData, setupP1ProfileId) : null}
+            onBack={returnToQuestPicker}
+            onRunComplete={handleMonsterRushRunComplete}
+            onExchange={handleMonsterRushExchange}
           />
         ) : null}
 

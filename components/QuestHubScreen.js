@@ -10,7 +10,9 @@ export default function QuestHubScreen({
   onClose,
   onOpenMonsterLadder,
   onOpenMonsterRescue,
+  onOpenMonsterRush,
   rescueHighest = 0,
+  rushBestDistance = 0,
 }) {
   if (!visible) return null;
 
@@ -44,6 +46,17 @@ export default function QuestHubScreen({
             <Text style={styles.rowTitle}>Monster Rescue</Text>
             <Text style={styles.rowDesc}>
               Pop color bubbles — 6 themes × 10 levels. Cleared: {rescueHighest}/60.
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+
+        <Pressable style={[styles.questRow, styles.questRowRush]} onPress={onOpenMonsterRush}>
+          <View style={[styles.badge, styles.badgeRush]}><Text style={styles.badgeText}>3</Text></View>
+          <View style={styles.rowBody}>
+            <Text style={styles.rowTitle}>Monster Rush</Text>
+            <Text style={styles.rowDesc}>
+              Endless runner — jump obstacles, collect coins, earn Rush Points. Best: {rushBestDistance}m.
             </Text>
           </View>
           <Text style={styles.chevron}>›</Text>
@@ -125,6 +138,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(244,114,182,0.5)',
     backgroundColor: 'rgba(76, 29, 58, 0.45)',
   },
+  questRowRush: {
+    borderColor: 'rgba(250,204,21,0.55)',
+    backgroundColor: 'rgba(69, 52, 10, 0.5)',
+  },
   badge: {
     width: 28,
     height: 28,
@@ -136,6 +153,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeRescue: { backgroundColor: '#db2777', borderColor: '#fbcfe8' },
+  badgeRush: { backgroundColor: '#ca8a04', borderColor: '#fde68a' },
   badgeText: { color: '#fff', fontWeight: '900', fontSize: 13 },
   rowBody: { flex: 1 },
   rowTitle: { color: '#f8fafc', fontSize: 13, fontWeight: '900' },

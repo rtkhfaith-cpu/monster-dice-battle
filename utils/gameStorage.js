@@ -26,6 +26,8 @@ import { scaleExpGain } from '../src/gameBalance/rewards';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { applyStageClear, markRescueChestClaimed, normalizeMonsterRescue } from './monsterRescue/progress';
+import { applyMonsterRushRunToProfile, getMonsterRushState } from './monsterRush/monsterRushProgress';
+import { exchangeRushItem } from './monsterRush/monsterRushExchange';
 import { computeStageRewardsFromLevel } from './monsterRescue/rewards';
 import { awardAndOpenRescueChest } from './monsterRescue/rescueChestRewards';
 import { normalizeDailyLoginSpin } from './dailyLoginSpin';
@@ -351,6 +353,7 @@ export function repairPlayerProfileInventory(profile) {
   normalizeDailyLoginSpin(profile);
   ensurePetInventory(profile);
   ensureGemInventory(profile);
+  profile.monsterRush = getMonsterRushState(profile);
   return consolidatePlayerMonstersToMain(profile);
 }
 
@@ -374,6 +377,7 @@ function normalizePlayerProfile(p) {
   normalizeMainBattleState(p);
   p.monsterLadder = normalizeMonsterLadder(p.monsterLadder, p.ladderProgress);
   p.monsterRescue = normalizeMonsterRescue(p.monsterRescue);
+  p.monsterRush = getMonsterRushState(p);
   normalizeDailyLoginSpin(p);
   ensurePassiveInventory(p);
   ensurePetInventory(p);
@@ -837,6 +841,28 @@ export function unsocketGemFromGearForProfile(gameData, profileId, gearInstanceI
   wallet.coins -= price;
   wallet.updatedAt = new Date().toISOString();
   return { gameData: gd, gem: res.gem, gear: res.gear, price };
+}
+
+export function applyMonsterRushRunForProfile(gameData, profileId, summary) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const result = applyMonsterRushRunToProfile(profile, summary);
+  const wallet = walletForProfile(gd, profileId);
+  if (wallet && wallet.id !== profile.id) {
+    wallet.monsterRush = profile.monsterRush;
+    wallet.updatedAt = profile.updatedAt;
+  }
+  return { gameData: gd, ...result };
+}
+
+export function exchangeMonsterRushItemForProfile(gameData, profileId, itemId) {
+  const gd = cloneGameData(gameData);
+  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const res = exchangeRushItem(profile, itemId);
+  if (!res.ok) return { gameData: gd, error: res.error };
+  return { gameData: gd, message: res.message, remainingPoints: res.remainingPoints, item: res.item };
 }
 
 /** Grant gem copies directly to a profile (used by chest / dungeon drops). */

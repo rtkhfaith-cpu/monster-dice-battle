@@ -7,6 +7,7 @@ import { defaultMonsterEquipment } from '../gameSystems/gear/gearConstants';
 import { normalizePlayerKey } from '../../utils/playerKey';
 import { normalizeMonsterLadder } from '../../utils/monsterLadder/ladderProgress';
 import { normalizeMonsterRescue } from '../../utils/monsterRescue/progress';
+import { normalizeMonsterRush } from '../../utils/monsterRush/monsterRushProgress';
 import { normalizeDailyLoginSpin } from '../../utils/dailyLoginSpin';
 import { clampMergeTier } from '../../utils/mergeSystem';
 import { peakMonsterLevelFromRoster } from '../../utils/trainerRankings';
@@ -66,6 +67,7 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
     battleProgress: p.battleProgress ?? { totalBattles: 0, winStreak: 0, lossStreak: 0 },
     monsterLadder: p.monsterLadder ?? null,
     monsterRescue: p.monsterRescue ? normalizeMonsterRescue(p.monsterRescue) : null,
+    monsterRush: p.monsterRush ? normalizeMonsterRush(p.monsterRush) : null,
     dailyLoginSpin: p.dailyLoginSpin ?? null,
     meta: p.meta ?? null,
     createdAt: p.createdAt ?? new Date().toISOString(),
@@ -183,6 +185,9 @@ export function applyCloudProfile(gameData, cloud) {
   }
   if (normalized.monsterRescue) {
     p.monsterRescue = normalizeMonsterRescue(normalized.monsterRescue);
+  }
+  if (normalized.monsterRush) {
+    p.monsterRush = normalizeMonsterRush(normalized.monsterRush);
   }
   if (normalized.dailyLoginSpin && typeof normalized.dailyLoginSpin === 'object') {
     p.dailyLoginSpin = {
