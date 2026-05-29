@@ -25,8 +25,9 @@ function BossImage({ uri, fallbackColor }) {
   );
 }
 
-export default function DungeonsHubScreen({ onBack, onEnterBoss }) {
+export default function DungeonsHubScreen({ onBack, onEnterBoss, unlockAllBosses = false }) {
   const now = useMemo(() => new Date(), []);
+  const availOpts = useMemo(() => (unlockAllBosses ? { unlockAll: true } : {}), [unlockAllBosses]);
 
   return (
     <View style={styles.root}>
@@ -43,7 +44,7 @@ export default function DungeonsHubScreen({ onBack, onEnterBoss }) {
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
         {DUNGEON_BOSSES.map((boss) => {
-          const available = isDungeonBossAvailable(boss, now);
+          const available = isDungeonBossAvailable(boss, now, availOpts);
           const daysLeft = available ? 0 : daysUntilDungeonBoss(boss, now);
           const accent = ELEMENT_COLORS[boss.element] ?? '#a78bfa';
           return (

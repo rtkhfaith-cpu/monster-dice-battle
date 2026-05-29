@@ -10,7 +10,7 @@ import { getDungeonBoss } from '../utils/dungeon/dungeonBosses';
  * App phase === 'dungeons'. Rewards are granted via onClaimRewards (App
  * persists and returns the drop list synchronously).
  */
-export default function DungeonScreen({ profile, onExit, onClaimRewards }) {
+export default function DungeonScreen({ profile, onExit, onClaimRewards, unlockAllBosses = false }) {
   const [view, setView] = useState('hub');
   const [bossId, setBossId] = useState(null);
   const [team, setTeam] = useState(null);
@@ -58,6 +58,7 @@ export default function DungeonScreen({ profile, onExit, onClaimRewards }) {
   return (
     <DungeonsHubScreen
       onBack={onExit}
+      unlockAllBosses={unlockAllBosses}
       onEnterBoss={(id) => {
         setBossId(id);
         setView('team');

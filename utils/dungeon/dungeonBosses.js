@@ -182,9 +182,10 @@ export function getDaysSinceGameStart(currentDate = new Date()) {
   return Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-/** @param {object} boss @param {Date} currentDate */
-export function isDungeonBossAvailable(boss, currentDate = new Date()) {
+/** @param {object} boss @param {Date} currentDate @param {{ unlockAll?: boolean }} [opts] */
+export function isDungeonBossAvailable(boss, currentDate = new Date(), opts = {}) {
   if (!boss) return false;
+  if (opts.unlockAll) return true;
   const days = getDaysSinceGameStart(currentDate);
   if (boss.id === 'death_knight') return true;
   if (boss.id === 'ice_queen') return days % 2 === 0;

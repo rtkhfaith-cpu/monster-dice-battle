@@ -2607,6 +2607,7 @@ export default function App() {
             profile={setupP1ProfileId ? getPlayerProfile(gameData, setupP1ProfileId) : null}
             onExit={() => setPhase('menu')}
             onClaimRewards={handleClaimDungeonRewards}
+            unlockAllBosses={dungeonsAvailable}
           />
         ) : null}
 
