@@ -192,6 +192,14 @@ function drawHazard(ctx, hz) {
     ctx.fill();
     return;
   }
+  if (hz.shape === 'top_barrier') {
+    ctx.fillStyle = hz.color || '#7c3aed';
+    ctx.fillRect(hz.x, hz.y, hz.width, hz.height);
+    ctx.strokeStyle = hz.stroke || '#4c1d95';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(hz.x, hz.y, hz.width, hz.height);
+    return;
+  }
   ctx.fillStyle = hz.color || '#78716c';
   ctx.fillRect(hz.x, hz.y, hz.width, hz.height);
   ctx.strokeStyle = hz.stroke || '#44403c';
