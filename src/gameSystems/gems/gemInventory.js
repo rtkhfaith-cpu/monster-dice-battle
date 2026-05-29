@@ -59,18 +59,27 @@ export function normalizeSocketedGem(gem) {
   return normalizeGemStack(gem);
 }
 
+function mergeGemInventoryStacks(rows) {
+  const byKey = new Map();
+  for (const row of rows || []) {
+    const g = normalizeGemStack(row);
+    if (!g) continue;
+    const prev = byKey.get(g.key);
+    if (!prev) {
+      byKey.set(g.key, { ...g });
+      continue;
+    }
+    prev.level = Math.max(prev.level, g.level);
+    prev.copies += g.copies;
+  }
+  return [...byKey.values()];
+}
+
 /** @param {object} profile */
 export function ensureGemInventory(profile) {
   if (!profile) return;
   if (!Array.isArray(profile.gemInventory)) profile.gemInventory = [];
-  const seen = new Set();
-  profile.gemInventory = profile.gemInventory
-    .map(normalizeGemStack)
-    .filter((g) => {
-      if (!g || seen.has(g.key)) return false;
-      seen.add(g.key);
-      return true;
-    });
+  profile.gemInventory = mergeGemInventoryStacks(profile.gemInventory);
   ensureGearInventory(profile);
   for (const gear of profile.gearInventory || []) {
     for (let i = 0; i < (gear.sockets?.length ?? 0); i++) {
@@ -206,7 +215,8 @@ export function unsocketGemFromGear(profile, gearInstanceId, socketIndex) {
 
   let stack = findGemStack(profile, socketGem.key);
   if (stack) {
-    stack.copies += 1;
+    stack.copies += Math.max(1, socketGem.copies);
+    stack.level = Math.max(stack.level, socketGem.level);
   } else {
     profile.gemInventory.push({ ...socketGem });
   }
@@ -253,6 +263,7 @@ export function normalizeEquippedGems() {
 export function listGemStacks(profile) {
   ensureGemInventory(profile);
   return [...(profile.gemInventory || [])]
+    .filter((stack) => stack && (stack.copies > 0 || stack.level >= 1))
     .map((stack) => {
       const def = makeGemDef(stack.rarity, stack.stat);
       const need = getRequiredGemsForUpgrade(stack.level);

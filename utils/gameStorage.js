@@ -774,8 +774,8 @@ export function buyGearItem(gameData, playerId, gearId, rarity = 'rare', opts = 
 /** Buy a Rare gem into the profile gem inventory (shop only). */
 export function buyGemForProfile(gameData, profileId, gemKeyId) {
   const gd = cloneGameData(gameData);
-  const wallet = walletForProfile(gd, profileId);
-  if (!wallet) return { gameData: gd, error: 'No wallet' };
+  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'No wallet' };
   if (!RARE_GEM_SHOP_ITEMS.includes(gemKeyId)) {
     return { gameData: gd, error: 'This gem is not sold here.' };
   }
@@ -784,27 +784,27 @@ export function buyGemForProfile(gameData, profileId, gemKeyId) {
     return { gameData: gd, error: 'Only Rare gems are sold in the shop.' };
   }
   const price = rareGemShopPrice(parsed.stat);
-  if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
-  const grant = grantGem(wallet, parsed.rarity, parsed.stat, 1);
+  if (profile.coins < price) return { gameData: gd, error: 'Not enough coins' };
+  const grant = grantGem(profile, parsed.rarity, parsed.stat, 1);
   if (!grant.ok) return { gameData: gd, error: grant.error || 'Cannot buy gem' };
-  wallet.coins -= price;
-  wallet.updatedAt = new Date().toISOString();
+  profile.coins -= price;
+  profile.updatedAt = new Date().toISOString();
   return { gameData: gd, gem: grant.gem, price };
 }
 
 /** Upgrade an owned gem one level (consumes duplicate copies + coins). */
 export function upgradeGemForProfile(gameData, profileId, gemKeyId) {
   const gd = cloneGameData(gameData);
-  const wallet = walletForProfile(gd, profileId);
-  if (!wallet) return { gameData: gd, error: 'No wallet' };
-  const stack = wallet.gemInventory?.find((g) => g.key === gemKeyId);
+  const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
+  if (!profile) return { gameData: gd, error: 'No wallet' };
+  const stack = profile.gemInventory?.find((g) => g.key === gemKeyId);
   if (!stack) return { gameData: gd, error: 'Gem not owned' };
   const coinCost = gemUpgradeCoinCost(stack.rarity, stack.level);
-  if (wallet.coins < coinCost) return { gameData: gd, error: `Need 🪙 ${coinCost} to merge gems` };
-  const res = upgradeGem(wallet, gemKeyId);
+  if (profile.coins < coinCost) return { gameData: gd, error: `Need 🪙 ${coinCost} to merge gems` };
+  const res = upgradeGem(profile, gemKeyId);
   if (!res.ok) return { gameData: gd, error: res.error };
-  wallet.coins -= coinCost;
-  wallet.updatedAt = new Date().toISOString();
+  profile.coins -= coinCost;
+  profile.updatedAt = new Date().toISOString();
   return { gameData: gd, gem: res.gem, level: res.level, coinCost };
 }
 

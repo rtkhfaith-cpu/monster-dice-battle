@@ -79,7 +79,12 @@ export default function GearItemDetailModal({
             <GearBuildPill buildType={gear.buildType} size={11} />
           </View>
 
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+          >
             <Text style={styles.sectionTitle}>Stats</Text>
             {statLines.length === 0 ? (
               <Text style={styles.muted}>No stats rolled.</Text>
@@ -219,7 +224,7 @@ const styles = StyleSheet.create({
   metaRarity: { fontWeight: '900', textTransform: 'uppercase' },
   metaPart: { color: '#c4b5fd' },
   buildRow: { marginBottom: 10, alignItems: 'center' },
-  scroll: { alignSelf: 'stretch', maxHeight: 260 },
+  scroll: { alignSelf: 'stretch', maxHeight: 340 },
   scrollContent: { paddingBottom: 8 },
   sectionTitle: {
     fontSize: 10,

@@ -72,7 +72,7 @@ export default function GearInventoryPanel({
     if (!inspectGear?.instanceId) return;
     const updated = profile?.gearInventory?.find((g) => g.instanceId === inspectGear.instanceId);
     if (updated) setInspectGear(updated);
-  }, [profile?.gearInventory, inspectGear?.instanceId]);
+  }, [profile, inspectGear?.instanceId]);
 
   return (
     <View style={styles.wrap}>

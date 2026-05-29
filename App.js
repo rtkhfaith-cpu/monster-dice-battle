@@ -1439,7 +1439,7 @@ export default function App() {
 
   function handleBuyGem(gemKeyId) {
     if (!gameData) return;
-    const profileId = activeProfileId || setupP1ProfileId || null;
+    const profileId = shopProfileId();
     const res = buyGemForProfile(gameData, profileId, gemKeyId);
     if (res.error) {
       showNotice('Gem Shop', res.error);
@@ -1447,6 +1447,7 @@ export default function App() {
     }
     persistSave(res.gameData, 'gem_bought', profileId);
     playSound('shop');
+    showNotice('Gem acquired', 'Added to Inventory → Gems tab.');
   }
 
   function handleUpgradeGem(gemKeyId) {
@@ -1463,7 +1464,10 @@ export default function App() {
 
   function handleSocketGem(gearInstanceId, socketIndex, gemKeyId) {
     const profileId = inventoryProfileId || gearProfileId;
-    if (!gameData || !profileId) return;
+    if (!gameData || !profileId) {
+      showNotice('Socket Gem', 'No player profile loaded.');
+      return;
+    }
     const res = socketGemInGearForProfile(
       gameData,
       profileId,
@@ -1481,7 +1485,10 @@ export default function App() {
 
   function handleUnsocketGem(gearInstanceId, socketIndex) {
     const profileId = inventoryProfileId || gearProfileId;
-    if (!gameData || !profileId) return;
+    if (!gameData || !profileId) {
+      showNotice('Remove Gem', 'No player profile loaded.');
+      return;
+    }
     const res = unsocketGemFromGearForProfile(
       gameData,
       profileId,
@@ -1498,7 +1505,7 @@ export default function App() {
 
   function handleBuyGearMart(gearId, rarity = 'rare', price = null, seed = null) {
     if (!gameData) return;
-    const profileId = activeProfileId || setupP1ProfileId || null;
+    const profileId = shopProfileId();
     const opts = {};
     if (seed) opts.seed = seed;
     if (typeof price === 'number') opts.price = price;
@@ -1518,7 +1525,7 @@ export default function App() {
 
   function handleBuyPassiveSkillBook(skillId, rarity) {
     if (!gameData) return;
-    const profileId = activeProfileId || setupP1ProfileId || null;
+    const profileId = shopProfileId();
     const res = buyPassiveSkillBook(gameData, profileId, skillId, rarity);
     if (res.error) {
       showNotice('Passive Skill Book', res.error);
@@ -3032,8 +3039,8 @@ export default function App() {
       <GearMartModal
         visible={gearMartOpen}
         coins={coins}
-        profileId={activeProfileId || setupP1ProfileId || ''}
-        profile={activeProfileId ? getPlayerProfile(gameData, activeProfileId) : null}
+        profileId={shopProfileId() || ''}
+        profile={shopProfileId() ? getPlayerProfile(gameData, shopProfileId()) : null}
         onClose={() => setGearMartOpen(false)}
         onBuy={handleBuyGearMart}
         onBuyPassiveBook={handleBuyPassiveSkillBook}
