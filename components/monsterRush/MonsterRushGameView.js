@@ -51,21 +51,19 @@ export default function MonsterRushGameView({
   const rafRef = useRef(null);
   const lastTsRef = useRef(0);
   const endedRef = useRef(false);
-  const sizeKeyRef = useRef('');
 
   const w = Math.max(320, Math.floor(gameWidth || 640));
   const h = Math.max(200, Math.floor(gameHeight || 360));
-  const sizeKey = `${w}x${h}`;
 
-  if (!gameRef.current || sizeKeyRef.current !== sizeKey) {
-    sizeKeyRef.current = sizeKey;
+  const bump = useCallback(() => setFrame((f) => f + 1), []);
+
+  useEffect(() => {
     gameRef.current = createMonsterRushRun({ gameWidth: w, gameHeight: h });
     gameRef.current.nextSpawnMs = 1800;
     endedRef.current = false;
     lastTsRef.current = 0;
-  }
-
-  const bump = useCallback(() => setFrame((f) => f + 1), []);
+    bump();
+  }, [w, h, bump]);
 
   const handleJump = useCallback(() => {
     const state = gameRef.current;
@@ -128,14 +126,23 @@ export default function MonsterRushGameView({
   }, [bump, handleJump]);
 
   const state = gameRef.current;
-  if (!state) return null;
 
-  const scrollOffset = (state.scrollPx * 0.15) % 200;
+  const scrollOffset = state ? (state.scrollPx * 0.15) % 200 : 0;
   const groundH = Math.max(32, Math.round(h * 0.14));
 
+  if (!state) {
+    return (
+      <View style={[styles.wrap, styles.wrapFill]}>
+        <View style={styles.bootOverlay}>
+          <Text style={styles.bootTxt}>Starting run…</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <Pressable style={[styles.wrap, { width: w, height: h }]} onPress={handleJump}>
-      <View style={[styles.sky, { width: w, height: h }]}>
+    <Pressable style={[styles.wrap, styles.wrapFill]} onPress={handleJump}>
+      <View style={[styles.sky, styles.skyFill]}>
         <View style={[styles.hills, { bottom: groundH + 8, transform: [{ translateX: -scrollOffset }] }]} />
         <View style={[styles.hills, styles.hills2, { bottom: groundH, transform: [{ translateX: -scrollOffset * 1.4 }] }]} />
 
@@ -213,18 +220,30 @@ const PS = MONSTER_RUSH_PHYSICS.playerSize;
 
 const styles = StyleSheet.create({
   wrap: {
-    alignSelf: 'center',
-    flex: 1,
+    alignSelf: 'stretch',
     width: '100%',
-    maxWidth: '100%',
+    height: '100%',
   },
+  wrapFill: {
+    flex: 1,
+    minHeight: 200,
+  },
+  bootOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7dd3fc',
+  },
+  bootTxt: { color: '#0c4a6e', fontWeight: '900', fontSize: 16 },
   sky: {
     borderRadius: Platform.OS === 'web' ? 0 : 10,
     overflow: 'hidden',
     borderWidth: Platform.OS === 'web' ? 0 : 2,
     borderColor: '#f7c948',
     backgroundColor: '#7dd3fc',
-    flex: 1,
+  },
+  skyFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   hills: {
     position: 'absolute',

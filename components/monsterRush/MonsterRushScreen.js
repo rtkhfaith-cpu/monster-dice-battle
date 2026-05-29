@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Image,
   Platform,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import MonsterRushGameView from './MonsterRushGameView';
@@ -17,9 +18,11 @@ import { getMonsterImageAsset } from '../../utils/monsterImageAssets';
 import { getMonsterRushState } from '../../utils/monsterRush/monsterRushProgress';
 import { RUSH_EXCHANGE_ITEMS } from '../../utils/monsterRush/monsterRushExchange';
 import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
+import { mergeArenaSize } from '../../utils/monsterRush/monsterRushArenaSize';
 import {
   activateMonsterRushWebLayout,
   deactivateMonsterRushWebLayout,
+  tryMonsterRushFullscreen,
 } from '../../utils/monsterRush/monsterRushWebLayout';
 import { WEB_DECORATIVE_IMAGE_PROPS } from '../../utils/webGameTouch';
 
@@ -66,6 +69,7 @@ export default function MonsterRushScreen({
   const [runKey, setRunKey] = useState(0);
   const [lastRun, setLastRun] = useState(null);
   const [arenaSize, setArenaSize] = useState({ w: 0, h: 0 });
+  const { width: winW, height: winH } = useWindowDimensions();
 
   const rushState = useMemo(() => getMonsterRushState(profile), [profile]);
   const roster = useMemo(() => getOwnedRoster(profile), [profile]);
@@ -89,27 +93,31 @@ export default function MonsterRushScreen({
     setView('over');
   }
 
-  const onArenaLayout = (e) => {
+  const onArenaLayout = useCallback((e) => {
     const { width, height } = e.nativeEvent.layout;
-    if (width > 0 && height > 0) {
-      setArenaSize({ w: Math.floor(width), h: Math.floor(height) });
-    }
-  };
+    const w = Math.floor(width);
+    const h = Math.floor(height);
+    if (w < 200 || h < 160) return;
+    setArenaSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+  }, []);
+
+  const playSize = useMemo(
+    () => mergeArenaSize(arenaSize, winW, winH),
+    [arenaSize, winW, winH],
+  );
 
   if (view === 'game' && selectedMonster) {
     return (
       <View style={styles.gameRoot}>
         <View style={styles.arenaHost} onLayout={onArenaLayout}>
-          {arenaSize.w > 0 && arenaSize.h > 0 ? (
-            <MonsterRushGameView
-              key={runKey}
-              templateId={selectedMonster.templateId}
-              gameWidth={arenaSize.w}
-              gameHeight={arenaSize.h}
-              onGameOver={handleGameOver}
-              onQuit={() => setView('hub')}
-            />
-          ) : null}
+          <MonsterRushGameView
+            key={`${runKey}_${playSize.w}x${playSize.h}`}
+            templateId={selectedMonster.templateId}
+            gameWidth={playSize.w}
+            gameHeight={playSize.h}
+            onGameOver={handleGameOver}
+            onQuit={() => setView('hub')}
+          />
         </View>
       </View>
     );
@@ -222,7 +230,12 @@ export default function MonsterRushScreen({
         <TouchableOpacity
           style={[styles.primaryBtn, !selectedMonsterId && styles.btnOff]}
           disabled={!selectedMonsterId}
-          onPress={() => { setRunKey((k) => k + 1); setArenaSize({ w: 0, h: 0 }); setView('game'); }}
+          onPress={() => {
+            tryMonsterRushFullscreen();
+            setRunKey((k) => k + 1);
+            setArenaSize({ w: 0, h: 0 });
+            setView('game');
+          }}
         >
           <Text style={styles.primaryBtnTxt}>Start Run</Text>
         </TouchableOpacity>
@@ -273,27 +286,28 @@ export default function MonsterRushScreen({
 const styles = StyleSheet.create({
   gameRoot: {
     flex: 1,
-    minHeight: 0,
+    minHeight: 280,
     width: '100%',
     backgroundColor: '#0c1224',
     ...(Platform.OS === 'web'
-      ? { height: '100%', maxHeight: '100dvh' }
+      ? { height: '100%', maxHeight: '100dvh', minHeight: '100%' }
       : {}),
   },
   arenaHost: {
     flex: 1,
-    minHeight: 0,
+    minHeight: 240,
     width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: 'stretch',
+    ...(Platform.OS === 'web' ? { minHeight: '100%' } : {}),
   },
   root: {
     flex: 1,
     minHeight: 0,
     paddingHorizontal: 12,
     paddingTop: 8,
+    backgroundColor: '#0c1224',
     ...(Platform.OS === 'web'
-      ? { height: '100%', maxHeight: '100dvh' }
+      ? { height: '100%', maxHeight: '100dvh', flex: 1 }
       : {}),
   },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },

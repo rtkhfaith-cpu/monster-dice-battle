@@ -5,49 +5,6 @@ const STYLE_ID = 'mdb-monster-rush-layout';
 let activeCount = 0;
 let orientationLock = null;
 
-function getFullscreenElement() {
-  if (typeof document === 'undefined') return null;
-  return (
-    document.fullscreenElement
-    || document.webkitFullscreenElement
-    || document.mozFullScreenElement
-    || document.msFullscreenElement
-    || null
-  );
-}
-
-function requestAppFullscreen() {
-  if (typeof document === 'undefined') return;
-  const el = document.documentElement;
-  const req =
-    el.requestFullscreen
-    || el.webkitRequestFullscreen
-    || el.mozRequestFullScreen
-    || el.msRequestFullscreen;
-  if (!req) return;
-  try {
-    const p = req.call(el);
-    if (p?.catch) void p.catch(() => {});
-  } catch {
-    /* ignore — browser may block without gesture */
-  }
-}
-
-function exitAppFullscreen() {
-  if (!getFullscreenElement()) return;
-  const exit =
-    document.exitFullscreen
-    || document.webkitExitFullscreen
-    || document.mozCancelFullScreen
-    || document.msExitFullscreen;
-  try {
-    const p = exit?.call(document);
-    if (p?.catch) void p.catch(() => {});
-  } catch {
-    /* ignore */
-  }
-}
-
 async function lockLandscape() {
   if (typeof screen === 'undefined' || !screen.orientation?.lock) return;
   try {
@@ -58,7 +15,7 @@ async function lockLandscape() {
       await screen.orientation.lock('landscape-primary');
       orientationLock = 'landscape-primary';
     } catch {
-      /* not supported or needs fullscreen first */
+      /* not supported */
     }
   }
 }
@@ -89,25 +46,35 @@ function ensureStyleTag() {
       overflow: hidden !important;
       overscroll-behavior: none;
       touch-action: manipulation;
+      background: #0c1224 !important;
     }
-    html[data-monster-rush-active] #root,
-    html[data-monster-rush-active] #root > div {
+    html[data-monster-rush-active] #root {
+      position: fixed !important;
+      inset: 0 !important;
       width: 100% !important;
       height: 100% !important;
       max-height: 100dvh !important;
       min-height: 0 !important;
       overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+      background: #0c1224 !important;
     }
-    @media (orientation: portrait) and (max-width: 900px) {
-      html[data-monster-rush-active] #mdb-monster-rush-rotate-hint {
-        display: flex !important;
-      }
+    html[data-monster-rush-active] #root > div {
+      flex: 1 !important;
+      min-height: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-height: 100dvh !important;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
     }
   `;
   document.head.appendChild(tag);
 }
 
-/** Enter landscape fullscreen shell for Monster Rush (web). */
+/** Immersive layout for Monster Rush (CSS only — avoids RN-web fullscreen black screen). */
 export function activateMonsterRushWebLayout() {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
   activeCount += 1;
@@ -115,11 +82,9 @@ export function activateMonsterRushWebLayout() {
 
   ensureStyleTag();
   document.documentElement.setAttribute('data-monster-rush-active', 'true');
-  requestAppFullscreen();
   void lockLandscape();
 }
 
-/** Leave Monster Rush web layout shell. */
 export function deactivateMonsterRushWebLayout() {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
   activeCount = Math.max(0, activeCount - 1);
@@ -127,5 +92,22 @@ export function deactivateMonsterRushWebLayout() {
 
   document.documentElement.removeAttribute('data-monster-rush-active');
   unlockOrientation();
-  exitAppFullscreen();
+}
+
+/** Optional fullscreen on Start Run (user gesture). Best-effort only. */
+export function tryMonsterRushFullscreen() {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  const el = document.documentElement;
+  const req =
+    el.requestFullscreen
+    || el.webkitRequestFullscreen
+    || el.mozRequestFullScreen
+    || el.msRequestFullscreen;
+  if (!req) return;
+  try {
+    const p = req.call(el);
+    if (p?.catch) void p.catch(() => {});
+  } catch {
+    /* ignore */
+  }
 }

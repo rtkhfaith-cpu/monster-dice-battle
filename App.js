@@ -2428,6 +2428,7 @@ export default function App() {
       style={[
         styles.safe,
         phase === 'battle' ? styles.safeBattle : phase === 'menu' ? styles.safeMenu : null,
+        phase === 'monsterRush' ? styles.safeMonsterRush : null,
         phase === 'menu' && lobbyMobile && styles.safeMenuMobile,
       ]}
     >
@@ -3038,6 +3039,21 @@ const styles = StyleSheet.create({
     maxHeight: '100vh',
     overflow: 'hidden',
   },
+  safeMonsterRush: {
+    flex: 1,
+    minHeight: 0,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+    overflow: 'hidden',
+    backgroundColor: '#0c1224',
+    ...(Platform.OS === 'web'
+      ? {
+          maxHeight: '100dvh',
+          height: '100%',
+        }
+      : {}),
+  },
   loading: { fontWeight: '900', fontSize: 18, color: '#273043' },
   versionGate: {
     flex: 1,
@@ -3158,7 +3174,7 @@ const styles = StyleSheet.create({
   },
   cardShellMonsterRush: {
     flex: 1,
-    minHeight: 0,
+    minHeight: 280,
     overflow: 'hidden',
     backgroundColor: '#0c1224',
     borderWidth: 0,
@@ -3170,7 +3186,9 @@ const styles = StyleSheet.create({
           flexDirection: 'column',
           width: '100%',
           height: '100%',
+          minHeight: '100%',
           maxHeight: '100dvh',
+          flex: 1,
         }
       : {}),
   },
