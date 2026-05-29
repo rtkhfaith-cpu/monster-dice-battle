@@ -235,7 +235,10 @@ function spawnPattern(state, pattern) {
 
 function trySpawnPattern(state) {
   if (state.spawnCooldownPx > 0) return;
-  if (state.lastPatternEndX > spawnHorizonPx(state) + 120) return;
+  const hasWorld = state.hazards.length > 0
+    || state.platforms.length > 0
+    || state.gaps.length > 0;
+  if (hasWorld && state.lastPatternEndX > spawnHorizonPx(state) + 120) return;
 
   const minFront = spawnHorizonPx(state);
   if (state.lastPatternEndX < minFront) state.lastPatternEndX = minFront;
@@ -313,11 +316,11 @@ const MAX_PLATFORMS = 8;
 const MAX_GAPS = 5;
 const MAX_COINS = 10;
 const CULL_BEHIND = 96;
-/** Hazards visible this far ahead of the runner (fixed, not screen-width scaled). */
-const CULL_AHEAD_PLAYER = 500;
+/** Keep entities this far past the right screen edge (spawn buffer). */
+const CULL_AHEAD_SCREEN = 520;
 
 function cullEntities(state) {
-  const maxX = state.player.x + CULL_AHEAD_PLAYER;
+  const maxX = state.gameWidth + CULL_AHEAD_SCREEN;
   const minX = -CULL_BEHIND;
   state.hazards = state.hazards.filter((h) => h.x + h.width > minX && h.x < maxX);
   state.platforms = state.platforms.filter((p) => p.x + p.width > minX && p.x < maxX);

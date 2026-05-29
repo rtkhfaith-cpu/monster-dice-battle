@@ -19,6 +19,7 @@ import {
 import { calculatePetStats } from '../../../src/gameSystems/pets';
 import { describePetSkill } from '../../../src/gameSystems/petSkills';
 import GearGemSocketPanel from '../../GearGemSocketPanel';
+import GearComparisonPanel from './GearComparisonPanel';
 import { GEAR_UI, GearIcon, gearRarityUi, isMythicRarity } from '../gearUiTheme';
 
 const SLOT_TITLES = {
