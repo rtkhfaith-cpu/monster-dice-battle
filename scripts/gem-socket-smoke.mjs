@@ -1,15 +1,19 @@
 /**
  * Smoke test gem buy + socket flow.
  * Run: npx tsx scripts/gem-socket-smoke.mjs
+ *
+ * Dynamic import resolves the whole module graph first (avoids ESM static-cycle
+ * issues under tsx where named exports can appear missing).
  */
-import {
+const gem = await import('../src/gameSystems/gems/gemInventory.js');
+const {
   grantGem,
   listGemStacks,
   listSocketableGemStacks,
   listSocketedGems,
   ensureGemInventory,
   socketGemInGear,
-} from '../src/gameSystems/gems/gemInventory.js';
+} = gem;
 
 function fail(msg) {
   console.error('FAIL:', msg);
@@ -26,14 +30,9 @@ const profile = {
 
 const gear = {
   instanceId: 'gear_smoke_epic_1',
-  gearId: 'epic_tank_head_1',
-  name: 'Smoke Helm',
+  gearId: 'epic_dragon_guard_helm', // real epic template (1 socket)
   rarity: 'epic',
-  slot: 'head',
-  setId: 'tank',
-  setName: 'Tank',
-  buildType: 'tank',
-  stats: [{ type: 'hp', value: 50 }],
+  stats: [{ type: 'magicAttack', value: 10 }],
   sockets: [{ id: 'socket_1', gem: null }],
   equippedToMonsterId: null,
   acquiredAt: new Date().toISOString(),

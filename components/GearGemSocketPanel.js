@@ -166,7 +166,7 @@ export default function GearGemSocketPanel({
                                 {g.name}
                               </Text>
                               <Text style={styles.pickMeta}>
-                                Lv {g.level} · +{g.currentValue} · 🪙 {insertCost}
+                                Lv {g.level} · +{g.currentValue} · ×{g.count} · 🪙 {insertCost}
                               </Text>
                             </View>
                           </TouchableOpacity>

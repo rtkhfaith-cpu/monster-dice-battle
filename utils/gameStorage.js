@@ -90,6 +90,7 @@ import {
   gemUpgradeCoinCost,
   gemSocketInsertCoinCost,
   gemSocketRemoveCoinCost,
+  parseGemStackId,
 } from '../src/gameSystems/gems/gemDefinitions';
 import { getGearInstance } from '../src/gameSystems/gear/inventoryGearUtils';
 import { grantDungeonRewards } from './dungeon/dungeonRewards';
@@ -810,14 +811,14 @@ export function buyGemForProfile(gameData, profileId, gemKeyId) {
   return { gameData: gd, gem: grant.gem, price };
 }
 
-/** Upgrade an owned gem one level (consumes duplicate copies + coins). */
+/** Upgrade ONE owned gem (type + level) one level, consuming same-type fuel + coins. */
 export function upgradeGemForProfile(gameData, profileId, gemKeyId) {
   const gd = cloneGameData(gameData);
   const profile = resolveGameProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'No wallet' };
-  const stack = profile.gemInventory?.find((g) => g.key === gemKeyId);
-  if (!stack) return { gameData: gd, error: 'Gem not owned' };
-  const coinCost = gemUpgradeCoinCost(stack.rarity, stack.level);
+  const parsed = parseGemStackId(gemKeyId);
+  if (!parsed) return { gameData: gd, error: 'Unknown gem' };
+  const coinCost = gemUpgradeCoinCost(parsed.rarity, parsed.level);
   if (profile.coins < coinCost) return { gameData: gd, error: `Need 🪙 ${coinCost} to merge gems` };
   const res = upgradeGem(profile, gemKeyId);
   if (!res.ok) return { gameData: gd, error: res.error };
@@ -837,7 +838,7 @@ export function socketGemInGearForProfile(gameData, profileId, gearInstanceId, s
     ? profile.gemInventory.map((g) => ({ ...g }))
     : [];
   const beforeCoins = profile.coins ?? 0;
-  const parsed = parseGemKey(gemKeyId);
+  const parsed = parseGemStackId(gemKeyId);
   if (!parsed) return { gameData: gd, error: 'Unknown gem' };
   const price = gemSocketInsertCoinCost(parsed.rarity);
   if ((profile.coins ?? 0) < price) return { gameData: gd, error: `Need 🪙 ${price} to socket gem` };
@@ -845,21 +846,20 @@ export function socketGemInGearForProfile(gameData, profileId, gearInstanceId, s
   if (!res.ok) return { gameData: gd, error: res.error };
 
   // socketGemInGear is atomic (it only consumes the gem after attaching it).
-  // Confirm by finding the gem on this gear in the persisted/normalized profile.
+  // Confirm by inspecting the EXACT socket we targeted in the persisted/normalized
+  // profile. Match on type AND level so a different gem already present can never
+  // falsely confirm a failed insert (the socket must be empty before forging anyway).
   ensureGemInventory(profile);
   const persistedGear = getGearInstance(profile, gearInstanceId);
-  const parsedKey = parseGemKey(gemKeyId);
-  const matchSocket = (persistedGear?.sockets ?? []).find((s) => {
-    const g = normalizeSocketedGem(s?.gem);
-    if (!g?.key) return false;
-    if (g.key === gemKeyId) return true;
-    const gp = parseGemKey(g.key);
-    return !!(gp && parsedKey && gp.rarity === parsedKey.rarity && gp.stat === parsedKey.stat);
-  });
-  // Strict: only trust the gem if it is actually present in a LIVE socket of the
-  // re-normalized gear. Do NOT fall back to res.gem (a returned object can look valid
-  // even if the persisted socket is empty), otherwise we could charge without forging.
-  const persistedGem = normalizeSocketedGem(matchSocket?.gem);
+  const targetGem = normalizeSocketedGem(persistedGear?.sockets?.[idx]?.gem);
+  const targetMatches = !!targetGem?.key
+    && targetGem.rarity === parsed.rarity
+    && targetGem.stat === parsed.stat
+    && targetGem.level === parsed.level;
+  // Strict: only trust the gem if it is actually present in the LIVE target socket.
+  // Do NOT fall back to res.gem (a returned object can look valid even if the
+  // persisted socket is empty), otherwise we could charge without forging.
+  const persistedGem = targetMatches ? targetGem : null;
 
   if (!persistedGem?.key) {
     // Genuine failure — roll back so the gem is never lost.

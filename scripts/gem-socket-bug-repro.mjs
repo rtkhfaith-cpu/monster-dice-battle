@@ -1,110 +1,110 @@
 /**
- * Repro for: gem consumed but not forged into the gear socket.
+ * Gem system regression: per-(type,level) inventory, forge-by-level, merge fuel,
+ * and legacy save migration.
  * Run: npx tsx scripts/gem-socket-bug-repro.mjs
  */
 async function main() {
-  // Dynamic import resolves the whole module graph first (avoids ESM static-cycle issues under tsx).
   const gem = await import('../src/gameSystems/gems/gemInventory.js');
-  const { grantGem, socketGemInGear, ensureGemInventory, normalizeSocketedGem, listSocketedGems } = gem;
+  const defs = await import('../src/gameSystems/gems/gemDefinitions.js');
+  const {
+    grantGem,
+    socketGemInGear,
+    ensureGemInventory,
+    normalizeSocketedGem,
+    listSocketedGems,
+    listSocketableGemStacks,
+    listGemStacks,
+    upgradeGem,
+  } = gem;
+  const { gemStackId, getRequiredGemsForUpgrade } = defs;
 
   const fail = (m) => { console.error('FAIL:', m); process.exit(1); };
+  const epicGear = (instanceId) => ({
+    instanceId,
+    gearId: 'epic_dragon_guard_helm', // real epic template (1 socket)
+    rarity: 'epic',
+    stats: [{ type: 'magicAttack', value: 10 }],
+    sockets: [{ id: 'socket_1', gem: null }],
+    equippedToMonsterId: null,
+    acquiredAt: new Date().toISOString(),
+  });
+  const countAt = (profile, key, level) =>
+    (profile.gemInventory || []).find((g) => g.key === key && g.level === level)?.count ?? 0;
 
-  const profile = {
-    id: 'repro',
-    coins: 999999,
-    ownedMonsters: [],
-    gemInventory: [],
-    gearInventory: [
-      {
-        instanceId: 'gear_epic_1',
-        gearId: 'epic_dragon_guard_helm', // real epic template (1 socket)
-        rarity: 'epic',
-        stats: [{ type: 'magicAttack', value: 10 }],
-        sockets: [{ id: 'socket_1', gem: null }],
-        equippedToMonsterId: null,
-        acquiredAt: new Date().toISOString(),
-      },
-    ],
-  };
-
+  // ---- 1) Socket consumes the gem and lands in the LIVE socket ----
+  const profile = { id: 'repro', coins: 999999, ownedMonsters: [], gemInventory: [], gearInventory: [epicGear('gear_epic_1')] };
   ensureGemInventory(profile);
-
-  // Grant an epic magic gem, then socket it.
   if (!grantGem(profile, 'epic', 'magicAttack', 1).ok) fail('grant failed');
-  const res = socketGemInGear(profile, 'gear_epic_1', 0, 'epic_magicAttack_gem');
+  const res = socketGemInGear(profile, 'gear_epic_1', 0, gemStackId('epic', 'magicAttack', 1));
   if (!res.ok) fail(`socket returned error: ${res.error}`);
-
-  // The bug: gem removed from inventory, but the LIVE gear socket stays empty.
-  const liveGear = profile.gearInventory.find((g) => g.instanceId === 'gear_epic_1');
-  const liveSocketGem = normalizeSocketedGem(liveGear?.sockets?.[0]?.gem);
-  const stillInStash = (profile.gemInventory || []).some((s) => s.key === 'epic_magicAttack_gem');
-
-  console.log('live socket gem:', liveSocketGem?.key ?? null);
-  console.log('still in stash :', stillInStash);
-  console.log('listSocketedGems count:', listSocketedGems(profile).length);
-
-  if (!liveSocketGem?.key) fail('BUG PRESENT: gem consumed but NOT in the live gear socket');
-  if (stillInStash) fail('gem should have left the stash after socketing');
+  const liveSocketGem = normalizeSocketedGem(profile.gearInventory[0]?.sockets?.[0]?.gem);
+  if (!liveSocketGem?.key) fail('BUG: gem consumed but NOT in the live gear socket');
+  if (countAt(profile, 'epic_magicAttack_gem', 1) !== 0) fail('gem should have left the stash after socketing');
   if (listSocketedGems(profile).length !== 1) fail('expected exactly 1 socketed gem');
+  console.log('PASS: gem forged into the LIVE socket and removed from stash');
 
-  console.log('PASS: gem is forged into the LIVE gear socket and removed from stash');
-
-  // ---- upgradeGem (gem merge) live-reference check ----
-  const { upgradeGem } = gem;
-  const { getRequiredGemsForUpgrade } = await import('../src/gameSystems/gems/gemDefinitions.js');
+  // ---- 2) Upgrade ONE gem by (type,level); fuel consumed; result is one level higher ----
   const prof2 = { id: 'up', coins: 0, ownedMonsters: [], gemInventory: [], gearInventory: [] };
   ensureGemInventory(prof2);
-  const need = getRequiredGemsForUpgrade(1);
-  grantGem(prof2, 'rare', 'attack', 1 + need); // 1 owned + `need` duplicates
-  const up = upgradeGem(prof2, 'rare_attack_gem');
+  const need1 = getRequiredGemsForUpgrade(1); // base→Lv2 fuel
+  grantGem(prof2, 'rare', 'attack', 1 + need1); // 1 base + need1 fuel, all Lv1
+  const up = upgradeGem(prof2, gemStackId('rare', 'attack', 1));
   if (!up.ok) fail(`upgrade returned error: ${up.error}`);
-  const liveStack = prof2.gemInventory.find((s) => s.key === 'rare_attack_gem');
-  console.log('upgraded stack level:', liveStack?.level, 'copies:', liveStack?.copies);
-  if (liveStack?.level !== 2) fail('BUG PRESENT: upgrade did not persist to the LIVE gem stack');
-  console.log('PASS: gem upgrade persists to the LIVE gem stack');
+  if (countAt(prof2, 'rare_attack_gem', 2) !== 1) fail('BUG: upgraded gem (Lv2) not present');
+  if (countAt(prof2, 'rare_attack_gem', 1) !== 0) fail('BUG: base + fuel Lv1 gems not consumed');
+  console.log('PASS: upgrade produces one Lv2 gem and consumes base + fuel');
 
-  // ---- upgrade an inventory gem while a same-type gem is socketed ----
-  // Player keeps one rare magic gem forged into gear AND upgrades another of the
-  // same rarity+stat sitting in inventory. The socketed gem must keep its own level.
-  const prof3 = {
-    id: 'multi',
-    coins: 0,
-    ownedMonsters: [],
-    gemInventory: [],
-    gearInventory: [
-      {
-        instanceId: 'gear_epic_2',
-        gearId: 'epic_dragon_guard_helm',
-        rarity: 'epic',
-        stats: [{ type: 'magicAttack', value: 10 }],
-        sockets: [{ id: 'socket_1', gem: null }],
-        equippedToMonsterId: null,
-        acquiredAt: new Date().toISOString(),
-      },
-    ],
-  };
+  // ---- 3) FORGE-BY-LEVEL: own Lv1 and Lv5 of same type; forge each independently ----
+  const prof3 = { id: 'pick', coins: 999999, ownedMonsters: [], gemInventory: [], gearInventory: [epicGear('gA'), epicGear('gB')] };
+  // Seed inventory directly with two different levels of the same type.
+  prof3.gemInventory = [
+    { key: 'rare_magicAttack_gem', rarity: 'rare', stat: 'magicAttack', level: 1, count: 3 },
+    { key: 'rare_magicAttack_gem', rarity: 'rare', stat: 'magicAttack', level: 5, count: 1 },
+  ];
   ensureGemInventory(prof3);
-  const need1 = getRequiredGemsForUpgrade(1);
-  // Own 2 base gems + enough duplicates: one will be socketed, the other upgraded.
-  grantGem(prof3, 'rare', 'magicAttack', 2 + need1);
-  const socketRes = socketGemInGear(prof3, 'gear_epic_2', 0, 'rare_magicAttack_gem');
-  if (!socketRes.ok) fail(`socket (multi) failed: ${socketRes.error}`);
-  const socketedLevelBefore = normalizeSocketedGem(
-    prof3.gearInventory[0].sockets[0].gem,
-  )?.level;
+  const ids = listSocketableGemStacks(prof3).map((g) => g.id).sort();
+  console.log('forge list ids:', ids);
+  if (!ids.includes(gemStackId('rare', 'magicAttack', 1)) || !ids.includes(gemStackId('rare', 'magicAttack', 5))) {
+    fail('BUG: both Lv1 and Lv5 rows must be selectable in the forge list');
+  }
+  // Forge the Lv5 specifically; the Lv5 must be consumed and the Lv1 untouched.
+  const forge5 = socketGemInGear(prof3, 'gA', 0, gemStackId('rare', 'magicAttack', 5));
+  if (!forge5.ok) fail(`forge Lv5 failed: ${forge5.error}`);
+  if (normalizeSocketedGem(prof3.gearInventory.find((g) => g.instanceId === 'gA').sockets[0].gem)?.level !== 5) {
+    fail('BUG: Lv5 gem was not the one forged');
+  }
+  if (countAt(prof3, 'rare_magicAttack_gem', 5) !== 0) fail('Lv5 gem should be consumed');
+  if (countAt(prof3, 'rare_magicAttack_gem', 1) !== 3) fail('Lv1 gems must be untouched when forging Lv5');
+  console.log('PASS: player can select and forge a specific level (Lv5) while keeping Lv1s');
 
-  const upMulti = upgradeGem(prof3, 'rare_magicAttack_gem');
-  if (!upMulti.ok) fail(`BUG PRESENT: upgrade blocked while same-type gem socketed: ${upMulti.error}`);
+  // ---- 4) MERGE FUEL drawn from LOWEST level first (never burns high-level gems) ----
+  const prof4 = { id: 'fuel', coins: 0, ownedMonsters: [], gemInventory: [], gearInventory: [] };
+  // Upgrade a Lv2 gem (needs getRequiredGemsForUpgrade(2) fuel). Provide plenty of Lv1
+  // plus a spare Lv3 that must NOT be consumed.
+  const need2 = getRequiredGemsForUpgrade(2);
+  prof4.gemInventory = [
+    { key: 'epic_attack_gem', rarity: 'epic', stat: 'attack', level: 2, count: 1 },
+    { key: 'epic_attack_gem', rarity: 'epic', stat: 'attack', level: 1, count: need2 + 2 },
+    { key: 'epic_attack_gem', rarity: 'epic', stat: 'attack', level: 3, count: 1 },
+  ];
+  ensureGemInventory(prof4);
+  const up2 = upgradeGem(prof4, gemStackId('epic', 'attack', 2));
+  if (!up2.ok) fail(`fuel upgrade failed: ${up2.error}`);
+  if (countAt(prof4, 'epic_attack_gem', 3) !== 2) fail('BUG: expected the new Lv3 plus the untouched spare Lv3');
+  if (countAt(prof4, 'epic_attack_gem', 1) !== 2) fail(`BUG: fuel not drawn from Lv1 first (left ${countAt(prof4, 'epic_attack_gem', 1)})`);
+  if (countAt(prof4, 'epic_attack_gem', 2) !== 0) fail('base Lv2 should be consumed');
+  console.log('PASS: merge fuel is drawn lowest-level first and spares high-level gems');
 
-  const invStack = prof3.gemInventory.find((s) => s.key === 'rare_magicAttack_gem');
-  const socketedLevelAfter = normalizeSocketedGem(
-    prof3.gearInventory[0].sockets[0].gem,
-  )?.level;
-  console.log('multi: inv level', invStack?.level, '| socketed level', socketedLevelAfter);
-  if (invStack?.level !== 2) fail('inventory gem should have upgraded to level 2');
-  if (socketedLevelAfter !== socketedLevelBefore) fail('socketed gem level must NOT change on inventory upgrade');
-  if (listSocketedGems(prof3).length !== 1) fail('socketed gem must remain forged in gear');
-  console.log('PASS: upgraded an inventory gem while same-type gem stays forged in gear');
+  // ---- 5) LEGACY MIGRATION: old {level, copies} → leveled gem + Lv1 spares ----
+  const prof5 = { id: 'legacy', coins: 0, ownedMonsters: [], gearInventory: [], gemInventory: [
+    { key: 'rare_attack_gem', rarity: 'rare', stat: 'attack', level: 5, copies: 3 },
+  ] };
+  ensureGemInventory(prof5);
+  if (countAt(prof5, 'rare_attack_gem', 5) !== 1) fail('BUG: legacy leveled gem lost on migration');
+  if (countAt(prof5, 'rare_attack_gem', 1) !== 3) fail('BUG: legacy copies should become 3 Lv1 gems');
+  console.log('PASS: legacy {level,copies} migrates to leveled gem + Lv1 spares (no loss)');
+
+  console.log('\nALL GEM REGRESSION CHECKS PASSED');
 }
 
 main().catch((e) => { console.error('ERROR:', e); process.exit(1); });

@@ -1,11 +1,15 @@
 /**
- * Gem inventory — own, upgrade (consume duplicates + coins), socket into gear.
+ * Gem inventory — own, upgrade (consume same-type gems + coins), socket into gear.
  *
- * Data model:
- *   profile.gemInventory: Array<{ key, rarity, stat, level, copies }>
- *     - one stack per (rarity, stat); `copies` are spare duplicates used to upgrade
- *   gear.sockets[].gem: { key, rarity, stat, level, copies } | null
- *     - socketing consumes one owned gem; spare duplicate copies stay in inventory
+ * Data model (per-level instances):
+ *   profile.gemInventory: Array<{ key, rarity, stat, level, count }>
+ *     - one row per (rarity, stat, LEVEL); `count` = how many gems owned at that level
+ *     - so a player can own the same type at several levels as independent rows
+ *       (e.g. Rare Magic Lv1 ×12 AND Rare Magic Lv5 ×1) and forge whichever they want
+ *   gear.sockets[].gem: { key, rarity, stat, level } | null
+ *
+ * Upgrading one gem consumes `getRequiredGemsForUpgrade(level)` OTHER same-type gems
+ * as fuel, drawn from the lowest level first so high-level gems are never burned.
  *
  * Gems only apply battle stats when socketed into epic/mythic gear with sockets.
  */
@@ -14,6 +18,8 @@ import {
   GEM_STATS,
   GEM_MAX_LEVEL,
   gemKey,
+  gemStackId,
+  parseGemStackId,
   gemBaseValue,
   gemDisplayName,
   gemStatValue,
@@ -30,50 +36,71 @@ function isValidGemKey(key) {
   return !!parseGemKey(key);
 }
 
-export function normalizeGemStack(row) {
-  if (!row || typeof row !== 'object') return null;
+function clampGemLevel(level) {
+  return Math.max(1, Math.min(GEM_MAX_LEVEL, Math.floor(level || 1)));
+}
+
+/** Normalize a gem stored inside a gear socket → { key, rarity, stat, level }. */
+export function normalizeSocketedGem(gem) {
+  if (!gem || typeof gem !== 'object') return null;
+  let key = String(gem.key || '').trim();
+  let parsed = parseGemKey(key);
+  if (!parsed && gem.rarity && gem.stat) {
+    key = gemKey(gem.rarity, gem.stat);
+    parsed = parseGemKey(key);
+  }
+  if (!parsed) return null;
+  return { key, rarity: parsed.rarity, stat: parsed.stat, level: clampGemLevel(gem.level) };
+}
+
+/**
+ * Convert one stored inventory row to new-format group(s), migrating legacy rows.
+ * Legacy `{ level, copies }` = 1 gem at `level` + `copies` spare Lv1 gems.
+ * New `{ level, count }` = `count` gems at `level`.
+ */
+function inventoryRowToGroups(row) {
+  if (!row || typeof row !== 'object') return [];
   let key = String(row.key || '').trim();
   let parsed = parseGemKey(key);
   if (!parsed && row.rarity && row.stat) {
     key = gemKey(row.rarity, row.stat);
     parsed = parseGemKey(key);
   }
-  if (!parsed) return null;
-  return {
-    key,
-    rarity: parsed.rarity,
-    stat: parsed.stat,
-    level: Math.max(1, Math.min(GEM_MAX_LEVEL, Math.floor(row.level || 1))),
-    copies: Math.max(0, Math.floor(row.copies || 0)),
-  };
+  if (!parsed) return [];
+  const level = clampGemLevel(row.level);
+  const out = [];
+  if (Object.prototype.hasOwnProperty.call(row, 'count')) {
+    const count = Math.max(0, Math.floor(row.count || 0));
+    if (count > 0) out.push({ key, rarity: parsed.rarity, stat: parsed.stat, level, count });
+  } else {
+    out.push({ key, rarity: parsed.rarity, stat: parsed.stat, level, count: 1 });
+    const copies = Math.max(0, Math.floor(row.copies || 0));
+    if (copies > 0) {
+      out.push({ key: gemKey(parsed.rarity, parsed.stat), rarity: parsed.rarity, stat: parsed.stat, level: 1, count: copies });
+    }
+  }
+  return out;
 }
 
-/** Normalize a gem stored inside a gear socket. */
-export function normalizeSocketedGem(gem) {
-  return normalizeGemStack(gem);
-}
-
-function mergeGemInventoryStacks(rows) {
+/** Group rows by (rarity, stat, level), summing counts and dropping empties. */
+function groupGemInventory(rows) {
   const byKey = new Map();
   for (const row of rows || []) {
-    const g = normalizeGemStack(row);
-    if (!g) continue;
-    const prev = byKey.get(g.key);
-    if (!prev) {
-      byKey.set(g.key, { ...g });
-      continue;
+    for (const g of inventoryRowToGroups(row)) {
+      const k = `${g.rarity}_${g.stat}_L${g.level}`;
+      const prev = byKey.get(k);
+      if (prev) prev.count += g.count;
+      else byKey.set(k, { ...g, key: gemKey(g.rarity, g.stat) });
     }
-    prev.level = Math.max(prev.level, g.level);
-    prev.copies += g.copies;
   }
-  return [...byKey.values()];
+  return [...byKey.values()].filter((g) => g.count > 0);
 }
 
 /** @param {object} profile */
 export function ensureGemInventory(profile) {
   if (!profile) return;
   if (!Array.isArray(profile.gemInventory)) profile.gemInventory = [];
-  profile.gemInventory = mergeGemInventoryStacks(profile.gemInventory);
+  profile.gemInventory = groupGemInventory(profile.gemInventory);
   ensureGearInventory(profile);
   for (const gear of profile.gearInventory || []) {
     for (let i = 0; i < (gear.sockets?.length ?? 0); i++) {
@@ -88,9 +115,34 @@ export function ensureGemInventory(profile) {
   }
 }
 
-export function findGemStack(profile, key) {
+/** Find the row for one (rarity, stat, level), or null. */
+function findGemGroup(profile, rarity, stat, level) {
+  return (profile.gemInventory || []).find(
+    (g) => g.rarity === rarity && g.stat === stat && g.level === level,
+  ) ?? null;
+}
+
+/** Total gems of a type across every level. */
+function totalOfType(profile, rarity, stat) {
+  return (profile.gemInventory || [])
+    .filter((g) => g.rarity === rarity && g.stat === stat)
+    .reduce((sum, g) => sum + (g.count || 0), 0);
+}
+
+function addGems(profile, rarity, stat, level, n) {
+  if (n <= 0) return;
+  const lvl = clampGemLevel(level);
+  const g = findGemGroup(profile, rarity, stat, lvl);
+  if (g) g.count += n;
+  else profile.gemInventory.push({ key: gemKey(rarity, stat), rarity, stat, level: lvl, count: n });
+}
+
+/** Back-compat: locate a row by stack id (type + level) or plain type key (level 1). */
+export function findGemStack(profile, idOrKey) {
   if (!profile?.gemInventory) return null;
-  return profile.gemInventory.find((g) => g.key === key) ?? null;
+  const parsed = parseGemStackId(idOrKey);
+  if (!parsed) return null;
+  return findGemGroup(profile, parsed.rarity, parsed.stat, parsed.level);
 }
 
 /** All gems currently socketed in gear. */
@@ -116,21 +168,15 @@ export function isGemKeySocketed(profile, key) {
   return listSocketedGems(profile).some((row) => row.gem.key === key);
 }
 
-/** Grant gem(s) (rarity+stat). First grant creates the owned stack; extras become merge duplicates. */
+/** Grant gem(s) (rarity+stat). New gems always enter inventory at level 1. */
 export function grantGem(profile, rarity, stat, quantity = 1) {
   ensureGemInventory(profile);
   const key = gemKey(rarity, stat);
   if (!isValidGemKey(key)) return { ok: false, error: 'Unknown gem' };
   const qty = Math.max(1, Math.floor(quantity));
-  let stack = findGemStack(profile, key);
-  if (!stack) {
-    stack = { key, rarity, stat, level: 1, copies: Math.max(0, qty - 1) };
-    profile.gemInventory.push(stack);
-  } else {
-    stack.copies += qty;
-  }
+  addGems(profile, rarity, stat, 1, qty);
   profile.updatedAt = new Date().toISOString();
-  return { ok: true, gem: stack, granted: qty };
+  return { ok: true, gem: { key, rarity, stat, level: 1 }, granted: qty };
 }
 
 export function grantGemByKey(profile, key, quantity = 1) {
@@ -140,33 +186,52 @@ export function grantGemByKey(profile, key, quantity = 1) {
 }
 
 /**
- * Upgrade a gem one level, consuming duplicate copies (coins handled by caller).
+ * Upgrade ONE specific gem (identified by type + level) up a level.
  *
- * Inventory gems and socketed gems are stored independently — a socketed gem keeps
- * its own level inside the gear socket. Upgrading the inventory stack never touches a
- * socketed gem, so owning/leveling another gem of the same rarity+stat while one is
- * already forged into gear is allowed.
+ * The chosen gem is the "base"; the merge consumes `getRequiredGemsForUpgrade(level)`
+ * OTHER same-type gems as fuel, drawn from the LOWEST level first so the player never
+ * accidentally burns a high-level gem. Coins are handled by the caller. Socketed gems
+ * are stored separately and are never touched.
  */
-export function upgradeGem(profile, key) {
+export function upgradeGem(profile, gemId) {
   ensureGemInventory(profile);
-  const stack = findGemStack(profile, key);
-  if (!stack) return { ok: false, error: 'Gem not owned' };
-  if (stack.level >= GEM_MAX_LEVEL) return { ok: false, error: 'Gem already at max level' };
-  const need = getRequiredGemsForUpgrade(stack.level);
-  if (stack.copies < need) {
+  const parsed = parseGemStackId(gemId);
+  if (!parsed) return { ok: false, error: 'Unknown gem' };
+  const { rarity, stat, level } = parsed;
+  const base = findGemGroup(profile, rarity, stat, level);
+  if (!base || base.count < 1) return { ok: false, error: 'Gem not owned' };
+  if (level >= GEM_MAX_LEVEL) return { ok: false, error: 'Gem already at max level' };
+
+  const need = getRequiredGemsForUpgrade(level);
+  const fuelAvailable = totalOfType(profile, rarity, stat) - 1; // exclude the base gem
+  if (fuelAvailable < need) {
     return {
       ok: false,
-      error: `Need ${need} duplicate gem${need === 1 ? '' : 's'} to merge (have ${stack.copies}).`,
+      error: `Need ${need} more ${gemDisplayName(rarity, stat)} as fuel (have ${fuelAvailable}).`,
     };
   }
-  stack.copies -= need;
-  stack.level += 1;
+
+  // Remove the base gem, then draw `need` fuel from the lowest levels first.
+  base.count -= 1;
+  let remaining = need;
+  const sameType = (profile.gemInventory || [])
+    .filter((g) => g.rarity === rarity && g.stat === stat && g.count > 0)
+    .sort((a, b) => a.level - b.level);
+  for (const g of sameType) {
+    if (remaining <= 0) break;
+    const take = Math.min(g.count, remaining);
+    g.count -= take;
+    remaining -= take;
+  }
+  profile.gemInventory = profile.gemInventory.filter((g) => g.count > 0);
+  addGems(profile, rarity, stat, level + 1, 1);
+
   profile.updatedAt = new Date().toISOString();
-  return { ok: true, gem: stack, level: stack.level };
+  return { ok: true, gem: { key: gemKey(rarity, stat), rarity, stat, level: level + 1 }, level: level + 1 };
 }
 
-/** Insert a gem from inventory into a gear socket. */
-export function socketGemInGear(profile, gearInstanceId, socketIndex, key) {
+/** Insert ONE specific gem (type + level) from inventory into a gear socket. */
+export function socketGemInGear(profile, gearInstanceId, socketIndex, gemId) {
   ensureGemInventory(profile);
   const gear = getGearInstance(profile, gearInstanceId);
   if (!gear) return { ok: false, error: 'Gear not found' };
@@ -176,28 +241,18 @@ export function socketGemInGear(profile, gearInstanceId, socketIndex, key) {
   if (idx < 0 || idx >= gear.sockets.length) return { ok: false, error: 'Invalid socket.' };
   if (gear.sockets[idx].gem) return { ok: false, error: 'Socket already filled.' };
 
-  const parsed = parseGemKey(key);
+  const parsed = parseGemStackId(gemId);
   if (!parsed) return { ok: false, error: 'Unknown gem' };
-  const stack = findGemStack(profile, key);
-  if (!stack) return { ok: false, error: 'Gem not in inventory' };
-  if (isGemKeySocketed(profile, key)) return { ok: false, error: 'Gem already socketed elsewhere.' };
+  const { rarity, stat, level } = parsed;
+  const group = findGemGroup(profile, rarity, stat, level);
+  if (!group || group.count < 1) return { ok: false, error: 'Gem not in inventory' };
 
-  const invIdx = profile.gemInventory.findIndex((g) => g.key === key);
-  if (invIdx < 0) return { ok: false, error: 'Gem not in inventory' };
-  const source = profile.gemInventory[invIdx];
-  const socketedGem = {
-    key: source.key,
-    rarity: source.rarity,
-    stat: source.stat,
-    level: source.level,
-    copies: 0,
-  };
+  const socketedGem = { key: gemKey(rarity, stat), rarity, stat, level };
 
   // CRITICAL: re-acquire the LIVE gear reference here. Earlier validation calls
-  // (getGearInstance, isGemKeySocketed) each run ensureGearInventory, which REPLACES
-  // profile.gearInventory with freshly normalized objects. The `gear` captured above
-  // is now detached, so writing to it would lose the socket while still consuming the
-  // gem. Find it directly and do NOT call any ensure* helper after this point.
+  // (getGearInstance) run ensureGearInventory, which REPLACES profile.gearInventory
+  // with freshly normalized objects, detaching the `gear` captured above. Write to the
+  // live object and do NOT call any ensure* helper after this point.
   const liveGear = (profile.gearInventory || []).find((g) => g.instanceId === gearInstanceId);
   if (!liveGear || !liveGear.sockets?.[idx]) return { ok: false, error: 'Gear not found' };
   if (liveGear.sockets[idx].gem) return { ok: false, error: 'Socket already filled.' };
@@ -209,11 +264,9 @@ export function socketGemInGear(profile, gearInstanceId, socketIndex, key) {
     return { ok: false, error: 'Could not attach gem to this socket. Please try again.' };
   }
 
-  if ((source.copies ?? 0) > 0) {
-    source.copies -= 1;
-  } else {
-    profile.gemInventory.splice(invIdx, 1);
-  }
+  // Consume one gem of the chosen type+level from inventory.
+  group.count -= 1;
+  profile.gemInventory = profile.gemInventory.filter((g) => g.count > 0);
 
   liveGear.sockets[idx].gem = confirmedGem;
   profile.updatedAt = new Date().toISOString();
@@ -221,11 +274,11 @@ export function socketGemInGear(profile, gearInstanceId, socketIndex, key) {
     ok: true,
     gem: liveGear.sockets[idx].gem,
     gear: liveGear,
-    insertCost: gemSocketInsertCoinCost(parsed.rarity),
+    insertCost: gemSocketInsertCoinCost(rarity),
   };
 }
 
-/** Remove a gem from a gear socket back into inventory. */
+/** Remove a gem from a gear socket back into inventory (returns to its own level row). */
 export function unsocketGemFromGear(profile, gearInstanceId, socketIndex) {
   ensureGemInventory(profile);
   const gear = getGearInstance(profile, gearInstanceId);
@@ -238,19 +291,15 @@ export function unsocketGemFromGear(profile, gearInstanceId, socketIndex) {
   const socketGem = normalizeSocketedGem(gear.sockets[idx].gem);
   if (!socketGem) return { ok: false, error: 'Socket is empty.' };
 
-  let stack = findGemStack(profile, socketGem.key);
-  if (stack) {
-    stack.copies += 1 + Math.max(0, socketGem.copies ?? 0);
-    stack.level = Math.max(stack.level, socketGem.level);
-  } else {
-    profile.gemInventory.push({ ...socketGem });
-  }
-  gear.sockets[idx].gem = null;
+  // Re-acquire live gear (ensure* above may have rebuilt the array).
+  const liveGear = (profile.gearInventory || []).find((g) => g.instanceId === gearInstanceId) ?? gear;
+  addGems(profile, socketGem.rarity, socketGem.stat, socketGem.level, 1);
+  if (liveGear.sockets?.[idx]) liveGear.sockets[idx].gem = null;
   profile.updatedAt = new Date().toISOString();
   return {
     ok: true,
     gem: socketGem,
-    gear,
+    gear: liveGear,
     removeCost: gemSocketRemoveCoinCost(socketGem.rarity),
   };
 }
@@ -284,34 +333,44 @@ export function normalizeEquippedGems() {
   return { offensive: null, defensive: null, utility: null };
 }
 
-/** Gems in inventory that can be inserted into a gear socket. */
+/**
+ * Gems in inventory that can be inserted into a gear socket.
+ *
+ * Every inventory stack is socketable. Socketing removes the consumed instance
+ * from inventory, so a stack only remains listed while it still has an available
+ * gem — even if another gem of the same rarity+stat is already forged elsewhere
+ * (they are independent instances). Do NOT filter by isGemKeySocketed here, or a
+ * just-merged gem would vanish from the forge list whenever a same-type gem is
+ * already socketed.
+ */
 export function listSocketableGemStacks(profile) {
   ensureGemInventory(profile);
-  return listGemStacks(profile).filter((g) => !isGemKeySocketed(profile, g.id));
+  return listGemStacks(profile);
 }
 
-/** UI summary rows for the gems screen. */
+/** UI summary rows for the gems screen — one row per (type + level). */
 export function listGemStacks(profile) {
   ensureGemInventory(profile);
   return [...(profile.gemInventory || [])]
-    .filter((stack) => stack && stack.level >= 1)
+    .filter((stack) => stack && stack.count > 0 && stack.level >= 1)
     .map((stack) => {
       const def = makeGemDef(stack.rarity, stack.stat);
       const need = getRequiredGemsForUpgrade(stack.level);
       const mergeCoinCost = gemUpgradeCoinCost(stack.rarity, stack.level);
+      const fuelAvailable = totalOfType(profile, stack.rarity, stack.stat) - 1;
+      const atMaxLevel = stack.level >= GEM_MAX_LEVEL;
       return {
         ...def,
+        id: gemStackId(stack.rarity, stack.stat, stack.level),
         level: stack.level,
-        copies: stack.copies,
+        count: stack.count,
+        fuelAvailable,
         upgradeCost: need,
         mergeCoinCost,
-        canUpgrade: stack.level < GEM_MAX_LEVEL && stack.copies >= need,
-        atMaxLevel: stack.level >= GEM_MAX_LEVEL,
+        canUpgrade: !atMaxLevel && fuelAvailable >= need,
+        atMaxLevel,
         currentValue: gemStatValue(stack.rarity, stack.stat, stack.level),
-        nextValue:
-          stack.level < GEM_MAX_LEVEL
-            ? gemStatValue(stack.rarity, stack.stat, stack.level + 1)
-            : null,
+        nextValue: !atMaxLevel ? gemStatValue(stack.rarity, stack.stat, stack.level + 1) : null,
         socketed: false,
       };
     })
@@ -319,7 +378,9 @@ export function listGemStacks(profile) {
       const rOrder = { mythic: 0, epic: 1, rare: 2 };
       const dr = (rOrder[a.rarity] ?? 9) - (rOrder[b.rarity] ?? 9);
       if (dr !== 0) return dr;
-      return a.stat.localeCompare(b.stat);
+      const ds = a.stat.localeCompare(b.stat);
+      if (ds !== 0) return ds;
+      return b.level - a.level; // highest level first within a type
     });
 }
 

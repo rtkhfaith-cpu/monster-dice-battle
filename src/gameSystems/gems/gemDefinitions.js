@@ -120,7 +120,38 @@ export function parseGemKey(key) {
     const legacy = `${k}_gem`;
     if (GEM_DEF_BY_KEY.has(legacy)) return GEM_DEF_BY_KEY.get(legacy);
   }
+  // Tolerate a stack id (type + level) being passed where a type key is expected.
+  const at = k.indexOf('@');
+  if (at > 0) {
+    const base = k.slice(0, at);
+    if (GEM_DEF_BY_KEY.has(base)) return GEM_DEF_BY_KEY.get(base);
+  }
   return null;
+}
+
+/**
+ * Stable id for one inventory row: a gem TYPE (rarity + stat) at a specific LEVEL.
+ * Players can own the same type at several levels as independent, selectable rows.
+ * Example: `rare_magicAttack_gem@5`.
+ */
+export function gemStackId(rarity, stat, level) {
+  const lvl = Math.max(1, Math.min(GEM_MAX_LEVEL, Math.floor(level || 1)));
+  return `${gemKey(rarity, stat)}@${lvl}`;
+}
+
+/** Parse a stack id (or a plain type key, treated as level 1) → { rarity, stat, level }. */
+export function parseGemStackId(id) {
+  const raw = String(id || '').trim();
+  const at = raw.indexOf('@');
+  const typePart = at > 0 ? raw.slice(0, at) : raw;
+  const parsed = parseGemKey(typePart);
+  if (!parsed) return null;
+  let level = 1;
+  if (at > 0) {
+    const n = parseInt(raw.slice(at + 1), 10);
+    if (Number.isFinite(n)) level = Math.max(1, Math.min(GEM_MAX_LEVEL, n));
+  }
+  return { rarity: parsed.rarity, stat: parsed.stat, level };
 }
 
 /** @param {string} stat */

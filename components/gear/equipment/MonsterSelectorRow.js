@@ -87,9 +87,12 @@ export default function MonsterSelectorRow({
         const on = m.id === selectedId;
         const forBattle = battleMonsterId && m.id === battleMonsterId;
         const mergeInfo = mergeInfoBySpecies.get(m.templateId) ?? null;
-        // Show the merge button on any chip that can merge (so spare duplicates
-        // are always actionable), plus the selected chip for "Need X copies" feedback.
-        const showMerge = !!onMergeMonster && !!mergeInfo && (on || mergeInfo.canMerge);
+        // Show the merge button whenever the player owns a spare duplicate of this
+        // species (extras > 0) — even if not yet enough for the next tier — so the
+        // merge option (Merge +N or "Need X copies") is never hidden. Also show on
+        // the selected chip for context.
+        const showMerge = !!onMergeMonster && !!mergeInfo
+          && (on || mergeInfo.canMerge || mergeInfo.extras > 0);
         return (
           <View
             key={m.id}

@@ -72,8 +72,10 @@ export default function GemManagerPanel({
                       {g.nextValue != null ? `   Next: +${g.nextValue}` : '   (max)'}
                     </Text>
                     <Text style={styles.cardCopies}>
-                      Duplicates: {g.copies}
-                      {g.atMaxLevel ? '' : ` · merge needs ${g.upgradeCost}`}
+                      Owned ×{g.count}
+                      {g.atMaxLevel
+                        ? ''
+                        : ` · merge needs ${g.upgradeCost} fuel (have ${g.fuelAvailable})`}
                     </Text>
                   </View>
                 </View>
@@ -95,7 +97,7 @@ export default function GemManagerPanel({
                   ) : (
                     <View style={[styles.btn, styles.btnOff]}>
                       <Text style={styles.btnTxt}>
-                        Need {g.upgradeCost} duplicate{g.upgradeCost === 1 ? '' : 's'}
+                        Need {g.upgradeCost} fuel gem{g.upgradeCost === 1 ? '' : 's'} (have {g.fuelAvailable})
                       </Text>
                     </View>
                   )}
