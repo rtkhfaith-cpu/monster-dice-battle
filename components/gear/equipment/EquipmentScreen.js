@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -10,7 +10,6 @@ import {
 import { fighterFromOwned } from '../../../utils/fighterFromOwned';
 import { expToAdvanceFrom } from '../../../utils/expLevel';
 import { powerScoreFromBundle } from '../../../utils/statsCalc';
-import { getGearInstance } from '../../../src/gameSystems/gear/inventoryGearUtils';
 import { getSlotInstanceId } from '../../../src/gameSystems/gear/equipmentSystem';
 import { detectActiveGearSet, previewSetBonusChange } from '../../../src/gameSystems/gear/gearSets';
 import { listUnequippedBooks, monsterEquippedPassives } from '../../../src/gameSystems/passiveInventory';
@@ -23,12 +22,6 @@ import {
   pickBattleInstance,
   rosterInstancesForTemplate,
 } from '../../../utils/rosterInventory';
-import {
-  clampMergeTier,
-  mergeCostForNextTier,
-  MAX_MERGE_TIER,
-  pickPrimaryInstance,
-} from '../../../utils/mergeSystem';
 import { GEAR_UI, gearModalStyles } from '../gearUiTheme';
 import MonsterEquipmentLayout from './MonsterEquipmentLayout';
 import MonsterFinalStatsPanel from './MonsterFinalStatsPanel';
@@ -104,7 +97,10 @@ export default function EquipmentScreen({
   ), [fighter]);
 
   const equipment = ownedMonster?.equipment;
-  const tpl = getMonsterTemplate(ownedMonster?.templateId) ?? getLadderMonsterTemplate(ownedMonster?.templateId);
+  const tpl = useMemo(
+    () => getMonsterTemplate(ownedMonster?.templateId) ?? getLadderMonsterTemplate(ownedMonster?.templateId),
+    [ownedMonster?.templateId],
+  );
   const passiveLimit = passiveSlotLimitForRarity(tpl?.rarity ?? 'common');
   const equippedPassives = monsterEquippedPassives(ownedMonster);
   const passiveBooks = useMemo(() => listUnequippedBooks(profile), [profile]);
@@ -134,24 +130,18 @@ export default function EquipmentScreen({
     [profile, equipment],
   );
 
-  const mergeInfo = useMemo(() => {
-    if (!ownedMonster) return null;
-    const instances = rosterInstancesForTemplate(ownedMonsters ?? [], ownedMonster.templateId);
-    const primary = pickPrimaryInstance(instances) ?? ownedMonster;
-    const mergeTier = clampMergeTier(primary.mergeTier);
-    const nextCost = mergeCostForNextTier(mergeTier);
-    const extras = Math.max(0, instances.length - 1);
-    return {
-      primaryId: primary.id,
-      mergeTier,
-      nextCost,
-      extras,
-      canMerge: nextCost != null && extras >= nextCost,
-      isMax: mergeTier >= MAX_MERGE_TIER,
-    };
-  }, [ownedMonster, ownedMonsters]);
+  const gearById = useMemo(() => {
+    const map = new Map();
+    for (const gear of profile?.gearInventory ?? []) {
+      if (gear?.instanceId) map.set(gear.instanceId, gear);
+    }
+    return map;
+  }, [profile?.gearInventory]);
 
-  const getGear = (instanceId) => getGearInstance(profile, instanceId);
+  const getGear = useCallback((instanceId) => {
+    if (!instanceId) return null;
+    return gearById.get(instanceId) ?? null;
+  }, [gearById]);
 
   const currentGear =
     selectedSlot?.kind === 'gear'
@@ -273,10 +263,10 @@ export default function EquipmentScreen({
 
       <MonsterSelectorRow
         monsters={selectorMonsters}
+        allOwnedMonsters={ownedMonsters}
         selectedId={selectorSelectedId}
         battleMonsterId={battleMonsterId}
         onSelect={onSelectMonster}
-        selectedMergeInfo={mergeInfo}
         onMergeMonster={onMergeMonster}
       />
 
@@ -324,23 +314,6 @@ export default function EquipmentScreen({
             Lv {ownedMonster.level ?? 1} · EXP {ownedMonster.exp ?? 0}/
             {expToAdvanceFrom(ownedMonster.level ?? 1)}
           </Text>
-          <Text style={[styles.infoLine, styles.mergeLine]}>
-            Merge Tier:{' '}
-            {mergeInfo?.isMax
-              ? `MAX (+${mergeInfo?.mergeTier ?? MAX_MERGE_TIER})`
-              : `+${mergeInfo?.mergeTier ?? 0} · ${mergeInfo?.extras ?? 0}/${mergeInfo?.nextCost ?? '-'} copies`}
-          </Text>
-          {!mergeInfo?.isMax ? (
-            <TouchableOpacity
-              style={[styles.mergeActionBtn, !mergeInfo?.canMerge && styles.mergeActionBtnNeed]}
-              onPress={() => onMergeMonster?.(mergeInfo?.primaryId)}
-              activeOpacity={0.86}
-            >
-              <Text style={styles.mergeActionTxt}>
-                {mergeInfo?.canMerge ? `Merge to +${(mergeInfo?.mergeTier ?? 0) + 1}` : `Need ${mergeInfo?.nextCost ?? '-'} copies`}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
           <Text style={[styles.infoLine, styles.powerLine]}>
             Total Power: {totalPower.toLocaleString()}
           </Text>
@@ -464,34 +437,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginBottom: 8,
-  },
-  mergeLine: {
-    color: '#f3e8ff',
-    backgroundColor: 'rgba(76, 29, 149, 0.34)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(216, 180, 254, 0.45)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 6,
-  },
-  mergeActionBtn: {
-    marginBottom: 8,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#9333ea',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
-  },
-  mergeActionBtnNeed: {
-    backgroundColor: 'rgba(71,85,105,0.92)',
-  },
-  mergeActionTxt: {
-    color: '#ffffff',
-    fontWeight: '900',
-    fontSize: 11,
   },
   skillInfoRow: {
     marginBottom: 8,

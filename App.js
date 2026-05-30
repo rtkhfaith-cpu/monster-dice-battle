@@ -268,6 +268,7 @@ export default function App() {
   const [saveConflict, setSaveConflict] = useState(null);
   const [saveConflictBusy, setSaveConflictBusy] = useState(false);
   const cloudRefreshInFlightRef = useRef(false);
+  const persistSaveSeqRef = useRef(0);
   /** Skip redundant cloud polls on the same device (e.g. mart sync then battle start). */
   const lastCloudFreshAtRef = useRef(new Map());
   const CLOUD_FRESH_COOLDOWN_MS = 30000;
@@ -786,6 +787,8 @@ export default function App() {
   }, [phase, activeProfileId, setupP1ProfileId, refreshCloudIfBehind, gameMode]);
 
   function persistSave(nextGd, reason, profileIDs, opts = {}) {
+    const saveSeq = persistSaveSeqRef.current + 1;
+    persistSaveSeqRef.current = saveSeq;
     markCloudFreshForSave(profileIDs);
     setGameData(nextGd);
     void commitSave({
@@ -794,6 +797,8 @@ export default function App() {
       profileIDs,
       forceCloud: !!opts.forceCloud,
     }).then(async (res) => {
+      // Ignore stale async save completions so older commits cannot overwrite newer state.
+      if (saveSeq !== persistSaveSeqRef.current) return;
       if (res?.gameData) setGameData(res.gameData);
       if (res?.cloudSynced) markCloudFreshForSave(profileIDs);
       if (res?.cloudBlocked && res.cloudBlockPayload) {

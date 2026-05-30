@@ -819,13 +819,19 @@ export function socketGemInGearForProfile(gameData, profileId, gearInstanceId, s
   const gd = cloneGameData(gameData);
   const profile = resolveGameProfile(gd, profileId);
   if (!profile) return { gameData: gd, error: 'Profile not found' };
+  const idx = Number.isFinite(Number(socketIndex)) ? Math.floor(Number(socketIndex)) : -1;
+  const beforeGear = getGearInstance(profile, gearInstanceId);
+  const beforeSocketGem = normalizeSocketedGem(beforeGear?.sockets?.[idx]?.gem);
+  const beforeGemInventory = Array.isArray(profile.gemInventory)
+    ? profile.gemInventory.map((g) => ({ ...g }))
+    : [];
+  const beforeCoins = profile.coins ?? 0;
   const parsed = parseGemKey(gemKeyId);
   if (!parsed) return { gameData: gd, error: 'Unknown gem' };
   const price = gemSocketInsertCoinCost(parsed.rarity);
   if ((profile.coins ?? 0) < price) return { gameData: gd, error: `Need 🪙 ${price} to socket gem` };
   const res = socketGemInGear(profile, gearInstanceId, socketIndex, gemKeyId);
   if (!res.ok) return { gameData: gd, error: res.error };
-  const idx = Number.isFinite(Number(socketIndex)) ? Math.floor(Number(socketIndex)) : -1;
   const confirmedGear = res.gear ?? getGearInstance(profile, gearInstanceId);
   let confirmedGem = normalizeSocketedGem(res.gem);
   if (!confirmedGem?.key) {
@@ -836,11 +842,28 @@ export function socketGemInGearForProfile(gameData, profileId, gearInstanceId, s
     confirmedGem = normalizeSocketedGem(fallbackSocket?.gem);
   }
   if (!confirmedGem?.key) {
+    profile.gemInventory = beforeGemInventory;
+    const rollbackGear = getGearInstance(profile, gearInstanceId);
+    if (rollbackGear?.sockets?.[idx]) rollbackGear.sockets[idx].gem = beforeSocketGem;
+    profile.coins = beforeCoins;
     return { gameData: gd, error: 'Gem was not saved into the gear socket. Please try again.' };
+  }
+  // Re-normalize the profile, then re-check the exact socket to prevent silent losses.
+  ensureGemInventory(profile);
+  const persistedGear = getGearInstance(profile, gearInstanceId);
+  const persistedGem = normalizeSocketedGem(persistedGear?.sockets?.[idx]?.gem);
+  if (!persistedGem?.key || persistedGem.key !== gemKeyId) {
+    profile.gemInventory = beforeGemInventory;
+    if (persistedGear?.sockets?.[idx]) persistedGear.sockets[idx].gem = beforeSocketGem;
+    profile.coins = beforeCoins;
+    return {
+      gameData: gd,
+      error: 'Gem socket failed during save verification. No gem was consumed.',
+    };
   }
   profile.coins -= price;
   profile.updatedAt = new Date().toISOString();
-  return { gameData: gd, gem: confirmedGem, gear: confirmedGear, price };
+  return { gameData: gd, gem: persistedGem, gear: persistedGear, price };
 }
 
 export function unsocketGemFromGearForProfile(gameData, profileId, gearInstanceId, socketIndex) {

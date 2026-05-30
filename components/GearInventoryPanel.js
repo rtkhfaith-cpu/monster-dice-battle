@@ -34,6 +34,7 @@ const FILTERS = [
   { id: 'mythic', label: 'Mythic' },
   { id: 'equipped', label: 'Equipped' },
   { id: 'unequipped', label: 'Free' },
+  { id: 'sockets', label: 'Slots' },
 ];
 
 function socketedGemRows(gear) {

@@ -3,6 +3,13 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import MonsterPreview from '../../MonsterPreview';
 import { getLadderMonsterTemplate } from '../../../utils/monsterLadder/ladderMonsterCatalog';
 import { getMonsterTemplate, rarityRank, ROLE_LABELS } from '../../../utils/monsterTemplates';
+import { rosterInstancesForTemplate } from '../../../utils/rosterInventory';
+import {
+  clampMergeTier,
+  mergeCostForNextTier,
+  MAX_MERGE_TIER,
+  pickPrimaryInstance,
+} from '../../../utils/mergeSystem';
 import { GEAR_UI, gearRarityUi } from '../gearUiTheme';
 
 function templateFor(templateId) {
@@ -23,10 +30,10 @@ function roleLabel(templateId) {
 
 export default function MonsterSelectorRow({
   monsters,
+  allOwnedMonsters,
   selectedId,
   battleMonsterId,
   onSelect,
-  selectedMergeInfo = null,
   onMergeMonster,
 }) {
   const sorted = useMemo(() => {
@@ -38,6 +45,34 @@ export default function MonsterSelectorRow({
       return (b.level ?? 0) - (a.level ?? 0);
     });
   }, [monsters]);
+  const decorated = useMemo(
+    () => sorted.map((m) => ({
+      ...m,
+      chipBorderColor: rarityBorderColor(m.templateId),
+      chipRoleLabel: roleLabel(m.templateId),
+    })),
+    [sorted],
+  );
+  const mergeInfoBySpecies = useMemo(() => {
+    const map = new Map();
+    const roster = allOwnedMonsters ?? [];
+    for (const m of decorated) {
+      const speciesInstances = rosterInstancesForTemplate(roster, m.templateId);
+      const primary = pickPrimaryInstance(speciesInstances) ?? m;
+      const mergeTier = clampMergeTier(primary.mergeTier);
+      const nextCost = mergeCostForNextTier(mergeTier);
+      const extras = Math.max(0, speciesInstances.length - 1);
+      map.set(m.templateId, {
+        primaryId: primary.id,
+        mergeTier,
+        nextCost,
+        extras,
+        canMerge: nextCost != null && extras >= nextCost,
+        isMax: mergeTier >= MAX_MERGE_TIER,
+      });
+    }
+    return map;
+  }, [allOwnedMonsters, decorated]);
 
   if (!monsters?.length) return null;
 
@@ -48,17 +83,17 @@ export default function MonsterSelectorRow({
       style={styles.scroll}
       contentContainerStyle={styles.content}
     >
-      {sorted.map((m) => {
+      {decorated.map((m) => {
         const on = m.id === selectedId;
         const forBattle = battleMonsterId && m.id === battleMonsterId;
-        const borderColor = rarityBorderColor(m.templateId);
-        const showMerge = on && selectedMergeInfo && onMergeMonster;
+        const mergeInfo = mergeInfoBySpecies.get(m.templateId) ?? null;
+        const showMerge = on && mergeInfo && onMergeMonster;
         return (
           <View
             key={m.id}
             style={[
               styles.chip,
-              { borderColor },
+              { borderColor: m.chipBorderColor },
               on && styles.chipOn,
             ]}
           >
@@ -77,7 +112,7 @@ export default function MonsterSelectorRow({
                 {m.nickname || m.templateId}
               </Text>
               <Text style={[styles.role, on && styles.roleOn]} numberOfLines={1}>
-                {roleLabel(m.templateId)}
+                {m.chipRoleLabel}
               </Text>
               {forBattle ? <Text style={styles.battleLbl}>Battle</Text> : null}
             </TouchableOpacity>
@@ -85,21 +120,21 @@ export default function MonsterSelectorRow({
               <TouchableOpacity
                 style={[
                   styles.mergeBtn,
-                  !selectedMergeInfo.canMerge && styles.mergeBtnNeed,
+                  !mergeInfo.canMerge && styles.mergeBtnNeed,
                 ]}
-                onPress={() => onMergeMonster(selectedMergeInfo.primaryId)}
+                onPress={() => onMergeMonster(mergeInfo.primaryId)}
                 activeOpacity={0.86}
               >
                 <Text style={styles.mergeBtnTxt}>
-                  {selectedMergeInfo.isMax
+                  {mergeInfo.isMax
                     ? 'MAX'
-                    : selectedMergeInfo.canMerge
-                      ? `Merge +${selectedMergeInfo.mergeTier + 1}`
-                      : `Need ${selectedMergeInfo.nextCost ?? '-'}`}
+                    : mergeInfo.canMerge
+                      ? `Merge +${mergeInfo.mergeTier + 1}`
+                      : `Need ${mergeInfo.nextCost ?? '-'}`}
                 </Text>
-                {!selectedMergeInfo.isMax ? (
+                {!mergeInfo.isMax ? (
                   <Text style={styles.mergeMetaTxt}>
-                    {selectedMergeInfo.extras}/{selectedMergeInfo.nextCost ?? '-'} copies
+                    {mergeInfo.extras}/{mergeInfo.nextCost ?? '-'} copies
                   </Text>
                 ) : null}
               </TouchableOpacity>

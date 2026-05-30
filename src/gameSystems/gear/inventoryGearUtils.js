@@ -122,6 +122,7 @@ export function filterGearInventory(gearList, filter) {
   let list = [...(gearList || [])];
   if (!filter || filter === 'all') return list;
 
+  if (filter === 'sockets') return list.filter((g) => (g?.sockets?.length ?? 0) > 0);
   if (filter === 'equipped') return list.filter((g) => g.equippedToMonsterId);
   if (filter === 'unequipped') return list.filter((g) => !g.equippedToMonsterId);
   if (['rare', 'epic', 'mythic'].includes(filter)) return list.filter((g) => g.rarity === filter);
