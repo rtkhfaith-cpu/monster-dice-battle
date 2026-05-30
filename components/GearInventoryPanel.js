@@ -9,6 +9,13 @@ import {
 } from '../src/gameSystems/gear/inventoryGearUtils';
 import GearItemDetailModal from './gear/GearItemDetailModal';
 import {
+  GEM_RARITY_UI,
+  GEM_STAT_LABELS,
+  gemEmoji,
+  gemStatValue,
+  parseGemKey,
+} from '../src/gameSystems/gems/gemDefinitions';
+import {
   GEAR_UI,
   GearIcon,
   gearRarityUi,
@@ -28,6 +35,22 @@ const FILTERS = [
   { id: 'equipped', label: 'Equipped' },
   { id: 'unequipped', label: 'Free' },
 ];
+
+function socketedGemRows(gear) {
+  return (gear?.sockets ?? [])
+    .map((socket, index) => {
+      const gem = socket?.gem;
+      const parsed = gem?.key ? parseGemKey(gem.key) : null;
+      if (!gem || !parsed) return null;
+      return {
+        index,
+        gem,
+        parsed,
+        value: gemStatValue(parsed.rarity, parsed.stat, gem.level ?? 1),
+      };
+    })
+    .filter(Boolean);
+}
 
 export default function GearInventoryPanel({
   profile,
@@ -141,6 +164,8 @@ export default function GearInventoryPanel({
             const mythic = isMythicRarity(g.rarity);
             const equipped = !!g.equippedToMonsterId;
             const sellCoins = gearSellCoinValue(g);
+            const socketedRows = socketedGemRows(g);
+            const filledSocketCount = socketedRows.length;
             return (
               <TouchableOpacity
                 key={g.instanceId}
@@ -171,9 +196,26 @@ export default function GearInventoryPanel({
                 <Text style={styles.cardStats}>{card.statLines.join(' · ')}</Text>
                 <View style={[styles.socketBadge, card.socketCount > 0 ? styles.socketBadgeOn : styles.socketBadgeOff]}>
                   <Text style={[styles.socketBadgeTxt, card.socketCount > 0 ? styles.socketBadgeTxtOn : styles.socketBadgeTxtOff]}>
-                    {`Socket: ${Math.max(0, card.socketCount ?? 0)}`}
+                    {`Sockets: ${filledSocketCount}/${Math.max(0, card.socketCount ?? 0)} filled`}
                   </Text>
                 </View>
+                {socketedRows.length > 0 ? (
+                  <View style={styles.socketedList}>
+                    {socketedRows.map(({ index, gem, parsed, value }) => (
+                      <View key={`${g.instanceId}-socket-${index}`} style={styles.socketedPill}>
+                        <Text style={styles.socketedEmoji}>{gemEmoji(parsed.stat, parsed.rarity)}</Text>
+                        <Text
+                          style={[
+                            styles.socketedTxt,
+                            { color: GEM_RARITY_UI[parsed.rarity]?.color ?? '#fff' },
+                          ]}
+                        >
+                          {GEM_STAT_LABELS[parsed.stat] ?? parsed.stat} Lv {gem.level ?? 1} · +{value}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
                 <Text style={[styles.cardEquipped, equipped && styles.cardEquippedOn]}>
                   {equipped
                     ? `Equipped: ${card.equippedMonsterName} · cannot sell`
@@ -313,6 +355,27 @@ const styles = StyleSheet.create({
   socketBadgeTxt: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
   socketBadgeTxtOn: { color: '#fde68a' },
   socketBadgeTxtOff: { color: GEAR_UI.muted },
+  socketedList: {
+    marginTop: 6,
+    gap: 4,
+  },
+  socketedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(250, 204, 21, 0.35)',
+    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  socketedEmoji: { fontSize: 13 },
+  socketedTxt: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
   cardEquipped: { color: GEAR_UI.muted, fontSize: 10, marginTop: 6, fontWeight: '800' },
   cardEquippedOn: { color: '#fcd34d' },
   sellValue: {

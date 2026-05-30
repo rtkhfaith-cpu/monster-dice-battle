@@ -46,10 +46,11 @@ export const GEAR_SET_BONUSES = {
   dragon_guard: {
     setId: 'dragon_guard',
     name: 'Dragon Guard Set',
-    description: '+10% HP, +8% Defense, and team shield in dungeons',
+    description: '+10% HP, +8% Defense, and every 3 rounds shields the team for 15% max HP',
     hpPct: 10,
     defensePct: 8,
-    teamShieldMaxHpPct: 8,
+    teamShieldMaxHpPct: 15,
+    teamShieldEveryRounds: 3,
   },
   warborn: {
     setId: 'warborn',
@@ -61,11 +62,12 @@ export const GEAR_SET_BONUSES = {
   lifebloom: {
     setId: 'lifebloom',
     name: 'Lifebloom Set',
-    description: '+10% HP, +8% Defense, recover 3% max HP and 3% max MP per turn, +12% healing',
+    description: '+10% HP, +8% Defense, recover 3% max HP per turn and 3% max MP every 3 rounds, +12% healing',
     hpPct: 10,
     defensePct: 8,
     regenHpPerTurn: 3,
     regenMpPerTurn: 3,
+    regenMpEveryRounds: 3,
     healPowerPct: 12,
   },
   venomfang: {
@@ -86,10 +88,12 @@ export const GEAR_SET_BONUSES = {
   celestial_guardian: {
     setId: 'celestial_guardian',
     name: 'Celestial Guardian Set',
-    description: '+15% HP, +12% Defense, and 5% damage reduction',
+    description: '+15% HP, +12% Defense, 5% damage reduction, and every 3 rounds shields for 25% max HP',
     hpPct: 15,
     defensePct: 12,
     damageReductionPct: 5,
+    teamShieldMaxHpPct: 25,
+    teamShieldEveryRounds: 3,
   },
   titan_berserker: {
     setId: 'titan_berserker',
@@ -101,11 +105,13 @@ export const GEAR_SET_BONUSES = {
   eternal_bloom: {
     setId: 'eternal_bloom',
     name: 'Eternal Bloom Set',
-    description: '+15% HP, +12% Defense, +4 Dodge, recover 5% max HP per turn, +18% healing',
+    description: '+15% HP, +12% Defense, +4 Dodge, recover 5% max HP per turn and 5% max MP every 3 rounds, +18% healing',
     hpPct: 15,
     defensePct: 12,
     dodgeFlat: 4,
     regenHpPerTurn: 5,
+    regenMpPerTurn: 5,
+    regenMpEveryRounds: 3,
     healPowerPct: 18,
   },
   abyss_venom: {
@@ -234,6 +240,8 @@ export function buildSetCombatModifiers(setBonus) {
       burnChancePct: 0,
       damageReductionPct: 0,
       teamShieldMaxHpPct: 0,
+      teamShieldEveryRounds: 0,
+      regenMpEveryRounds: 0,
       setId: null,
       setName: null,
     };
@@ -248,6 +256,8 @@ export function buildSetCombatModifiers(setBonus) {
     burnChancePct: setBonus.burnChancePct ?? 0,
     damageReductionPct: setBonus.damageReductionPct ?? 0,
     teamShieldMaxHpPct: setBonus.teamShieldMaxHpPct ?? 0,
+    teamShieldEveryRounds: setBonus.teamShieldEveryRounds ?? 0,
+    regenMpEveryRounds: setBonus.regenMpEveryRounds ?? 0,
     setId: setBonus.setId,
     setName: setBonus.name,
   };

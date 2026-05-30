@@ -225,11 +225,11 @@ function logStyle(kind) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, minHeight: 0, paddingHorizontal: 10, paddingTop: 8 },
+  root: { flex: 1, minHeight: 0, paddingHorizontal: 10, paddingTop: 8, backgroundColor: '#050b16' },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   back: { color: '#ffe08a', fontWeight: '900', fontSize: 13, minWidth: 60 },
-  title: { color: '#fff4cf', fontWeight: '900', fontSize: 16 },
-  turn: { color: '#bfdbfe', fontWeight: '800', fontSize: 12, minWidth: 60, textAlign: 'right' },
+  title: { color: '#fff8dd', fontWeight: '900', fontSize: 16, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  turn: { color: '#e0f2fe', fontWeight: '900', fontSize: 12, minWidth: 60, textAlign: 'right' },
   controls: { flexDirection: 'row', gap: 8, marginTop: 10 },
   ctrlBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', borderWidth: 1 },
   ctrlStep: { backgroundColor: 'rgba(37,99,235,0.88)', borderColor: '#bfdbfe' },
@@ -238,8 +238,15 @@ const styles = StyleSheet.create({
   ctrlOff: { opacity: 0.5 },
   ctrlTxt: { color: '#fff8dd', fontWeight: '900', fontSize: 13, textTransform: 'uppercase' },
   logLbl: { color: '#ffe08a', fontWeight: '900', fontSize: 10, textTransform: 'uppercase', marginTop: 8, marginBottom: 4 },
-  log: { maxHeight: 72, backgroundColor: 'rgba(7,17,32,0.6)', borderRadius: 10, padding: 8 },
-  logEntry: { fontSize: 10, fontWeight: '700', marginBottom: 2, lineHeight: 13 },
+  log: {
+    maxHeight: 82,
+    backgroundColor: 'rgba(2,8,23,0.96)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.18)',
+    padding: 8,
+  },
+  logEntry: { fontSize: 10, fontWeight: '900', marginBottom: 2, lineHeight: 13 },
   resultOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,6,18,0.85)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   resultCard: { width: '100%', maxWidth: 360, borderRadius: 18, borderWidth: 3, padding: 18, backgroundColor: '#15203a', maxHeight: '80%' },
   resultWin: { borderColor: '#4ade80' },

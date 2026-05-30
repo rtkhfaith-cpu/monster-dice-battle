@@ -190,6 +190,7 @@ export function createPhaserBattleScene(Phaser) {
         if (!actor || !fighter) continue;
         if (fighter.hp <= 0) actor.ko();
         else if (actor.isKo) actor.idle();
+        actor.setShieldActive?.((fighter.shieldHp ?? 0) > 0 && fighter.hp > 0);
       }
       for (const key of ['player', 'enemy']) {
         const panel = this.hud?.[key];

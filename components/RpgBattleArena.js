@@ -30,6 +30,14 @@ function MicroBar({ ratio, color, compact }) {
   );
 }
 
+function activeShieldHp(fighter) {
+  return Math.max(
+    0,
+    Math.floor(fighter?.petBattleState?.shieldHp || 0)
+      + Math.floor(fighter?.passiveBattleState?.gearShieldHp || 0),
+  );
+}
+
 function BattlerInfoPanel({ title, fighter, active, side, panelWidth, compact }) {
   const level = fighter?.level ?? 1;
   const exp = fighter?.battleExp ?? 0;
@@ -191,9 +199,11 @@ export default function RpgBattleArena({
   const p1Opacity = p1Focus.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] });
   const p2Scale = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
   const p2Opacity = p2Focus.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] });
+  const p1Shielded = activeShieldHp(p1) > 0 && (p1?.hp ?? 0) > 0;
+  const p2Shielded = activeShieldHp(p2) > 0 && (p2?.hp ?? 0) > 0;
 
   useEffect(() => {
-    if (!defendGlowP1 && !defendGlowP2) {
+    if (!defendGlowP1 && !defendGlowP2 && !p1Shielded && !p2Shielded) {
       shieldPulse.setValue(0);
       return undefined;
     }
@@ -205,7 +215,7 @@ export default function RpgBattleArena({
     );
     loop.start();
     return () => loop.stop();
-  }, [defendGlowP1, defendGlowP2, shieldPulse]);
+  }, [defendGlowP1, defendGlowP2, p1Shielded, p2Shielded, shieldPulse]);
 
   const shieldScale = shieldPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
   const shieldOp = shieldPulse.interpolate({ inputRange: [0, 1], outputRange: [0.75, 1] });
@@ -325,11 +335,12 @@ export default function RpgBattleArena({
               ]}
             />
           ) : null}
-          {defendGlowP1 ? (
+          {p1Shielded || defendGlowP1 ? (
             <Animated.View
               pointerEvents="none"
               style={[
                 styles.shieldRing,
+                p1Shielded && styles.shieldRingPersistent,
                 { opacity: shieldOp, transform: [{ scale: shieldScale }] },
               ]}
             />
@@ -378,11 +389,12 @@ export default function RpgBattleArena({
               ]}
             />
           ) : null}
-          {defendGlowP2 ? (
+          {p2Shielded || defendGlowP2 ? (
             <Animated.View
               pointerEvents="none"
               style={[
                 styles.shieldRing,
+                p2Shielded && styles.shieldRingPersistent,
                 { opacity: shieldOp, transform: [{ scale: shieldScale }] },
               ]}
             />
@@ -864,7 +876,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: '12%',
     bottom: 0,
-    zIndex: 3,
+    zIndex: 6,
     overflow: 'visible',
   },
   playerMonster: {
@@ -913,6 +925,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.45,
     shadowRadius: 12,
+  },
+  shieldRingPersistent: {
+    borderColor: '#bae6fd',
+    backgroundColor: 'rgba(125, 211, 252, 0.22)',
+    borderStyle: 'solid',
   },
   infoPanel: {
     backgroundColor: 'rgba(255,255,255,0.94)',

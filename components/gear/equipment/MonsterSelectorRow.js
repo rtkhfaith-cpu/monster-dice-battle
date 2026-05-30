@@ -13,7 +13,14 @@ function rarityBorderColor(templateId) {
   return gearRarityUi(templateFor(templateId)?.rarity ?? 'common').border;
 }
 
-export default function MonsterSelectorRow({ monsters, selectedId, battleMonsterId, onSelect }) {
+export default function MonsterSelectorRow({
+  monsters,
+  selectedId,
+  battleMonsterId,
+  onSelect,
+  selectedMergeInfo = null,
+  onMergeMonster,
+}) {
   const sorted = useMemo(() => {
     if (!monsters?.length) return [];
     return [...monsters].sort((a, b) => {
@@ -37,28 +44,56 @@ export default function MonsterSelectorRow({ monsters, selectedId, battleMonster
         const on = m.id === selectedId;
         const forBattle = battleMonsterId && m.id === battleMonsterId;
         const borderColor = rarityBorderColor(m.templateId);
+        const showMerge = on && selectedMergeInfo && onMergeMonster;
         return (
-          <TouchableOpacity
+          <View
             key={m.id}
             style={[
               styles.chip,
               { borderColor },
               on && styles.chipOn,
             ]}
-            onPress={() => onSelect?.(m.id)}
-            activeOpacity={0.88}
           >
-            {forBattle ? (
-              <View style={styles.battleBadge}>
-                <Text style={styles.battleBadgeTxt}>⚔</Text>
-              </View>
+            <TouchableOpacity
+              style={styles.selectTap}
+              onPress={() => onSelect?.(m.id)}
+              activeOpacity={0.88}
+            >
+              {forBattle ? (
+                <View style={styles.battleBadge}>
+                  <Text style={styles.battleBadgeTxt}>⚔</Text>
+                </View>
+              ) : null}
+              <MonsterPreview parts={m.monsterParts} size={32} mood="happy" />
+              <Text style={[styles.name, on && styles.nameOn]} numberOfLines={1}>
+                {m.nickname || m.templateId}
+              </Text>
+              {forBattle ? <Text style={styles.battleLbl}>Battle</Text> : null}
+            </TouchableOpacity>
+            {showMerge ? (
+              <TouchableOpacity
+                style={[
+                  styles.mergeBtn,
+                  !selectedMergeInfo.canMerge && styles.mergeBtnNeed,
+                ]}
+                onPress={() => onMergeMonster(selectedMergeInfo.primaryId)}
+                activeOpacity={0.86}
+              >
+                <Text style={styles.mergeBtnTxt}>
+                  {selectedMergeInfo.isMax
+                    ? 'MAX'
+                    : selectedMergeInfo.canMerge
+                      ? `Merge +${selectedMergeInfo.mergeTier + 1}`
+                      : `Need ${selectedMergeInfo.nextCost ?? '-'}`}
+                </Text>
+                {!selectedMergeInfo.isMax ? (
+                  <Text style={styles.mergeMetaTxt}>
+                    {selectedMergeInfo.extras}/{selectedMergeInfo.nextCost ?? '-'} copies
+                  </Text>
+                ) : null}
+              </TouchableOpacity>
             ) : null}
-            <MonsterPreview parts={m.monsterParts} size={32} mood="happy" />
-            <Text style={[styles.name, on && styles.nameOn]} numberOfLines={1}>
-              {m.nickname || m.templateId}
-            </Text>
-            {forBattle ? <Text style={styles.battleLbl}>Battle</Text> : null}
-          </TouchableOpacity>
+          </View>
         );
       })}
     </ScrollView>
@@ -66,7 +101,7 @@ export default function MonsterSelectorRow({ monsters, selectedId, battleMonster
 }
 
 const styles = StyleSheet.create({
-  scroll: { maxHeight: 64, marginBottom: 6 },
+  scroll: { maxHeight: 98, marginBottom: 6 },
   content: { gap: 6, paddingHorizontal: 2 },
   chip: {
     alignItems: 'center',
@@ -78,6 +113,7 @@ const styles = StyleSheet.create({
     minWidth: 60,
     position: 'relative',
   },
+  selectTap: { alignItems: 'center' },
   battleBadge: {
     position: 'absolute',
     top: 2,
@@ -103,4 +139,20 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 9, fontWeight: '900', color: GEAR_UI.sub, marginTop: 2, maxWidth: 64 },
   nameOn: { color: GEAR_UI.title },
+  mergeBtn: {
+    marginTop: 4,
+    borderRadius: 999,
+    backgroundColor: '#a855f7',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
+    minWidth: 70,
+  },
+  mergeBtnNeed: {
+    backgroundColor: 'rgba(71, 85, 105, 0.95)',
+  },
+  mergeBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 9 },
+  mergeMetaTxt: { color: '#e9d5ff', fontWeight: '900', fontSize: 7, marginTop: 1 },
 });

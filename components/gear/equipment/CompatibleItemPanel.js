@@ -58,6 +58,7 @@ export default function CompatibleItemPanel({
   onSelectBook,
   onEquip,
   onUnequip,
+  onRemovePassive,
   onClose,
 }) {
   if (!selectedSlot) return null;
@@ -199,7 +200,7 @@ export default function CompatibleItemPanel({
                     </Text>
                     <Text style={styles.rowStats}>{getPassiveDescription(p.skillId, p.rarity)}</Text>
                   </View>
-                  <TouchableOpacity style={styles.removeBtn} onPress={() => onUnequip?.(p.skillId)}>
+                  <TouchableOpacity style={styles.removeBtn} onPress={() => onRemovePassive?.(p.skillId)}>
                     <Text style={styles.removeTxt}>Remove</Text>
                   </TouchableOpacity>
                 </View>

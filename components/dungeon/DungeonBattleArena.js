@@ -262,14 +262,19 @@ export default function DungeonBattleArena({ state, bossImage, battleGroundUri, 
             return (
               <View key={m.id} style={[styles.monSlot, !m.alive && styles.monSlotDead]}>
                 <Text style={styles.monPos}>{POSITION_LABEL[m.position]}</Text>
-                <AnimatedMonster
-                  parts={m.monsterParts}
-                  size={52}
-                  side="left"
-                  mood={mood}
-                  pose={pose}
-                  flyStrike={poseKey === 'attack'}
-                />
+                <View style={styles.monsterSpriteWrap}>
+                  <AnimatedMonster
+                    parts={m.monsterParts}
+                    size={52}
+                    side="left"
+                    mood={mood}
+                    pose={pose}
+                    flyStrike={poseKey === 'attack'}
+                  />
+                  {m.alive && (m.shieldHp ?? 0) > 0 ? (
+                    <View pointerEvents="none" style={styles.activeShieldBubble} />
+                  ) : null}
+                </View>
                 <Text style={styles.monName} numberOfLines={1}>{m.name}</Text>
                 <Text style={[styles.monRole, { color: DUNGEON_ROLE_COLORS[m.role] }]}>
                   {dungeonRoleLabel(m.role)}
@@ -306,8 +311,8 @@ export default function DungeonBattleArena({ state, bossImage, battleGroundUri, 
 const styles = StyleSheet.create({
   root: { flex: 1, minHeight: 220, borderRadius: 14, overflow: 'hidden', borderWidth: 2, borderColor: '#7c3aed' },
   bg: { flex: 1, justifyContent: 'space-between' },
-  bgImg: { opacity: 0.92 },
-  vignette: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(8,12,28,0.35)' },
+  bgImg: { opacity: 0.72 },
+  vignette: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(3,7,18,0.68)' },
   banner: {
     position: 'absolute',
     top: '38%',
@@ -316,27 +321,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: 'rgba(15,23,42,0.88)',
+    backgroundColor: 'rgba(2,8,23,0.97)',
     borderWidth: 2,
     borderColor: '#fcd34d',
     maxWidth: '88%',
   },
-  bannerTxt: { color: '#fff4cf', fontWeight: '900', fontSize: 14, textAlign: 'center' },
+  bannerTxt: { color: '#fff8dd', fontWeight: '900', fontSize: 14, textAlign: 'center', textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
   bossZone: { alignItems: 'flex-end', paddingTop: 8, paddingRight: 10 },
   bossSpriteWrap: { marginRight: 4 },
   bossEnraged: { shadowColor: '#ef4444', shadowOpacity: 0.9, shadowRadius: 12 },
   bossFlash: { ...StyleSheet.absoluteFillObject, backgroundColor: '#fecaca', borderRadius: 12 },
   bossArt: { width: 120, height: 120 },
   bossArtFallback: { backgroundColor: 'rgba(124,58,237,0.45)', borderRadius: 12 },
-  bossHud: { width: 160, marginTop: 4 },
-  bossName: { color: '#fff4cf', fontWeight: '900', fontSize: 13, textAlign: 'right' },
-  hpBarOuter: { height: 12, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)', overflow: 'hidden', marginTop: 4 },
-  hpBarOuterSm: { height: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.15)', overflow: 'hidden', marginTop: 4, alignSelf: 'stretch' },
+  bossHud: {
+    width: 172,
+    marginTop: 4,
+    backgroundColor: 'rgba(2,8,23,0.94)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  bossName: { color: '#fff8dd', fontWeight: '900', fontSize: 13, textAlign: 'right', textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  hpBarOuter: { height: 12, borderRadius: 999, backgroundColor: 'rgba(15,23,42,0.95)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', overflow: 'hidden', marginTop: 4 },
+  hpBarOuterSm: { height: 8, borderRadius: 999, backgroundColor: 'rgba(15,23,42,0.95)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', overflow: 'hidden', marginTop: 4, alignSelf: 'stretch' },
   hpBarInner: { height: '100%' },
   bossHpFill: { backgroundColor: '#ef4444' },
   allyHpFill: { backgroundColor: '#34d399' },
   deadHpFill: { backgroundColor: '#64748b' },
-  hpTxt: { color: '#e2e8f0', fontWeight: '800', fontSize: 9, marginTop: 2, textAlign: 'right' },
+  hpTxt: { color: '#ffffff', fontWeight: '900', fontSize: 9, marginTop: 2, textAlign: 'right' },
   teamZone: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 6, paddingBottom: 8 },
   monSlot: {
     flex: 1,
@@ -344,13 +358,30 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 2,
     borderRadius: 10,
-    backgroundColor: 'rgba(10,18,36,0.55)',
+    backgroundColor: 'rgba(2,8,23,0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.22)',
     marginHorizontal: 2,
   },
   monSlotDead: { opacity: 0.45 },
-  monPos: { color: '#fcd34d', fontWeight: '900', fontSize: 8 },
-  monName: { color: '#fff4cf', fontWeight: '800', fontSize: 8, marginTop: 2, maxWidth: 90, textAlign: 'center' },
-  monRole: { fontWeight: '900', fontSize: 7 },
+  monsterSpriteWrap: { width: 66, height: 58, alignItems: 'center', justifyContent: 'center' },
+  activeShieldBubble: {
+    position: 'absolute',
+    width: 62,
+    height: 58,
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: 'rgba(186,230,253,0.92)',
+    backgroundColor: 'rgba(125,211,252,0.22)',
+    shadowColor: '#38bdf8',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 8,
+    zIndex: 5,
+  },
+  monPos: { color: '#fcd34d', fontWeight: '900', fontSize: 8, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  monName: { color: '#ffffff', fontWeight: '900', fontSize: 8, marginTop: 2, maxWidth: 90, textAlign: 'center', textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  monRole: { fontWeight: '900', fontSize: 7, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
   floater: { position: 'absolute', zIndex: 30, marginLeft: -24 },
   floaterTxt: { fontWeight: '900', fontSize: 18, textShadowColor: '#000', textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } },
 });

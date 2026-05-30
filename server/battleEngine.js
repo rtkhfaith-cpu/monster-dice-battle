@@ -203,6 +203,15 @@ function resolveStrike(battle, attackerId, defenderId, strikeKind, skill) {
   if (strikeKind === 'magic' && !canAffordSkill(atk, skill)) {
     return { error: 'Not enough MP' };
   }
+  if (strikeKind === 'magic' && isSupportMagicSkill(skill)) {
+    if (skill.status?.type === 'revive') {
+      return { error: 'Revival only works in dungeon/team battles.' };
+    }
+    if (skill.status?.type === 'heal') {
+      const maxHp = atk.maxHp ?? atk.stats?.hp ?? 0;
+      if ((atk.hp ?? 0) >= maxHp) return { error: `${atk.displayName || 'Monster'} is already at full HP.` };
+    }
+  }
 
   const mpCost = strikeKind === 'magic' ? skill.mpCost ?? 0 : 0;
   atk.mp = Math.max(0, atk.mp - mpCost);

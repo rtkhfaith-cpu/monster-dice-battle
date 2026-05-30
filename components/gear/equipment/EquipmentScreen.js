@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { fighterFromOwned } from '../../../utils/fighterFromOwned';
 import { expToAdvanceFrom } from '../../../utils/expLevel';
+import { powerScoreFromBundle } from '../../../utils/statsCalc';
 import { getGearInstance } from '../../../src/gameSystems/gear/inventoryGearUtils';
 import { getSlotInstanceId } from '../../../src/gameSystems/gear/equipmentSystem';
 import { detectActiveGearSet, previewSetBonusChange } from '../../../src/gameSystems/gear/gearSets';
@@ -45,6 +46,28 @@ function skillLine(skill) {
   return `${skill.emoji ?? '👊'} ${skill.name}`;
 }
 
+function skillDescription(skill) {
+  if (!skill) return '';
+  const status = skill.status;
+  if (status?.type === 'heal') {
+    return `Heals in normal battle for ${status.healMaxHpPct ?? 20}% max HP. In dungeons, position-2 support heals the team.`;
+  }
+  if (status?.type === 'revive') {
+    return `Revives a fallen teammate in dungeons/team battles at ${status.reviveHpPct ?? 40}% HP. Disabled in normal 1v1 battles.`;
+  }
+  if (status?.type === 'burn') return `Deals magic damage and can burn for ${status.turns ?? 2} turns.`;
+  if (status?.type === 'poison') return `Deals magic damage and can poison for ${status.turns ?? 2} turns.`;
+  if (status?.type === 'stun') return `Deals magic damage and can stun for ${status.turns ?? 1} turn.`;
+  if (status?.type === 'atkDown') return `Deals magic damage and can reduce enemy Attack for ${status.turns ?? 2} turns.`;
+  if (status?.type === 'defDown') return `Deals magic damage and can reduce enemy Defense for ${status.turns ?? 2} turns.`;
+  if (status?.type === 'atkUp') return `Self buff: raises Attack for ${status.turns ?? 2} turns.`;
+  if (status?.type === 'defUp') return `Self buff: raises Defense for ${status.turns ?? 2} turns.`;
+  if (skill.kind === 'magic') {
+    return `Magic attack${skill.power ? ` (${Math.round(skill.power * 100)}% power)` : ''}.`;
+  }
+  return `Basic physical attack${skill.power ? ` (${Math.round(skill.power * 100)}% power)` : ''}.`;
+}
+
 /**
  * MMORPG-style equipment screen — monster center, slots around, bottom sheet on slot tap.
  */
@@ -75,6 +98,10 @@ export default function EquipmentScreen({
     if (!ownedMonster) return null;
     return fighterFromOwned(ownedMonster, profile);
   }, [ownedMonster, profile]);
+
+  const totalPower = useMemo(() => (
+    fighter?.stats ? Math.round(powerScoreFromBundle(fighter.stats)) : 0
+  ), [fighter]);
 
   const equipment = ownedMonster?.equipment;
   const tpl = getMonsterTemplate(ownedMonster?.templateId) ?? getLadderMonsterTemplate(ownedMonster?.templateId);
@@ -123,30 +150,6 @@ export default function EquipmentScreen({
       isMax: mergeTier >= MAX_MERGE_TIER,
     };
   }, [ownedMonster, ownedMonsters]);
-
-  const mergeBadgeNode = mergeInfo ? (
-    <View style={styles.mergeBadgeWrap}>
-      <Text style={styles.mergeBadgeMeta}>
-        +{mergeInfo.mergeTier} · copies {mergeInfo.extras}
-        {mergeInfo.nextCost != null ? `/${mergeInfo.nextCost}` : ''}
-      </Text>
-      {mergeInfo.isMax ? (
-        <View style={styles.mergeBadgeMax}>
-          <Text style={styles.mergeBadgeMaxTxt}>MAX MERGE</Text>
-        </View>
-      ) : (
-        <TouchableOpacity
-          style={[styles.mergeBadgeBtn, !mergeInfo.canMerge && styles.mergeBadgeBtnOff]}
-          disabled={!mergeInfo.canMerge}
-          onPress={() => onMergeMonster?.(mergeInfo.primaryId)}
-        >
-          <Text style={styles.mergeBadgeBtnTxt}>
-            {mergeInfo.canMerge ? `Merge +${mergeInfo.mergeTier + 1}` : `Need ${mergeInfo.nextCost ?? '-'}`}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  ) : null;
 
   const getGear = (instanceId) => getGearInstance(profile, instanceId);
 
@@ -273,6 +276,8 @@ export default function EquipmentScreen({
         selectedId={selectorSelectedId}
         battleMonsterId={battleMonsterId}
         onSelect={onSelectMonster}
+        selectedMergeInfo={mergeInfo}
+        onMergeMonster={onMergeMonster}
       />
 
       <SetBonusPanel setBonus={setBonus} progress={null} />
@@ -308,7 +313,6 @@ export default function EquipmentScreen({
                 compact={compact}
               />
             )}
-            monsterTopNode={mergeBadgeNode}
           />
         </View>
 
@@ -320,14 +324,21 @@ export default function EquipmentScreen({
             Lv {ownedMonster.level ?? 1} · EXP {ownedMonster.exp ?? 0}/
             {expToAdvanceFrom(ownedMonster.level ?? 1)}
           </Text>
+          <Text style={[styles.infoLine, styles.powerLine]}>
+            Total Power: {totalPower.toLocaleString()}
+          </Text>
           <Text style={styles.infoTitle}>Skills</Text>
           {fighter?.skills?.physical ? (
-            <Text style={styles.infoLine}>{skillLine(fighter.skills.physical)}</Text>
+            <View style={styles.skillInfoRow}>
+              <Text style={styles.infoLine}>{skillLine(fighter.skills.physical)}</Text>
+              <Text style={styles.skillDesc}>{skillDescription(fighter.skills.physical)}</Text>
+            </View>
           ) : null}
           {(fighter?.skills?.magic ?? []).map((skill) => (
-            <Text key={skill.id ?? skill.name} style={styles.infoLine}>
-              {skillLine(skill)}
-            </Text>
+            <View key={skill.id ?? skill.name} style={styles.skillInfoRow}>
+              <Text style={styles.infoLine}>{skillLine(skill)}</Text>
+              <Text style={styles.skillDesc}>{skillDescription(skill)}</Text>
+            </View>
           ))}
         </View>
       </ScrollView>
@@ -427,42 +438,27 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginBottom: 8,
   },
-  mergeBadgeWrap: {
-    alignItems: 'center',
-    gap: 3,
-  },
-  mergeBadgeMeta: {
-    color: '#fff7ed',
-    fontSize: 10,
-    fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.95)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  mergeBadgeBtn: {
-    borderRadius: 999,
-    backgroundColor: '#a855f7',
+  powerLine: {
+    color: '#fde68a',
+    backgroundColor: 'rgba(69, 26, 3, 0.55)',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
+    borderColor: 'rgba(250, 204, 21, 0.35)',
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
+    marginBottom: 8,
   },
-  mergeBadgeBtnOff: {
-    backgroundColor: 'rgba(71, 85, 105, 0.92)',
+  skillInfoRow: {
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
-  mergeBadgeBtnTxt: {
-    color: '#fff',
-    fontWeight: '900',
+  skillDesc: {
+    color: '#cbd5e1',
+    fontWeight: '800',
     fontSize: 11,
-    textShadowColor: 'rgba(0,0,0,0.65)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
+    lineHeight: 15,
+    marginTop: 1,
   },
-  mergeBadgeMax: {
-    borderRadius: 999,
-    backgroundColor: 'rgba(250, 204, 21, 0.9)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  mergeBadgeMaxTxt: { color: '#422006', fontWeight: '900', fontSize: 11 },
 });

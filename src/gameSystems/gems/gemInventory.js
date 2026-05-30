@@ -189,13 +189,20 @@ export function socketGemInGear(profile, gearInstanceId, socketIndex, key) {
     copies: 0,
   };
 
+  gear.sockets[idx].gem = socketedGem;
+  const confirmedGem = normalizeSocketedGem(gear.sockets[idx].gem);
+  if (!confirmedGem?.key) {
+    gear.sockets[idx].gem = null;
+    return { ok: false, error: 'Could not attach gem to this socket. Please try again.' };
+  }
+
   if ((source.copies ?? 0) > 0) {
     source.copies -= 1;
   } else {
     profile.gemInventory.splice(invIdx, 1);
   }
 
-  gear.sockets[idx].gem = socketedGem;
+  gear.sockets[idx].gem = confirmedGem;
   profile.updatedAt = new Date().toISOString();
   return {
     ok: true,

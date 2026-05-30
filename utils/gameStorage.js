@@ -825,9 +825,15 @@ export function socketGemInGearForProfile(gameData, profileId, gearInstanceId, s
   if ((profile.coins ?? 0) < price) return { gameData: gd, error: `Need 🪙 ${price} to socket gem` };
   const res = socketGemInGear(profile, gearInstanceId, socketIndex, gemKeyId);
   if (!res.ok) return { gameData: gd, error: res.error };
+  const idx = Math.floor(socketIndex);
+  const confirmedGear = getGearInstance(profile, gearInstanceId);
+  const confirmedGem = normalizeSocketedGem(confirmedGear?.sockets?.[idx]?.gem);
+  if (!confirmedGem?.key) {
+    return { gameData: gd, error: 'Gem was not saved into the gear socket. Please try again.' };
+  }
   profile.coins -= price;
   profile.updatedAt = new Date().toISOString();
-  return { gameData: gd, gem: res.gem, gear: res.gear, price };
+  return { gameData: gd, gem: confirmedGem, gear: confirmedGear, price };
 }
 
 export function unsocketGemFromGearForProfile(gameData, profileId, gearInstanceId, socketIndex) {

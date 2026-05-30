@@ -88,6 +88,7 @@ export default class MonsterActor {
     this.startSecondaryMotion();
     this.startElementParticles();
     this.startBossPresence();
+    this.setShieldActive((config.shieldHp ?? 0) > 0);
   }
 
   drawBody() {
@@ -606,6 +607,47 @@ export default class MonsterActor {
     });
   }
 
+  setShieldActive(active) {
+    if (active && !this.activeShield) {
+      this.activeShield = this.scene.add.ellipse(
+        this.x,
+        this.y,
+        158 * this.scale,
+        170 * this.scale,
+        0x7dd3fc,
+        0.22,
+      )
+        .setStrokeStyle(4, 0xbae6fd, 0.92)
+        .setDepth(this.depth + 3);
+      this.activeShieldTween = this.scene.tweens.add({
+        targets: this.activeShield,
+        alpha: { from: 0.42, to: 0.72 },
+        scaleX: { from: 1, to: 1.05 },
+        scaleY: { from: 1, to: 1.05 },
+        duration: 760,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+      return;
+    }
+    if (!active && this.activeShield) {
+      this.activeShieldTween?.stop?.();
+      this.activeShieldTween = null;
+      const shield = this.activeShield;
+      this.activeShield = null;
+      this.scene.tweens.add({
+        targets: shield,
+        alpha: 0,
+        scaleX: 1.18,
+        scaleY: 1.18,
+        duration: 220,
+        ease: 'Sine.out',
+        onComplete: () => shield.destroy(),
+      });
+    }
+  }
+
   dodge() {
     this.scene.tweens.add({
       targets: this.container,
@@ -664,5 +706,7 @@ export default class MonsterActor {
     this.shadow?.destroy();
     this.aura?.destroy();
     this.presenceRing?.destroy();
+    this.activeShieldTween?.stop?.();
+    this.activeShield?.destroy();
   }
 }

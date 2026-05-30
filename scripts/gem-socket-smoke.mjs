@@ -8,26 +8,21 @@ import {
   listSocketableGemStacks,
   listSocketedGems,
   ensureGemInventory,
+  socketGemInGear,
 } from '../src/gameSystems/gems/gemInventory.js';
-import {
-  buyGemForProfile,
-  createDefaultGameData,
-  getPlayerProfile,
-  socketGemInGearForProfile,
-} from '../utils/gameStorage.js';
 
 function fail(msg) {
   console.error('FAIL:', msg);
   process.exit(1);
 }
 
-const gd = createDefaultGameData();
-const profileId = gd.players[0]?.id;
-if (!profileId) fail('no profile');
-
-let gameData = gd;
-const profile = getPlayerProfile(gameData, profileId);
-profile.coins = 5000;
+const profile = {
+  id: 'smoke_profile',
+  coins: 5000,
+  ownedMonsters: [],
+  gearInventory: [],
+  gemInventory: [],
+};
 
 const gear = {
   instanceId: 'gear_smoke_epic_1',
@@ -45,25 +40,21 @@ const gear = {
 };
 profile.gearInventory.push(gear);
 
-const buy = buyGemForProfile(gameData, profileId, 'rare_attack_gem');
-if (buy.error) fail(`buy: ${buy.error}`);
-gameData = buy.gameData;
+const grant = grantGem(profile, 'rare', 'attack', 1);
+if (!grant.ok) fail(`grant: ${grant.error}`);
 
-const p1 = getPlayerProfile(gameData, profileId);
-if (listSocketableGemStacks(p1).length !== 1) fail('expected 1 socketable gem');
+if (listSocketableGemStacks(profile).length !== 1) fail('expected 1 socketable gem');
 
-const sock = socketGemInGearForProfile(gameData, profileId, gear.instanceId, 0, 'rare_attack_gem');
-if (sock.error) fail(`socket: ${sock.error}`);
-gameData = sock.gameData;
+const sock = socketGemInGear(profile, gear.instanceId, 0, 'rare_attack_gem');
+if (!sock.ok) fail(`socket: ${sock.error}`);
 
-const p2 = getPlayerProfile(gameData, profileId);
-if (listGemStacks(p2).length !== 0) fail('gem should leave stash when socketed');
-if (listSocketedGems(p2).length !== 1) fail('expected 1 socketed gem');
-const socketed = p2.gearInventory.find((g) => g.instanceId === gear.instanceId)?.sockets?.[0]?.gem;
+if (listGemStacks(profile).length !== 0) fail('gem should leave stash when socketed');
+if (listSocketedGems(profile).length !== 1) fail('expected 1 socketed gem');
+const socketed = profile.gearInventory.find((g) => g.instanceId === gear.instanceId)?.sockets?.[0]?.gem;
 if (!socketed?.key) fail('socket gem missing on gear');
 
-ensureGemInventory(p2);
-const after = p2.gearInventory.find((g) => g.instanceId === gear.instanceId)?.sockets?.[0]?.gem;
+ensureGemInventory(profile);
+const after = profile.gearInventory.find((g) => g.instanceId === gear.instanceId)?.sockets?.[0]?.gem;
 if (!after?.key) fail('socket gem lost after ensureGemInventory');
 
 console.log('PASS: gem buy, socket, persist on gear');

@@ -17,7 +17,7 @@ import PhaserBattleView from './PhaserBattleView';
 import RpgBattleArena from './RpgBattleArena';
 import { resolveAttackVisuals } from '../utils/battleProjectiles';
 import { playSound, playSoundForSkill } from '../utils/sounds';
-import { maybeApplySkillStatus } from '../utils/battleLogic';
+import { isSupportMagicSkill, maybeApplySkillStatus } from '../utils/battleLogic';
 import { tickDotStatus } from '../src/gameSystems/statusEffects';
 import {
   resolveAttackWithPassives,
@@ -68,6 +68,14 @@ const RESULT_SFX_DELAY_MS = 450;
 const PLAYER_ID = 1;
 const CPU_ID = 2;
 
+function activeShieldHp(fighter) {
+  return Math.max(
+    0,
+    Math.floor(fighter?.petBattleState?.shieldHp || 0)
+      + Math.floor(fighter?.passiveBattleState?.gearShieldHp || 0),
+  );
+}
+
 /** Auto Level grind stops once the active monster reaches this level. */
 export const AUTO_LEVEL_GRIND_MAX = 40;
 
@@ -88,6 +96,7 @@ function fighterToPhaserState(fighter, fallbackName) {
     theme: fighter?.monsterParts?.themeBody ?? 'default',
     stageKind: fighter?.ladderStageKind ?? 'normal',
     statuses: fighter?.statuses ?? {},
+    shieldHp: activeShieldHp(fighter),
   };
 }
 
@@ -134,11 +143,13 @@ function seedFighter(p) {
     isLadderMonster: !!p.isLadderMonster,
     ladderStageKind: p.ladderStageKind,
     mergeTier: p.mergeTier ?? 0,
+    gearModifiers: p.gearModifiers ? { ...p.gearModifiers } : null,
+    activeSetBonus: p.activeSetBonus ? { ...p.activeSetBonus } : null,
     equippedGear: compactGearIds(p.equippedGear ?? p.monsterParts?.cosmetics),
     equippedPassives: Array.isArray(p.equippedPassives) ? [...p.equippedPassives] : [],
     passiveBattleState: p.passiveBattleState
       ? { ...p.passiveBattleState }
-      : { barrierConsumed: false, rageCoreShown: false },
+      : { barrierConsumed: false, rageCoreShown: false, gearTurnCounter: 0, gearShieldHp: 0 },
     equippedPet: p.equippedPet ? { ...p.equippedPet } : null,
     petBonuses: p.petBonuses ? { ...p.petBonuses } : { hp: 0, atk: 0, def: 0, spd: 0 },
     petCombatModifiers: p.petCombatModifiers ? { ...p.petCombatModifiers } : null,
@@ -180,6 +191,10 @@ function snapshotFight(f) {
     aiPowerRatio: f.aiPowerRatio,
     isLadderMonster: !!f.isLadderMonster,
     mergeTier: f.mergeTier ?? 0,
+    gearModifiers: f.gearModifiers ? { ...f.gearModifiers } : null,
+    activeSetBonus: f.activeSetBonus ? { ...f.activeSetBonus } : null,
+    passiveBattleState: f.passiveBattleState ? { ...f.passiveBattleState } : null,
+    petBattleState: f.petBattleState ? { ...f.petBattleState } : null,
     equippedGear: compactGearIds(f.equippedGear ?? f.monsterParts?.cosmetics),
   };
 }
@@ -187,7 +202,7 @@ function snapshotFight(f) {
 function pickCpuStrike(atk) {
   const physical = atk.skills?.physical ?? getPhysicalSkill(atk.monsterTemplateId);
   const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId) ?? [];
-  const affordable = magicList.filter((s) => canAffordSkill(atk, s));
+  const affordable = magicList.filter((s) => canAffordSkill(atk, s) && canUseNormalBattleSupportSkill(atk, s).ok);
   if (affordable.length > 0 && Math.random() < 0.42) {
     const skill = affordable[Math.floor(Math.random() * affordable.length)];
     return { skill, strikeKind: 'magic' };
@@ -199,7 +214,7 @@ function pickCpuStrike(atk) {
 function pickAutoLevelStrike(atk) {
   const physical = atk.skills?.physical ?? getPhysicalSkill(atk.monsterTemplateId);
   const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId) ?? [];
-  const affordable = magicList.filter((s) => canAffordSkill(atk, s));
+  const affordable = magicList.filter((s) => canAffordSkill(atk, s) && canUseNormalBattleSupportSkill(atk, s).ok);
   const maxMp = atk.maxMp ?? atk.stats?.mp ?? 1;
   const mpRatio = maxMp > 0 ? (atk.mp ?? 0) / maxMp : 0;
   if (affordable.length > 0 && mpRatio >= 0.2) {
@@ -211,9 +226,24 @@ function pickAutoLevelStrike(atk) {
 /** Highest-MP affordable magic skill for auto-cast (list order = strongest last). */
 function pickPlayerAutoMagic(atk) {
   const magicList = atk.skills?.magic ?? getMagicSkills(atk.monsterTemplateId) ?? [];
-  const affordable = magicList.filter((s) => canAffordSkill(atk, s));
+  const affordable = magicList.filter((s) => canAffordSkill(atk, s) && canUseNormalBattleSupportSkill(atk, s).ok);
   if (!affordable.length) return null;
   return affordable[affordable.length - 1];
+}
+
+function canUseNormalBattleSupportSkill(fighter, skill) {
+  if (!isSupportMagicSkill(skill)) return { ok: true };
+  const type = skill?.status?.type;
+  if (type === 'revive') {
+    return { ok: false, message: 'Revival only works in dungeon/team battles.' };
+  }
+  if (type === 'heal') {
+    const maxHp = fighter?.maxHp ?? fighter?.stats?.hp ?? 0;
+    if ((fighter?.hp ?? 0) >= maxHp) {
+      return { ok: false, message: `${fighter?.displayName ?? 'Monster'} is already at full HP.` };
+    }
+  }
+  return { ok: true };
 }
 
 function moodFor(fighter, emotional) {
@@ -1528,6 +1558,12 @@ export default function BattleScreen({
       showBanner('Not enough MP!');
       return;
     }
+    const supportCheck = canUseNormalBattleSupportSkill(attacker, skill);
+    if (!supportCheck.ok) {
+      showBanner(supportCheck.message || 'That skill cannot be used now.');
+      setMenuMode('magic');
+      return;
+    }
     startBattleAudioFromInput();
     runAttack({
       attackerId,
@@ -1742,7 +1778,9 @@ export default function BattleScreen({
               </View>
               <View style={styles.skillList}>
                 {magicSkills.map((sk, index) => {
-                  const ok = canAffordSkill(actingFighter, sk);
+                  const mpOk = canAffordSkill(actingFighter, sk);
+                  const supportOk = canUseNormalBattleSupportSkill(actingFighter, sk).ok;
+                  const ok = mpOk && supportOk;
                   const el = ELEMENT_UI[sk.element] ?? actingElementUi;
                   const magicIcons = GAME_ASSETS.battleActions.magicVariants?.length
                     ? GAME_ASSETS.battleActions.magicVariants
@@ -1754,9 +1792,9 @@ export default function BattleScreen({
                       style={({ pressed }) => [
                         styles.skillBtn,
                         !ok && styles.skillBtnDisabled,
-                        pressed && ok && styles.skillBtnPressed,
+                        pressed && actionsEnabled && mpOk && styles.skillBtnPressed,
                       ]}
-                      disabled={!actionsEnabled || !ok}
+                      disabled={!actionsEnabled || !mpOk}
                       onPress={() => handleMagicSkill(sk)}
                     >
                       <Image

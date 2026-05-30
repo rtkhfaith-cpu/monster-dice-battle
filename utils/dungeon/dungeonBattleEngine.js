@@ -287,6 +287,11 @@ function grantTeamShield(state, source, pct, sourceName) {
   }
 }
 
+function isTimedSetRound(state, everyRounds) {
+  const every = Math.max(0, Math.floor(everyRounds || 0));
+  return every > 0 && state.turn > 0 && state.turn % every === 0;
+}
+
 /** Choose a single-target victim using the spec's weighted rules. */
 function pickBossTarget(state) {
   const m1 = state.monsters.find((m) => m.position === 1);
@@ -509,15 +514,18 @@ function monsterUpkeep(state, monster) {
     }
   }
   const gearMpRegenPct = monster.gearModifiers?.regenMpPerTurn ?? 0;
-  if (gearMpRegenPct > 0) {
+  const gearMpEveryRounds = monster.gearModifiers?.regenMpEveryRounds ?? 0;
+  if (gearMpRegenPct > 0 && isTimedSetRound(state, gearMpEveryRounds)) {
     restoreMonsterMp(state, monster, gearMpRegenPct, monster.gearModifiers?.setName ?? 'Set bonus');
   }
-  grantTeamShield(
-    state,
-    monster,
-    monster.gearModifiers?.teamShieldMaxHpPct ?? 0,
-    monster.gearModifiers?.setName ?? 'Set bonus',
-  );
+  if (isTimedSetRound(state, monster.gearModifiers?.teamShieldEveryRounds ?? 0)) {
+    grantTeamShield(
+      state,
+      monster,
+      monster.gearModifiers?.teamShieldMaxHpPct ?? 0,
+      monster.gearModifiers?.setName ?? 'Set bonus',
+    );
+  }
   // Stun / freeze consume the turn.
   if (monster.statuses.stun) {
     monster.statuses.stun -= 1;

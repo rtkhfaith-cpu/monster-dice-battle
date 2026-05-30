@@ -1482,8 +1482,28 @@ export default function App() {
     showNotice('Gem merged', `Now level ${res.level} · 🪙 ${res.coinCost}`);
   }
 
+  function resolveProfileIdForGearInstance(gearInstanceId) {
+    if (!gameData || !gearInstanceId) return inventoryProfileId || gearProfileId || shopProfileId();
+    const candidateProfileIds = [
+      inventoryProfileId,
+      gearProfileId,
+      setupP1ProfileId,
+      setupP2ProfileId,
+      activeProfileId,
+      null,
+      ...(gameData.players || []).map((p) => p.id),
+    ];
+    const seenProfileIds = new Set();
+    return candidateProfileIds.find((profileId) => {
+      const key = profileId ?? '__guest__';
+      if (seenProfileIds.has(key)) return false;
+      seenProfileIds.add(key);
+      return walletForProfile(gameData, profileId)?.gearInventory?.some((g) => g.instanceId === gearInstanceId);
+    }) ?? inventoryProfileId ?? gearProfileId ?? shopProfileId();
+  }
+
   function handleSocketGem(gearInstanceId, socketIndex, gemKeyId) {
-    const profileId = inventoryProfileId || gearProfileId || shopProfileId();
+    const profileId = resolveProfileIdForGearInstance(gearInstanceId);
     if (!gameData || !profileId) {
       showNotice('Socket Gem', 'No player profile loaded.');
       return;
@@ -1504,7 +1524,7 @@ export default function App() {
   }
 
   function handleUnsocketGem(gearInstanceId, socketIndex) {
-    const profileId = inventoryProfileId || gearProfileId;
+    const profileId = resolveProfileIdForGearInstance(gearInstanceId);
     if (!gameData || !profileId) {
       showNotice('Remove Gem', 'No player profile loaded.');
       return;

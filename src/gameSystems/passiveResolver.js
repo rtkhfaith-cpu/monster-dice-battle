@@ -31,7 +31,7 @@ import {
   healingMultiplier,
   isDotDamageContext,
 } from './statusEffects';
-import { getPetCritBonus, getPetDodgeBonus } from './petCombat';
+import { absorbDamageWithPetShield, getPetCritBonus, getPetDodgeBonus } from './petCombat';
 
 const POPUP_LABELS = {
   DODGED: 'DODGED',
@@ -49,8 +49,12 @@ const POPUP_LABELS = {
 
 function ensureBattleState(fighter) {
   if (!fighter.passiveBattleState) {
-    fighter.passiveBattleState = { barrierConsumed: false, rageCoreShown: false };
+    fighter.passiveBattleState = {};
   }
+  fighter.passiveBattleState.barrierConsumed = !!fighter.passiveBattleState.barrierConsumed;
+  fighter.passiveBattleState.rageCoreShown = !!fighter.passiveBattleState.rageCoreShown;
+  fighter.passiveBattleState.gearTurnCounter = Math.max(0, Math.floor(fighter.passiveBattleState.gearTurnCounter || 0));
+  fighter.passiveBattleState.gearShieldHp = Math.max(0, Math.floor(fighter.passiveBattleState.gearShieldHp || 0));
   return fighter.passiveBattleState;
 }
 
@@ -265,6 +269,23 @@ export function resolveAttackWithPassives({
   }
 
   damage = Math.max(0, Math.round(damage));
+  if (defState.gearShieldHp > 0 && damage > 0) {
+    const absorbed = Math.min(defState.gearShieldHp, damage);
+    defState.gearShieldHp -= absorbed;
+    damage -= absorbed;
+    addPopup(popups, 'BARRIER');
+    battleLogEntries.push(`${def.displayName ?? 'Defender'}'s gear shield absorbed ${absorbed} damage.`);
+  }
+  if (damage > 0) {
+    const petShield = absorbDamageWithPetShield(def, damage);
+    if (petShield.damage < damage) {
+      const absorbed = damage - petShield.damage;
+      def = petShield.defender;
+      damage = petShield.damage;
+      addPopup(popups, 'BARRIER');
+      battleLogEntries.push(`${def.displayName ?? 'Defender'}'s pet shield absorbed ${absorbed} damage.`);
+    }
+  }
   let healing = 0;
   let reflectedDamage = 0;
   const statusEffectsApplied = [];
@@ -361,7 +382,8 @@ export function resolveStartOfTurnPassives(fighter) {
   const battleLogEntries = [];
   let f = { ...fighter };
   f = tickSupportCooldowns(f);
-  ensureBattleState(f);
+  const battleState = ensureBattleState(f);
+  battleState.gearTurnCounter = (battleState.gearTurnCounter ?? 0) + 1;
 
   const regenPassive = passivesOf(f).find((p) => p.skillId === PASSIVE_SKILL_IDS.REGENERATION_AURA);
   if (regenPassive) {
@@ -388,6 +410,36 @@ export function resolveStartOfTurnPassives(fighter) {
       addPopup(popups, 'REGEN');
       const setName = f.gearModifiers?.setName ?? f.activeSetBonus?.name ?? 'Set bonus';
       battleLogEntries.push(`${f.displayName ?? 'Monster'} recovered ${applied} HP (${setName}).`);
+    }
+  }
+
+  const gearMpRegenPct = f.gearModifiers?.regenMpPerTurn ?? 0;
+  const gearMpEveryRounds = Math.max(0, Math.floor(f.gearModifiers?.regenMpEveryRounds || 0));
+  if (gearMpRegenPct > 0 && gearMpEveryRounds > 0 && battleState.gearTurnCounter % gearMpEveryRounds === 0) {
+    const maxMp = f.maxMp ?? f.stats?.mp ?? 0;
+    const missing = Math.max(0, maxMp - (f.mp ?? 0));
+    const restored = Math.min(missing, Math.max(1, Math.round((maxMp * gearMpRegenPct) / 100)));
+    if (restored > 0) {
+      f = { ...f, mp: Math.min(maxMp, (f.mp ?? 0) + restored) };
+      addPopup(popups, 'REGEN');
+      const setName = f.gearModifiers?.setName ?? f.activeSetBonus?.name ?? 'Set bonus';
+      battleLogEntries.push(`${f.displayName ?? 'Monster'} recovered ${restored} MP (${setName}).`);
+    }
+  }
+
+  const shieldPct = f.gearModifiers?.teamShieldMaxHpPct ?? 0;
+  const shieldEveryRounds = Math.max(0, Math.floor(f.gearModifiers?.teamShieldEveryRounds || 0));
+  if (shieldPct > 0 && shieldEveryRounds > 0 && battleState.gearTurnCounter % shieldEveryRounds === 0) {
+    const maxHp = f.maxHp ?? f.stats?.hp ?? 100;
+    const shield = Math.max(1, Math.round((maxHp * shieldPct) / 100));
+    const prev = battleState.gearShieldHp ?? 0;
+    battleState.gearShieldHp = Math.max(prev, shield);
+    const gained = battleState.gearShieldHp - prev;
+    if (gained > 0) {
+      f = { ...f, passiveBattleState: { ...battleState } };
+      addPopup(popups, 'BARRIER');
+      const setName = f.gearModifiers?.setName ?? f.activeSetBonus?.name ?? 'Set bonus';
+      battleLogEntries.push(`${setName} granted a ${battleState.gearShieldHp} HP shield.`);
     }
   }
 
