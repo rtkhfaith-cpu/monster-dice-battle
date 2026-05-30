@@ -34,7 +34,7 @@ const FILTERS = [
   { id: 'mythic', label: 'Mythic' },
   { id: 'equipped', label: 'Equipped' },
   { id: 'unequipped', label: 'Free' },
-  { id: 'sockets', label: 'Slots' },
+  { id: 'sockets', label: 'Sockets' },
 ];
 
 function socketedGemRows(gear) {
@@ -138,7 +138,7 @@ export default function GearInventoryPanel({
       <View style={styles.sortRow}>
         {[
           { id: 'rarity', label: 'Rarity' },
-          { id: 'slot', label: 'Slot' },
+          { id: 'slot', label: 'Type' },
           { id: 'equipped', label: 'Status' },
         ].map((s) => (
           <TouchableOpacity

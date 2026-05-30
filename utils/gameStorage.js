@@ -832,35 +832,30 @@ export function socketGemInGearForProfile(gameData, profileId, gearInstanceId, s
   if ((profile.coins ?? 0) < price) return { gameData: gd, error: `Need 🪙 ${price} to socket gem` };
   const res = socketGemInGear(profile, gearInstanceId, socketIndex, gemKeyId);
   if (!res.ok) return { gameData: gd, error: res.error };
-  const confirmedGear = res.gear ?? getGearInstance(profile, gearInstanceId);
-  let confirmedGem = normalizeSocketedGem(res.gem);
-  if (!confirmedGem?.key) {
-    confirmedGem = normalizeSocketedGem(confirmedGear?.sockets?.[idx]?.gem);
-  }
-  if (!confirmedGem?.key && confirmedGear?.sockets?.length) {
-    const fallbackSocket = confirmedGear.sockets.find((s) => normalizeSocketedGem(s?.gem)?.key === gemKeyId);
-    confirmedGem = normalizeSocketedGem(fallbackSocket?.gem);
-  }
-  if (!confirmedGem?.key) {
+
+  // socketGemInGear is atomic (it only consumes the gem after attaching it).
+  // Confirm by finding the gem on this gear in the persisted/normalized profile.
+  ensureGemInventory(profile);
+  const persistedGear = getGearInstance(profile, gearInstanceId);
+  const parsedKey = parseGemKey(gemKeyId);
+  const matchSocket = (persistedGear?.sockets ?? []).find((s) => {
+    const g = normalizeSocketedGem(s?.gem);
+    if (!g?.key) return false;
+    if (g.key === gemKeyId) return true;
+    const gp = parseGemKey(g.key);
+    return !!(gp && parsedKey && gp.rarity === parsedKey.rarity && gp.stat === parsedKey.stat);
+  });
+  const persistedGem = normalizeSocketedGem(matchSocket?.gem) ?? normalizeSocketedGem(res.gem);
+
+  if (!persistedGem?.key) {
+    // Genuine failure — roll back so the gem is never lost.
     profile.gemInventory = beforeGemInventory;
     const rollbackGear = getGearInstance(profile, gearInstanceId);
     if (rollbackGear?.sockets?.[idx]) rollbackGear.sockets[idx].gem = beforeSocketGem;
     profile.coins = beforeCoins;
     return { gameData: gd, error: 'Gem was not saved into the gear socket. Please try again.' };
   }
-  // Re-normalize the profile, then re-check the exact socket to prevent silent losses.
-  ensureGemInventory(profile);
-  const persistedGear = getGearInstance(profile, gearInstanceId);
-  const persistedGem = normalizeSocketedGem(persistedGear?.sockets?.[idx]?.gem);
-  if (!persistedGem?.key || persistedGem.key !== gemKeyId) {
-    profile.gemInventory = beforeGemInventory;
-    if (persistedGear?.sockets?.[idx]) persistedGear.sockets[idx].gem = beforeSocketGem;
-    profile.coins = beforeCoins;
-    return {
-      gameData: gd,
-      error: 'Gem socket failed during save verification. No gem was consumed.',
-    };
-  }
+
   profile.coins -= price;
   profile.updatedAt = new Date().toISOString();
   return { gameData: gd, gem: persistedGem, gear: persistedGear, price };

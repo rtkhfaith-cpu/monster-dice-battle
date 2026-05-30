@@ -107,12 +107,22 @@ export default function MonsterSelectorRow({
                   <Text style={styles.battleBadgeTxt}>⚔</Text>
                 </View>
               ) : null}
+              {mergeInfo && (mergeInfo.mergeTier > 0 || mergeInfo.isMax) ? (
+                <View style={styles.tierBadge}>
+                  <Text style={styles.tierBadgeTxt}>
+                    {mergeInfo.isMax ? 'MAX' : `+${mergeInfo.mergeTier}`}
+                  </Text>
+                </View>
+              ) : null}
               <MonsterPreview parts={m.monsterParts} size={32} mood="happy" />
               <Text style={[styles.name, on && styles.nameOn]} numberOfLines={1}>
                 {m.nickname || m.templateId}
               </Text>
               <Text style={[styles.role, on && styles.roleOn]} numberOfLines={1}>
                 {m.chipRoleLabel}
+              </Text>
+              <Text style={[styles.mergeTierLine, on && styles.mergeTierLineOn]} numberOfLines={1}>
+                {mergeInfo?.isMax ? 'Merge MAX' : `Merge +${mergeInfo?.mergeTier ?? 0}`}
               </Text>
               {forBattle ? <Text style={styles.battleLbl}>Battle</Text> : null}
             </TouchableOpacity>
@@ -147,8 +157,8 @@ export default function MonsterSelectorRow({
 }
 
 const styles = StyleSheet.create({
-  scroll: { maxHeight: 132, marginBottom: 6 },
-  content: { gap: 6, paddingHorizontal: 2, paddingBottom: 2 },
+  scroll: { maxHeight: 168, marginBottom: 6 },
+  content: { gap: 6, paddingHorizontal: 2, paddingBottom: 4, alignItems: 'flex-start' },
   chip: {
     alignItems: 'center',
     paddingVertical: 4,
@@ -187,6 +197,24 @@ const styles = StyleSheet.create({
   nameOn: { color: GEAR_UI.title },
   role: { fontSize: 8, fontWeight: '900', color: '#c4b5fd', marginTop: 1, maxWidth: 66 },
   roleOn: { color: '#e9d5ff' },
+  mergeTierLine: { fontSize: 8, fontWeight: '900', color: '#fcd34d', marginTop: 1, maxWidth: 66 },
+  mergeTierLineOn: { color: '#fde68a' },
+  tierBadge: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    zIndex: 2,
+    minWidth: 16,
+    paddingHorizontal: 3,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#9333ea',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tierBadgeTxt: { fontSize: 8, fontWeight: '900', color: '#fff' },
   mergeBtn: {
     marginTop: 4,
     borderRadius: 999,
