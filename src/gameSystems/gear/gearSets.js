@@ -46,9 +46,10 @@ export const GEAR_SET_BONUSES = {
   dragon_guard: {
     setId: 'dragon_guard',
     name: 'Dragon Guard Set',
-    description: '+10% HP and +8% Defense',
+    description: '+10% HP, +8% Defense, and team shield in dungeons',
     hpPct: 10,
     defensePct: 8,
+    teamShieldMaxHpPct: 8,
   },
   warborn: {
     setId: 'warborn',
@@ -60,10 +61,11 @@ export const GEAR_SET_BONUSES = {
   lifebloom: {
     setId: 'lifebloom',
     name: 'Lifebloom Set',
-    description: '+10% HP, +8% Defense, recover 3% max HP per turn, +12% healing',
+    description: '+10% HP, +8% Defense, recover 3% max HP and 3% max MP per turn, +12% healing',
     hpPct: 10,
     defensePct: 8,
     regenHpPerTurn: 3,
+    regenMpPerTurn: 3,
     healPowerPct: 12,
   },
   venomfang: {
@@ -225,11 +227,13 @@ export function buildSetCombatModifiers(setBonus) {
     return {
       healPowerPct: 0,
       regenHpPerTurn: 0,
+      regenMpPerTurn: 0,
       poisonDamagePct: 0,
       poisonChancePct: 0,
       fireDamagePct: 0,
       burnChancePct: 0,
       damageReductionPct: 0,
+      teamShieldMaxHpPct: 0,
       setId: null,
       setName: null,
     };
@@ -237,11 +241,13 @@ export function buildSetCombatModifiers(setBonus) {
   return {
     healPowerPct: setBonus.healPowerPct ?? 0,
     regenHpPerTurn: setBonus.regenHpPerTurn ?? 0,
+    regenMpPerTurn: setBonus.regenMpPerTurn ?? 0,
     poisonDamagePct: setBonus.poisonDamagePct ?? 0,
     poisonChancePct: setBonus.poisonChancePct ?? 0,
     fireDamagePct: setBonus.fireDamagePct ?? 0,
     burnChancePct: setBonus.burnChancePct ?? 0,
     damageReductionPct: setBonus.damageReductionPct ?? 0,
+    teamShieldMaxHpPct: setBonus.teamShieldMaxHpPct ?? 0,
     setId: setBonus.setId,
     setName: setBonus.name,
   };

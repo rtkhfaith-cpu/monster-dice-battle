@@ -21,6 +21,7 @@ export default function MonsterEquipmentScreen({
   onUnequipPet,
   onEquipPassiveBook,
   onRemovePassive,
+  onMergeMonster,
 }) {
   const { height } = useWindowDimensions();
 
@@ -42,6 +43,7 @@ export default function MonsterEquipmentScreen({
             onUnequipPet={onUnequipPet}
             onEquipPassiveBook={onEquipPassiveBook}
             onRemovePassive={onRemovePassive}
+            onMergeMonster={onMergeMonster}
           />
         </View>
       </View>

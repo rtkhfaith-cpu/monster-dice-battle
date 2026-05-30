@@ -3,6 +3,7 @@
  */
 
 import { PET_SKILL_LABELS } from './petSkills';
+import { PET_MAX_LEVEL } from './petExp';
 
 /** @typedef {'rare'|'epic'|'mythic'} PetRarity */
 
@@ -51,13 +52,13 @@ export function getPetBaseStats(rarity) {
 }
 
 /**
- * Pet stats at level — base HP/ATK/DEF/SPD scale with pet level (max 60).
+ * Pet stats at level — base HP/ATK/DEF/SPD scale with pet level.
  * Skill power uses pet rarity; equip pets and battle to level them up.
  * @param {{ rarity: PetRarity, level?: number }} params
  */
 export function calculatePetStats({ rarity, level = 1 }) {
   const base = getPetBaseStats(rarity);
-  const lv = Math.max(1, Math.min(60, Math.floor(level)));
+  const lv = Math.max(1, Math.min(PET_MAX_LEVEL, Math.floor(level)));
   const steps = lv - 1;
   return {
     hp: Math.round(base.hp + base.growth.hp * steps),

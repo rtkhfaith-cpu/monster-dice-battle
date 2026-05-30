@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { calculatePetStats } from '../src/gameSystems/pets';
+import { PET_MAX_LEVEL } from '../src/gameSystems/petExp';
 import { describePetSkill } from '../src/gameSystems/petSkills';
 import { petEquippedToMonster } from '../src/gameSystems/petInventory';
 
@@ -95,7 +96,7 @@ export default function PetEquipPanel({
                 <View style={styles.mid}>
                   <Text style={styles.name}>{row.name}</Text>
                   <Text style={[styles.rarity, { color: RARITY_COLORS[row.rarity] }]}>
-                    {row.rarity} · Lv {row.level}/60
+                    {row.rarity} · Lv {row.level}/{PET_MAX_LEVEL}
                   </Text>
                   <Text style={styles.statLine}>
                     HP +{row.stats.hp} · ATK +{row.stats.atk} · DEF +{row.stats.def} · SPD +{row.stats.spd}

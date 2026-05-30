@@ -1,6 +1,6 @@
-/** Pet leveling — max 60; stats only scale with level, not skills. */
+/** Pet leveling — stats only scale with level, not skills. */
 
-export const PET_MAX_LEVEL = 60;
+export const PET_MAX_LEVEL = 90;
 
 export function expToAdvancePetLevel(level) {
   const lv = Math.max(1, Math.min(PET_MAX_LEVEL, Math.floor(level)));

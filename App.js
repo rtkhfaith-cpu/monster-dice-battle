@@ -3054,6 +3054,7 @@ export default function App() {
         onUnequipPet={handleUnequipPet}
         onEquipPassiveBook={handleEquipPassiveBook}
         onRemovePassive={handleRemovePassive}
+        onMergeMonster={handleMergeMonster}
       />
 
       <GearMartModal

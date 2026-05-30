@@ -694,6 +694,7 @@ export default function HomeSetupScreen({
             {cardFighter && tray === 'monsters' ? (
               <MonsterStatCardOverlay
                 fighter={cardFighter}
+                skills={cardFighter.skills}
                 mergeTier={cardMonster?.mergeTier ?? 0}
                 selected={cardMonster?.id === selectedMonsterId}
                 kicker="Monster Card"

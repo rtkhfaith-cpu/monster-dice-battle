@@ -20,6 +20,7 @@ import {
 } from './dungeonBosses';
 import { hasCorrectDungeonFormation } from './dungeonRoles';
 import { healingMultiplier } from '../../src/gameSystems/statusEffects';
+import { getPetSkillEffect } from '../../src/gameSystems/petSkills';
 
 /**
  * Tuning knobs — player atk is hundreds–low thousands; boss HP is 120k–500k.
@@ -38,6 +39,8 @@ const MAX_MITIGATION = 0.78;
 const MAX_DAMAGE_REDUCTION = 70;
 const BOSS_CRIT_MULT_CAP = 1.35;
 const BASE_CRIT_MULT = 1.5;
+const MP_RECOVER_WHEN_NOT_CASTING_PCT = 8;
+const MP_RECOVER_WHEN_NOT_CASTING_MIN = 4;
 
 function defenceReduction(defStat, k) {
   return clamp(defStat / (defStat + k), 0, MAX_MITIGATION);
@@ -144,6 +147,7 @@ function buildMonsterState(entry, formationCorrect) {
     hp: maxHp,
     maxMp,
     mp: maxMp,
+    shieldHp: 0,
     alive: true,
     statuses: {},
     supportState: { reviveCooldown: 0 },
@@ -241,6 +245,48 @@ function logLine(state, text, kind = 'info', action = null) {
   state.log.push({ id: nextLogId(), text, kind, action });
 }
 
+function restoreMonsterMp(state, monster, pct, sourceName, minAmount = 1) {
+  if (!monster?.alive || monster.hp <= 0 || (monster.maxMp ?? 0) <= 0) return 0;
+  const missing = Math.max(0, monster.maxMp - (monster.mp ?? 0));
+  if (missing <= 0) return 0;
+  const amount = Math.min(missing, Math.max(minAmount, Math.round(monster.maxMp * (pct / 100))));
+  if (amount <= 0) return 0;
+  monster.mp = Math.min(monster.maxMp, (monster.mp ?? 0) + amount);
+  logLine(state, `${monster.name} recovered ${amount} MP${sourceName ? ` (${sourceName})` : ''}.`, 'heal', {
+    type: 'mp',
+    targetId: monster.id,
+    amount,
+    sourceName,
+  });
+  return amount;
+}
+
+function grantShield(monster, amount) {
+  if (!monster?.alive || monster.hp <= 0 || amount <= 0) return 0;
+  const next = Math.max(monster.shieldHp ?? 0, amount);
+  const gained = Math.max(0, next - (monster.shieldHp ?? 0));
+  monster.shieldHp = next;
+  return gained;
+}
+
+function grantTeamShield(state, source, pct, sourceName) {
+  if (!pct || !source?.alive || source.hp <= 0) return;
+  const allies = aliveMonsters(state);
+  let total = 0;
+  for (const ally of allies) {
+    total += grantShield(ally, Math.round(ally.maxHp * (pct / 100)));
+  }
+  if (total > 0) {
+    logLine(state, `${sourceName} shielded the team.`, 'heal', {
+      type: 'shield',
+      sourceId: source.id,
+      targetIds: allies.map((a) => a.id),
+      teamWide: true,
+      amount: total,
+    });
+  }
+}
+
 /** Choose a single-target victim using the spec's weighted rules. */
 function pickBossTarget(state) {
   const m1 = state.monsters.find((m) => m.position === 1);
@@ -331,7 +377,17 @@ function bossHitMonster(state, monster, skill, { isAoe = false } = {}) {
     if (monster.statuses.damageTakenPct) raw *= 1 + monster.statuses.damageTakenPct.value / 100;
   }
 
-  const dmg = Math.max(1, Math.round(raw));
+  let dmg = Math.max(1, Math.round(raw));
+  if ((monster.shieldHp ?? 0) > 0 && dmg > 0) {
+    const absorbed = Math.min(monster.shieldHp, dmg);
+    monster.shieldHp -= absorbed;
+    dmg -= absorbed;
+    logLine(state, `${monster.name}'s shield absorbed ${absorbed} damage.`, 'heal', {
+      type: 'shield',
+      targetId: monster.id,
+      amount: absorbed,
+    });
+  }
   monster.hp = Math.max(0, monster.hp - dmg);
   if (monster.hp <= 0) {
     monster.alive = false;
@@ -452,6 +508,16 @@ function monsterUpkeep(state, monster) {
       });
     }
   }
+  const gearMpRegenPct = monster.gearModifiers?.regenMpPerTurn ?? 0;
+  if (gearMpRegenPct > 0) {
+    restoreMonsterMp(state, monster, gearMpRegenPct, monster.gearModifiers?.setName ?? 'Set bonus');
+  }
+  grantTeamShield(
+    state,
+    monster,
+    monster.gearModifiers?.teamShieldMaxHpPct ?? 0,
+    monster.gearModifiers?.setName ?? 'Set bonus',
+  );
   // Stun / freeze consume the turn.
   if (monster.statuses.stun) {
     monster.statuses.stun -= 1;
@@ -484,6 +550,7 @@ function resolvePosition2PetSupport(state, monster) {
   for (const skillType of pet.skills) {
     const teamWide = TEAM_WIDE_POSITION2_PET_SKILLS.includes(skillType);
     if (skillType === 'heal' || skillType === 'shield') {
+      const petEffect = getPetSkillEffect(skillType, pet.rarity);
       const pct = skillType === 'heal' ? 8 : 0;
       if (pct > 0) {
         const healMult = healingMultiplier({ gearModifiers: monster.gearModifiers });
@@ -497,6 +564,9 @@ function resolvePosition2PetSupport(state, monster) {
           targetIds: allies.map((a) => a.id),
           teamWide: true,
         });
+      }
+      if (skillType === 'shield') {
+        grantTeamShield(state, monster, petEffect?.shieldMaxHpPct ?? 0, `${pet.emoji ?? '🐾'} ${pet.name}`);
       }
     } else if (skillType === 'cleanse' || skillType === 'cleanseDebuff') {
       for (const ally of allies) {
@@ -559,6 +629,15 @@ function playerAttackBoss(state, monster) {
       magic: useMagic,
     },
   );
+  if (!useMagic) {
+    restoreMonsterMp(
+      state,
+      monster,
+      MP_RECOVER_WHEN_NOT_CASTING_PCT,
+      'no magic used',
+      MP_RECOVER_WHEN_NOT_CASTING_MIN,
+    );
+  }
 }
 
 function checkOutcome(state) {
@@ -722,6 +801,7 @@ export function dungeonSnapshot(state) {
       hp: m.hp,
       maxHp: m.maxHp,
       alive: m.alive,
+      shieldHp: m.shieldHp ?? 0,
       statuses: { ...m.statuses },
     })),
   };

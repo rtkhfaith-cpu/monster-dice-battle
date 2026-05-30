@@ -5,7 +5,7 @@
  *   profile.gemInventory: Array<{ key, rarity, stat, level, copies }>
  *     - one stack per (rarity, stat); `copies` are spare duplicates used to upgrade
  *   gear.sockets[].gem: { key, rarity, stat, level, copies } | null
- *     - socketed gems are removed from gemInventory until unsocketed
+ *     - socketing consumes one owned gem; spare duplicate copies stay in inventory
  *
  * Gems only apply battle stats when socketed into epic/mythic gear with sockets.
  */
@@ -180,15 +180,22 @@ export function socketGemInGear(profile, gearInstanceId, socketIndex, key) {
 
   const invIdx = profile.gemInventory.findIndex((g) => g.key === key);
   if (invIdx < 0) return { ok: false, error: 'Gem not in inventory' };
-  const [removed] = profile.gemInventory.splice(invIdx, 1);
-
-  gear.sockets[idx].gem = {
-    key: removed.key,
-    rarity: removed.rarity,
-    stat: removed.stat,
-    level: removed.level,
-    copies: removed.copies,
+  const source = profile.gemInventory[invIdx];
+  const socketedGem = {
+    key: source.key,
+    rarity: source.rarity,
+    stat: source.stat,
+    level: source.level,
+    copies: 0,
   };
+
+  if ((source.copies ?? 0) > 0) {
+    source.copies -= 1;
+  } else {
+    profile.gemInventory.splice(invIdx, 1);
+  }
+
+  gear.sockets[idx].gem = socketedGem;
   profile.updatedAt = new Date().toISOString();
   return {
     ok: true,
@@ -213,7 +220,7 @@ export function unsocketGemFromGear(profile, gearInstanceId, socketIndex) {
 
   let stack = findGemStack(profile, socketGem.key);
   if (stack) {
-    stack.copies += Math.max(1, socketGem.copies);
+    stack.copies += 1 + Math.max(0, socketGem.copies ?? 0);
     stack.level = Math.max(stack.level, socketGem.level);
   } else {
     profile.gemInventory.push({ ...socketGem });

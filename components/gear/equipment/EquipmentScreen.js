@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { fighterFromOwned } from '../../../utils/fighterFromOwned';
+import { expToAdvanceFrom } from '../../../utils/expLevel';
 import { getGearInstance } from '../../../src/gameSystems/gear/inventoryGearUtils';
 import { getSlotInstanceId } from '../../../src/gameSystems/gear/equipmentSystem';
 import { detectActiveGearSet, previewSetBonusChange } from '../../../src/gameSystems/gear/gearSets';
@@ -21,6 +22,7 @@ import {
   pickBattleInstance,
   rosterInstancesForTemplate,
 } from '../../../utils/rosterInventory';
+import { clampMergeTier, mergeCostForNextTier, MAX_MERGE_TIER } from '../../../utils/mergeSystem';
 import { GEAR_UI, gearModalStyles } from '../gearUiTheme';
 import MonsterEquipmentLayout from './MonsterEquipmentLayout';
 import MonsterFinalStatsPanel from './MonsterFinalStatsPanel';
@@ -31,6 +33,12 @@ import PetSlotBox from './PetSlotBox';
 import SkillSlotPanel from './SkillSlotPanel';
 
 const PET_RARITY_COLOR = { rare: '#60a5fa', epic: '#c084fc', mythic: '#f472b6' };
+
+function skillLine(skill) {
+  if (!skill?.name) return null;
+  if (skill.kind === 'magic') return `${skill.emoji ?? '✨'} ${skill.name} · ${skill.mpCost ?? 0} MP`;
+  return `${skill.emoji ?? '👊'} ${skill.name}`;
+}
 
 /**
  * MMORPG-style equipment screen — monster center, slots around, bottom sheet on slot tap.
@@ -49,6 +57,7 @@ export default function EquipmentScreen({
   onUnequipPet,
   onEquipPassiveBook,
   onRemovePassive,
+  onMergeMonster,
 }) {
   const { width, height } = useWindowDimensions();
   const compact = width < 380 || height < 640;
@@ -92,6 +101,21 @@ export default function EquipmentScreen({
     () => (profile && equipment ? detectActiveGearSet(profile, equipment) : null),
     [profile, equipment],
   );
+
+  const mergeInfo = useMemo(() => {
+    if (!ownedMonster) return null;
+    const instances = rosterInstancesForTemplate(ownedMonsters ?? [], ownedMonster.templateId);
+    const mergeTier = clampMergeTier(ownedMonster.mergeTier);
+    const nextCost = mergeCostForNextTier(mergeTier);
+    const extras = Math.max(0, instances.length - 1);
+    return {
+      mergeTier,
+      nextCost,
+      extras,
+      canMerge: nextCost != null && extras >= nextCost,
+      isMax: mergeTier >= MAX_MERGE_TIER,
+    };
+  }, [ownedMonster, ownedMonsters]);
 
   const getGear = (instanceId) => getGearInstance(profile, instanceId);
 
@@ -257,6 +281,47 @@ export default function EquipmentScreen({
         </View>
 
         <MonsterFinalStatsPanel fighter={fighter} compact={compact} />
+
+        <View style={styles.infoPanel}>
+          <Text style={styles.infoTitle}>Monster Progress</Text>
+          <Text style={styles.infoLine}>
+            Lv {ownedMonster.level ?? 1} · EXP {ownedMonster.exp ?? 0}/
+            {expToAdvanceFrom(ownedMonster.level ?? 1)}
+          </Text>
+          <Text style={styles.infoTitle}>Skills</Text>
+          {fighter?.skills?.physical ? (
+            <Text style={styles.infoLine}>{skillLine(fighter.skills.physical)}</Text>
+          ) : null}
+          {(fighter?.skills?.magic ?? []).map((skill) => (
+            <Text key={skill.id ?? skill.name} style={styles.infoLine}>
+              {skillLine(skill)}
+            </Text>
+          ))}
+          {mergeInfo ? (
+            <View style={styles.mergePanel}>
+              <View style={styles.mergeTextWrap}>
+                <Text style={styles.infoTitle}>Merge</Text>
+                <Text style={styles.infoLine}>
+                  Current +{mergeInfo.mergeTier} · Extras {mergeInfo.extras}
+                  {mergeInfo.nextCost != null ? `/${mergeInfo.nextCost}` : ''}
+                </Text>
+              </View>
+              {mergeInfo.isMax ? (
+                <View style={styles.mergeMax}>
+                  <Text style={styles.mergeMaxTxt}>MAX</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.mergeBtn, !mergeInfo.canMerge && styles.mergeBtnOff]}
+                  disabled={!mergeInfo.canMerge}
+                  onPress={() => onMergeMonster?.(ownedMonster.id)}
+                >
+                  <Text style={styles.mergeBtnTxt}>Merge +{mergeInfo.mergeTier + 1}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : null}
+        </View>
       </ScrollView>
 
       <CompatibleItemPanel
@@ -317,4 +382,56 @@ const styles = StyleSheet.create({
   dim: { opacity: 0.92 },
   empty: { padding: 24, alignItems: 'center' },
   emptyTxt: { color: GEAR_UI.muted, fontWeight: '800', marginBottom: 16 },
+  infoPanel: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,224,138,0.28)',
+    backgroundColor: 'rgba(7, 17, 32, 0.72)',
+  },
+  infoTitle: {
+    color: GEAR_UI.accent,
+    fontWeight: '900',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  infoLine: {
+    color: GEAR_UI.text,
+    fontWeight: '800',
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 3,
+  },
+  mergePanel: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,224,138,0.18)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  mergeTextWrap: { flex: 1 },
+  mergeBtn: {
+    borderRadius: 999,
+    backgroundColor: '#7c3aed',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  mergeBtnOff: {
+    backgroundColor: 'rgba(71, 85, 105, 0.8)',
+    opacity: 0.75,
+  },
+  mergeBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 12 },
+  mergeMax: {
+    borderRadius: 999,
+    backgroundColor: 'rgba(250, 204, 21, 0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  mergeMaxTxt: { color: '#fde68a', fontWeight: '900', fontSize: 12 },
 });
