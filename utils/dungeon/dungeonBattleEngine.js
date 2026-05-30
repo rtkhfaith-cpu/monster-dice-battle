@@ -165,7 +165,7 @@ function deadMonsters(state) {
 
 /** Position-2 healer: team heal + ally revive (high MP + cooldown). */
 function resolvePosition2HealerSupport(state, monster) {
-  if (monster.role !== 'healer') return;
+  if (monster.role !== 'healer' && monster.role !== 'support') return;
 
   const support = monster.supportState ?? {};
   if ((support.reviveCooldown ?? 0) > 0) {

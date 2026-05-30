@@ -23,6 +23,7 @@ export default function MonsterEquipmentLayout({
   compact,
   petSlotNode = null,
   skillSlotNode = null,
+  monsterTopNode = null,
 }) {
   const gear = (slot, index = 0) => {
     const id =
@@ -106,6 +107,11 @@ export default function MonsterEquipmentLayout({
             { width: monsterSize, height: monsterSize, marginHorizontal: sideGap },
           ]}
         >
+          {monsterTopNode ? (
+            <View style={styles.monsterTopRow}>
+              {monsterTopNode}
+            </View>
+          ) : null}
           <MonsterPreview
             parts={fighter?.monsterParts}
             size={monsterSize}
@@ -200,6 +206,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -90,
+  },
+  monsterTopRow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    alignItems: 'center',
   },
   levelTxt: {
     marginTop: -2,

@@ -840,7 +840,7 @@ export default function App() {
     () => (gearProfileId && gameData ? walletForProfile(gameData, gearProfileId) : wallet),
     [gameData, gearProfileId, wallet],
   );
-  const gearOwnedMonsters = useMemo(() => getOwnedRoster(gearProfile), [gearProfile]);
+  const gearOwnedMonsters = useMemo(() => getOwnedRoster(gearWallet), [gearWallet]);
   const gearOwnedMonster = useMemo(() => {
     const roster = gearWallet?.ownedMonsters;
     if (!gearMonsterId || !roster?.length) return null;
@@ -1690,13 +1690,28 @@ export default function App() {
   }
 
   function handleMergeMonster(primaryOwnedId) {
-    const mergeProfileId = activeProfileId || setupP1ProfileId;
-    if (!gameData || !mergeProfileId || !primaryOwnedId) return;
+    if (!gameData || !primaryOwnedId) return;
+    const candidateProfileIds = [
+      gearProfileId,
+      activeProfileId,
+      setupP1ProfileId,
+      setupP2ProfileId,
+      null,
+      ...(gameData.players || []).map((p) => p.id),
+    ];
+    const seenProfileIds = new Set();
+    const mergeProfileId = candidateProfileIds.find((profileId) => {
+      const key = profileId ?? '__guest__';
+      if (seenProfileIds.has(key)) return false;
+      seenProfileIds.add(key);
+      return walletForProfile(gameData, profileId)?.ownedMonsters?.some((m) => m.id === primaryOwnedId);
+    }) ?? null;
     const res = mergeOwnedMonsters(gameData, mergeProfileId, primaryOwnedId);
     if (res.error) {
       showNotice('Merge monsters', res.error);
       return;
     }
+    if (res.survivorId) setGearMonsterId(res.survivorId);
     persistSave(res.gameData, 'monster_merged', mergeProfileId);
     playSound('levelUp');
     showNotice('Merge complete', `Now +${res.mergeTier} merge (used ${res.consumed} duplicate${res.consumed === 1 ? '' : 's'}).`);
@@ -3019,7 +3034,7 @@ export default function App() {
         coins={coins}
         ownedGearIds={[]}
         ownedMonster={gearOwnedMonster}
-        profile={gearProfile}
+        profile={gearProfile ?? gearWallet}
         onClose={() => setGearOpen(false)}
         onEquip={handleEquipGear}
         onUnequip={handleUnequipGear}

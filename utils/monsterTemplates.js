@@ -4,7 +4,7 @@
  */
 
 /** @typedef {'common'|'rare'|'epic'|'legendary'|'mythic'} MonsterRarity */
-/** @typedef {'speedster'|'tank'|'brawler'|'mage'|'healer'|'trickster'|'balanced'|'mythic'|'tank_mage'} MonsterRole */
+/** @typedef {'speedster'|'tank'|'brawler'|'mage'|'healer'|'support'|'trickster'|'balanced'|'mythic'|'tank_mage'} MonsterRole */
 
 export const RARITY_ORDER = /** @type {const} */ (['common', 'rare', 'epic', 'legendary', 'mythic']);
 
@@ -28,6 +28,7 @@ export const ROLE_LABELS = {
   brawler: 'Brawler',
   mage: 'Mage',
   healer: 'Healer',
+  support: 'Support',
   trickster: 'Trickster',
   balanced: 'Balanced',
   mythic: 'Mythic',

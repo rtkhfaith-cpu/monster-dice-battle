@@ -11,7 +11,16 @@ export function computeLadderBattleStats(templateId, level) {
 
   const lv = Math.max(1, Math.floor(level || 1));
   const g = t.growthProfile;
-  const roleGrowth = growthForRole(t.role);
+  const baseRoleGrowth = growthForRole(t.role);
+  const roleGrowth = {
+    ...baseRoleGrowth,
+    hp: typeof g.hp === 'number' ? g.hp : baseRoleGrowth.hp,
+    mp: typeof g.mp === 'number' ? g.mp : baseRoleGrowth.mp,
+    attack: typeof g.attack === 'number' ? g.attack : baseRoleGrowth.attack,
+    magic: typeof g.magic === 'number' ? g.magic : baseRoleGrowth.magic,
+    defense: typeof g.defense === 'number' ? g.defense : baseRoleGrowth.defense,
+    speed: typeof g.speed === 'number' ? g.speed : baseRoleGrowth.speed,
+  };
   const b = { ...t.baseStats };
   const L = lv - 1;
 
@@ -58,6 +67,19 @@ export function computeLadderBattleStats(templateId, level) {
   hitRate += rf.hit ?? 0;
 
   const st = evolutionStageFromLevel(lv);
+  /** Keep ladder monsters on the same high-level tier bump as shop monsters. */
+  const tierBoost = Math.min(8, st.tierIndex * 1.5);
+  hp += Math.round(tierBoost * 3);
+  mp += Math.round(tierBoost * 1);
+  atkMin += Math.floor(tierBoost * 0.25);
+  atkMax += Math.floor(tierBoost * 0.35);
+  magMin += Math.floor(tierBoost * 0.25);
+  magMax += Math.floor(tierBoost * 0.35);
+  crit += Math.floor(st.tierIndex * 0.35);
+  dodge += Math.floor(st.tierIndex * 0.25);
+  speed += Math.floor(st.tierIndex * 0.5);
+  hitRate += Math.floor(st.tierIndex * 0.3);
+
   const visualTier = visualFormTierFromLevel(lv);
   const form = evolutionFormForMonster(templateId, visualTier);
 

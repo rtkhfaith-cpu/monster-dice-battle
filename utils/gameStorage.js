@@ -1485,6 +1485,7 @@ export function mergeOwnedMonsters(gameData, profileId, primaryOwnedId) {
     gameData: gd,
     mergeTier: tier + 1,
     consumed: cost,
+    survivorId,
     templateId: templateKey,
     ownedCount: rosterInstancesForTemplate(wallet.ownedMonsters, templateKey).length,
   };

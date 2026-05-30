@@ -3,7 +3,7 @@
  */
 
 /** @typedef {'common'|'rare'|'epic'|'legendary'|'mythic'} LadderRarity */
-/** @typedef {'speedster'|'tank'|'brawler'|'mage'|'trickster'|'balanced'|'debuffer'} LadderRole */
+/** @typedef {'speedster'|'tank'|'brawler'|'mage'|'support'|'trickster'|'balanced'|'debuffer'} LadderRole */
 
 const GROWTH = {
   hpPerLevel: 4,
@@ -43,34 +43,33 @@ const BASE_BY_RARITY = {
 /** Per-mythic tuning — overrides BASE_BY_RARITY.mythic when set on a def. */
 const MYTHIC_CUSTOM_BASE = {
   algorithm_angel: {
-    hp: 218,
-    mp: 128,
-    attackMin: 12,
-    attackMax: 17,
-    magicMin: 30,
-    magicMax: 42,
-    defMin: 12,
-    defMax: 17,
-    magicDefMin: 15,
-    magicDefMax: 21,
-    critical: 12,
-    dodge: 10,
+    hp: 250,
+    mp: 150,
+    attackMin: 14,
+    attackMax: 20,
+    magicMin: 38,
+    magicMax: 52,
+    defMin: 16,
+    defMax: 23,
+    magicDefMin: 22,
+    magicDefMax: 30,
+    critical: 14,
+    dodge: 13,
   },
   core_feed_beast: {
-    // Mythic magic nuker — highest magic in the roster, squishier than shop mythics but not below mythic floor.
-    // Ladder growth is slower than shop mythics (hpPerLevel 4 vs ~7–9), so base must carry more weight.
-    hp: 245,
-    mp: 100,
-    attackMin: 11,
-    attackMax: 16,
-    magicMin: 36,
-    magicMax: 50,
-    defMin: 11,
-    defMax: 16,
-    magicDefMin: 12,
-    magicDefMax: 17,
-    critical: 16,
-    dodge: 9,
+    // Mythic magic nuker — highest magic in the roster with enough bulk to feel mythic.
+    hp: 280,
+    mp: 130,
+    attackMin: 24,
+    attackMax: 34,
+    magicMin: 48,
+    magicMax: 66,
+    defMin: 16,
+    defMax: 23,
+    magicDefMin: 18,
+    magicDefMax: 25,
+    critical: 20,
+    dodge: 11,
   },
 };
 
@@ -78,8 +77,27 @@ const MYTHIC_CUSTOM_BASE = {
 const MYTHIC_CUSTOM_GROWTH = {
   algorithm_angel: {
     ...GROWTH,
-    mpPerLevel: 3.2,
-    magicEveryLevels: 3,
+    hp: 6,
+    mp: 6,
+    attack: 1.5,
+    magic: 5,
+    defense: 3,
+    speed: 2,
+    criticalEveryLevels: 5,
+    dodgeEveryLevels: 6,
+    hitEveryLevels: 7,
+  },
+  core_feed_beast: {
+    ...GROWTH,
+    hp: 7,
+    mp: 5,
+    attack: 4,
+    magic: 5.5,
+    defense: 3,
+    speed: 2,
+    criticalEveryLevels: 4,
+    dodgeEveryLevels: 7,
+    hitEveryLevels: 7,
   },
 };
 
@@ -98,13 +116,13 @@ const DEFS = [
     id: 'algorithm_angel',
     name: 'Algorithm Angel',
     rarity: 'mythic',
-    role: 'mage',
+    role: 'support',
     element: 'water',
     elements: ['water', 'metal'],
     faction: 'core_feed',
     colorIdx: 10,
     species: 21,
-    description: 'Mythic healer — Water / Metal. Heals allies and revives from the brink. Counters Bubble Tea Slime.',
+    description: 'Mythic support — Water / Metal. Heals allies and revives from the brink. Counters Bubble Tea Slime.',
   },
   { id: 'trash_panda_ronin', name: 'Trash Panda Ronin', rarity: 'rare', role: 'trickster', element: 'earth', elements: ['earth', 'earth'], faction: 'urban', colorIdx: 4, species: 22 },
   { id: 'pizza_meteor', name: 'Pizza Meteor', rarity: 'common', role: 'balanced', element: 'fire', elements: ['fire', 'earth'], faction: 'fast_food', colorIdx: 2, species: 23 },

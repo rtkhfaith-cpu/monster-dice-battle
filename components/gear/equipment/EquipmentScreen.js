@@ -22,7 +22,12 @@ import {
   pickBattleInstance,
   rosterInstancesForTemplate,
 } from '../../../utils/rosterInventory';
-import { clampMergeTier, mergeCostForNextTier, MAX_MERGE_TIER } from '../../../utils/mergeSystem';
+import {
+  clampMergeTier,
+  mergeCostForNextTier,
+  MAX_MERGE_TIER,
+  pickPrimaryInstance,
+} from '../../../utils/mergeSystem';
 import { GEAR_UI, gearModalStyles } from '../gearUiTheme';
 import MonsterEquipmentLayout from './MonsterEquipmentLayout';
 import MonsterFinalStatsPanel from './MonsterFinalStatsPanel';
@@ -105,10 +110,12 @@ export default function EquipmentScreen({
   const mergeInfo = useMemo(() => {
     if (!ownedMonster) return null;
     const instances = rosterInstancesForTemplate(ownedMonsters ?? [], ownedMonster.templateId);
-    const mergeTier = clampMergeTier(ownedMonster.mergeTier);
+    const primary = pickPrimaryInstance(instances) ?? ownedMonster;
+    const mergeTier = clampMergeTier(primary.mergeTier);
     const nextCost = mergeCostForNextTier(mergeTier);
     const extras = Math.max(0, instances.length - 1);
     return {
+      primaryId: primary.id,
       mergeTier,
       nextCost,
       extras,
@@ -116,6 +123,30 @@ export default function EquipmentScreen({
       isMax: mergeTier >= MAX_MERGE_TIER,
     };
   }, [ownedMonster, ownedMonsters]);
+
+  const mergeBadgeNode = mergeInfo ? (
+    <View style={styles.mergeBadgeWrap}>
+      <Text style={styles.mergeBadgeMeta}>
+        +{mergeInfo.mergeTier} · copies {mergeInfo.extras}
+        {mergeInfo.nextCost != null ? `/${mergeInfo.nextCost}` : ''}
+      </Text>
+      {mergeInfo.isMax ? (
+        <View style={styles.mergeBadgeMax}>
+          <Text style={styles.mergeBadgeMaxTxt}>MAX MERGE</Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={[styles.mergeBadgeBtn, !mergeInfo.canMerge && styles.mergeBadgeBtnOff]}
+          disabled={!mergeInfo.canMerge}
+          onPress={() => onMergeMonster?.(mergeInfo.primaryId)}
+        >
+          <Text style={styles.mergeBadgeBtnTxt}>
+            {mergeInfo.canMerge ? `Merge +${mergeInfo.mergeTier + 1}` : `Need ${mergeInfo.nextCost ?? '-'}`}
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  ) : null;
 
   const getGear = (instanceId) => getGearInstance(profile, instanceId);
 
@@ -277,6 +308,7 @@ export default function EquipmentScreen({
                 compact={compact}
               />
             )}
+            monsterTopNode={mergeBadgeNode}
           />
         </View>
 
@@ -284,7 +316,7 @@ export default function EquipmentScreen({
 
         <View style={styles.infoPanel}>
           <Text style={styles.infoTitle}>Monster Progress</Text>
-          <Text style={styles.infoLine}>
+          <Text style={[styles.infoLine, styles.progressLine]}>
             Lv {ownedMonster.level ?? 1} · EXP {ownedMonster.exp ?? 0}/
             {expToAdvanceFrom(ownedMonster.level ?? 1)}
           </Text>
@@ -297,30 +329,6 @@ export default function EquipmentScreen({
               {skillLine(skill)}
             </Text>
           ))}
-          {mergeInfo ? (
-            <View style={styles.mergePanel}>
-              <View style={styles.mergeTextWrap}>
-                <Text style={styles.infoTitle}>Merge</Text>
-                <Text style={styles.infoLine}>
-                  Current +{mergeInfo.mergeTier} · Extras {mergeInfo.extras}
-                  {mergeInfo.nextCost != null ? `/${mergeInfo.nextCost}` : ''}
-                </Text>
-              </View>
-              {mergeInfo.isMax ? (
-                <View style={styles.mergeMax}>
-                  <Text style={styles.mergeMaxTxt}>MAX</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.mergeBtn, !mergeInfo.canMerge && styles.mergeBtnOff]}
-                  disabled={!mergeInfo.canMerge}
-                  onPress={() => onMergeMonster?.(ownedMonster.id)}
-                >
-                  <Text style={styles.mergeBtnTxt}>Merge +{mergeInfo.mergeTier + 1}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : null}
         </View>
       </ScrollView>
 
@@ -387,51 +395,74 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,224,138,0.28)',
-    backgroundColor: 'rgba(7, 17, 32, 0.72)',
+    borderColor: 'rgba(255,224,138,0.42)',
+    backgroundColor: 'rgba(2, 8, 23, 0.94)',
   },
   infoTitle: {
-    color: GEAR_UI.accent,
+    color: '#fde68a',
     fontWeight: '900',
-    fontSize: 12,
+    fontSize: 13,
     textTransform: 'uppercase',
     marginTop: 2,
     marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   infoLine: {
-    color: GEAR_UI.text,
-    fontWeight: '800',
-    fontSize: 12,
-    lineHeight: 17,
+    color: '#f8fafc',
+    fontWeight: '900',
+    fontSize: 13,
+    lineHeight: 18,
     marginBottom: 3,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  mergePanel: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,224,138,0.18)',
-    flexDirection: 'row',
+  progressLine: {
+    color: '#ffffff',
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  mergeBadgeWrap: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
+    gap: 3,
   },
-  mergeTextWrap: { flex: 1 },
-  mergeBtn: {
+  mergeBadgeMeta: {
+    color: '#fff7ed',
+    fontSize: 10,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.95)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  mergeBadgeBtn: {
     borderRadius: 999,
-    backgroundColor: '#7c3aed',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: '#a855f7',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  mergeBtnOff: {
-    backgroundColor: 'rgba(71, 85, 105, 0.8)',
-    opacity: 0.75,
+  mergeBadgeBtnOff: {
+    backgroundColor: 'rgba(71, 85, 105, 0.92)',
   },
-  mergeBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 12 },
-  mergeMax: {
+  mergeBadgeBtnTxt: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 11,
+    textShadowColor: 'rgba(0,0,0,0.65)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  mergeBadgeMax: {
     borderRadius: 999,
-    backgroundColor: 'rgba(250, 204, 21, 0.18)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: 'rgba(250, 204, 21, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  mergeMaxTxt: { color: '#fde68a', fontWeight: '900', fontSize: 12 },
+  mergeBadgeMaxTxt: { color: '#422006', fontWeight: '900', fontSize: 11 },
 });
