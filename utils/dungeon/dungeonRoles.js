@@ -15,7 +15,7 @@ import { powerScoreFromBundle } from '../statsCalc';
 const ROLE_MAP = {
   tank: 'tanker',
   tank_mage: 'tanker',
-  mage: 'healer',
+  mage: 'damager',
   healer: 'healer',
   support: 'support',
   trickster: 'support',

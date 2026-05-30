@@ -324,6 +324,23 @@ export default function EquipmentScreen({
             Lv {ownedMonster.level ?? 1} · EXP {ownedMonster.exp ?? 0}/
             {expToAdvanceFrom(ownedMonster.level ?? 1)}
           </Text>
+          <Text style={[styles.infoLine, styles.mergeLine]}>
+            Merge Tier:{' '}
+            {mergeInfo?.isMax
+              ? `MAX (+${mergeInfo?.mergeTier ?? MAX_MERGE_TIER})`
+              : `+${mergeInfo?.mergeTier ?? 0} · ${mergeInfo?.extras ?? 0}/${mergeInfo?.nextCost ?? '-'} copies`}
+          </Text>
+          {!mergeInfo?.isMax ? (
+            <TouchableOpacity
+              style={[styles.mergeActionBtn, !mergeInfo?.canMerge && styles.mergeActionBtnNeed]}
+              onPress={() => onMergeMonster?.(mergeInfo?.primaryId)}
+              activeOpacity={0.86}
+            >
+              <Text style={styles.mergeActionTxt}>
+                {mergeInfo?.canMerge ? `Merge to +${(mergeInfo?.mergeTier ?? 0) + 1}` : `Need ${mergeInfo?.nextCost ?? '-'} copies`}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           <Text style={[styles.infoLine, styles.powerLine]}>
             Total Power: {totalPower.toLocaleString()}
           </Text>
@@ -447,6 +464,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginBottom: 8,
+  },
+  mergeLine: {
+    color: '#f3e8ff',
+    backgroundColor: 'rgba(76, 29, 149, 0.34)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(216, 180, 254, 0.45)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 6,
+  },
+  mergeActionBtn: {
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#9333ea',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
+  mergeActionBtnNeed: {
+    backgroundColor: 'rgba(71,85,105,0.92)',
+  },
+  mergeActionTxt: {
+    color: '#ffffff',
+    fontWeight: '900',
+    fontSize: 11,
   },
   skillInfoRow: {
     marginBottom: 8,

@@ -2,6 +2,8 @@ import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MonsterPreview from './MonsterPreview';
 import { RARITY_UI, ROLE_LABELS } from '../utils/monsterTemplates';
+import { getMonsterTemplate } from '../utils/monsterTemplates';
+import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import { formatDodgeStat, formatHitRateStat } from '../src/gameBalance/dodgeHitRate';
 
 function statGrid(stats) {
@@ -35,6 +37,16 @@ function formatSkillLine(skill) {
     return `${skill.emoji ?? '✨'} ${skill.name} · ${mp} MP`;
   }
   return `${skill.emoji ?? '👊'} ${skill.name}`;
+}
+
+function roleLabelForFighter(fighter) {
+  const templateId = fighter?.monsterTemplateId;
+  const templateRole = (
+    getMonsterTemplate(templateId)?.role
+      ?? getLadderMonsterTemplate(templateId)?.role
+      ?? fighter?.role
+  );
+  return ROLE_LABELS[templateRole] ?? templateRole ?? 'Unknown';
 }
 
 /** Shared monster detail card — same layout as Monster Mart preview card. */
@@ -77,7 +89,7 @@ export default function MonsterStatCardOverlay({
           >
             {rarity?.label ?? fighter.rarity}
           </Text>
-          <Text style={styles.cardRole}>{ROLE_LABELS[fighter.role] ?? fighter.role}</Text>
+          <Text style={styles.cardRole}>{roleLabelForFighter(fighter)}</Text>
           {fighter.level != null ? (
             <Text style={styles.cardRole}>Lv {fighter.level ?? 1}{mergeLabel}</Text>
           ) : null}

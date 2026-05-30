@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MonsterPreview from '../../MonsterPreview';
 import { getLadderMonsterTemplate } from '../../../utils/monsterLadder/ladderMonsterCatalog';
-import { getMonsterTemplate, rarityRank } from '../../../utils/monsterTemplates';
+import { getMonsterTemplate, rarityRank, ROLE_LABELS } from '../../../utils/monsterTemplates';
 import { GEAR_UI, gearRarityUi } from '../gearUiTheme';
 
 function templateFor(templateId) {
@@ -11,6 +11,14 @@ function templateFor(templateId) {
 
 function rarityBorderColor(templateId) {
   return gearRarityUi(templateFor(templateId)?.rarity ?? 'common').border;
+}
+
+function roleLabel(templateId) {
+  const role = templateFor(templateId)?.role ?? 'balanced';
+  if (ROLE_LABELS[role]) return ROLE_LABELS[role];
+  return String(role)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export default function MonsterSelectorRow({
@@ -68,6 +76,9 @@ export default function MonsterSelectorRow({
               <Text style={[styles.name, on && styles.nameOn]} numberOfLines={1}>
                 {m.nickname || m.templateId}
               </Text>
+              <Text style={[styles.role, on && styles.roleOn]} numberOfLines={1}>
+                {roleLabel(m.templateId)}
+              </Text>
               {forBattle ? <Text style={styles.battleLbl}>Battle</Text> : null}
             </TouchableOpacity>
             {showMerge ? (
@@ -101,8 +112,8 @@ export default function MonsterSelectorRow({
 }
 
 const styles = StyleSheet.create({
-  scroll: { maxHeight: 98, marginBottom: 6 },
-  content: { gap: 6, paddingHorizontal: 2 },
+  scroll: { maxHeight: 132, marginBottom: 6 },
+  content: { gap: 6, paddingHorizontal: 2, paddingBottom: 2 },
   chip: {
     alignItems: 'center',
     paddingVertical: 4,
@@ -139,6 +150,8 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 9, fontWeight: '900', color: GEAR_UI.sub, marginTop: 2, maxWidth: 64 },
   nameOn: { color: GEAR_UI.title },
+  role: { fontSize: 8, fontWeight: '900', color: '#c4b5fd', marginTop: 1, maxWidth: 66 },
+  roleOn: { color: '#e9d5ff' },
   mergeBtn: {
     marginTop: 4,
     borderRadius: 999,

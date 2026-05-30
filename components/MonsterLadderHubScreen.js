@@ -320,6 +320,11 @@ function capitalizeText(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+function ladderRoleLabelForFighter(fighter) {
+  const role = getLadderMonsterTemplate(fighter?.monsterTemplateId)?.role ?? fighter?.role;
+  return ROLE_LABELS[role] ?? role ?? 'Unknown';
+}
+
 function CodexMonsterCard({ templateId, onClose }) {
   if (!templateId) return null;
   const t = getLadderMonsterTemplate(templateId);
@@ -816,7 +821,7 @@ export default function MonsterLadderHubScreen({
                     <Text style={[styles.cardBadge, { backgroundColor: rarityUi?.chipBg ?? '#334155', color: rarityUi?.chipFg ?? '#fff' }]}>
                       {rarityUi?.label ?? rarity}
                     </Text>
-                    <Text style={styles.cardRole}>{ROLE_LABELS[activeFighter.role] ?? activeFighter.role}</Text>
+                    <Text style={styles.cardRole}>{ladderRoleLabelForFighter(activeFighter)}</Text>
                     <Text style={styles.cardRole}>Lv {activeFighter.level ?? 1}</Text>
                   </View>
                   <View style={styles.cardStatsGrid}>

@@ -41,6 +41,7 @@ const BOSS_CRIT_MULT_CAP = 1.35;
 const BASE_CRIT_MULT = 1.5;
 const MP_RECOVER_WHEN_NOT_CASTING_PCT = 8;
 const MP_RECOVER_WHEN_NOT_CASTING_MIN = 4;
+const DUNGEON_MAX_ROUNDS = 30;
 
 function defenceReduction(defStat, k) {
   return clamp(defStat / (defStat + k), 0, MAX_MITIGATION);
@@ -649,6 +650,16 @@ function playerAttackBoss(state, monster) {
 }
 
 function checkOutcome(state) {
+  if (state.boss.hp > 0 && state.turn > DUNGEON_MAX_ROUNDS) {
+    state.phase = 'lose';
+    logLine(
+      state,
+      `Time up! You must defeat the boss within ${DUNGEON_MAX_ROUNDS} rounds.`,
+      'lose',
+      { type: 'lose', reason: 'round_limit' },
+    );
+    return true;
+  }
   if (state.boss.hp <= 0) {
     state.phase = 'win';
     logLine(state, 'Dungeon Cleared!', 'win', { type: 'win' });
