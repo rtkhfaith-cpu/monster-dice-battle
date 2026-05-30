@@ -15,7 +15,8 @@ export const MONSTER_RUSH_PHYSICS = {
   jumpVelocity: -14.2,
   /** Internal speed stat (drives scrollPxPerSec below). */
   baseSpeed: 3,
-  maxSpeed: 8,
+  /** Long ramp: speed keeps climbing to maxSpeed at ~8km so long runs never plateau. */
+  maxSpeed: 12,
   speedIncreaseEveryDistance: 400,
   speedIncreaseAmount: 0.45,
   /** Target run speed ≈ 320–380 px/s at base; scales with speed stat. */

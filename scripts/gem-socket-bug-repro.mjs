@@ -62,6 +62,49 @@ async function main() {
   console.log('upgraded stack level:', liveStack?.level, 'copies:', liveStack?.copies);
   if (liveStack?.level !== 2) fail('BUG PRESENT: upgrade did not persist to the LIVE gem stack');
   console.log('PASS: gem upgrade persists to the LIVE gem stack');
+
+  // ---- upgrade an inventory gem while a same-type gem is socketed ----
+  // Player keeps one rare magic gem forged into gear AND upgrades another of the
+  // same rarity+stat sitting in inventory. The socketed gem must keep its own level.
+  const prof3 = {
+    id: 'multi',
+    coins: 0,
+    ownedMonsters: [],
+    gemInventory: [],
+    gearInventory: [
+      {
+        instanceId: 'gear_epic_2',
+        gearId: 'epic_dragon_guard_helm',
+        rarity: 'epic',
+        stats: [{ type: 'magicAttack', value: 10 }],
+        sockets: [{ id: 'socket_1', gem: null }],
+        equippedToMonsterId: null,
+        acquiredAt: new Date().toISOString(),
+      },
+    ],
+  };
+  ensureGemInventory(prof3);
+  const need1 = getRequiredGemsForUpgrade(1);
+  // Own 2 base gems + enough duplicates: one will be socketed, the other upgraded.
+  grantGem(prof3, 'rare', 'magicAttack', 2 + need1);
+  const socketRes = socketGemInGear(prof3, 'gear_epic_2', 0, 'rare_magicAttack_gem');
+  if (!socketRes.ok) fail(`socket (multi) failed: ${socketRes.error}`);
+  const socketedLevelBefore = normalizeSocketedGem(
+    prof3.gearInventory[0].sockets[0].gem,
+  )?.level;
+
+  const upMulti = upgradeGem(prof3, 'rare_magicAttack_gem');
+  if (!upMulti.ok) fail(`BUG PRESENT: upgrade blocked while same-type gem socketed: ${upMulti.error}`);
+
+  const invStack = prof3.gemInventory.find((s) => s.key === 'rare_magicAttack_gem');
+  const socketedLevelAfter = normalizeSocketedGem(
+    prof3.gearInventory[0].sockets[0].gem,
+  )?.level;
+  console.log('multi: inv level', invStack?.level, '| socketed level', socketedLevelAfter);
+  if (invStack?.level !== 2) fail('inventory gem should have upgraded to level 2');
+  if (socketedLevelAfter !== socketedLevelBefore) fail('socketed gem level must NOT change on inventory upgrade');
+  if (listSocketedGems(prof3).length !== 1) fail('socketed gem must remain forged in gear');
+  console.log('PASS: upgraded an inventory gem while same-type gem stays forged in gear');
 }
 
 main().catch((e) => { console.error('ERROR:', e); process.exit(1); });

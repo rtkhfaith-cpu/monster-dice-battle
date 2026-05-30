@@ -35,10 +35,12 @@ export const RUSH_LEVEL_RULES = {
     hard: [260, 420],
   },
 
+  // Gradual ramp (scrollPx): tutorial 0–80m, easy 80–250m, medium 250–600m,
+  // hard 600m+. Beyond mediumEnd the generator escalates rests/weighting/speed.
   distanceTiers: {
     tutorialEnd: 800,
-    easyMediumEnd: 2000,
-    mediumEnd: 4000,
+    easyMediumEnd: 2500,
+    mediumEnd: 6000,
   },
 };
 

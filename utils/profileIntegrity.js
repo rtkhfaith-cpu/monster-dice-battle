@@ -15,7 +15,7 @@ import { getPassiveSkillDef } from '../src/gameSystems/passiveSkills';
 /** Soft cap — legitimate play should stay far below this. */
 export const PROFILE_COINS_SOFT_CAP = 250_000;
 export const PROFILE_LEVEL_MAX = MONSTER_LEVEL_MAX;
-export const PROFILE_MONSTER_CAP = 80;
+export const PROFILE_MONSTER_CAP = 200;
 export const PROFILE_NICKNAME_MAX = 24;
 export const PROFILE_NAME_MAX = 24;
 

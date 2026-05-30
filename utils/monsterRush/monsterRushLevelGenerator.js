@@ -39,6 +39,30 @@ const TUTORIAL_RHYTHM = [
   'single',
 ];
 
+/** Medium: only one breather per cycle — pressure ramps up. */
+const MEDIUM_RHYTHM = [
+  'single',
+  'combo',
+  'rest',
+  'elevation',
+  'gap',
+  'combo',
+  'single',
+  'elevation',
+];
+
+/** Hard+: no free coin rests — continuous action so long runs stay demanding. */
+const HARD_RHYTHM = [
+  'single',
+  'combo',
+  'elevation',
+  'gap',
+  'combo',
+  'elevation',
+  'single',
+  'combo',
+];
+
 const REST_PATTERN = {
   id: 'rest_coins',
   tier: 'easy',
@@ -79,19 +103,30 @@ function poolForPhaseCached(tier, phase) {
 }
 
 function rhythmPhase(scrollPx, rhythmIndex) {
-  if (scrollPx < RUSH_LEVEL_RULES.distanceTiers.tutorialEnd) {
+  const t = RUSH_LEVEL_RULES.distanceTiers;
+  if (scrollPx < t.tutorialEnd) {
     return TUTORIAL_RHYTHM[rhythmIndex % TUTORIAL_RHYTHM.length];
   }
-  return RHYTHM_CYCLE[rhythmIndex % RHYTHM_CYCLE.length];
+  if (scrollPx < t.easyMediumEnd) {
+    return RHYTHM_CYCLE[rhythmIndex % RHYTHM_CYCLE.length];
+  }
+  if (scrollPx < t.mediumEnd) {
+    return MEDIUM_RHYTHM[rhythmIndex % MEDIUM_RHYTHM.length];
+  }
+  return HARD_RHYTHM[rhythmIndex % HARD_RHYTHM.length];
 }
 
 function weightedPick(candidates, ctx) {
+  const mediumEnd = RUSH_LEVEL_RULES.distanceTiers.mediumEnd;
+  // 0 at the start of the hard tier → 1 once a full hard tier deeper (~1.2km).
+  const deep = Math.max(0, Math.min(1, ((ctx.scrollPx ?? 0) - mediumEnd) / mediumEnd));
   const weights = candidates.map((p) => {
     let w = 1;
     if (p.id === ctx.lastPatternId) w *= 0.15;
-    if (p.tier === 'hard') w *= 0.7;
-    if (p.tier === 'easy') w *= 1.2;
-    return w;
+    // Early runs favour easy patterns; deep runs flip to favour hard ones.
+    if (p.tier === 'hard') w *= 0.7 + deep * 1.6;
+    if (p.tier === 'easy') w *= 1.2 - deep * 0.95;
+    return Math.max(0.05, w);
   });
   const total = weights.reduce((a, b) => a + b, 0);
   let roll = Math.random() * total;
@@ -136,7 +171,7 @@ export function pickValidatedPattern(scrollPx, ctx = {}) {
   for (let t = 0; t < tries; t += 1) {
     const remaining = candidates.filter((p) => !tried.has(p.id));
     if (!remaining.length) break;
-    const pattern = weightedPick(remaining, ctx);
+    const pattern = weightedPick(remaining, { ...ctx, scrollPx });
     tried.add(pattern.id);
     const v = validatePattern(pattern, validationCtx);
     if (v.ok) {

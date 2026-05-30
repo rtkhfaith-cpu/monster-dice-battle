@@ -139,15 +139,16 @@ export function grantGemByKey(profile, key, quantity = 1) {
   return grantGem(profile, parsed.rarity, parsed.stat, quantity);
 }
 
-/** Upgrade a gem one level, consuming duplicate copies (coins handled by caller). */
+/**
+ * Upgrade a gem one level, consuming duplicate copies (coins handled by caller).
+ *
+ * Inventory gems and socketed gems are stored independently — a socketed gem keeps
+ * its own level inside the gear socket. Upgrading the inventory stack never touches a
+ * socketed gem, so owning/leveling another gem of the same rarity+stat while one is
+ * already forged into gear is allowed.
+ */
 export function upgradeGem(profile, key) {
   ensureGemInventory(profile);
-  if (!findGemStack(profile, key)) return { ok: false, error: 'Gem not owned' };
-  if (isGemKeySocketed(profile, key)) {
-    return { ok: false, error: 'Unsocket the gem before upgrading.' };
-  }
-  // Re-acquire the LIVE stack: isGemKeySocketed re-normalizes profile.gemInventory into
-  // new objects, so a stack captured before it would be detached and our mutations lost.
   const stack = findGemStack(profile, key);
   if (!stack) return { ok: false, error: 'Gem not owned' };
   if (stack.level >= GEM_MAX_LEVEL) return { ok: false, error: 'Gem already at max level' };

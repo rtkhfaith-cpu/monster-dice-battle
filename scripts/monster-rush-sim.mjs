@@ -157,14 +157,21 @@ for (const w of WIDTHS) {
 if (fail) console.log('\nFAIL: jump-on-start still dies too fast on many trials');
 else console.log('\nPASS: jump-on-start survives long enough to react');
 
+// Design intent (fair-but-not-farmable): a mindless fixed-rhythm bot must NOT
+// idle-farm to 60s, but it also must not die instantly — early game stays fair.
 const hold60 = [];
 for (let i = 0; i < 30; i += 1) {
   hold60.push(runTrial(640, 'hold'));
 }
 const survived60 = hold60.filter((r) => r.survived || (r.deathFrame != null && r.deathFrame >= 3600)).length;
-console.log(`\n60s hold-jump survival (640w): ${survived60}/30 trials >= 60s`);
-if (survived60 < 24) {
-  console.log('WARN: fewer than 80% of hold-jump trials reach 60s');
+const avgHoldDist = hold60.reduce((s, r) => s + r.distanceM, 0) / hold60.length;
+console.log(`\n60s hold-jump survival (640w): ${survived60}/30 trials >= 60s (avg ${avgHoldDist.toFixed(0)}m)`);
+if (survived60 >= 24) {
+  console.log('WARN: mindless timer-jump bot trivially survives 60s — too farmable.');
+  fail = true;
+}
+if (avgHoldDist < 60) {
+  console.log('WARN: even early game kills naive play too fast — may be unfair.');
   fail = true;
 }
 
