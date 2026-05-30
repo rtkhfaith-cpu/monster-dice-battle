@@ -36,7 +36,11 @@ export const GEM_SLOT_CATEGORIES = {
 
 export const GEM_MAX_LEVEL = 10;
 
-const GEM_BASE_VALUES = { rare: 2, epic: 4, mythic: 10 };
+// Combat gems: L1 starting stat per rarity. Each level adds a flat +1.
+//   Rare  L1=1 … L10=10
+//   Epic  L1=4 … L10=13
+//   Mythic L1=10 … L10=19
+const GEM_BASE_VALUES = { rare: 1, epic: 4, mythic: 10 };
 const HP_GEM_BASE_VALUES = { rare: 200, epic: 500, mythic: 1200 };
 
 export const GEM_STAT_LABELS = {
@@ -150,7 +154,7 @@ export function getRequiredGemsForUpgrade(currentLevel) {
   return Math.pow(2, lvl - 1);
 }
 
-/** Raw final value of a gem at a given level (each level = +10%). */
+/** Raw final value used for HP gems (proportional, each level = +10%). */
 export function getGemFinalValue(baseValue, level) {
   return baseValue * Math.pow(1.1, Math.max(1, Math.floor(level)) - 1);
 }
@@ -160,9 +164,20 @@ export function getDisplayGemValue(baseValue, level) {
   return Math.round(getGemFinalValue(baseValue, level));
 }
 
-/** Convenience: value of a gem stack (rarity + stat + level). */
+/**
+ * Value of a gem stack (rarity + stat + level).
+ * Combat stats scale by their rarity base each level (base × level):
+ *   Rare   1, 2 … 10   (+1/level)
+ *   Epic   4, 8 … 40   (+4/level)
+ *   Mythic 10, 20 … 100 (+10/level)
+ * HP gems keep their proportional curve so their large bases stay meaningful.
+ */
 export function gemStatValue(rarity, stat, level) {
-  return getDisplayGemValue(gemBaseValue(rarity, stat), level);
+  const lvl = Math.max(1, Math.min(GEM_MAX_LEVEL, Math.floor(level)));
+  if (stat === 'hp') {
+    return getDisplayGemValue(gemBaseValue(rarity, stat), lvl);
+  }
+  return gemBaseValue(rarity, stat) * lvl;
 }
 
 /** Build the canonical definition object for a gem stack. */

@@ -32,7 +32,7 @@ import { computeStageRewardsFromLevel } from './monsterRescue/rewards';
 import { awardAndOpenRescueChest } from './monsterRescue/rescueChestRewards';
 import { normalizeDailyLoginSpin } from './dailyLoginSpin';
 import { decodeRescueLevel } from './monsterRescue/stages';
-import { sanitizePlayerProfile } from './profileIntegrity';
+import { sanitizePlayerProfile, PROFILE_MONSTER_CAP } from './profileIntegrity';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import {
   canonicalMonsterKey,
@@ -762,6 +762,10 @@ export function buyMonster(gameData, playerId, monsterTypeId) {
   const price = monsterShopPrice(t);
   if (typeof price !== 'number') return { gameData: gd, error: 'This monster is not normally purchasable.' };
   if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
+  if (!Array.isArray(wallet.ownedMonsters)) wallet.ownedMonsters = [];
+  if (wallet.ownedMonsters.length >= PROFILE_MONSTER_CAP) {
+    return { gameData: gd, error: `Monster storage is full (max ${PROFILE_MONSTER_CAP}). Merge or release some first.` };
+  }
   const beforeCount = rosterInstancesForTemplate(wallet.ownedMonsters, monsterTypeId).length;
   wallet.coins -= price;
   const om = generateOwnedMonster(monsterTypeId);
