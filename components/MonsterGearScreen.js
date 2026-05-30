@@ -227,6 +227,7 @@ export default function MonsterGearScreen({
   ownedMonsters,
   battleMonsterId,
   onSellGear,
+  onMergeMonster,
 }) {
   const type = useReadableType();
   const useNewGear = Array.isArray(profile?.gearInventory);
@@ -304,6 +305,7 @@ export default function MonsterGearScreen({
               onUnequipPet={onUnequipPet}
               onEquipPassiveBook={onEquipPassiveBook}
               onRemovePassive={onRemovePassive}
+              onMergeMonster={onMergeMonster}
             />
           </View>
         </View>

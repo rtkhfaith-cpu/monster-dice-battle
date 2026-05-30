@@ -512,6 +512,16 @@ export default function HomeSetupScreen({
                   <View style={styles.mergeMaxBadge}>
                     <Text style={styles.mergeMaxTxt}>MAX</Text>
                   </View>
+                ) : group.count > 1 && onMergeMonster ? (
+                  <Pressable
+                    style={[styles.mergeBtn, styles.mergeBtnNeed]}
+                    onPress={pressWithSound(() => onMergeMonster(mergeTargetId))}
+                  >
+                    <Text style={styles.mergeBtnTxt}>Need {group.nextCost ?? '-'}</Text>
+                    <Text style={styles.mergeBtnSub}>
+                      {group.count - 1}/{group.nextCost ?? '-'} copies
+                    </Text>
+                  </Pressable>
                 ) : null}
               </View>
             );
@@ -1427,6 +1437,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
+  },
+  mergeBtnNeed: {
+    backgroundColor: 'rgba(71, 85, 105, 0.95)',
+    borderColor: 'rgba(148, 163, 184, 0.55)',
   },
   mergeBtnTxt: {
     color: '#f5f3ff',

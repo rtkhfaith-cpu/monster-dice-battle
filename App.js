@@ -3085,6 +3085,7 @@ export default function App() {
           setGearOpen(false);
           void openGearMart();
         }}
+        onMergeMonster={handleMergeMonster}
       />
 
       <MonsterEquipmentScreen

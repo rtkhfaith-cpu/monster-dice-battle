@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import MonsterPreview from '../../MonsterPreview';
 import { getLadderMonsterTemplate } from '../../../utils/monsterLadder/ladderMonsterCatalog';
 import { getMonsterTemplate, rarityRank, ROLE_LABELS } from '../../../utils/monsterTemplates';
-import { rosterInstancesForTemplate } from '../../../utils/rosterInventory';
+import { rosterInstancesForTemplate, rosterSpeciesKey } from '../../../utils/rosterInventory';
 import {
   clampMergeTier,
   mergeCostForNextTier,
@@ -57,12 +57,13 @@ export default function MonsterSelectorRow({
     const map = new Map();
     const roster = allOwnedMonsters ?? [];
     for (const m of decorated) {
-      const speciesInstances = rosterInstancesForTemplate(roster, m.templateId);
+      const speciesKey = rosterSpeciesKey(m.templateId);
+      const speciesInstances = rosterInstancesForTemplate(roster, speciesKey);
       const primary = pickPrimaryInstance(speciesInstances) ?? m;
       const mergeTier = clampMergeTier(primary.mergeTier);
       const nextCost = mergeCostForNextTier(mergeTier);
       const extras = Math.max(0, speciesInstances.length - 1);
-      map.set(m.templateId, {
+      map.set(speciesKey, {
         primaryId: primary.id,
         mergeTier,
         nextCost,
@@ -86,7 +87,7 @@ export default function MonsterSelectorRow({
       {decorated.map((m) => {
         const on = m.id === selectedId;
         const forBattle = battleMonsterId && m.id === battleMonsterId;
-        const mergeInfo = mergeInfoBySpecies.get(m.templateId) ?? null;
+        const mergeInfo = mergeInfoBySpecies.get(rosterSpeciesKey(m.templateId)) ?? null;
         // Show the merge button whenever the player owns a spare duplicate of this
         // species (extras > 0) — even if not yet enough for the next tier — so the
         // merge option (Merge +N or "Need X copies") is never hidden. Also show on
@@ -163,7 +164,7 @@ export default function MonsterSelectorRow({
 }
 
 const styles = StyleSheet.create({
-  scroll: { maxHeight: 168, marginBottom: 6 },
+  scroll: { maxHeight: 200, marginBottom: 6 },
   content: { gap: 6, paddingHorizontal: 2, paddingBottom: 4, alignItems: 'flex-start' },
   chip: {
     alignItems: 'center',
