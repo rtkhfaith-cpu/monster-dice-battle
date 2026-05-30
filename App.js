@@ -1525,7 +1525,11 @@ export default function App() {
       return;
     }
     persistSave(res.gameData, 'gem_socketed', profileId);
-    showNotice('Gem socketed', `Forged into gear · 🪙 ${res.price} paid`);
+    const gemLabel = res.gem
+      ? `${(res.gem.rarity ?? '').toUpperCase()} ${res.gem.stat ?? 'gem'}`.trim()
+      : 'Gem';
+    const gearName = res.gear?.name ?? 'gear';
+    showNotice('Gem socketed', `${gemLabel} forged into ${gearName} · 🪙 ${res.price} paid`);
   }
 
   function handleUnsocketGem(gearInstanceId, socketIndex) {

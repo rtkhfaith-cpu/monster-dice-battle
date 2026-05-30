@@ -87,13 +87,16 @@ export default function MonsterSelectorRow({
         const on = m.id === selectedId;
         const forBattle = battleMonsterId && m.id === battleMonsterId;
         const mergeInfo = mergeInfoBySpecies.get(m.templateId) ?? null;
-        const showMerge = on && mergeInfo && onMergeMonster;
+        // Show the merge button on any chip that can merge (so spare duplicates
+        // are always actionable), plus the selected chip for "Need X copies" feedback.
+        const showMerge = !!onMergeMonster && !!mergeInfo && (on || mergeInfo.canMerge);
         return (
           <View
             key={m.id}
             style={[
               styles.chip,
               { borderColor: m.chipBorderColor },
+              mergeInfo?.canMerge && styles.chipMergeReady,
               on && styles.chipOn,
             ]}
           >
@@ -184,6 +187,14 @@ const styles = StyleSheet.create({
   },
   battleBadgeTxt: { fontSize: 8, fontWeight: '900' },
   battleLbl: { fontSize: 7, fontWeight: '900', color: GEAR_UI.accent, marginTop: 1 },
+  chipMergeReady: {
+    borderColor: '#fcd34d',
+    shadowColor: '#f59e0b',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    elevation: 4,
+  },
   chipOn: {
     backgroundColor: GEAR_UI.setActive,
     borderWidth: 3,
