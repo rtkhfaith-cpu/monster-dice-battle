@@ -142,11 +142,14 @@ export function grantGemByKey(profile, key, quantity = 1) {
 /** Upgrade a gem one level, consuming duplicate copies (coins handled by caller). */
 export function upgradeGem(profile, key) {
   ensureGemInventory(profile);
-  const stack = findGemStack(profile, key);
-  if (!stack) return { ok: false, error: 'Gem not owned' };
+  if (!findGemStack(profile, key)) return { ok: false, error: 'Gem not owned' };
   if (isGemKeySocketed(profile, key)) {
     return { ok: false, error: 'Unsocket the gem before upgrading.' };
   }
+  // Re-acquire the LIVE stack: isGemKeySocketed re-normalizes profile.gemInventory into
+  // new objects, so a stack captured before it would be detached and our mutations lost.
+  const stack = findGemStack(profile, key);
+  if (!stack) return { ok: false, error: 'Gem not owned' };
   if (stack.level >= GEM_MAX_LEVEL) return { ok: false, error: 'Gem already at max level' };
   const need = getRequiredGemsForUpgrade(stack.level);
   if (stack.copies < need) {
@@ -189,10 +192,19 @@ export function socketGemInGear(profile, gearInstanceId, socketIndex, key) {
     copies: 0,
   };
 
-  gear.sockets[idx].gem = socketedGem;
-  const confirmedGem = normalizeSocketedGem(gear.sockets[idx].gem);
+  // CRITICAL: re-acquire the LIVE gear reference here. Earlier validation calls
+  // (getGearInstance, isGemKeySocketed) each run ensureGearInventory, which REPLACES
+  // profile.gearInventory with freshly normalized objects. The `gear` captured above
+  // is now detached, so writing to it would lose the socket while still consuming the
+  // gem. Find it directly and do NOT call any ensure* helper after this point.
+  const liveGear = (profile.gearInventory || []).find((g) => g.instanceId === gearInstanceId);
+  if (!liveGear || !liveGear.sockets?.[idx]) return { ok: false, error: 'Gear not found' };
+  if (liveGear.sockets[idx].gem) return { ok: false, error: 'Socket already filled.' };
+
+  liveGear.sockets[idx].gem = socketedGem;
+  const confirmedGem = normalizeSocketedGem(liveGear.sockets[idx].gem);
   if (!confirmedGem?.key) {
-    gear.sockets[idx].gem = null;
+    liveGear.sockets[idx].gem = null;
     return { ok: false, error: 'Could not attach gem to this socket. Please try again.' };
   }
 
@@ -202,12 +214,12 @@ export function socketGemInGear(profile, gearInstanceId, socketIndex, key) {
     profile.gemInventory.splice(invIdx, 1);
   }
 
-  gear.sockets[idx].gem = confirmedGem;
+  liveGear.sockets[idx].gem = confirmedGem;
   profile.updatedAt = new Date().toISOString();
   return {
     ok: true,
-    gem: gear.sockets[idx].gem,
-    gear,
+    gem: liveGear.sockets[idx].gem,
+    gear: liveGear,
     insertCost: gemSocketInsertCoinCost(parsed.rarity),
   };
 }

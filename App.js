@@ -1352,11 +1352,15 @@ export default function App() {
     }
     persistSave(nextGd, 'coins_changed', slotProfileId);
     playSound('shop');
+    const monsterName = getMonsterTemplate(templateId)?.name ?? 'Monster';
     if (res.duplicate) {
       showNotice(
         'Monster Mart',
-        `Duplicate added for merging. You now own ×${res.ownedCount ?? 2} of this species.`,
+        `Duplicate ${monsterName} added — you now own ×${res.ownedCount ?? 2}.\n`
+          + 'Duplicates stack for merging: open the Monster page and tap Merge for stronger stats.',
       );
+    } else {
+      showNotice('Monster Mart', `${monsterName} joined your team!`);
     }
   }
 

@@ -762,10 +762,17 @@ export function buyMonster(gameData, playerId, monsterTypeId) {
   const price = monsterShopPrice(t);
   if (typeof price !== 'number') return { gameData: gd, error: 'This monster is not normally purchasable.' };
   if (wallet.coins < price) return { gameData: gd, error: 'Not enough coins' };
+  const beforeCount = rosterInstancesForTemplate(wallet.ownedMonsters, monsterTypeId).length;
   wallet.coins -= price;
   const om = generateOwnedMonster(monsterTypeId);
   wallet.ownedMonsters.push(om);
-  return { gameData: gd, ownedMonster: om };
+  return {
+    gameData: gd,
+    ownedMonster: om,
+    duplicate: beforeCount > 0,
+    ownedCount: beforeCount + 1,
+    price,
+  };
 }
 
 /** Buy a single generated gear piece (Rare/Epic). */
@@ -845,7 +852,10 @@ export function socketGemInGearForProfile(gameData, profileId, gearInstanceId, s
     const gp = parseGemKey(g.key);
     return !!(gp && parsedKey && gp.rarity === parsedKey.rarity && gp.stat === parsedKey.stat);
   });
-  const persistedGem = normalizeSocketedGem(matchSocket?.gem) ?? normalizeSocketedGem(res.gem);
+  // Strict: only trust the gem if it is actually present in a LIVE socket of the
+  // re-normalized gear. Do NOT fall back to res.gem (a returned object can look valid
+  // even if the persisted socket is empty), otherwise we could charge without forging.
+  const persistedGem = normalizeSocketedGem(matchSocket?.gem);
 
   if (!persistedGem?.key) {
     // Genuine failure — roll back so the gem is never lost.
