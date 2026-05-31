@@ -5,6 +5,7 @@ import { rollGearDropRarity } from '../src/gameSystems/gear/gearDrops';
 import { formatGearStatLines } from '../src/gameSystems/gear/gearGenerator';
 import { getAllowedCpuRarities } from './fighterFromOwned';
 import { profileOwnsMonsterTemplate } from './monsterLadder/ladderProfile';
+import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import { getMonsterTemplate, MONSTER_CATALOG, RARITY_ORDER } from './monsterTemplates';
 import { rollPassiveSkillBookDrop } from './passiveSkillChest';
 import { rollPetChestDrop, rollPetExpDustDrop } from './petChest';
@@ -173,12 +174,15 @@ function pickChestMonster(profile, enemyLevel) {
       ?? MONSTER_CATALOG[0];
   }
   const tpl = getMonsterTemplate(pick.id);
+  const ladderTpl = tpl ? null : getLadderMonsterTemplate(pick.id);
+  const displayName = tpl?.name ?? ladderTpl?.name ?? pick.name ?? pick.id;
+  const displayRarity = tpl?.rarity ?? ladderTpl?.rarity ?? pick.rarity ?? 'common';
   return {
     kind: 'monster',
     id: pick.id,
-    name: tpl?.name ?? pick.id,
-    label: tpl?.name ?? pick.id,
-    rarity: tpl?.rarity ?? 'common',
+    name: displayName,
+    label: displayName,
+    rarity: displayRarity,
     duplicate: profileOwnsMonsterTemplate(profile, pick.id),
   };
 }
@@ -205,7 +209,8 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
 
   const roll = Math.random();
 
-  if (roll < 0.05) {
+  // Bands match MAIN_MINI_BOSS_CHEST_ROWS: gold 28% · exp 28% · gear 26% · monster 18%.
+  if (roll < 0.28) {
     const amount = miniBossCoinPayout(lvl);
     return {
       kind: 'gold',
@@ -215,38 +220,42 @@ export function rollMainBattleChestDrop(profile, { enemyLevel = 1 } = {}) {
     };
   }
 
-  if (roll < 0.3) {
+  if (roll < 0.56) {
     const book = rollPassiveSkillBookDrop('miniBoss', profile);
     if (book && book.kind === 'skill_book') return book;
     const amount = miniBossExpPayout(lvl);
     return { kind: 'exp', amount, label: `${amount} bonus EXP`, rarity: 'rare' };
   }
 
-  // Epic gem chance (mini battle chest rate). Mythic gems never drop here.
-  if (Math.random() * 100 < EPIC_GEM_DROP_RATES.miniBattleChest) {
-    const stat = GEM_STATS[Math.floor(Math.random() * GEM_STATS.length)];
-    const key = gemKey('epic', stat);
-    return {
-      kind: 'gem',
-      gemKey: key,
-      rarity: 'epic',
-      label: `Epic ${stat} gem`,
-      gemName: gemDisplayName('epic', stat),
-      emoji: gemEmoji(stat, 'epic'),
-    };
+  if (roll < 0.82) {
+    // Epic gem chance inside the gear band. Mythic gems never drop here.
+    if (Math.random() * 100 < EPIC_GEM_DROP_RATES.miniBattleChest) {
+      const stat = GEM_STATS[Math.floor(Math.random() * GEM_STATS.length)];
+      const key = gemKey('epic', stat);
+      return {
+        kind: 'gem',
+        gemKey: key,
+        rarity: 'epic',
+        label: `Epic ${stat} gem`,
+        gemName: gemDisplayName('epic', stat),
+        emoji: gemEmoji(stat, 'epic'),
+      };
+    }
+
+    const gear = pickChestGearInstance();
+    if (gear) {
+      return {
+        kind: 'gear_instance',
+        rarity: gear.rarity,
+        label: `${gear.rarity} gear`,
+      };
+    }
+
+    const amount = miniBossCoinPayout(lvl);
+    return { kind: 'gold', amount, label: `${amount} coins`, rarity: 'common' };
   }
 
-  const gear = pickChestGearInstance();
-  if (gear) {
-    return {
-      kind: 'gear_instance',
-      rarity: gear.rarity,
-      label: `${gear.rarity} gear`,
-    };
-  }
-
-  const amount = miniBossCoinPayout(lvl);
-  return { kind: 'gold', amount, label: `${amount} coins`, rarity: 'common' };
+  return pickChestMonster(profile, lvl);
 }
 
 /** Coins when chest gear is already owned. */

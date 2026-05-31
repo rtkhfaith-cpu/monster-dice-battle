@@ -12,7 +12,7 @@ const TOPICS = [
       `Power rule: mini boss stats are scaled to about ${MAIN_MINI_BOSS_STAT_MULT}x normal CPU tuning.`,
       'Win reward: mini boss chest opens before result screen and adds extra rewards on top of normal coins/EXP.',
       'Lose/Flee rule: next main CPU battle is forced normal (mini boss skip for one battle).',
-      'Chest outcomes include gear instance, passive book, pet/dust, and coin/EXP bonus paths.',
+      'Chest outcomes include gear instance, passive book, pet/dust, epic gem, coin/EXP bonus, or a random monster (main roster + ladder exclusives at rolled rarity).',
     ],
   },
   {
