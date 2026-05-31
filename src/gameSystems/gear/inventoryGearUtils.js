@@ -128,7 +128,10 @@ export function filterGearInventory(gearList, filter) {
     return list.filter((g) => g.equippedToMonsterId === monsterId);
   }
 
-  if (filter === 'sockets') return list.filter((g) => (g?.sockets?.length ?? 0) > 0);
+  if (filter === 'sockets' || filter === 'has_sockets') {
+    return list.filter((g) => (g?.sockets?.length ?? 0) > 0);
+  }
+  if (filter === 'no_sockets') return list.filter((g) => (g?.sockets?.length ?? 0) === 0);
   if (filter === 'equipped') return list.filter((g) => g.equippedToMonsterId);
   if (filter === 'unequipped') return list.filter((g) => !g.equippedToMonsterId);
   if (['rare', 'epic', 'mythic'].includes(filter)) return list.filter((g) => g.rarity === filter);
@@ -140,6 +143,19 @@ export function filterGearInventory(gearList, filter) {
   }
   if (GEAR_SET_IDS.includes(filter)) {
     return list.filter((g) => g.setId === filter);
+  }
+  return list;
+}
+
+/** Filter by gem socket presence (works after monster/other filters). */
+export function filterGearBySockets(gearList, socketFilter) {
+  const list = [...(gearList || [])];
+  if (!socketFilter || socketFilter === 'all') return list;
+  if (socketFilter === 'has_sockets' || socketFilter === 'sockets') {
+    return list.filter((g) => (g?.sockets?.length ?? 0) > 0);
+  }
+  if (socketFilter === 'no_sockets') {
+    return list.filter((g) => (g?.sockets?.length ?? 0) === 0);
   }
   return list;
 }

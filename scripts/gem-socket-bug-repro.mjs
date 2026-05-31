@@ -104,6 +104,21 @@ async function main() {
   if (countAt(prof5, 'rare_attack_gem', 1) !== 3) fail('BUG: legacy copies should become 3 Lv1 gems');
   console.log('PASS: legacy {level,copies} migrates to leveled gem + Lv1 spares (no loss)');
 
+  // ---- 6) HP gems use same linear scaling as combat stats (base × level) ----
+  const { gemStatValue } = defs;
+  if (gemStatValue('rare', 'hp', 1) !== 100) fail('HP L1 rare should be 100');
+  if (gemStatValue('rare', 'hp', 5) !== 500) fail('HP L5 rare should be 500 (100×5), not compound curve');
+  if (gemStatValue('rare', 'attack', 5) !== 5) fail('attack L5 rare should be 5');
+  const prof6 = { id: 'hp', coins: 0, ownedMonsters: [], gemInventory: [
+    { key: 'rare_hp_gem', rarity: 'rare', stat: 'hp', level: 2, count: 1 },
+  ], gearInventory: [] };
+  ensureGemInventory(prof6);
+  const hpStack = listGemStacks(prof6).find((s) => s.stat === 'hp');
+  if (!hpStack || hpStack.currentValue !== 200 || hpStack.nextValue !== 300) {
+    fail(`HP merge preview wrong: got ${hpStack?.currentValue}/${hpStack?.nextValue}, expected 200/300`);
+  }
+  console.log('PASS: HP gems scale linearly (merge preview matches attack/def system)');
+
   console.log('\nALL GEM REGRESSION CHECKS PASSED');
 }
 

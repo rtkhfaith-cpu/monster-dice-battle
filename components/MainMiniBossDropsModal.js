@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AUTO_LEVEL_GRIND_MAX } from './BattleScreen';
 import { MAIN_MINI_BOSS_CHANCE, MAIN_MINI_BOSS_STAT_MULT } from '../utils/mainBattleChest';
 
 const TOPICS = [
@@ -66,6 +67,7 @@ const TOPICS = [
       'Rarity bands: rare/epic/mythic govern stat line count, ranges, and potential sockets.',
       'Set logic: full set bonus activates only when matching set pieces occupy required slots.',
       'Battle-active lines: HP, Attack, Defense, Speed/Agility, Crit, Dodge, HitRate.',
+      'Gem sockets: epic and mythic gear can roll sockets on drop; gems socket into gear, not directly onto monsters.',
       'Source flow: shop purchases and chest drops both feed the same inventory/equip pipeline.',
     ],
   },
@@ -77,6 +79,7 @@ const TOPICS = [
       'Turn flow: battle loop processes action selection, passive/pet triggers, status ticks, and KO checks.',
       'Hit/Dodge rule: HitRate is flat and offsets Dodge directly; it is not a standalone hit percentage.',
       'Dodge formula: final dodge chance uses defender Dodge minus attacker HitRate, then clamps to allowed range.',
+      `Auto Level: main CPU battles only — repeats fights until your monster reaches level ${AUTO_LEVEL_GRIND_MAX}, then stops.`,
       'Final outcome: skills, passives, pets, crit rolls, and status effects are layered into each turn result.',
     ],
   },
@@ -84,11 +87,11 @@ const TOPICS = [
     id: 'gemming_system',
     label: 'Gemming System',
     lines: [
-      'Socket roll: socket count is rolled on acquisition based on item rarity band.',
-      'Shop rule: socket count is hidden before purchase; revealed only after item is owned.',
-      'Purchase rule: socket result is random per purchase, even for same-day repeated buys.',
-      'Inventory clarity: owned items show explicit `Socket: 0/1/2` display.',
-      'Future path: gem insertion will consume these sockets as build customization slots.',
+      'Socket roll: socket count is rolled when epic/mythic gear is acquired (based on rarity band).',
+      'Shop rule: socket count is hidden before purchase; revealed only after the item is owned.',
+      'Inventory clarity: owned gear shows explicit `Socket: 0/1/2` and which monster it is equipped on.',
+      'Gem use: insert gems into empty sockets on epic/mythic gear (Inventory → Gear). Socketing and removal cost coins.',
+      'Stats apply in battle only while that gear piece is equipped on your monster.',
     ],
   },
   {
@@ -118,11 +121,24 @@ const TOPICS = [
     id: 'gems',
     label: 'Gems',
     lines: [
-      'Gems boost monster stats: Attack, Magic Attack, Defence, Magic Defence, Dodge, Hit Rate, HP.',
-      'Each monster equips up to 3 gems: one Offensive, one Defensive, one Utility (in Inventory → Gems).',
-      'Gems are stackable. Duplicate copies upgrade a gem (2, 4, 8, 16… copies). Each level adds +10% value.',
+      'Gems boost stats: Attack, Magic Attack, Defence, Magic Defence, Dodge, Hit Rate, HP.',
+      'Socket gems into epic/mythic gear (Inventory → Gear). Merge and upgrade gems in Inventory → Gems.',
+      'Inventory → Gems has Your gems (merge) and Socketed on gear (shows which monster wears each socketed piece).',
+      'Merge: spend duplicate copies as fuel (2, 4, 8, 16…) plus a coin fee. Each level adds flat +base (linear scaling).',
+      'Scaling per level — combat: Rare +1, Epic +4, Mythic +10 · HP: Rare +100, Epic +400, Mythic +1000. Max level 10.',
       'Rare gems: shop. Epic gems: chests and dungeon bosses. Mythic gems: Black Dragon dungeon boss only.',
-      'Equipped gem stats apply in every battle, including dungeons.',
+      'Gem stats apply in every battle when the socketed gear is equipped, including dungeons.',
+    ],
+  },
+  {
+    id: 'monster_rush',
+    label: 'Monster Rush',
+    lines: [
+      'Endless runner side mode: pick a roster monster (sorted by rarity) and run as far as you can.',
+      'Earn Rush Points from distance and coins collected; spend them in the Rush Exchange for rewards.',
+      'Exchange rewards include coins, rare gem boxes, mini chests, pet food, gear boosts, and skill scrolls.',
+      'Patterns, hazards, and scroll speed vary each run — gaps and obstacles get denser the farther you go.',
+      'Progress (best distance, Rush Points) is saved on your profile.',
     ],
   },
   {
@@ -131,6 +147,7 @@ const TOPICS = [
     lines: [
       'Availability: daily spin is time-gated and tracked by reward-day key/claim timestamp.',
       'Segments: wheel includes coins, shards, gear chest, monster chest, mythic outcome, and high coin jackpots.',
+      'Mythic monster chest rolls can include Ultra Mythic monsters (e.g. Goldzilla) — stronger than standard mythics.',
       'Chest segments: chest results are opened through chest open logic, not placeholder rewards.',
       'Bonus hooks: spin flow can attach bonus gear, pet, or passive book grants.',
       'Result persistence: claim writes directly into profile resources and inventories.',

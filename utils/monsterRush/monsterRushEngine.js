@@ -7,7 +7,9 @@ import { coinOffsetsForPatternItem } from './monsterRushCoinPatterns';
 import {
   pickValidatedPattern,
   patternChainSpacing,
-  rhythmPhase,
+  pickRhythmPhase,
+  makeRunRng,
+  RECENT_PATTERN_CAP,
 } from './monsterRushLevelGenerator';
 import { scrollPxPerFrame, scrollPxPerSecond } from './monsterRushLevelRules';
 
@@ -68,6 +70,10 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
     lastPatternDifficulty: 1,
     rhythmIndex: 0,
     patternsSpawned: 0,
+    runSeed: (Math.random() * 0xffffffff) >>> 0,
+    runRng: null,
+    recentPatternIds: [],
+    lastRhythmPhase: '',
     lastSpawnDebug: null,
     coinStreak: 0,
     coinStreakBonus: 0,
@@ -113,6 +119,9 @@ export function startMonsterRushRun(state) {
   state.isRunning = true;
   state.isPaused = false;
   state.safeMsRemaining = 2100;
+  state.runRng = makeRunRng(state.runSeed);
+  state.recentPatternIds = [];
+  state.lastRhythmPhase = '';
   const lead = runwayPx(state.speed);
   state.spawnCooldownPx = lead;
   state.lastPatternEndX = state.gameWidth + 48;
@@ -178,7 +187,8 @@ function spawnPatternCoins(state, baseX, item) {
 }
 
 function spawnPattern(state, pattern, phase = 'single') {
-  const chain = patternChainSpacing(state.scrollPx, phase);
+  const rng = state.runRng ?? Math.random;
+  const chain = patternChainSpacing(state.scrollPx, phase, rng);
   const horizon = spawnHorizonPx(state);
   const hasWorld = state.hazards.length > 0
     || state.platforms.length > 0
@@ -246,6 +256,9 @@ function spawnPattern(state, pattern, phase = 'single') {
   } else {
     state.lastPatternId = pattern.id;
     state.repeatPatternStreak = 1;
+    const recent = state.recentPatternIds ?? [];
+    state.recentPatternIds = [pattern.id, ...recent.filter((id) => id !== pattern.id)]
+      .slice(0, RECENT_PATTERN_CAP);
   }
   state.lastPatternDifficulty = pattern.tier === 'hard' ? 3 : pattern.tier === 'medium' ? 2 : 1;
 }
@@ -260,7 +273,8 @@ function trySpawnPattern(state) {
 
   if (hasWorld && state.lastPatternEndX < horizon) state.lastPatternEndX = horizon;
 
-  const phase = rhythmPhase(state.scrollPx, state.rhythmIndex ?? 0);
+  const rng = state.runRng ?? Math.random;
+  const phase = pickRhythmPhase(state.scrollPx, rng, state.lastRhythmPhase ?? '');
   const { pattern, debug } = pickValidatedPattern(state.scrollPx, {
     lastPatternId: state.lastPatternId,
     repeatStreak: state.repeatPatternStreak,
@@ -268,7 +282,12 @@ function trySpawnPattern(state) {
     gameHeight: state.gameHeight,
     distanceM: state.distanceM,
     patternsSpawned: state.patternsSpawned ?? 0,
+    phase,
+    rng,
+    recentPatternIds: state.recentPatternIds ?? [],
+    lastRhythmPhase: state.lastRhythmPhase ?? '',
   });
+  state.lastRhythmPhase = phase;
   state.rhythmIndex = (state.rhythmIndex ?? 0) + 1;
   state.lastSpawnDebug = debug;
 

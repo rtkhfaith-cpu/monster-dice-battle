@@ -96,7 +96,6 @@ export default function PlayerInventoryScreen({
                 onOpenEquip={onOpenEquip}
                 onSocketGem={onSocketGem}
                 onUnsocketGem={onUnsocketGem}
-                fullHeight
               />
             ) : null}
 

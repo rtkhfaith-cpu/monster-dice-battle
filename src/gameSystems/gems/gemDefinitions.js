@@ -1,8 +1,8 @@
 /**
  * Gem system definitions — stat gems that boost monster battle stats.
  *
- * Gems are stackable per (rarity, stat). Duplicate copies are spent to upgrade
- * a gem's level (each level = +10% value), plus a coin fee per merge.
+ * Gems are stackable per (rarity, stat, level). Duplicate copies are spent to upgrade
+ * a gem's level (linear +base per level), plus a coin fee per merge.
  * Socket gems into epic/mythic gear that has sockets — stats apply only when socketed.
  *
  * Source rules (enforced by drop/shop code, documented here):
@@ -36,12 +36,11 @@ export const GEM_SLOT_CATEGORIES = {
 
 export const GEM_MAX_LEVEL = 10;
 
-// Combat gems: L1 starting stat per rarity. Each level adds a flat +1.
-//   Rare  L1=1 … L10=10
-//   Epic  L1=4 … L10=13
-//   Mythic L1=10 … L10=19
+// All gem stats use linear scaling: value = rarityBase × level.
+// Combat: Rare +1/lv … Mythic +10/lv on ATK/DEF/MAG/MDEF/Dodge/Hit.
+// HP uses larger bases: Rare 100/lv, Epic 400/lv, Mythic 1000/lv.
 const GEM_BASE_VALUES = { rare: 1, epic: 4, mythic: 10 };
-const HP_GEM_BASE_VALUES = { rare: 200, epic: 500, mythic: 1200 };
+const HP_GEM_BASE_VALUES = { rare: 100, epic: 400, mythic: 1000 };
 
 export const GEM_STAT_LABELS = {
   attack: 'Attack',
@@ -185,29 +184,25 @@ export function getRequiredGemsForUpgrade(currentLevel) {
   return Math.pow(2, lvl - 1);
 }
 
-/** Raw final value used for HP gems (proportional, each level = +10%). */
+/** @deprecated HP now uses linear scaling; kept for any legacy callers. */
 export function getGemFinalValue(baseValue, level) {
-  return baseValue * Math.pow(1.1, Math.max(1, Math.floor(level)) - 1);
+  const lvl = Math.max(1, Math.floor(level));
+  return baseValue * lvl;
 }
 
-/** Rounded value shown to the player and applied in battle. */
+/** @deprecated Use gemStatValue instead. */
 export function getDisplayGemValue(baseValue, level) {
   return Math.round(getGemFinalValue(baseValue, level));
 }
 
 /**
- * Value of a gem stack (rarity + stat + level).
- * Combat stats scale by their rarity base each level (base × level):
- *   Rare   1, 2 … 10   (+1/level)
- *   Epic   4, 8 … 40   (+4/level)
- *   Mythic 10, 20 … 100 (+10/level)
- * HP gems keep their proportional curve so their large bases stay meaningful.
+ * Stat bonus from a socketed gem (rarity + stat + level).
+ * Linear for every stat: rarityBase × level.
+ *   Combat rare: 1, 2 … 10 · epic: 4 … 40 · mythic: 10 … 100
+ *   HP rare: 100 … 1000 · epic: 400 … 4000 · mythic: 1000 … 10000
  */
 export function gemStatValue(rarity, stat, level) {
   const lvl = Math.max(1, Math.min(GEM_MAX_LEVEL, Math.floor(level)));
-  if (stat === 'hp') {
-    return getDisplayGemValue(gemBaseValue(rarity, stat), lvl);
-  }
   return gemBaseValue(rarity, stat) * lvl;
 }
 

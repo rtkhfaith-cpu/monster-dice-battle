@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import ConfirmDialog from './ConfirmDialog';
 import {
   filterGearInventory,
+  filterGearBySockets,
   sortGearInventory,
   gearCardSummary,
   gearSellCoinValue,
@@ -56,6 +57,16 @@ function buildMonsterFilters(profile) {
   ];
 }
 
+function buildSocketFilterChips(baseList) {
+  const list = baseList ?? [];
+  const withSocket = list.filter((g) => (g.sockets?.length ?? 0) > 0).length;
+  const noSocket = list.length - withSocket;
+  return [
+    { id: 'has_sockets', label: `With socket (${withSocket})` },
+    { id: 'no_sockets', label: `No socket (${noSocket})` },
+  ];
+}
+
 function socketedGemRows(gear) {
   return (gear?.sockets ?? [])
     .map((socket, index) => {
@@ -79,19 +90,37 @@ export default function GearInventoryPanel({
   onOpenEquip,
   onSocketGem,
   onUnsocketGem,
-  fullHeight,
 }) {
   const [filter, setFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('slot');
+  const [socketFilter, setSocketFilter] = useState(null);
+  const [sortBy, setSortBy] = useState('rarity');
   const [mythicSellConfirm, setMythicSellConfirm] = useState(null);
   const [inspectGear, setInspectGear] = useState(null);
 
   const filters = useMemo(() => buildMonsterFilters(profile), [profile]);
 
+  const monsterFiltered = useMemo(() => {
+    const raw = profile?.gearInventory ?? [];
+    return filterGearInventory(raw, filter);
+  }, [profile, filter]);
+
+  const socketFilters = useMemo(
+    () => buildSocketFilterChips(monsterFiltered),
+    [monsterFiltered],
+  );
+
   useEffect(() => {
     if (filter === 'all' || filter === 'unassigned') return;
     if (!filters.some((f) => f.id === filter)) setFilter('all');
   }, [filter, filters]);
+
+  useEffect(() => {
+    if (!socketFilter) return;
+    const count = socketFilter === 'has_sockets'
+      ? monsterFiltered.filter((g) => (g.sockets?.length ?? 0) > 0).length
+      : monsterFiltered.filter((g) => (g.sockets?.length ?? 0) === 0).length;
+    if (count === 0) setSocketFilter(null);
+  }, [socketFilter, monsterFiltered]);
 
   function requestSell(gear) {
     if (!onSell) return;
@@ -113,10 +142,9 @@ export default function GearInventoryPanel({
   }
 
   const list = useMemo(() => {
-    const raw = profile?.gearInventory ?? [];
-    const filtered = filterGearInventory(raw, filter);
+    const filtered = filterGearBySockets(monsterFiltered, socketFilter);
     return sortGearInventory(filtered, sortBy);
-  }, [profile, filter, sortBy]);
+  }, [monsterFiltered, socketFilter, sortBy]);
 
   useEffect(() => {
     if (!inspectGear?.instanceId) return;
@@ -164,32 +192,41 @@ export default function GearInventoryPanel({
       </ScrollView>
 
       <View style={styles.sortRow}>
-        {[
-          { id: 'slot', label: 'Slot' },
-          { id: 'rarity', label: 'Rarity' },
-        ].map((s) => (
+        {socketFilters.map((s) => (
           <TouchableOpacity
             key={s.id}
-            style={[styles.sortChip, sortBy === s.id && styles.chipOn]}
-            onPress={() => setSortBy(s.id)}
+            style={[styles.sortChip, socketFilter === s.id && styles.chipOn]}
+            onPress={() => setSocketFilter((cur) => (cur === s.id ? null : s.id))}
           >
-            <Text style={[styles.chipTxt, sortBy === s.id && styles.chipTxtOn]}>{s.label}</Text>
+            <Text style={[styles.chipTxt, socketFilter === s.id && styles.chipTxtOn]}>{s.label}</Text>
           </TouchableOpacity>
         ))}
+        <View style={styles.sortSpacer} />
+        <TouchableOpacity
+          style={[styles.sortChip, sortBy === 'rarity' && styles.chipOn]}
+          onPress={() => setSortBy('rarity')}
+        >
+          <Text style={[styles.chipTxt, sortBy === 'rarity' && styles.chipTxtOn]}>Rarity</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={[styles.list, fullHeight && styles.listFull]}
-        nestedScrollEnabled
-        keyboardShouldPersistTaps="handled"
-      >
+      <View style={styles.listWrap}>
+        <ScrollView
+          style={styles.list}
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+        >
         {list.length === 0 ? (
           <Text style={styles.muted}>
-            {filter === 'unassigned'
-              ? 'No unassigned gear in stash.'
-              : filter.startsWith('monster:')
-                ? 'No gear equipped on this monster.'
-                : 'No gear yet. Buy from the shop or earn from chests.'}
+            {socketFilter === 'has_sockets'
+              ? 'No gear with sockets in this view.'
+              : socketFilter === 'no_sockets'
+                ? 'No gear without sockets in this view.'
+                : filter === 'unassigned'
+                  ? 'No unassigned gear in stash.'
+                  : filter.startsWith('monster:')
+                    ? 'No gear equipped on this monster.'
+                    : 'No gear yet. Buy from the shop or earn from chests.'}
           </Text>
         ) : (
           list.map((g) => {
@@ -278,7 +315,8 @@ export default function GearInventoryPanel({
             );
           })
         )}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <GearItemDetailModal
         visible={!!inspectGear}
@@ -295,12 +333,13 @@ export default function GearInventoryPanel({
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, minHeight: 200 },
+  wrap: { flex: 1, minHeight: 0 },
   hdrRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
+    flexShrink: 0,
   },
   title: {
     color: GEAR_UI.accent,
@@ -319,7 +358,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#4c1d95',
   },
   equipBtnTxt: { color: GEAR_UI.tabTxtOn, fontWeight: '900', fontSize: 11, textTransform: 'uppercase' },
-  chipScroll: { maxHeight: 42, marginBottom: 6 },
+  chipScroll: { maxHeight: 42, marginBottom: 6, flexShrink: 0 },
   chip: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -333,7 +372,8 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: GEAR_UI.tabOn, borderColor: GEAR_UI.tabOnBorder },
   chipTxt: { color: GEAR_UI.tabTxt, fontSize: 11, fontWeight: '900' },
   chipTxtOn: { color: GEAR_UI.tabTxtOn },
-  sortRow: { flexDirection: 'row', marginBottom: 8, gap: 6 },
+  sortRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6, flexWrap: 'wrap', flexShrink: 0 },
+  sortSpacer: { flex: 1, minWidth: 4 },
   sortChip: {
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -342,8 +382,8 @@ const styles = StyleSheet.create({
     borderColor: GEAR_UI.tabBorder,
     backgroundColor: 'rgba(14, 28, 52, 0.6)',
   },
-  list: { maxHeight: 300 },
-  listFull: { flex: 1, maxHeight: undefined },
+  listWrap: { flex: 1, minHeight: 0 },
+  list: { flex: 1 },
   muted: { color: GEAR_UI.muted, fontSize: 12, fontWeight: '800', textAlign: 'center', padding: 16, lineHeight: 18 },
   card: {
     padding: 12,
