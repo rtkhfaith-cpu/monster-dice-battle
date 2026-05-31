@@ -44,7 +44,7 @@ export default function DungeonBattleScreen({ boss, team, profile, onExit, onCla
   const state = engineRef.current;
   const finished = state.phase !== 'active';
 
-  const recentLog = useMemo(() => state.log.slice(-8).reverse(), [state.log, state.log.length, playing]);
+  const recentLog = useMemo(() => state.log.slice(-16).reverse(), [state.log, state.log.length, playing]);
 
   const playLogEntries = useCallback(async (entries, token) => {
     for (const entry of entries) {
@@ -144,38 +144,46 @@ export default function DungeonBattleScreen({ boss, team, profile, onExit, onCla
         <Text style={styles.turn}>Turn {state.turn}</Text>
       </View>
 
-      <DungeonBattleArena
-        state={state}
-        bossImage={boss?.image}
-        battleGroundUri={boss?.battleGround}
-        vfx={currentVfx}
-        bannerText={bannerText}
-      />
+      <View style={styles.main}>
+        <View style={styles.battlePane}>
+          <View style={styles.arenaWrap}>
+            <DungeonBattleArena
+              state={state}
+              bossImage={boss?.image}
+              battleGroundUri={boss?.battleGround}
+              vfx={currentVfx}
+              bannerText={bannerText}
+            />
+          </View>
 
-      {!finished ? (
-        <View style={styles.controls}>
-          <TouchableOpacity
-            style={[styles.ctrlBtn, styles.ctrlAuto, autoOn && styles.ctrlAutoOn]}
-            onPress={toggleAuto}
-          >
-            <Text style={styles.ctrlTxt}>{autoOn ? 'Auto ON' : 'Auto OFF'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.ctrlBtn, styles.ctrlStep, playing && styles.ctrlOff]}
-            onPress={handleManualStep}
-            disabled={playing}
-          >
-            <Text style={styles.ctrlTxt}>{playing ? '…' : 'Step'}</Text>
-          </TouchableOpacity>
+          {!finished ? (
+            <View style={styles.controls}>
+              <TouchableOpacity
+                style={[styles.ctrlBtn, styles.ctrlAuto, autoOn && styles.ctrlAutoOn]}
+                onPress={toggleAuto}
+              >
+                <Text style={styles.ctrlTxt}>{autoOn ? 'Auto ON' : 'Auto OFF'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.ctrlBtn, styles.ctrlStep, playing && styles.ctrlOff]}
+                onPress={handleManualStep}
+                disabled={playing}
+              >
+                <Text style={styles.ctrlTxt}>{playing ? '…' : 'Step'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
-      ) : null}
 
-      <Text style={styles.logLbl}>Recent</Text>
-      <ScrollView style={styles.log} showsVerticalScrollIndicator={false}>
-        {recentLog.map((entry) => (
-          <Text key={entry.id} style={[styles.logEntry, logStyle(entry.kind)]}>{entry.text}</Text>
-        ))}
-      </ScrollView>
+        <View style={styles.logPane}>
+          <Text style={styles.logLbl}>Recent</Text>
+          <ScrollView style={styles.log} showsVerticalScrollIndicator={false}>
+            {recentLog.map((entry) => (
+              <Text key={entry.id} style={[styles.logEntry, logStyle(entry.kind)]}>{entry.text}</Text>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
 
       {finished ? (
         <View style={styles.resultOverlay}>
@@ -254,23 +262,28 @@ const styles = StyleSheet.create({
   back: { color: '#ffe08a', fontWeight: '900', fontSize: 13, minWidth: 60 },
   title: { color: '#fff8dd', fontWeight: '900', fontSize: 16, textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
   turn: { color: '#e0f2fe', fontWeight: '900', fontSize: 12, minWidth: 60, textAlign: 'right' },
-  controls: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  main: { flex: 1, minHeight: 0, marginTop: 6, gap: 6 },
+  battlePane: { flex: 65, minHeight: 0 },
+  logPane: { flex: 35, minHeight: 0 },
+  arenaWrap: { flex: 1, minHeight: 0 },
+  controls: { flexDirection: 'row', gap: 8, marginTop: 6, flexShrink: 0 },
   ctrlBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', borderWidth: 1 },
   ctrlStep: { backgroundColor: 'rgba(37,99,235,0.88)', borderColor: '#bfdbfe' },
   ctrlAuto: { backgroundColor: 'rgba(42,58,86,0.96)', borderColor: 'rgba(255,224,138,0.45)' },
   ctrlAutoOn: { backgroundColor: 'rgba(92,57,143,0.96)', borderColor: '#d8b4fe' },
   ctrlOff: { opacity: 0.5 },
   ctrlTxt: { color: '#fff8dd', fontWeight: '900', fontSize: 13, textTransform: 'uppercase' },
-  logLbl: { color: '#ffe08a', fontWeight: '900', fontSize: 10, textTransform: 'uppercase', marginTop: 8, marginBottom: 4 },
+  logLbl: { color: '#ffe08a', fontWeight: '900', fontSize: 10, textTransform: 'uppercase', marginBottom: 4, flexShrink: 0 },
   log: {
-    maxHeight: 82,
+    flex: 1,
+    minHeight: 0,
     backgroundColor: 'rgba(2,8,23,0.96)',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,224,138,0.18)',
-    padding: 8,
+    padding: 10,
   },
-  logEntry: { fontSize: 10, fontWeight: '900', marginBottom: 2, lineHeight: 13 },
+  logEntry: { fontSize: 11, fontWeight: '900', marginBottom: 4, lineHeight: 15 },
   resultOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,6,18,0.85)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   resultCard: { width: '100%', maxWidth: 360, borderRadius: 18, borderWidth: 3, padding: 18, backgroundColor: '#15203a', maxHeight: '80%' },
   resultWin: { borderColor: '#4ade80' },

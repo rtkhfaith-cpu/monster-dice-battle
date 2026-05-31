@@ -265,7 +265,7 @@ export default function DungeonBattleArena({ state, bossImage, battleGroundUri, 
                 <View style={styles.monsterSpriteWrap}>
                   <AnimatedMonster
                     parts={m.monsterParts}
-                    size={52}
+                    size={48}
                     side="left"
                     mood={mood}
                     pose={pose}
@@ -309,13 +309,13 @@ export default function DungeonBattleArena({ state, bossImage, battleGroundUri, 
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, minHeight: 220, borderRadius: 14, overflow: 'hidden', borderWidth: 2, borderColor: '#7c3aed' },
-  bg: { flex: 1, justifyContent: 'space-between' },
+  root: { flex: 1, minHeight: 0, borderRadius: 14, overflow: 'hidden', borderWidth: 2, borderColor: '#7c3aed' },
+  bg: { flex: 1, justifyContent: 'space-between', paddingVertical: 4 },
   bgImg: { opacity: 0.72 },
   vignette: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(3,7,18,0.68)' },
   banner: {
     position: 'absolute',
-    top: '38%',
+    top: '34%',
     alignSelf: 'center',
     zIndex: 20,
     paddingHorizontal: 16,
@@ -327,15 +327,15 @@ const styles = StyleSheet.create({
     maxWidth: '88%',
   },
   bannerTxt: { color: '#fff8dd', fontWeight: '900', fontSize: 14, textAlign: 'center', textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
-  bossZone: { alignItems: 'flex-end', paddingTop: 8, paddingRight: 10 },
+  bossZone: { alignItems: 'flex-end', paddingTop: 2, paddingRight: 8 },
   bossSpriteWrap: { marginRight: 4 },
   bossEnraged: { shadowColor: '#ef4444', shadowOpacity: 0.9, shadowRadius: 12 },
   bossFlash: { ...StyleSheet.absoluteFillObject, backgroundColor: '#fecaca', borderRadius: 12 },
-  bossArt: { width: 120, height: 120 },
+  bossArt: { width: 100, height: 100 },
   bossArtFallback: { backgroundColor: 'rgba(124,58,237,0.45)', borderRadius: 12 },
   bossHud: {
-    width: 172,
-    marginTop: 4,
+    width: 148,
+    marginTop: 2,
     backgroundColor: 'rgba(2,8,23,0.94)',
     borderRadius: 10,
     borderWidth: 1,
@@ -351,11 +351,11 @@ const styles = StyleSheet.create({
   allyHpFill: { backgroundColor: '#34d399' },
   deadHpFill: { backgroundColor: '#64748b' },
   hpTxt: { color: '#ffffff', fontWeight: '900', fontSize: 9, marginTop: 2, textAlign: 'right' },
-  teamZone: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 6, paddingBottom: 8 },
+  teamZone: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 4, paddingBottom: 4 },
   monSlot: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 2,
     paddingHorizontal: 2,
     borderRadius: 10,
     backgroundColor: 'rgba(2,8,23,0.9)',
@@ -364,11 +364,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   monSlotDead: { opacity: 0.45 },
-  monsterSpriteWrap: { width: 66, height: 58, alignItems: 'center', justifyContent: 'center' },
+  monsterSpriteWrap: { width: 60, height: 52, alignItems: 'center', justifyContent: 'center' },
   activeShieldBubble: {
     position: 'absolute',
-    width: 62,
-    height: 58,
+    width: 56,
+    height: 50,
     borderRadius: 999,
     borderWidth: 3,
     borderColor: 'rgba(186,230,253,0.92)',
