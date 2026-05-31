@@ -1446,6 +1446,7 @@ export default function App() {
       expPacks: res.expPacks ?? [],
       petExpPacks: res.petExpPacks ?? [],
       baseExp: res.baseExp ?? 0,
+      coins: res.coins ?? 0,
     };
   }
 

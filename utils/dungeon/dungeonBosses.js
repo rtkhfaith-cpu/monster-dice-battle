@@ -94,12 +94,12 @@ export const DUNGEON_BOSSES = [
     image: GAME_ASSETS.dungeonDeathKnight,
     battleGround: GAME_ASSETS.dungeonBattleGroundRescueArena,
     spawnFrequencyDays: 1,
-    recommendedPower: 80000,
-    rewardsText: 'Drops 3 random Epic or Legendary items + 3 mini-boss chests',
+    recommendedPower: 70000,
+    rewardsText: 'Drops coins, 3 random Epic or Legendary items + 3 mini-boss chests',
     blurb: 'Physical dark boss. Tests whether your Position 1 can tank stun and cleave.',
     stats: {
-      hp: 165000, attack: 4960, magicAttack: 2720, defence: 3200, magicDefence: 2400,
-      dodge: 12, hitRate: 85, critRate: 12, critDamage: 140,
+      hp: 144000, attack: 4340, magicAttack: 2380, defence: 2800, magicDefence: 2100,
+      dodge: 11, hitRate: 83, critRate: 11, critDamage: 138,
     },
     skills: deathKnightSkills,
     pattern: DEATH_KNIGHT_PATTERN,
@@ -119,12 +119,12 @@ export const DUNGEON_BOSSES = [
     image: GAME_ASSETS.dungeonIceQueen,
     battleGround: GAME_ASSETS.dungeonBattleGroundIceQueen,
     spawnFrequencyDays: 2,
-    recommendedPower: 140000,
-    rewardsText: 'Drops 1 random Mythic item and 2 random Epic items + 5 mini-boss chests',
+    recommendedPower: 85000,
+    rewardsText: 'Drops coins, 1 random Mythic item and 2 random Epic items + 5 mini-boss chests',
     blurb: 'Magic-control boss. Tests Magic Defence, healing, cleanse and freeze resistance.',
     stats: {
-      hp: 290000, attack: 3800, magicAttack: 8200, defence: 4000, magicDefence: 5800,
-      dodge: 18, hitRate: 90, critRate: 15, critDamage: 145,
+      hp: 176000, attack: 2310, magicAttack: 4980, defence: 2430, magicDefence: 3520,
+      dodge: 16, hitRate: 87, critRate: 14, critDamage: 143,
     },
     skills: iceQueenSkills,
     pattern: ICE_QUEEN_PATTERN,
@@ -146,12 +146,12 @@ export const DUNGEON_BOSSES = [
     image: GAME_ASSETS.dungeonBlackDragon,
     battleGround: GAME_ASSETS.dungeonBattleGroundRescueArena,
     spawnFrequencyDays: 3,
-    recommendedPower: 280000,
-    rewardsText: 'Drops 3 random Mythic items (incl. Mythic gems) + 7 mini-boss chests',
+    recommendedPower: 100000,
+    rewardsText: 'Drops coins, 3 random Mythic items (incl. Mythic gems) + 7 mini-boss chests',
     blurb: 'End-game raid boss. Demands a real team: tank, healer/support, damager, pets and gems.',
     stats: {
-      hp: 520000, attack: 11000, magicAttack: 11000, defence: 7200, magicDefence: 7200,
-      dodge: 22, hitRate: 95, critRate: 20, critDamage: 155,
+      hp: 186000, attack: 3930, magicAttack: 3930, defence: 2570, magicDefence: 2570,
+      dodge: 18, hitRate: 91, critRate: 17, critDamage: 148,
     },
     skills: blackDragonSkills,
     pattern: BLACK_DRAGON_PATTERN_NORMAL,
@@ -168,9 +168,9 @@ export const DUNGEON_BOSSES = [
 ];
 
 export const DUNGEON_RECOMMENDED_POWER = {
-  death_knight: 80000,
-  ice_queen: 140000,
-  black_dragon: 280000,
+  death_knight: 70000,
+  ice_queen: 85000,
+  black_dragon: 100000,
 };
 
 export function getDungeonBoss(id) {

@@ -37,9 +37,9 @@ function computeDungeonTeamExp(boss) {
 }
 
 const BOSSES = [
-  { name: 'Death Knight', level: 60, stats: { hp: 165000 } },
-  { name: 'Ice Queen', level: 80, stats: { hp: 290000 } },
-  { name: 'Black Dragon', level: 100, stats: { hp: 520000 } },
+  { name: 'Death Knight', level: 60, stats: { hp: 144000 } },
+  { name: 'Ice Queen', level: 80, stats: { hp: 176000 } },
+  { name: 'Black Dragon', level: 100, stats: { hp: 186000 } },
 ];
 
 console.log('Dungeon EXP — each of 3 team monsters (and each equipped pet)\n');

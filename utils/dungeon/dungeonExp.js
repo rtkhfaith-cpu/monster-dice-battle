@@ -5,7 +5,7 @@
  * Dungeon total EXP matches that payout × (boss HP ÷ reference CPU HP), then each of the
  * three team monsters and their equipped pets receive an equal one-third share.
  */
-import { scaleExpGain } from '../../src/gameBalance/rewards';
+import { scaleExpGain, normalCoinsForEnemyLevel } from '../../src/gameBalance/rewards';
 import { expWinForEnemyLevel } from '../expLevel';
 import { computeBattleStats } from '../statsCalc';
 import { MONSTER_CATALOG } from '../monsterTemplates';
@@ -16,6 +16,8 @@ const CPU_STAT_MULT = 0.9;
 const TEAM_SIZE = 3;
 /** Tuning trim — HP-proportional pool was ~3× too generous in playtests. */
 const DUNGEON_EXP_REWARD_SCALE = 1 / 3;
+/** Coins use a higher trim than EXP (items + chests also drop) but still HP-proportional. */
+const DUNGEON_COIN_REWARD_SCALE = 0.6;
 
 /** Median HP of level-appropriate catalog monsters at `level`, × CPU_STAT_MULT. */
 export function referenceCpuHpAtLevel(level) {
@@ -60,4 +62,20 @@ export function computeDungeonTeamExp(boss) {
 /** Pet share matches monster payout after the global EXP multiplier. */
 export function dungeonPetExpForShare(sharePerMember) {
   return Math.max(1, scaleExpGain(Math.max(1, Math.floor(sharePerMember || 0))));
+}
+
+/**
+ * Guaranteed coin payout — same HP-vs-CPU difficulty as EXP, plus chest-tier bonus.
+ * @param {{ level?: number, stats?: { hp?: number }, rewards?: { chestCount?: number } }} boss
+ */
+export function dungeonClearCoinReward(boss) {
+  const level = boss?.level ?? 60;
+  const bossHp = Math.max(1, Math.floor(boss?.stats?.hp ?? 1));
+  const cpuHp = referenceCpuHpAtLevel(level);
+  const cpuCoins = normalCoinsForEnemyLevel(level);
+  const hpRatio = bossHp / cpuHp;
+  const core = Math.floor(cpuCoins * hpRatio * DUNGEON_COIN_REWARD_SCALE);
+  const chests = Math.max(1, Math.floor(boss?.rewards?.chestCount ?? 3));
+  const chestBonus = Math.floor(cpuCoins * chests * 2);
+  return Math.max(Math.floor(cpuCoins * 8), core + chestBonus);
 }

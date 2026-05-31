@@ -93,7 +93,7 @@ import {
   parseGemStackId,
 } from '../src/gameSystems/gems/gemDefinitions';
 import { getGearInstance } from '../src/gameSystems/gear/inventoryGearUtils';
-import { grantDungeonRewards } from './dungeon/dungeonRewards';
+import { grantDungeonRewards, grantDungeonClearCoins } from './dungeon/dungeonRewards';
 import { getDungeonBoss } from './dungeon/dungeonBosses';
 import { computeDungeonTeamExp, dungeonPetExpForShare } from './dungeon/dungeonExp';
 import { getPetDef } from '../src/gameSystems/pets';
@@ -927,10 +927,11 @@ export function claimDungeonRewards(gameData, profileId, bossId, teamOwnedIds = 
   const boss = getDungeonBoss(bossId);
   if (!boss) return { gameData: gd, drops: [], error: 'Unknown dungeon boss' };
   const res = grantDungeonRewards(profile, boss);
+  const coinGrant = grantDungeonClearCoins(profile, boss);
   const chestGrant = grantDungeonMiniBossChests(profile, boss, teamOwnedIds);
   const expGrant = grantDungeonTeamExp(profile, teamOwnedIds, boss);
   profile.updatedAt = new Date().toISOString();
-  return { gameData: gd, drops: res.drops, chestDrops: chestGrant.chestDrops, ...expGrant };
+  return { gameData: gd, drops: res.drops, ...coinGrant, ...chestGrant, ...expGrant };
 }
 
 /** Roll + apply mini-boss-style chests for a dungeon clear (same tables as 1v CPU mini boss). */

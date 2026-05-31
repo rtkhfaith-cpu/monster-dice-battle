@@ -192,6 +192,9 @@ export default function DungeonBattleScreen({ boss, team, profile, onExit, onCla
             {state.phase === 'win' ? (
               <>
                 <Text style={styles.resultSub}>Rewards</Text>
+                {(rewards?.coins ?? 0) > 0 ? (
+                  <Text style={styles.coinLine}>🪙 +{rewards.coins.toLocaleString()} coins</Text>
+                ) : null}
                 {(rewards?.expPacks?.length ?? 0) > 0 ? (
                   <Text style={styles.expLine}>
                     Team monsters +{rewards.expPacks[0]?.expDelta ?? rewards.baseExp ?? 0} EXP each
@@ -291,6 +294,7 @@ const styles = StyleSheet.create({
   resultTitle: { color: '#fff4cf', fontWeight: '900', fontSize: 22, textAlign: 'center', textTransform: 'uppercase' },
   resultSub: { color: '#bfdbfe', fontWeight: '800', fontSize: 13, textAlign: 'center', marginTop: 10 },
   expLine: { color: '#86efac', fontWeight: '900', fontSize: 12, textAlign: 'center', marginTop: 8 },
+  coinLine: { color: '#fde047', fontWeight: '900', fontSize: 12, textAlign: 'center', marginTop: 8 },
   rewardList: { marginTop: 8, maxHeight: 180 },
   rewardLine: { color: '#e2e8f0', fontWeight: '800', fontSize: 13, marginTop: 6, textAlign: 'center' },
   rewardRarity: { color: '#c4b5fd', fontWeight: '900' },

@@ -17,6 +17,7 @@ import { grantPet } from '../../src/gameSystems/petInventory';
 import { PET_CATALOG, MYTHIC_PET_IDS } from '../../src/gameSystems/pets';
 import { grantGemByKey } from '../../src/gameSystems/gems/gemInventory';
 import { gemKey, GEM_STATS, gemDisplayName, gemEmoji } from '../../src/gameSystems/gems/gemDefinitions';
+import { dungeonClearCoinReward } from './dungeonExp';
 
 const GEM_RARITY_ORDER = ['rare', 'epic', 'mythic'];
 
@@ -129,6 +130,14 @@ function rollDropRarities(boss) {
   const count = rewards.dropCount ?? 3;
   const pool = rewards.dropRarityPool || ['epic'];
   return Array.from({ length: count }, () => pickRandom(pool));
+}
+
+/** Grant clear coins into profile wallet. */
+export function grantDungeonClearCoins(profile, boss) {
+  const amount = dungeonClearCoinReward(boss);
+  if (!profile || amount <= 0) return { coins: 0 };
+  profile.coins = (profile.coins ?? 0) + amount;
+  return { coins: amount, coinsTotal: profile.coins };
 }
 
 /**
