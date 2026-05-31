@@ -23,7 +23,7 @@ import { healingMultiplier } from '../../src/gameSystems/statusEffects';
 import { getPetSkillEffect } from '../../src/gameSystems/petSkills';
 
 /**
- * Tuning knobs — player atk is hundreds–low thousands; boss HP is ~144k–186k.
+ * Tuning knobs — player atk is hundreds–low thousands; boss HP is ~144k–223k.
  * Boss atk was 8k–15k with BOSS_DMG_SCALE 0.85 → one-shots; targets below assume
  * ~3k–12k HP monsters (level + gear + formation).
  *

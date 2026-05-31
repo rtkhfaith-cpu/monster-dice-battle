@@ -119,12 +119,12 @@ export const DUNGEON_BOSSES = [
     image: GAME_ASSETS.dungeonIceQueen,
     battleGround: GAME_ASSETS.dungeonBattleGroundIceQueen,
     spawnFrequencyDays: 2,
-    recommendedPower: 85000,
+    recommendedPower: 90000,
     rewardsText: 'Drops coins, 1 random Mythic item and 2 random Epic items + 5 mini-boss chests',
     blurb: 'Magic-control boss. Tests Magic Defence, healing, cleanse and freeze resistance.',
     stats: {
-      hp: 176000, attack: 2310, magicAttack: 4980, defence: 2430, magicDefence: 3520,
-      dodge: 16, hitRate: 87, critRate: 14, critDamage: 143,
+      hp: 186000, attack: 2450, magicAttack: 5270, defence: 2570, magicDefence: 3730,
+      dodge: 17, hitRate: 92, critRate: 15, critDamage: 151,
     },
     skills: iceQueenSkills,
     pattern: ICE_QUEEN_PATTERN,
@@ -146,12 +146,12 @@ export const DUNGEON_BOSSES = [
     image: GAME_ASSETS.dungeonBlackDragon,
     battleGround: GAME_ASSETS.dungeonBattleGroundRescueArena,
     spawnFrequencyDays: 3,
-    recommendedPower: 100000,
+    recommendedPower: 120000,
     rewardsText: 'Drops coins, 3 random Mythic items (incl. Mythic gems) + 7 mini-boss chests',
     blurb: 'End-game raid boss. Demands a real team: tank, healer/support, damager, pets and gems.',
     stats: {
-      hp: 186000, attack: 3930, magicAttack: 3930, defence: 2570, magicDefence: 2570,
-      dodge: 18, hitRate: 91, critRate: 17, critDamage: 148,
+      hp: 223000, attack: 4720, magicAttack: 4720, defence: 3080, magicDefence: 3080,
+      dodge: 22, hitRate: 93, critRate: 20, critDamage: 178,
     },
     skills: blackDragonSkills,
     pattern: BLACK_DRAGON_PATTERN_NORMAL,
@@ -169,8 +169,8 @@ export const DUNGEON_BOSSES = [
 
 export const DUNGEON_RECOMMENDED_POWER = {
   death_knight: 70000,
-  ice_queen: 85000,
-  black_dragon: 100000,
+  ice_queen: 90000,
+  black_dragon: 120000,
 };
 
 export function getDungeonBoss(id) {
