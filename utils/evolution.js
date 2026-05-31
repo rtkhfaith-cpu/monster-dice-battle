@@ -1,6 +1,7 @@
 /**
  * Evolution tiers by monster level — drives visuals & celebration timing.
  */
+import { MONSTER_LEVEL_MAX } from './expLevel';
 
 /** @typedef {{ key: string, label: string, tierIndex: number, minLevel: number, maxLevel: number }} EvolutionStage */
 
@@ -11,7 +12,7 @@ export const EVOLUTION_STAGES = [
   { key: 'strong', label: 'Strong Form', tierIndex: 2, minLevel: 25, maxLevel: 49 },
   { key: 'mega', label: 'Mega Form', tierIndex: 3, minLevel: 50, maxLevel: 74 },
   { key: 'ultra', label: 'Ultra Form', tierIndex: 4, minLevel: 75, maxLevel: 99 },
-  { key: 'max', label: 'Max Form', tierIndex: 5, minLevel: 100, maxLevel: 120 },
+  { key: 'max', label: 'Max Form', tierIndex: 5, minLevel: 100, maxLevel: MONSTER_LEVEL_MAX },
 ];
 
 /** @param {number} level */

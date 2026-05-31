@@ -1431,16 +1431,21 @@ export default function App() {
     setPhase('dungeons');
   }
 
-  /** Grant a dungeon boss's rewards, persist, and return the drop list for display. */
-  function handleClaimDungeonRewards(bossId) {
-    if (!gameData || !setupP1ProfileId) return [];
-    const res = claimDungeonRewards(gameData, setupP1ProfileId, bossId);
+  /** Grant a dungeon boss's rewards, persist, and return drops + EXP summary. */
+  function handleClaimDungeonRewards(bossId, teamOwnedIds = []) {
+    if (!gameData || !setupP1ProfileId) return { drops: [], expPacks: [], petExpPacks: [] };
+    const res = claimDungeonRewards(gameData, setupP1ProfileId, bossId, teamOwnedIds);
     if (res.error) {
       showNotice('Dungeon', res.error);
-      return [];
+      return { drops: [], expPacks: [], petExpPacks: [] };
     }
     persistSave(res.gameData, 'dungeon_cleared', setupP1ProfileId);
-    return res.drops ?? [];
+    return {
+      drops: res.drops ?? [],
+      expPacks: res.expPacks ?? [],
+      petExpPacks: res.petExpPacks ?? [],
+      baseExp: res.baseExp ?? 0,
+    };
   }
 
   function openEquipFromInventory() {

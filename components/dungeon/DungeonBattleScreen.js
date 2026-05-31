@@ -112,13 +112,18 @@ export default function DungeonBattleScreen({ boss, team, profile, onExit, onCla
     return undefined;
   }, [autoOn, finished, runStep, state.log.length]);
 
+  const teamOwnedIds = useMemo(
+    () => (team || []).map((row) => row.ownedId).filter(Boolean),
+    [team],
+  );
+
   useEffect(() => {
     if (state.phase === 'win' && !claimedRef.current) {
       claimedRef.current = true;
-      const drops = onClaimRewards?.(boss.id) ?? [];
-      setRewards(drops);
+      const result = onClaimRewards?.(boss.id, teamOwnedIds) ?? {};
+      setRewards(Array.isArray(result) ? { drops: result } : result);
     }
-  }, [state.phase, boss?.id, onClaimRewards]);
+  }, [state.phase, boss?.id, onClaimRewards, teamOwnedIds]);
 
   function toggleAuto() {
     setAutoOn((v) => !v);
@@ -179,11 +184,19 @@ export default function DungeonBattleScreen({ boss, team, profile, onExit, onCla
             {state.phase === 'win' ? (
               <>
                 <Text style={styles.resultSub}>Rewards</Text>
+                {(rewards?.expPacks?.length ?? 0) > 0 ? (
+                  <Text style={styles.expLine}>
+                    Team monsters +{rewards.expPacks[0]?.expDelta ?? rewards.baseExp ?? 0} EXP each
+                    {(rewards?.petExpPacks?.length ?? 0) > 0
+                      ? ` · Pets +${rewards.petExpPacks[0]?.awarded ?? 0} EXP`
+                      : ''}
+                  </Text>
+                ) : null}
                 <ScrollView style={styles.rewardList}>
-                  {(rewards ?? []).length === 0 ? (
+                  {(rewards?.drops ?? []).length === 0 ? (
                     <Text style={styles.rewardEmpty}>Rewards granted to your inventory.</Text>
                   ) : (
-                    (rewards ?? []).map((d, i) => (
+                    (rewards?.drops ?? []).map((d, i) => (
                       <Text key={`${d.name}_${i}`} style={styles.rewardLine}>
                         {d.emoji ?? '🎁'} {d.name}{' '}
                         <Text style={styles.rewardRarity}>({d.rarity})</Text>
@@ -253,6 +266,7 @@ const styles = StyleSheet.create({
   resultLose: { borderColor: '#f87171' },
   resultTitle: { color: '#fff4cf', fontWeight: '900', fontSize: 22, textAlign: 'center', textTransform: 'uppercase' },
   resultSub: { color: '#bfdbfe', fontWeight: '800', fontSize: 13, textAlign: 'center', marginTop: 10 },
+  expLine: { color: '#86efac', fontWeight: '900', fontSize: 12, textAlign: 'center', marginTop: 8 },
   rewardList: { marginTop: 8, maxHeight: 180 },
   rewardLine: { color: '#e2e8f0', fontWeight: '800', fontSize: 13, marginTop: 6, textAlign: 'center' },
   rewardRarity: { color: '#c4b5fd', fontWeight: '900' },

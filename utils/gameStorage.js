@@ -22,7 +22,7 @@ import {
   normalizeProfileGear,
   expMultiplierFromEquipment,
 } from './gearStorage';
-import { scaleExpGain } from '../src/gameBalance/rewards';
+import { scaleExpGain, bossExpForEnemyLevel } from '../src/gameBalance/rewards';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { applyStageClear, markRescueChestClaimed, normalizeMonsterRescue } from './monsterRescue/progress';
@@ -918,15 +918,38 @@ export function grantGemToProfile(profile, key, quantity = 1) {
   return grantGemByKey(profile, key, quantity);
 }
 
-/** Roll + grant a dungeon boss's rewards into the profile. */
-export function claimDungeonRewards(gameData, profileId, bossId) {
+/** Roll + grant a dungeon boss's rewards into the profile (items + team EXP on clear). */
+export function claimDungeonRewards(gameData, profileId, bossId, teamOwnedIds = []) {
   const gd = cloneGameData(gameData);
   const profile = getPlayerProfile(gd, profileId) ?? walletForProfile(gd, profileId);
   if (!profile) return { gameData: gd, drops: [], error: 'Profile not found' };
   const boss = getDungeonBoss(bossId);
   if (!boss) return { gameData: gd, drops: [], error: 'Unknown dungeon boss' };
   const res = grantDungeonRewards(profile, boss);
-  return { gameData: gd, drops: res.drops };
+  const expGrant = grantDungeonTeamExp(profile, teamOwnedIds, boss.level ?? 60);
+  profile.updatedAt = new Date().toISOString();
+  return { gameData: gd, drops: res.drops, ...expGrant };
+}
+
+/** Grant monster + equipped-pet EXP to each dungeon team member after a boss kill. */
+function grantDungeonTeamExp(profile, teamOwnedIds, bossLevel) {
+  const baseExp = bossExpForEnemyLevel(bossLevel, 'bigBoss');
+  const expPacks = [];
+  const petExpPacks = [];
+  const seen = new Set();
+  for (const ownedId of teamOwnedIds || []) {
+    if (!ownedId || seen.has(ownedId)) continue;
+    seen.add(ownedId);
+    const expAmt = applyExpBonus(profile, ownedId, baseExp);
+    expPacks.push({ ownedId, ...grantExpInWallet(profile, ownedId, expAmt) });
+    const petPack = awardPetExpToEquippedMonster(
+      profile,
+      ownedId,
+      Math.max(2, Math.floor(baseExp * 0.3)),
+    );
+    if (petPack.ok) petExpPacks.push({ ownedId, ...petPack });
+  }
+  return { expPacks, petExpPacks, baseExp };
 }
 
 /** @deprecated slot unlock removed — fixed 7 equipment slots per monster */
