@@ -28,17 +28,22 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
   ctx.save();
   ctx.translate(shakeX, shakeY);
 
-  ctx.fillStyle = '#7dd3fc';
+  const themeId = state.activeTheme ?? 'grass';
+  const sky = themeId === 'fire' ? '#fdba74' : themeId === 'ice' ? '#bae6fd' : '#7dd3fc';
+  const hillA = themeId === 'fire' ? 'rgba(234,88,12,0.42)' : themeId === 'ice' ? 'rgba(56,189,248,0.38)' : 'rgba(34,197,94,0.45)';
+  const hillB = themeId === 'fire' ? 'rgba(185,28,28,0.32)' : themeId === 'ice' ? 'rgba(14,165,233,0.28)' : 'rgba(22,163,74,0.35)';
+
+  ctx.fillStyle = sky;
   ctx.fillRect(0, 0, w, h);
 
   const hillY = state.groundSurfaceY - groundH - 8;
   if (simpleBg) {
-    ctx.fillStyle = 'rgba(34,197,94,0.42)';
+    ctx.fillStyle = hillA;
     ctx.fillRect(-scrollOffset, hillY + 22, w + 140, 30);
   } else {
-    ctx.fillStyle = 'rgba(34,197,94,0.45)';
+    ctx.fillStyle = hillA;
     ctx.fillRect(-scrollOffset, hillY + 18, w * 2 + 120, 36);
-    ctx.fillStyle = 'rgba(22,163,74,0.35)';
+    ctx.fillStyle = hillB;
     ctx.fillRect(-scrollOffset * 1.35, hillY + 32, w * 2 + 120, 24);
   }
 

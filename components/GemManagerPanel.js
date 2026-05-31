@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GEAR_UI } from './gear/gearUiTheme';
 import {
@@ -8,6 +8,11 @@ import {
 } from '../src/gameSystems/gems/gemDefinitions';
 import { listGemStacks, listSocketedGems } from '../src/gameSystems/gems/gemInventory';
 
+const GEM_TABS = [
+  { id: 'stash', label: 'Your gems' },
+  { id: 'socketed', label: 'Socketed on gear' },
+];
+
 /**
  * Gem management — merge/upgrade gems. Socket gems from Inventory → Gear → tap item.
  */
@@ -16,6 +21,7 @@ export default function GemManagerPanel({
   coins,
   onUpgrade,
 }) {
+  const [gemTab, setGemTab] = useState('stash');
   const stacks = useMemo(() => listGemStacks(profile), [profile]);
   const socketed = useMemo(() => listSocketedGems(profile), [profile]);
 
@@ -25,32 +31,53 @@ export default function GemManagerPanel({
         Merge gems here. To socket a gem, open Inventory → Gear, tap a piece with sockets, then tap Insert gem.
       </Text>
 
-      {socketed.length > 0 ? (
-        <>
-          <Text style={styles.sectionLbl}>Socketed on gear ({socketed.length})</Text>
-          {socketed.map((row) => {
-            const ui = GEM_RARITY_UI[row.gem.rarity] ?? GEM_RARITY_UI.rare;
-            return (
-              <View key={`${row.gearInstanceId}-${row.socketIndex}`} style={[styles.socketedRow, { borderColor: ui.color }]}>
-                <Text style={styles.socketedEmoji}>{gemEmoji(row.gem.stat, row.gem.rarity)}</Text>
-                <View style={styles.socketedBody}>
-                  <Text style={[styles.socketedName, { color: ui.color }]}>
-                    {GEM_STAT_LABELS[row.gem.stat] ?? row.gem.stat} · Lv {row.gem.level}
-                  </Text>
-                  <Text style={styles.socketedMeta}>{row.gearName}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </>
-      ) : null}
+      <View style={styles.subTabRow}>
+        {GEM_TABS.map((t) => {
+          const count = t.id === 'stash' ? stacks.length : socketed.length;
+          const on = gemTab === t.id;
+          return (
+            <TouchableOpacity
+              key={t.id}
+              style={[styles.subTabBtn, on && styles.subTabOn]}
+              onPress={() => setGemTab(t.id)}
+              activeOpacity={0.88}
+            >
+              <Text style={[styles.subTabTxt, on && styles.subTabTxtOn]} numberOfLines={1}>
+                {t.label} ({count})
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
-      <Text style={styles.sectionLbl}>Your gems ({stacks.length})</Text>
       <ScrollView style={styles.list} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-        {stacks.length === 0 ? (
+        {gemTab === 'socketed' ? (
+          socketed.length === 0 ? (
+            <Text style={styles.muted}>
+              No gems socketed yet. Open Inventory → Gear and tap a piece with sockets to insert a gem.
+            </Text>
+          ) : (
+            socketed.map((row) => {
+              const ui = GEM_RARITY_UI[row.gem.rarity] ?? GEM_RARITY_UI.rare;
+              return (
+                <View
+                  key={`${row.gearInstanceId}-${row.socketIndex}`}
+                  style={[styles.socketedRow, { borderColor: ui.color }]}
+                >
+                  <Text style={styles.socketedEmoji}>{gemEmoji(row.gem.stat, row.gem.rarity)}</Text>
+                  <View style={styles.socketedBody}>
+                    <Text style={[styles.socketedName, { color: ui.color }]}>
+                      {GEM_STAT_LABELS[row.gem.stat] ?? row.gem.stat} · Lv {row.gem.level}
+                    </Text>
+                    <Text style={styles.socketedMeta}>{row.gearName}</Text>
+                  </View>
+                </View>
+              );
+            })
+          )
+        ) : stacks.length === 0 ? (
           <Text style={styles.muted}>
             No gems in stash. Buy Rare gems in the Shop, or earn Epic/Mythic gems from chests and dungeon bosses.
-            Socketed gems appear under “Socketed on gear” above.
           </Text>
         ) : (
           stacks.map((g) => {
@@ -120,15 +147,20 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginBottom: 8,
   },
-  sectionLbl: {
-    color: GEAR_UI.accent,
-    fontWeight: '900',
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 10,
-    marginBottom: 6,
+  subTabRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  subTabBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: GEAR_UI.tabBorder,
+    backgroundColor: GEAR_UI.tab,
+    alignItems: 'center',
   },
+  subTabOn: { backgroundColor: GEAR_UI.tabOn, borderColor: GEAR_UI.tabOnBorder },
+  subTabTxt: { fontWeight: '900', fontSize: 10, color: GEAR_UI.tabTxt, textAlign: 'center' },
+  subTabTxtOn: { color: GEAR_UI.tabTxtOn },
   list: { flex: 1 },
   muted: { color: GEAR_UI.muted, fontSize: 12, fontWeight: '800', textAlign: 'center', padding: 16, lineHeight: 18 },
   card: {

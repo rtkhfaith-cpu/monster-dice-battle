@@ -29,26 +29,25 @@ export const RUSH_LEVEL_RULES = {
   minPlayerVisibleLeadPx: 500,
 
   chainSpacing: {
-    tutorial: [300, 400],
-    easy: [380, 520],
-    medium: [350, 500],
-    hard: [260, 420],
+    tutorial: [220, 300],
+    easy: [260, 360],
+    medium: [240, 340],
+    hard: [200, 300],
   },
 
   /** Fixed px between pattern end and next start — tuned per rhythm phase (not random). */
   chainSpacingByPhase: {
-    tutorial: { single: 380, combo: 360, elevation: 400, gap: 420, rest: 480 },
-    easy: { single: 400, combo: 380, elevation: 420, gap: 460, rest: 500 },
-    medium: { single: 360, combo: 340, elevation: 380, gap: 420, rest: 440 },
-    hard: { single: 320, combo: 300, elevation: 340, gap: 380, rest: 360 },
+    tutorial: { single: 260, combo: 250, elevation: 280, gap: 300, rest: 320 },
+    easy: { single: 280, combo: 265, elevation: 300, gap: 320, rest: 340 },
+    medium: { single: 250, combo: 240, elevation: 270, gap: 300, rest: 300 },
+    hard: { single: 220, combo: 210, elevation: 240, gap: 260, rest: 250 },
   },
 
-  // Gradual ramp (scrollPx): tutorial 0–80m, easy 80–250m, medium 250–600m,
-  // hard 600m+. Beyond mediumEnd the generator escalates rests/weighting/speed.
+  // scrollPx tiers: tutorial 0–30m, easy 30–120m, medium 120–300m, hard 300m+
   distanceTiers: {
-    tutorialEnd: 800,
-    easyMediumEnd: 2500,
-    mediumEnd: 6000,
+    tutorialEnd: 300,
+    easyMediumEnd: 1200,
+    mediumEnd: 3000,
   },
 };
 

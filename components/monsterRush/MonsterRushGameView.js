@@ -116,13 +116,15 @@ export default function MonsterRushGameView({
       distanceM: state.distanceM,
       rushPoints: state.rushPointsThisRun,
       coins: state.coinsCollected,
+      coinStreak: state.coinStreak ?? 0,
+      theme: state.activeTheme ?? 'grass',
       paused: state.isPaused,
     };
     if (USE_CANVAS) {
       const r = hudRefs.current;
       if (r.distance) r.distance.textContent = `${next.distanceM}m`;
       if (r.rush) r.rush.textContent = `⚡${next.rushPoints}`;
-      if (r.coins) r.coins.textContent = `🪙${next.coins}`;
+      if (r.coins) r.coins.textContent = `🪙${next.coins}${next.coinStreak >= 3 ? ` ×${next.coinStreak}` : ''}`;
       if (forceReact) setHudSnap(next);
     } else {
       setHudSnap(next);

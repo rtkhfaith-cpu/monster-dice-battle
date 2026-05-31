@@ -77,7 +77,7 @@ function activeShieldHp(fighter) {
 }
 
 /** Auto Level grind stops once the active monster reaches this level. */
-export const AUTO_LEVEL_GRIND_MAX = 40;
+export const AUTO_LEVEL_GRIND_MAX = 100;
 
 function fighterToPhaserState(fighter, fallbackName) {
   const maxHp = fighter?.maxHp ?? fighter?.stats?.hp ?? 1;

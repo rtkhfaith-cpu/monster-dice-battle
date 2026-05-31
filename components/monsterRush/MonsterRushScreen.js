@@ -305,7 +305,7 @@ export default function MonsterRushScreen({
         <Text style={styles.kicker}>Endless Quest</Text>
         <Text style={styles.hubSub}>
           Select one monster and survive as long as you can. Tap, click, or press Spacebar to jump.
-          Avoid obstacles and collect coins to earn Rush Points.
+          Collect coins for Rush Points — chain 5+ coins for streak bonuses. Themes shift at 150m and 350m.
         </Text>
 
         <View style={styles.statCard}>

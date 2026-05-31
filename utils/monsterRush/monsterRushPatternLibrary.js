@@ -303,6 +303,33 @@ export const RUSH_PATTERN_LIBRARY = [
     ],
   },
   {
+    id: 'easy_spike_rock_chain',
+    tier: 'easy',
+    minScrollPx: 180,
+    width: 200,
+    recovery: 160,
+    rhythm: 'combo',
+    tags: ['ground', 'combo'],
+    items: [
+      { type: 'spike', x: 0, y: 'ground', width: 40, height: 40 },
+      { type: 'rock', x: 130, y: 'ground', width: 44, height: 44 },
+    ],
+  },
+  {
+    id: 'med_early_combo',
+    tier: 'medium',
+    minScrollPx: 350,
+    width: 240,
+    recovery: 170,
+    rhythm: 'combo',
+    allowTightCombo: true,
+    tags: ['ground', 'combo'],
+    items: [
+      { type: 'low_block', x: 0, y: 'ground', width: 44, height: 36 },
+      { type: 'spike', x: 150, y: 'ground', width: 40, height: 42 },
+    ],
+  },
+  {
     id: 'hard_top_lane_spike_late',
     tier: 'hard',
     minScrollPx: 3000,

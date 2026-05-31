@@ -17,16 +17,16 @@ import {
 } from './monsterRushLevelRules';
 import { rushSpeedForDistance } from './monsterRushConfig';
 
-/** Full rhythm cycle — includes coin-only rest beats. */
+/** Easy rhythm — one breather per 8 beats (was 4 rests). */
 const RHYTHM_CYCLE = [
   'single',
-  'rest',
   'combo',
-  'rest',
   'elevation',
   'rest',
   'gap',
-  'rest',
+  'combo',
+  'single',
+  'elevation',
 ];
 
 /** Tutorial: hazards only, no coin-only rest stretches. */
@@ -41,16 +41,16 @@ const TUTORIAL_RHYTHM = [
   'single',
 ];
 
-/** Medium: only one breather per cycle — pressure ramps up. */
+/** Medium: no dedicated rest beat — pressure ramps up. */
 const MEDIUM_RHYTHM = [
   'single',
   'combo',
-  'rest',
   'elevation',
   'gap',
   'combo',
   'single',
   'elevation',
+  'combo',
 ];
 
 /** Hard+: no free coin rests — continuous action so long runs stay demanding. */
@@ -88,9 +88,10 @@ function poolForPhase(tier, phase) {
   let tierPool;
   if (tier === 'tutorial') tierPool = EASY_PATTERNS;
   else if (tier === 'easy') {
-    tierPool = [...EASY_PATTERNS, ...MEDIUM_PATTERNS.filter((p) => p.tier === 'easy' || p.minScrollPx < 1200)];
-  } else if (tier === 'medium') tierPool = [...EASY_PATTERNS, ...MEDIUM_PATTERNS];
-  else tierPool = [...MEDIUM_PATTERNS, ...HARD_PATTERNS];
+    tierPool = [...EASY_PATTERNS, ...MEDIUM_PATTERNS.filter((p) => p.tier === 'easy' || p.minScrollPx < 900)];
+  } else if (tier === 'medium') {
+    tierPool = [...EASY_PATTERNS, ...MEDIUM_PATTERNS, ...HARD_PATTERNS.filter((p) => p.minScrollPx < 1800)];
+  } else tierPool = [...MEDIUM_PATTERNS, ...HARD_PATTERNS];
 
   const byRhythm = tierPool.filter((p) => p.rhythm === phase);
   return byRhythm.length ? byRhythm : tierPool;
@@ -148,6 +149,10 @@ export function pickValidatedPattern(scrollPx, ctx = {}) {
 
   if (tier === 'tutorial') {
     candidates = candidates.filter((p) => p.tier === 'easy' && !p.tags?.includes('top_bottom'));
+    if ((ctx.patternsSpawned ?? 0) < 4) {
+      const jumpFriendly = new Set(['spike', 'coin_arc', 'gap', 'step_platform']);
+      candidates = candidates.filter((p) => p.items.every((it) => jumpFriendly.has(it.type)));
+    }
   }
 
   const validationCtx = {

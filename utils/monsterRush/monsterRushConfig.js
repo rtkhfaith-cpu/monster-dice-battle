@@ -14,14 +14,14 @@ export const MONSTER_RUSH_PHYSICS = {
   gravity: 0.78,
   jumpVelocity: -14.2,
   /** Internal speed stat (drives scrollPxPerSec below). */
-  baseSpeed: 3,
-  /** Long ramp: speed keeps climbing to maxSpeed at ~8km so long runs never plateau. */
-  maxSpeed: 12,
-  speedIncreaseEveryDistance: 400,
-  speedIncreaseAmount: 0.45,
-  /** Target run speed ≈ 320–380 px/s at base; scales with speed stat. */
-  scrollPxPerSecBase: 340,
-  scrollPxPerSecPerSpeed: 26,
+  baseSpeed: 3.5,
+  /** Speed keeps climbing to maxSpeed on long runs. */
+  maxSpeed: 13,
+  speedIncreaseEveryDistance: 200,
+  speedIncreaseAmount: 0.55,
+  /** Target run speed ≈ 440 px/s at base; scales with speed stat. */
+  scrollPxPerSecBase: 440,
+  scrollPxPerSecPerSpeed: 28,
 };
 
 export const MONSTER_RUSH_OBSTACLES = [
@@ -59,6 +59,13 @@ export const MONSTER_RUSH_THEMES = {
 
 export const DEFAULT_RUSH_THEME = MONSTER_RUSH_THEMES.grass;
 
+export function rushThemeForDistance(distanceM) {
+  const d = Math.max(0, Math.floor(distanceM || 0));
+  if (d < 150) return MONSTER_RUSH_THEMES.grass;
+  if (d < 350) return MONSTER_RUSH_THEMES.ice;
+  return MONSTER_RUSH_THEMES.fire;
+}
+
 export function rushSpeedForDistance(distanceM) {
   const { baseSpeed, maxSpeed, speedIncreaseEveryDistance, speedIncreaseAmount } = MONSTER_RUSH_PHYSICS;
   const bonus = Math.floor(distanceM / speedIncreaseEveryDistance) * speedIncreaseAmount;
@@ -75,9 +82,9 @@ export function obstacleDefById(id) {
 
 /** Difficulty tier from distance (meters). */
 export function rushDifficultyTier(distanceM) {
-  if (distanceM < 300) return 0;
-  if (distanceM < 800) return 1;
-  if (distanceM < 1500) return 2;
-  if (distanceM < 2500) return 3;
+  if (distanceM < 120) return 0;
+  if (distanceM < 300) return 1;
+  if (distanceM < 600) return 2;
+  if (distanceM < 1200) return 3;
   return 4;
 }

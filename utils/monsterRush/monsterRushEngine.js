@@ -1,7 +1,7 @@
 /**
  * Monster Rush endless runner — pattern spawning, platforms, gaps, hazards.
  */
-import { MONSTER_RUSH_PHYSICS, rushSpeedForDistance } from './monsterRushConfig';
+import { MONSTER_RUSH_PHYSICS, rushSpeedForDistance, rushThemeForDistance } from './monsterRushConfig';
 import { obstacleTypeDef, hazardHitbox } from './monsterRushObstacles';
 import { coinOffsetsForPatternItem } from './monsterRushCoinPatterns';
 import {
@@ -69,6 +69,9 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
     rhythmIndex: 0,
     patternsSpawned: 0,
     lastSpawnDebug: null,
+    coinStreak: 0,
+    coinStreakBonus: 0,
+    activeTheme: 'grass',
     wasOnGround: true,
     shakeMs: 0,
     /** No hazard damage until this reaches 0 (ms). */
@@ -85,11 +88,11 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
 }
 
 /** Seconds of scroll before first pattern spawn (invincibility is separate). */
-const RUNWAY_SEC = 1.15;
+const RUNWAY_SEC = 0.65;
 /** How far past the right screen edge patterns may be planned. */
 const SPAWN_HORIZON_SEC = 2.0;
-/** First hazard appears this far past the right edge (~1s preview). */
-const FIRST_PATTERN_AHEAD_SEC = 0.85;
+/** First hazard appears this far past the right edge. */
+const FIRST_PATTERN_AHEAD_SEC = 0.55;
 
 function runwayPx(speedStat) {
   return Math.max(180, Math.floor(scrollPxPerSecond(speedStat) * RUNWAY_SEC));
@@ -109,7 +112,7 @@ export function startMonsterRushRun(state) {
   state.awaitingStart = false;
   state.isRunning = true;
   state.isPaused = false;
-  state.safeMsRemaining = 2600;
+  state.safeMsRemaining = 2100;
   const lead = runwayPx(state.speed);
   state.spawnCooldownPx = lead;
   state.lastPatternEndX = state.gameWidth + 48;
@@ -264,6 +267,7 @@ function trySpawnPattern(state) {
     rhythmIndex: state.rhythmIndex ?? 0,
     gameHeight: state.gameHeight,
     distanceM: state.distanceM,
+    patternsSpawned: state.patternsSpawned ?? 0,
   });
   state.rhythmIndex = (state.rhythmIndex ?? 0) + 1;
   state.lastSpawnDebug = debug;
@@ -326,7 +330,7 @@ function applyGroundAndGaps(state, dtScale) {
 }
 
 const MAX_PARTICLES = 12;
-const MAX_HAZARDS = 14;
+const MAX_HAZARDS = 18;
 const MAX_PLATFORMS = 8;
 const MAX_GAPS = 5;
 const MAX_COINS = 10;
@@ -362,6 +366,11 @@ function addParticle(state, x, y, text, life = 400) {
   });
 }
 
+function recalcRushPoints(state) {
+  state.rushPointsThisRun =
+    Math.floor(state.distanceM / 10) + state.coinsCollected + (state.coinStreakBonus ?? 0);
+}
+
 export function tickMonsterRush(state, dtMs) {
   if (state.awaitingStart || state.isPaused || state.isGameOver) return state;
 
@@ -370,10 +379,13 @@ export function tickMonsterRush(state, dtMs) {
   if (state.shakeMs > 0) state.shakeMs -= dtMs;
 
   state.speed = rushSpeedForDistance(state.distanceM);
-  const movePx = scrollPxPerFrame(state.speed, dtMs);
+  const theme = rushThemeForDistance(state.distanceM);
+  state.activeTheme = theme.id;
+  const themeMult = theme.speedMultiplier ?? 1;
+  const movePx = scrollPxPerFrame(state.speed, dtMs) * themeMult;
   state.scrollPx += movePx;
   state.distanceM = Math.floor(state.scrollPx / 10);
-  state.rushPointsThisRun = Math.floor(state.distanceM / 10) + state.coinsCollected;
+  recalcRushPoints(state);
 
   const { gravity, playerSize } = MONSTER_RUSH_PHYSICS;
   const p = state.player;
@@ -426,8 +438,14 @@ export function tickMonsterRush(state, dtMs) {
     const coin = state.coins[i];
     if (rectsOverlap(pBox, coin)) {
       state.coinsCollected += 1;
-      state.rushPointsThisRun = Math.floor(state.distanceM / 10) + state.coinsCollected;
-      if (state.particles.length < 4) addParticle(state, coin.x, coin.y, '+1', 280);
+      state.coinStreak = (state.coinStreak ?? 0) + 1;
+      if (state.coinStreak >= 5 && state.coinStreak % 5 === 0) {
+        state.coinStreakBonus = (state.coinStreakBonus ?? 0) + 1;
+        if (state.particles.length < 4) addParticle(state, coin.x, coin.y - 8, 'STREAK!', 420);
+      } else if (state.particles.length < 4) {
+        addParticle(state, coin.x, coin.y, '+1', 280);
+      }
+      recalcRushPoints(state);
       state.coins.splice(i, 1);
     }
   }
