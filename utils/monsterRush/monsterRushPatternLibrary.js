@@ -177,7 +177,7 @@ export const RUSH_PATTERN_LIBRARY = [
     tags: ['ground', 'combo'],
     items: [
       { type: 'low_block', x: 0, y: 'ground', width: 48, height: 38 },
-      { type: 'spike', x: 175, y: 'ground', width: 40, height: 40 },
+      { type: 'spike', x: 208, y: 'ground', width: 40, height: 40 },
     ],
   },
   {

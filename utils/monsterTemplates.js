@@ -3,10 +3,10 @@
  * Visual evolution cues drive MonsterPreview / MoveEffect polish — tune freely.
  */
 
-/** @typedef {'common'|'rare'|'epic'|'legendary'|'mythic'} MonsterRarity */
+/** @typedef {'common'|'rare'|'epic'|'legendary'|'mythic'|'ultra_mythic'} MonsterRarity */
 /** @typedef {'speedster'|'tank'|'brawler'|'mage'|'healer'|'support'|'trickster'|'balanced'|'mythic'|'tank_mage'} MonsterRole */
 
-export const RARITY_ORDER = /** @type {const} */ (['common', 'rare', 'epic', 'legendary', 'mythic']);
+export const RARITY_ORDER = /** @type {const} */ (['common', 'rare', 'epic', 'legendary', 'mythic', 'ultra_mythic']);
 
 /** @param {string} r */
 export function rarityRank(r) {
@@ -20,6 +20,7 @@ export const RARITY_UI = {
   epic: { label: 'Epic', chipBg: '#a29bfe', chipFg: '#2d1b69', border: '#6c5ce7' },
   legendary: { label: 'Legendary', chipBg: '#ffeaa7', chipFg: '#d35400', border: '#fdcb6e' },
   mythic: { label: 'Mythic', chipBg: '#fd79a8', chipFg: '#6c1339', border: '#e84393' },
+  ultra_mythic: { label: 'Ultra Mythic', chipBg: '#f1c40f', chipFg: '#5c4a00', border: '#d4ac0d' },
 };
 
 export const ROLE_LABELS = {
@@ -630,22 +631,22 @@ export const MONSTER_CATALOG = [
     id: 'goldzilla',
     name: 'Goldzilla',
     price: 500,
-    rarity: 'mythic',
+    rarity: 'ultra_mythic',
     role: 'balanced',
-    description: 'Mythic all-rounder — Metal / Earth. Counters Algorithm Angel.',
+    description: 'Ultra Mythic all-rounder — Metal / Earth. ~10% stronger than other mythics. Counters Algorithm Angel.',
     baseStats: {
-      hp: 268,
-      mp: 128,
-      attackMin: 26,
-      attackMax: 34,
-      magicMin: 26,
-      magicMax: 34,
-      defMin: 17,
-      defMax: 23,
-      magicDefMin: 17,
-      magicDefMax: 23,
-      critical: 13,
-      dodge: 11,
+      hp: 295,
+      mp: 141,
+      attackMin: 29,
+      attackMax: 37,
+      magicMin: 29,
+      magicMax: 37,
+      defMin: 19,
+      defMax: 25,
+      magicDefMin: 19,
+      magicDefMax: 25,
+      critical: 14,
+      dodge: 12,
     },
     growthProfile: {
       hpPerLevel: 7.5,

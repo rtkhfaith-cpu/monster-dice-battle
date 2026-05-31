@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import MonsterRushGameView from './MonsterRushGameView';
 import { getOwnedRoster } from '../../utils/rosterInventory';
-import { getMonsterTemplate } from '../../utils/monsterTemplates';
+import { getMonsterTemplate, rarityRank } from '../../utils/monsterTemplates';
 import { getLadderMonsterTemplate } from '../../utils/monsterLadder/ladderMonsterCatalog';
 import { getMonsterImageAsset } from '../../utils/monsterImageAssets';
 import { getMonsterRushState } from '../../utils/monsterRush/monsterRushProgress';
@@ -33,9 +33,14 @@ const RARITY_COLOR = {
   epic: '#c084fc',
   legendary: '#fbbf24',
   mythic: '#f472b6',
+  ultra_mythic: '#f1c40f',
 };
 
 const PREVIEW_SIZE = MONSTER_RUSH_PHYSICS.playerSize;
+
+function rushMonsterMeta(templateId) {
+  return getMonsterTemplate(templateId) ?? getLadderMonsterTemplate(templateId);
+}
 
 /** Same small cropped runner box as in-game (not full monster art). */
 function MonsterBoxPreview({ templateId, selected = false }) {
@@ -76,6 +81,18 @@ export default function MonsterRushScreen({
 
   const rushState = useMemo(() => getMonsterRushState(profile), [profile]);
   const roster = useMemo(() => getOwnedRoster(profile), [profile]);
+  const sortedRoster = useMemo(() => {
+    return [...roster].sort((a, b) => {
+      const ra = rarityRank(rushMonsterMeta(a.templateId)?.rarity ?? 'common');
+      const rb = rarityRank(rushMonsterMeta(b.templateId)?.rarity ?? 'common');
+      if (rb !== ra) return rb - ra;
+      const levelDiff = (b.level ?? 1) - (a.level ?? 1);
+      if (levelDiff !== 0) return levelDiff;
+      const na = rushMonsterMeta(a.templateId)?.name ?? a.templateId;
+      const nb = rushMonsterMeta(b.templateId)?.name ?? b.templateId;
+      return na.localeCompare(nb);
+    });
+  }, [roster]);
   const selectedMonster = roster.find((m) => m.id === selectedMonsterId) ?? null;
 
   useEffect(() => {
@@ -93,7 +110,7 @@ export default function MonsterRushScreen({
   }, [view, selectedMonster]);
 
   function tplMeta(templateId) {
-    return getMonsterTemplate(templateId) ?? getLadderMonsterTemplate(templateId);
+    return rushMonsterMeta(templateId);
   }
 
   function handleGameOver(summary) {
@@ -234,7 +251,7 @@ export default function MonsterRushScreen({
         </View>
         <Text style={styles.selectHint}>Tap a box — same look as in the run</Text>
         <ScrollView style={styles.list} contentContainerStyle={styles.runnerGrid}>
-          {roster.map((m) => {
+          {sortedRoster.map((m) => {
             const tpl = tplMeta(m.templateId);
             const rarity = tpl?.rarity ?? 'common';
             const on = m.id === selectedMonsterId;

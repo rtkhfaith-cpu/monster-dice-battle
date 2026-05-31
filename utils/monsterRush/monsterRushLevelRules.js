@@ -35,6 +35,14 @@ export const RUSH_LEVEL_RULES = {
     hard: [260, 420],
   },
 
+  /** Fixed px between pattern end and next start — tuned per rhythm phase (not random). */
+  chainSpacingByPhase: {
+    tutorial: { single: 380, combo: 360, elevation: 400, gap: 420, rest: 480 },
+    easy: { single: 400, combo: 380, elevation: 420, gap: 460, rest: 500 },
+    medium: { single: 360, combo: 340, elevation: 380, gap: 420, rest: 440 },
+    hard: { single: 320, combo: 300, elevation: 340, gap: 380, rest: 360 },
+  },
+
   // Gradual ramp (scrollPx): tutorial 0–80m, easy 80–250m, medium 250–600m,
   // hard 600m+. Beyond mediumEnd the generator escalates rests/weighting/speed.
   distanceTiers: {
@@ -45,7 +53,7 @@ export const RUSH_LEVEL_RULES = {
 };
 
 /**
- * Simulate jump arc at 60fps tick scale (matches engine dtScale ≈ 1).
+ * Simulate full jump arc at 60fps tick scale (ascent + descent until landing).
  */
 export function simulateJumpMetrics(physics = MONSTER_RUSH_PHYSICS) {
   const { jumpVelocity, gravity } = physics;
@@ -53,11 +61,13 @@ export function simulateJumpMetrics(physics = MONSTER_RUSH_PHYSICS) {
   let y = 0;
   let frames = 0;
   let peak = 0;
-  while (frames < 120 && vy < 0) {
+  while (frames < 240) {
     y += vy;
     peak = Math.min(peak, y);
     vy += gravity;
     frames += 1;
+    // Landed back on ground after leaving it.
+    if (frames > 4 && y >= 0 && vy > 0) break;
   }
   const airTimeMs = frames * DT_MS;
   const peakHeight = Math.abs(peak);
@@ -91,6 +101,13 @@ export function distanceTier(scrollPx) {
 export function chainSpacingForTier(tier, rng = Math.random) {
   const [min, max] = RUSH_LEVEL_RULES.chainSpacing[tier] ?? RUSH_LEVEL_RULES.chainSpacing.medium;
   return min + rng() * (max - min);
+}
+
+/** Deterministic chain gap for a rhythm phase (Geometry Dash style — predictable spacing). */
+export function chainSpacingForPhase(tier, phase) {
+  const table = RUSH_LEVEL_RULES.chainSpacingByPhase[tier]
+    ?? RUSH_LEVEL_RULES.chainSpacingByPhase.medium;
+  return table[phase] ?? table.single ?? 380;
 }
 
 const HAZARD_TYPES = new Set([
@@ -131,6 +148,8 @@ export function validatePattern(pattern, ctx = {}) {
   for (const gap of patternGaps(pattern.items)) {
     const w = gap.width ?? 90;
     if (w > rules.maxGapWidthPx) reasons.push(`gap_too_wide:${w}`);
+    // Gap must be crossable at current scroll speed (full jump arc).
+    if (w > maxJumpDist - 30) reasons.push(`gap_uncrossable:${w}>${Math.round(maxJumpDist)}`);
   }
 
   const hazards = patternHazards(pattern.items);

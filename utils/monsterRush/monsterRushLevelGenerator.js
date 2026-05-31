@@ -1,5 +1,7 @@
 /**
  * Pattern-based Monster Rush level generator with fairness validation.
+ * Patterns are hand-authored; sequencing is deterministic per rhythm phase
+ * (Geometry Dash style — learnable beats, not random obstacle soup).
  */
 import {
   RUSH_PATTERN_LIBRARY,
@@ -8,7 +10,7 @@ import {
   HARD_PATTERNS,
 } from './monsterRushPatternLibrary';
 import {
-  chainSpacingForTier,
+  chainSpacingForPhase,
   distanceTier,
   validatePattern,
   RUSH_LEVEL_RULES,
@@ -102,7 +104,8 @@ function poolForPhaseCached(tier, phase) {
   return POOL_CACHE.get(key);
 }
 
-function rhythmPhase(scrollPx, rhythmIndex) {
+/** Which rhythm beat we're on for this scroll distance + beat index. */
+export function rhythmPhase(scrollPx, rhythmIndex) {
   const t = RUSH_LEVEL_RULES.distanceTiers;
   if (scrollPx < t.tutorialEnd) {
     return TUTORIAL_RHYTHM[rhythmIndex % TUTORIAL_RHYTHM.length];
@@ -116,28 +119,20 @@ function rhythmPhase(scrollPx, rhythmIndex) {
   return HARD_RHYTHM[rhythmIndex % HARD_RHYTHM.length];
 }
 
-function weightedPick(candidates, ctx) {
-  const mediumEnd = RUSH_LEVEL_RULES.distanceTiers.mediumEnd;
-  // 0 at the start of the hard tier → 1 once a full hard tier deeper (~1.2km).
-  const deep = Math.max(0, Math.min(1, ((ctx.scrollPx ?? 0) - mediumEnd) / mediumEnd));
-  const weights = candidates.map((p) => {
-    let w = 1;
-    if (p.id === ctx.lastPatternId) w *= 0.15;
-    // Early runs favour easy patterns; deep runs flip to favour hard ones.
-    if (p.tier === 'hard') w *= 0.7 + deep * 1.6;
-    if (p.tier === 'easy') w *= 1.2 - deep * 0.95;
-    return Math.max(0.05, w);
-  });
-  const total = weights.reduce((a, b) => a + b, 0);
-  let roll = Math.random() * total;
-  for (let i = 0; i < candidates.length; i += 1) {
-    roll -= weights[i];
-    if (roll <= 0) return candidates[i];
+/**
+ * Deterministic pick: same rhythm slot → same pattern order (learnable).
+ * Cycles through stable-sorted candidates; skips immediate repeat when possible.
+ */
+function deterministicPick(candidates, rhythmIndex, lastPatternId) {
+  if (!candidates.length) return null;
+  const sorted = [...candidates].sort((a, b) => a.id.localeCompare(b.id));
+  let pool = sorted;
+  if (lastPatternId && sorted.length > 1) {
+    const filtered = sorted.filter((p) => p.id !== lastPatternId);
+    if (filtered.length) pool = filtered;
   }
-  return candidates[candidates.length - 1];
+  return pool[rhythmIndex % pool.length];
 }
-
-const MAX_VALIDATE_TRIES = 4;
 
 /**
  * Pick next validated pattern for current run state.
@@ -155,24 +150,19 @@ export function pickValidatedPattern(scrollPx, ctx = {}) {
     candidates = candidates.filter((p) => p.tier === 'easy' && !p.tags?.includes('top_bottom'));
   }
 
-  if (ctx.lastPatternId && (ctx.repeatStreak ?? 0) >= 2) {
-    const noRepeat = candidates.filter((p) => p.id !== ctx.lastPatternId);
-    if (noRepeat.length) candidates = noRepeat;
-  }
-
   const validationCtx = {
     scrollPx,
     gameHeight: ctx.gameHeight,
     speedStat,
   };
 
-  const tried = new Set();
-  const tries = Math.min(MAX_VALIDATE_TRIES, candidates.length);
-  for (let t = 0; t < tries; t += 1) {
-    const remaining = candidates.filter((p) => !tried.has(p.id));
-    if (!remaining.length) break;
-    const pattern = weightedPick(remaining, { ...ctx, scrollPx });
-    tried.add(pattern.id);
+  // Try deterministic order first, then rotate through pool for a valid pattern.
+  const anchor = deterministicPick(candidates, ctx.rhythmIndex ?? 0, ctx.lastPatternId);
+  const ordered = anchor
+    ? [anchor, ...candidates.filter((p) => p.id !== anchor.id)]
+    : candidates;
+
+  for (const pattern of ordered) {
     const v = validatePattern(pattern, validationCtx);
     if (v.ok) {
       return {
@@ -188,34 +178,43 @@ export function pickValidatedPattern(scrollPx, ctx = {}) {
     }
   }
 
-  for (let i = 0; i < Math.min(3, EASY_PATTERNS.length); i += 1) {
-    const pattern = EASY_PATTERNS[i];
+  // Safe fallback: coin rest beat (never kills).
+  const restV = validatePattern(REST_PATTERN, validationCtx);
+  if (restV.ok) {
+    return {
+      pattern: REST_PATTERN,
+      debug: { patternId: REST_PATTERN.id, tier, phase: 'rest_fallback', scrollPx, passed: true },
+    };
+  }
+
+  for (const pattern of EASY_PATTERNS) {
     const v = validatePattern(pattern, validationCtx);
     if (v.ok) {
       return {
         pattern,
-        debug: { patternId: pattern.id, tier, phase: 'fallback', scrollPx, passed: true },
+        debug: { patternId: pattern.id, tier, phase: 'easy_fallback', scrollPx, passed: true },
       };
     }
   }
 
   return {
-    pattern: EASY_PATTERNS[0],
-    debug: { patternId: EASY_PATTERNS[0].id, tier, phase: 'emergency', scrollPx, passed: false },
+    pattern: REST_PATTERN,
+    debug: { patternId: REST_PATTERN.id, tier, phase: 'emergency_rest', scrollPx, passed: true },
   };
 }
 
-/** Spacing between pattern end and next pattern start (px). */
-export function patternChainSpacing(scrollPx) {
+/** Spacing between pattern end and next pattern start (px) — fixed per rhythm phase. */
+export function patternChainSpacing(scrollPx, phase = 'single') {
   const tier = distanceTier(scrollPx);
-  return chainSpacingForTier(tier === 'tutorial' ? 'tutorial' : tier);
+  const tierKey = tier === 'tutorial' ? 'tutorial' : tier;
+  return chainSpacingForPhase(tierKey, phase);
 }
 
 /** @deprecated — use patternChainSpacing */
 export function patternSpacingPx(tierIndex) {
   const tiers = ['tutorial', 'easy', 'medium', 'hard'];
   const t = tiers[Math.min(tierIndex, tiers.length - 1)] ?? 'medium';
-  return chainSpacingForTier(t);
+  return chainSpacingForPhase(t, 'single');
 }
 
 /** Legacy export for old imports */

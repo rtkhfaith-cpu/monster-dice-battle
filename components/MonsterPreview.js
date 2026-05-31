@@ -219,7 +219,7 @@ export default function MonsterPreview({
           themeAura={themeAura}
           themePalette={themePalette}
           themeArchetype={themeArchetype}
-          showRarityRim={safe.rarity === 'legendary' || safe.rarity === 'mythic'}
+          showRarityRim={safe.rarity === 'legendary' || safe.rarity === 'mythic' || safe.rarity === 'ultra_mythic'}
           showShadow={!hideBuiltInShadow}
           stroke={stroke}
           ST={ST}

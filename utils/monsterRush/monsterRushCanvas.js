@@ -157,6 +157,10 @@ function drawGroundWithGaps(ctx, state, w, groundH) {
     if (gx > cursor) ctx.fillRect(cursor, y, gx - cursor, groundH);
     ctx.fillStyle = '#1c1917';
     ctx.fillRect(gx, y, gap.width, groundH + 16);
+    // Gap lip warning — shows where safe ground ends.
+    ctx.fillStyle = '#fde047';
+    ctx.fillRect(gx - 3, y, 4, 6);
+    ctx.fillRect(gx + gap.width - 1, y, 4, 6);
     ctx.fillStyle = '#92400e';
     cursor = gx + gap.width;
   }
@@ -167,11 +171,11 @@ function drawGroundWithGaps(ctx, state, w, groundH) {
 }
 
 function drawPlatform(ctx, plat) {
-  ctx.fillStyle = plat.color || '#86efac';
+  ctx.fillStyle = plat.color || '#22c55e';
   ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
-  ctx.fillStyle = '#bbf7d0';
-  ctx.fillRect(plat.x, plat.y, plat.width, 4);
-  ctx.strokeStyle = plat.stroke || '#15803d';
+  ctx.fillStyle = '#ecfccb';
+  ctx.fillRect(plat.x, plat.y, plat.width, 5);
+  ctx.strokeStyle = plat.stroke || '#14532d';
   ctx.lineWidth = 2;
   ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
 }
@@ -193,16 +197,18 @@ function drawHazard(ctx, hz) {
     return;
   }
   if (hz.shape === 'top_barrier') {
-    ctx.fillStyle = hz.color || '#7c3aed';
+    ctx.fillStyle = hz.color || '#7f1d1d';
     ctx.fillRect(hz.x, hz.y, hz.width, hz.height);
-    ctx.strokeStyle = hz.stroke || '#4c1d95';
+    ctx.fillStyle = '#fecaca';
+    ctx.fillRect(hz.x, hz.y + hz.height - 4, hz.width, 4);
+    ctx.strokeStyle = hz.stroke || '#991b1b';
     ctx.lineWidth = 2;
     ctx.strokeRect(hz.x, hz.y, hz.width, hz.height);
     return;
   }
-  ctx.fillStyle = hz.color || '#78716c';
+  ctx.fillStyle = hz.color || '#991b1b';
   ctx.fillRect(hz.x, hz.y, hz.width, hz.height);
-  ctx.strokeStyle = hz.stroke || '#44403c';
+  ctx.strokeStyle = hz.stroke || '#fecaca';
   ctx.lineWidth = 1;
   ctx.strokeRect(hz.x, hz.y, hz.width, hz.height);
 }
@@ -211,6 +217,8 @@ function drawSpike(ctx, hz) {
   const { x, y, width: wd, height: ht } = hz;
   const down = hz.shape !== 'ceiling_spike';
   ctx.fillStyle = hz.color || '#dc2626';
+  ctx.strokeStyle = '#fecaca';
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   if (down) {
     ctx.moveTo(x + wd / 2, y);
@@ -223,6 +231,7 @@ function drawSpike(ctx, hz) {
   }
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
 }
 
 function drawHitbox(ctx, box) {

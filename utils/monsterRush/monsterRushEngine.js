@@ -7,6 +7,7 @@ import { coinOffsetsForPatternItem } from './monsterRushCoinPatterns';
 import {
   pickValidatedPattern,
   patternChainSpacing,
+  rhythmPhase,
 } from './monsterRushLevelGenerator';
 import { scrollPxPerFrame, scrollPxPerSecond } from './monsterRushLevelRules';
 
@@ -173,8 +174,8 @@ function spawnPatternCoins(state, baseX, item) {
   }
 }
 
-function spawnPattern(state, pattern) {
-  const chain = patternChainSpacing(state.scrollPx);
+function spawnPattern(state, pattern, phase = 'single') {
+  const chain = patternChainSpacing(state.scrollPx, phase);
   const horizon = spawnHorizonPx(state);
   const hasWorld = state.hazards.length > 0
     || state.platforms.length > 0
@@ -256,6 +257,7 @@ function trySpawnPattern(state) {
 
   if (hasWorld && state.lastPatternEndX < horizon) state.lastPatternEndX = horizon;
 
+  const phase = rhythmPhase(state.scrollPx, state.rhythmIndex ?? 0);
   const { pattern, debug } = pickValidatedPattern(state.scrollPx, {
     lastPatternId: state.lastPatternId,
     repeatStreak: state.repeatPatternStreak,
@@ -266,7 +268,7 @@ function trySpawnPattern(state) {
   state.rhythmIndex = (state.rhythmIndex ?? 0) + 1;
   state.lastSpawnDebug = debug;
 
-  spawnPattern(state, pattern);
+  spawnPattern(state, pattern, phase);
 }
 
 function playerOverGap(state) {

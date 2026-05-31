@@ -16,9 +16,10 @@ export function getChestMonstersByRarity(rarity) {
   const seen = new Set();
   /** @type {ChestMonsterEntry[]} */
   const out = [];
+  const matchRarities = rarity === 'mythic' ? ['mythic', 'ultra_mythic'] : [rarity];
 
   for (const m of MONSTER_CATALOG) {
-    if (m?.id && m.rarity === rarity && !seen.has(m.id)) {
+    if (m?.id && matchRarities.includes(m.rarity) && !seen.has(m.id)) {
       seen.add(m.id);
       out.push({ id: m.id, name: m.name, rarity: m.rarity });
     }

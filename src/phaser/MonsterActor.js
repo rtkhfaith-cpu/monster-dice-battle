@@ -4,6 +4,7 @@ const RARITY_FX = {
   epic: { color: 0xa855f7, alpha: 0.28 },
   legendary: { color: 0xfacc15, alpha: 0.34 },
   mythic: { color: 0x67e8f9, alpha: 0.42 },
+  ultra_mythic: { color: 0xfacc15, alpha: 0.5 },
 };
 
 const ELEMENT_FX = {
@@ -41,7 +42,12 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
+function isMythicPlusRarity(rarity) {
+  return rarity === 'mythic' || rarity === 'ultra_mythic';
+}
+
 function bossVisualTier(stageKind, rarity) {
+  if (rarity === 'ultra_mythic') return 4;
   if (rarity === 'mythic') return 3;
   if (stageKind === 'bigBoss' || rarity === 'legendary') return 2;
   if (stageKind === 'miniBoss' || rarity === 'epic') return 1;
@@ -329,15 +335,15 @@ export default class MonsterActor {
     const pulseScale = 1.12 + this.visualTier * 0.08;
     this.fxTweens.push(this.scene.tweens.add({
       targets: this.aura,
-      alpha: this.rarity === 'mythic' ? base * 1.35 : base * (0.7 + this.visualTier * 0.14),
+      alpha: isMythicPlusRarity(this.rarity) ? base * 1.35 : base * (0.7 + this.visualTier * 0.14),
       scaleX: pulseScale,
       scaleY: pulseScale - 0.04,
-      duration: this.rarity === 'mythic' ? 680 : this.stageKind === 'miniBoss' ? 920 : 1300,
+      duration: isMythicPlusRarity(this.rarity) ? 680 : this.stageKind === 'miniBoss' ? 920 : 1300,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.inOut',
       onYoyo: () => {
-        if (this.rarity === 'mythic') this.aura.fillColor = [0x67e8f9, 0xf472b6, 0xfacc15, 0xa78bfa][this.scene.time.now % 4 | 0];
+        if (isMythicPlusRarity(this.rarity)) this.aura.fillColor = [0x67e8f9, 0xf472b6, 0xfacc15, 0xa78bfa][this.scene.time.now % 4 | 0];
       },
     }));
   }
@@ -359,11 +365,13 @@ export default class MonsterActor {
 
   startBossPresence() {
     if (this.visualTier <= 0) return;
-    const ringColor = this.rarity === 'mythic'
-      ? 0xf472b6
-      : this.rarity === 'legendary'
-        ? 0xfacc15
-        : 0xdc2626;
+    const ringColor = this.rarity === 'ultra_mythic'
+      ? 0xfacc15
+      : this.rarity === 'mythic'
+        ? 0xf472b6
+        : this.rarity === 'legendary'
+          ? 0xfacc15
+          : 0xdc2626;
     this.presenceRing = this.scene.add.ellipse(
       this.x,
       this.y + 76 * this.scale,
@@ -381,7 +389,7 @@ export default class MonsterActor {
       repeat: -1,
       ease: 'Sine.inOut',
     }));
-    if (this.rarity === 'mythic') this.startMythicRings();
+    if (isMythicPlusRarity(this.rarity)) this.startMythicRings();
   }
 
   startMythicRings() {

@@ -44,7 +44,7 @@ export const MAIN_MINI_BOSS_CHEST_ROWS = [
     label: 'Monster',
     chancePct: 18,
     detail:
-      'Roll rarity first (fixed weights below), then a random monster of that rarity (equal chance per species). Mythic pool includes 67-Rex, Goldzilla, and ladder mythics. Duplicate → another copy on your roster.',
+      'Roll rarity first (fixed weights below), then a random monster of that rarity (equal chance per species). Mythic pool includes 67-Rex, Goldzilla (Ultra Mythic), and ladder mythics. Duplicate → another copy on your roster.',
   },
 ];
 
