@@ -122,6 +122,12 @@ export function filterGearInventory(gearList, filter) {
   let list = [...(gearList || [])];
   if (!filter || filter === 'all') return list;
 
+  if (filter === 'unassigned') return list.filter((g) => !g.equippedToMonsterId);
+  if (filter.startsWith('monster:')) {
+    const monsterId = filter.slice('monster:'.length);
+    return list.filter((g) => g.equippedToMonsterId === monsterId);
+  }
+
   if (filter === 'sockets') return list.filter((g) => (g?.sockets?.length ?? 0) > 0);
   if (filter === 'equipped') return list.filter((g) => g.equippedToMonsterId);
   if (filter === 'unequipped') return list.filter((g) => !g.equippedToMonsterId);

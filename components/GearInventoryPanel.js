@@ -15,6 +15,8 @@ import {
   gemStatValue,
   parseGemKey,
 } from '../src/gameSystems/gems/gemDefinitions';
+import { getMonsterTemplate } from '../utils/monsterTemplates';
+import { getLadderMonsterTemplate } from '../utils/monsterLadder/ladderMonsterCatalog';
 import {
   GEAR_UI,
   GearIcon,
@@ -22,20 +24,36 @@ import {
   isMythicRarity,
 } from './gear/gearUiTheme';
 
-const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'head', label: 'Head' },
-  { id: 'body', label: 'Body' },
-  { id: 'weapon', label: 'Weapon' },
-  { id: 'hand', label: 'Hand' },
-  { id: 'legs', label: 'Legs' },
-  { id: 'rare', label: 'Rare' },
-  { id: 'epic', label: 'Epic' },
-  { id: 'mythic', label: 'Mythic' },
-  { id: 'equipped', label: 'Equipped' },
-  { id: 'unequipped', label: 'Free' },
-  { id: 'sockets', label: 'Sockets' },
-];
+function monsterDisplayLabel(ownedMonster) {
+  const tpl = getMonsterTemplate(ownedMonster.templateId)
+    ?? getLadderMonsterTemplate(ownedMonster.templateId);
+  const name = ownedMonster.nickname || tpl?.name || ownedMonster.templateId;
+  const lv = ownedMonster.level ?? 1;
+  return `${name} Lv${lv}`;
+}
+
+function buildMonsterFilters(profile) {
+  const inventory = profile?.gearInventory ?? [];
+  const monsters = profile?.ownedMonsters ?? [];
+  const unassignedCount = inventory.filter((g) => !g.equippedToMonsterId).length;
+
+  const monsterRows = monsters
+    .map((om) => ({
+      id: `monster:${om.id}`,
+      label: monsterDisplayLabel(om),
+      count: inventory.filter((g) => g.equippedToMonsterId === om.id).length,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return [
+    { id: 'all', label: `All (${inventory.length})` },
+    ...monsterRows.map((row) => ({
+      ...row,
+      label: `${row.label} (${row.count})`,
+    })),
+    { id: 'unassigned', label: `Unassigned (${unassignedCount})` },
+  ];
+}
 
 function socketedGemRows(gear) {
   return (gear?.sockets ?? [])
@@ -63,9 +81,16 @@ export default function GearInventoryPanel({
   fullHeight,
 }) {
   const [filter, setFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('rarity');
+  const [sortBy, setSortBy] = useState('slot');
   const [mythicSellConfirm, setMythicSellConfirm] = useState(null);
   const [inspectGear, setInspectGear] = useState(null);
+
+  const filters = useMemo(() => buildMonsterFilters(profile), [profile]);
+
+  useEffect(() => {
+    if (filter === 'all' || filter === 'unassigned') return;
+    if (!filters.some((f) => f.id === filter)) setFilter('all');
+  }, [filter, filters]);
 
   function requestSell(gear) {
     if (!onSell) return;
@@ -124,22 +149,23 @@ export default function GearInventoryPanel({
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-        {FILTERS.map((f) => (
+        {filters.map((f) => (
           <TouchableOpacity
             key={f.id}
             style={[styles.chip, filter === f.id && styles.chipOn]}
             onPress={() => setFilter(f.id)}
           >
-            <Text style={[styles.chipTxt, filter === f.id && styles.chipTxtOn]}>{f.label}</Text>
+            <Text style={[styles.chipTxt, filter === f.id && styles.chipTxtOn]} numberOfLines={1}>
+              {f.label}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
       <View style={styles.sortRow}>
         {[
+          { id: 'slot', label: 'Slot' },
           { id: 'rarity', label: 'Rarity' },
-          { id: 'slot', label: 'Type' },
-          { id: 'equipped', label: 'Status' },
         ].map((s) => (
           <TouchableOpacity
             key={s.id}
@@ -157,7 +183,13 @@ export default function GearInventoryPanel({
         keyboardShouldPersistTaps="handled"
       >
         {list.length === 0 ? (
-          <Text style={styles.muted}>No gear yet. Buy from the shop or earn from chests.</Text>
+          <Text style={styles.muted}>
+            {filter === 'unassigned'
+              ? 'No unassigned gear in stash.'
+              : filter.startsWith('monster:')
+                ? 'No gear equipped on this monster.'
+                : 'No gear yet. Buy from the shop or earn from chests.'}
+          </Text>
         ) : (
           list.map((g) => {
             const card = gearCardSummary(g, profile);
@@ -286,7 +318,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#4c1d95',
   },
   equipBtnTxt: { color: GEAR_UI.tabTxtOn, fontWeight: '900', fontSize: 11, textTransform: 'uppercase' },
-  chipScroll: { maxHeight: 38, marginBottom: 6 },
+  chipScroll: { maxHeight: 42, marginBottom: 6 },
   chip: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -295,6 +327,7 @@ const styles = StyleSheet.create({
     borderColor: GEAR_UI.tabBorder,
     backgroundColor: GEAR_UI.tab,
     marginRight: 6,
+    maxWidth: 168,
   },
   chipOn: { backgroundColor: GEAR_UI.tabOn, borderColor: GEAR_UI.tabOnBorder },
   chipTxt: { color: GEAR_UI.tabTxt, fontSize: 11, fontWeight: '900' },
