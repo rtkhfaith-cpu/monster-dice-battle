@@ -43,6 +43,7 @@ function buildMonsterFilters(profile) {
       label: monsterDisplayLabel(om),
       count: inventory.filter((g) => g.equippedToMonsterId === om.id).length,
     }))
+    .filter((row) => row.count > 0)
     .sort((a, b) => a.label.localeCompare(b.label));
 
   return [
