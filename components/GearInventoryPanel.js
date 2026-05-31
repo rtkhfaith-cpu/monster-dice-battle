@@ -93,7 +93,6 @@ export default function GearInventoryPanel({
 }) {
   const [filter, setFilter] = useState('all');
   const [socketFilter, setSocketFilter] = useState(null);
-  const [sortBy, setSortBy] = useState('rarity');
   const [mythicSellConfirm, setMythicSellConfirm] = useState(null);
   const [inspectGear, setInspectGear] = useState(null);
 
@@ -143,8 +142,8 @@ export default function GearInventoryPanel({
 
   const list = useMemo(() => {
     const filtered = filterGearBySockets(monsterFiltered, socketFilter);
-    return sortGearInventory(filtered, sortBy);
-  }, [monsterFiltered, socketFilter, sortBy]);
+    return sortGearInventory(filtered, 'rarity');
+  }, [monsterFiltered, socketFilter]);
 
   useEffect(() => {
     if (!inspectGear?.instanceId) return;
@@ -201,13 +200,6 @@ export default function GearInventoryPanel({
             <Text style={[styles.chipTxt, socketFilter === s.id && styles.chipTxtOn]}>{s.label}</Text>
           </TouchableOpacity>
         ))}
-        <View style={styles.sortSpacer} />
-        <TouchableOpacity
-          style={[styles.sortChip, sortBy === 'rarity' && styles.chipOn]}
-          onPress={() => setSortBy('rarity')}
-        >
-          <Text style={[styles.chipTxt, sortBy === 'rarity' && styles.chipTxtOn]}>Rarity</Text>
-        </TouchableOpacity>
       </View>
 
       <View style={styles.listWrap}>
@@ -373,7 +365,6 @@ const styles = StyleSheet.create({
   chipTxt: { color: GEAR_UI.tabTxt, fontSize: 11, fontWeight: '900' },
   chipTxtOn: { color: GEAR_UI.tabTxtOn },
   sortRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6, flexWrap: 'wrap', flexShrink: 0 },
-  sortSpacer: { flex: 1, minWidth: 4 },
   sortChip: {
     paddingHorizontal: 10,
     paddingVertical: 5,
