@@ -22,7 +22,7 @@ import {
   normalizeProfileGear,
   expMultiplierFromEquipment,
 } from './gearStorage';
-import { scaleExpGain, bossExpForEnemyLevel } from '../src/gameBalance/rewards';
+import { scaleExpGain } from '../src/gameBalance/rewards';
 import { evolutionStageFromLevel, visualFormTierFromLevel } from './evolution';
 import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
 import { applyStageClear, markRescueChestClaimed, normalizeMonsterRescue } from './monsterRescue/progress';
@@ -95,10 +95,11 @@ import {
 import { getGearInstance } from '../src/gameSystems/gear/inventoryGearUtils';
 import { grantDungeonRewards } from './dungeon/dungeonRewards';
 import { getDungeonBoss } from './dungeon/dungeonBosses';
+import { computeDungeonTeamExp, dungeonPetExpForShare } from './dungeon/dungeonExp';
 import { getPetDef } from '../src/gameSystems/pets';
 import { getPassiveSkillDef } from '../src/gameSystems/passiveSkills';
 import { applyPassiveSkillBookDrop } from './passiveSkillChest';
-import { mainBattleChestDuplicateGold } from './mainBattleChest';
+import { mainBattleChestDuplicateGold, chestDropTitle } from './mainBattleChest';
 import { evolutionFormForMonster } from './monsterEvolutionForms';
 import { applyMonsterTheme } from './monsterThemes';
 import { getMonsterTemplate, rarityRank } from './monsterTemplates';
@@ -926,30 +927,123 @@ export function claimDungeonRewards(gameData, profileId, bossId, teamOwnedIds = 
   const boss = getDungeonBoss(bossId);
   if (!boss) return { gameData: gd, drops: [], error: 'Unknown dungeon boss' };
   const res = grantDungeonRewards(profile, boss);
-  const expGrant = grantDungeonTeamExp(profile, teamOwnedIds, boss.level ?? 60);
+  const chestGrant = grantDungeonMiniBossChests(profile, boss, teamOwnedIds);
+  const expGrant = grantDungeonTeamExp(profile, teamOwnedIds, boss);
   profile.updatedAt = new Date().toISOString();
-  return { gameData: gd, drops: res.drops, ...expGrant };
+  return { gameData: gd, drops: res.drops, chestDrops: chestGrant.chestDrops, ...expGrant };
+}
+
+/** Roll + apply mini-boss-style chests for a dungeon clear (same tables as 1v CPU mini boss). */
+function grantDungeonMiniBossChests(profile, boss, teamOwnedIds = []) {
+  const count = Math.max(0, Math.floor(boss?.rewards?.chestCount ?? 0));
+  if (!count || !profile) return { chestDrops: [] };
+  const wallet = profile;
+  const enemyLevel = boss.level ?? 60;
+  const expOwnedId = (teamOwnedIds || []).find(Boolean) ?? null;
+  const chestDrops = [];
+  for (let i = 0; i < count; i += 1) {
+    const drop = rollMainBattleChestDrop(profile, { enemyLevel });
+    const applied = applyMainBattleChestDrop(profile, wallet, drop, { enemyLevel, expOwnedId });
+    chestDrops.push({
+      ...applied,
+      emoji: chestDropEmoji(applied),
+      name: chestDropTitle(applied),
+      kind: 'chest',
+    });
+  }
+  return { chestDrops };
+}
+
+function chestDropEmoji(drop) {
+  if (!drop) return '📦';
+  if (drop.kind === 'gold') return '🪙';
+  if (drop.kind === 'exp') return '⭐';
+  if (drop.kind === 'gem') return drop.emoji ?? '💎';
+  if (drop.kind === 'gear' || drop.kind === 'gear_instance') return '⚔️';
+  if (drop.kind === 'monster') return '🐲';
+  if (drop.kind === 'pet') return drop.emoji ?? '🐾';
+  if (drop.kind === 'pet_exp_dust') return '✨';
+  if (drop.kind === 'skill_book') return '📖';
+  return '📦';
+}
+
+/** Apply a rolled mini-boss chest reward into profile + wallet. */
+function applyMainBattleChestDrop(profile, wallet, drop, { enemyLevel = 1, expOwnedId = null } = {}) {
+  const applied = { ...drop };
+
+  if (drop.kind === 'gold') {
+    wallet.coins += drop.amount;
+    applied.coinsTotal = wallet.coins;
+  } else if (drop.kind === 'exp') {
+    applied.expPack = grantExpInWallet(wallet, expOwnedId, drop.amount);
+  } else if (drop.kind === 'gear' || drop.kind === 'gear_instance') {
+    const gearGrant = drop.gear
+      ? { ok: true, gear: drop.gear }
+      : grantGearDropToProfile(profile, 'miniBoss');
+    if (gearGrant.ok && gearGrant.gear) {
+      applied.kind = 'gear_instance';
+      applied.gear = gearGrant.gear;
+      applied.gearName = gearGrant.gear.name;
+      applied.rarity = gearGrant.gear.rarity;
+      applied.label = `${gearGrant.gear.rarity} ${gearGrant.gear.name}`;
+      applied.statLines = (gearGrant.gear.stats || []).map((s) => `+${s.value} ${s.type}`);
+      applied.socketCount = gearGrant.gear.sockets?.length ?? 0;
+    } else if (gearGrant.skipped) {
+      applied.kind = 'gold';
+      const bonus = mainBattleChestDuplicateGold(enemyLevel);
+      wallet.coins += bonus;
+      applied.amount = bonus;
+      applied.label = `+${bonus} coins`;
+    }
+  } else if (drop.kind === 'monster') {
+    const granted = grantChestMonsterToProfile(profile, drop);
+    if (granted) {
+      applied.duplicate = granted.duplicate;
+      applied.ownedCount = countOwnedMonsterTemplate(wallet, drop.id);
+      applied.ownedId = granted.ownedId;
+    }
+  } else if (drop.kind === 'skill_book') {
+    const grant = applyPassiveSkillBookDrop(profile, drop, 'mini_boss_chest');
+    applied.skillBook = grant.book;
+    applied.duplicate = !grant.ok && grant.duplicate;
+    if (!grant.ok && grant.duplicate) {
+      const bonus = mainBattleChestDuplicateGold(enemyLevel);
+      wallet.coins += bonus;
+      applied.kind = 'gold';
+      applied.amount = bonus;
+      applied.label = `+${bonus} coins (duplicate passive)`;
+    }
+  } else if (drop.kind === 'pet' || drop.kind === 'pet_exp_dust') {
+    const grant = applyPetChestDrop(profile, drop);
+    applied.duplicate = grant.duplicate;
+    applied.petExpDust = grant.petExpDust ?? drop.amount;
+    applied.petExpDustTotal = profile.petExpDust;
+    applied.pet = grant.pet;
+    applied.monsterChestShards = grant.monsterChestShards ?? 0;
+    applied.ladderShardsTotal = grant.ladderShardsTotal ?? 0;
+  } else if (drop.kind === 'gem') {
+    grantGemToProfile(profile, drop.gemKey, 1);
+  }
+
+  return applied;
 }
 
 /** Grant monster + equipped-pet EXP to each dungeon team member after a boss kill. */
-function grantDungeonTeamExp(profile, teamOwnedIds, bossLevel) {
-  const baseExp = bossExpForEnemyLevel(bossLevel, 'bigBoss');
+function grantDungeonTeamExp(profile, teamOwnedIds, boss) {
+  const { sharePerMember, totalExp } = computeDungeonTeamExp(boss);
+  const petShare = dungeonPetExpForShare(sharePerMember);
   const expPacks = [];
   const petExpPacks = [];
   const seen = new Set();
   for (const ownedId of teamOwnedIds || []) {
     if (!ownedId || seen.has(ownedId)) continue;
     seen.add(ownedId);
-    const expAmt = applyExpBonus(profile, ownedId, baseExp);
+    const expAmt = applyExpBonus(profile, ownedId, sharePerMember);
     expPacks.push({ ownedId, ...grantExpInWallet(profile, ownedId, expAmt) });
-    const petPack = awardPetExpToEquippedMonster(
-      profile,
-      ownedId,
-      Math.max(2, Math.floor(baseExp * 0.3)),
-    );
+    const petPack = awardPetExpToEquippedMonster(profile, ownedId, petShare);
     if (petPack.ok) petExpPacks.push({ ownedId, ...petPack });
   }
-  return { expPacks, petExpPacks, baseExp };
+  return { expPacks, petExpPacks, baseExp: sharePerMember, totalExp };
 }
 
 /** @deprecated slot unlock removed — fixed 7 equipment slots per monster */
@@ -1337,61 +1431,10 @@ export function claimMainBattleMiniBossChest(gameData, profileId, payload = {}) 
   if (!profile || !wallet) return { gameData: gd, drop: null, error: 'Profile not found.' };
 
   const drop = rollMainBattleChestDrop(profile, { enemyLevel: payload.enemyLevel ?? 1 });
-  const applied = { ...drop };
-
-  if (drop.kind === 'gold') {
-    wallet.coins += drop.amount;
-    applied.coinsTotal = wallet.coins;
-  } else if (drop.kind === 'exp') {
-    applied.expPack = grantExpInWallet(wallet, payload.p1OwnedId ?? null, drop.amount);
-  } else if (drop.kind === 'gear' || drop.kind === 'gear_instance') {
-    const gearGrant = drop.gear
-      ? { ok: true, gear: drop.gear }
-      : grantGearDropToProfile(profile, 'miniBoss');
-    if (gearGrant.ok && gearGrant.gear) {
-      applied.kind = 'gear_instance';
-      applied.gear = gearGrant.gear;
-      applied.gearName = gearGrant.gear.name;
-      applied.rarity = gearGrant.gear.rarity;
-      applied.label = `${gearGrant.gear.rarity} ${gearGrant.gear.name}`;
-      applied.statLines = (gearGrant.gear.stats || []).map((s) => `+${s.value} ${s.type}`);
-      applied.socketCount = gearGrant.gear.sockets?.length ?? 0;
-    } else if (gearGrant.skipped) {
-      applied.kind = 'gold';
-      const bonus = mainBattleChestDuplicateGold(payload.enemyLevel ?? 1);
-      wallet.coins += bonus;
-      applied.amount = bonus;
-      applied.label = `+${bonus} coins`;
-    }
-  } else if (drop.kind === 'monster') {
-    const granted = grantChestMonsterToProfile(profile, drop);
-    if (granted) {
-      applied.duplicate = granted.duplicate;
-      applied.ownedCount = countOwnedMonsterTemplate(wallet, drop.id);
-      applied.ownedId = granted.ownedId;
-    }
-  } else if (drop.kind === 'skill_book') {
-    const grant = applyPassiveSkillBookDrop(profile, drop, 'mini_boss_chest');
-    applied.skillBook = grant.book;
-    applied.duplicate = !grant.ok && grant.duplicate;
-    if (!grant.ok && grant.duplicate) {
-      const bonus = mainBattleChestDuplicateGold(payload.enemyLevel ?? 1);
-      wallet.coins += bonus;
-      applied.kind = 'gold';
-      applied.amount = bonus;
-      applied.label = `+${bonus} coins (duplicate passive)`;
-    }
-  } else if (drop.kind === 'pet' || drop.kind === 'pet_exp_dust') {
-    const grant = applyPetChestDrop(profile, drop);
-    applied.duplicate = grant.duplicate;
-    applied.petExpDust = grant.petExpDust ?? drop.amount;
-    applied.petExpDustTotal = profile.petExpDust;
-    applied.pet = grant.pet;
-    applied.monsterChestShards = grant.monsterChestShards ?? 0;
-    applied.ladderShardsTotal = grant.ladderShardsTotal ?? 0;
-  } else if (drop.kind === 'gem') {
-    grantGemToProfile(profile, drop.gemKey, 1);
-  }
+  const applied = applyMainBattleChestDrop(profile, wallet, drop, {
+    enemyLevel: payload.enemyLevel ?? 1,
+    expOwnedId: payload.p1OwnedId ?? null,
+  });
 
   return { gameData: gd, drop: applied };
 }

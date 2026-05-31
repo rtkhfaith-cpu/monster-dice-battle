@@ -1433,15 +1433,16 @@ export default function App() {
 
   /** Grant a dungeon boss's rewards, persist, and return drops + EXP summary. */
   function handleClaimDungeonRewards(bossId, teamOwnedIds = []) {
-    if (!gameData || !setupP1ProfileId) return { drops: [], expPacks: [], petExpPacks: [] };
+    if (!gameData || !setupP1ProfileId) return { drops: [], chestDrops: [], expPacks: [], petExpPacks: [] };
     const res = claimDungeonRewards(gameData, setupP1ProfileId, bossId, teamOwnedIds);
     if (res.error) {
       showNotice('Dungeon', res.error);
-      return { drops: [], expPacks: [], petExpPacks: [] };
+      return { drops: [], chestDrops: [], expPacks: [], petExpPacks: [] };
     }
     persistSave(res.gameData, 'dungeon_cleared', setupP1ProfileId);
     return {
       drops: res.drops ?? [],
+      chestDrops: res.chestDrops ?? [],
       expPacks: res.expPacks ?? [],
       petExpPacks: res.petExpPacks ?? [],
       baseExp: res.baseExp ?? 0,

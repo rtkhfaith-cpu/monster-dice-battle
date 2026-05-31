@@ -82,6 +82,8 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
     activeTheme: 'grass',
     wasOnGround: true,
     shakeMs: 0,
+    /** Px until next random single-hurdle spawn. */
+    randomHurdleCooldownPx: 90,
     /** No hazard damage until this reaches 0 (ms). */
     safeMsRemaining: 0,
     player: {
@@ -120,7 +122,7 @@ export function startMonsterRushRun(state) {
   state.awaitingStart = false;
   state.isRunning = true;
   state.isPaused = false;
-  state.safeMsRemaining = 2100;
+  state.safeMsRemaining = 1800;
   state.runRng = makeRunRng(state.runSeed);
   state.recentPatternIds = [];
   state.lastRhythmPhase = '';
@@ -128,6 +130,7 @@ export function startMonsterRushRun(state) {
   state.spawnCooldownPx = lead;
   state.lastPatternEndX = state.gameWidth + 48;
   state.patternsSpawned = 0;
+  state.randomHurdleCooldownPx = lead + 120;
   return true;
 }
 
@@ -188,6 +191,74 @@ function spawnPatternCoins(state, baseX, item) {
   }
 }
 
+function pushHazard(state, item) {
+  const def = obstacleTypeDef(item.type);
+  const w = item.width ?? def.width ?? 40;
+  const h = item.height ?? def.height ?? 40;
+  const x = item.x;
+  const y = typeof item.y === 'number' ? item.y : resolveItemY(state, item, def);
+  if (!def.hazard) return;
+  state.hazards.push({
+    id: nextId('hz'),
+    typeId: item.type,
+    x,
+    y,
+    width: w,
+    height: h,
+    shape: def.shape,
+    color: def.color,
+    stroke: def.stroke,
+    hitScale: def.hitScale,
+    anchorCeiling: def.anchor === 'ceiling' || item.y === 'ceiling',
+  });
+}
+
+/** Random single hurdles between pattern chains — keeps runs unpredictable. */
+const RANDOM_HURDLE_POOL = [
+  { type: 'spike', weight: 28 },
+  { type: 'low_block', weight: 22 },
+  { type: 'rock', weight: 18 },
+  { type: 'tall_block', weight: 14 },
+  { type: 'fire_trap', weight: 10 },
+  { type: 'ice_block', weight: 8 },
+  { type: 'floating_barrier', weight: 8, y: 'ground_minus_52' },
+  { type: 'top_barrier', weight: 6, y: 'ceiling', minScrollPx: 350 },
+  { type: 'top_spike', weight: 5, y: 'ceiling', minScrollPx: 500 },
+];
+
+function pickRandomHurdleType(scrollPx, rng) {
+  const pool = RANDOM_HURDLE_POOL.filter((e) => (e.minScrollPx ?? 0) <= scrollPx);
+  const total = pool.reduce((s, e) => s + e.weight, 0);
+  let roll = rng() * total;
+  for (const entry of pool) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry;
+  }
+  return pool[0];
+}
+
+function trySpawnRandomHurdle(state) {
+  if (state.safeMsRemaining > 0) return;
+  if ((state.randomHurdleCooldownPx ?? 0) > 0) return;
+  const rng = state.runRng ?? Math.random;
+  const pick = pickRandomHurdleType(state.scrollPx, rng);
+  if (!pick) return;
+
+  const ahead = 180 + Math.floor(rng() * 160);
+  const x = state.gameWidth + ahead;
+  const item = {
+    type: pick.type,
+    x,
+    y: pick.y ?? 'ground',
+    width: pick.width,
+    height: pick.height,
+  };
+  pushHazard(state, item);
+
+  const gap = (95 + rng() * 115) / RUSH_OBSTACLE_DENSITY;
+  state.randomHurdleCooldownPx = Math.max(65, Math.floor(gap));
+}
+
 function spawnPattern(state, pattern, phase = 'single') {
   const rng = state.runRng ?? Math.random;
   const chain = patternChainSpacing(state.scrollPx, phase, rng);
@@ -234,21 +305,13 @@ function spawnPattern(state, pattern, phase = 'single') {
         stroke: def.stroke,
       });
     } else if (def.hazard) {
-      const hazard = {
-        id: nextId('hz'),
-        typeId: item.type,
+      pushHazard(state, {
+        type: item.type,
         x,
         y,
         width: w,
         height: h,
-        shape: def.shape,
-        color: def.color,
-        stroke: def.stroke,
-        hitScale: def.hitScale,
-        anchorCeiling: def.anchor === 'ceiling',
-      };
-      hazard.hitbox = resolveHazardHitbox(hazard, state.ceilingThickness);
-      state.hazards.push(hazard);
+      });
     }
   }
 
@@ -274,7 +337,7 @@ function trySpawnPattern(state) {
     || state.platforms.length > 0
     || state.gaps.length > 0;
   const horizon = spawnHorizonPx(state);
-  if (hasWorld && state.lastPatternEndX > horizon + 80) return;
+  if (hasWorld && state.lastPatternEndX > horizon + 40) return;
 
   if (hasWorld && state.lastPatternEndX < horizon) state.lastPatternEndX = horizon;
 
@@ -354,7 +417,7 @@ function applyGroundAndGaps(state, dtScale) {
 }
 
 const MAX_PARTICLES = 10;
-const MAX_HAZARDS = 24;
+const MAX_HAZARDS = 32;
 const MAX_PLATFORMS = 8;
 const MAX_GAPS = 7;
 const MAX_COINS = 10;
@@ -438,6 +501,8 @@ export function tickMonsterRush(state, dtMs) {
   }
 
   state.spawnCooldownPx = Math.max(0, state.spawnCooldownPx - movePx);
+  state.randomHurdleCooldownPx = Math.max(0, (state.randomHurdleCooldownPx ?? 0) - movePx);
+  trySpawnRandomHurdle(state);
   trySpawnPattern(state);
 
   if (state.safeMsRemaining > 0) {
@@ -449,10 +514,10 @@ export function tickMonsterRush(state, dtMs) {
   const pRight = pBox.x + pBox.width;
   for (let i = 0; i < hazards.length; i += 1) {
     const h = hazards[i];
-    if (state.safeMsRemaining > 0) break;
-    if (h.x > state.gameWidth + 20) continue;
-    if (h.x + h.width < pBox.x - 8) continue;
-    const box = h.hitbox ?? resolveHazardHitbox(h, state.ceilingThickness);
+    if (state.safeMsRemaining > 0) continue;
+    if (h.x + h.width < pBox.x - 4) continue;
+    if (h.x > pBox.x + pBox.width + 4) continue;
+    const box = resolveHazardHitbox(h, state.ceilingThickness);
     if (rectsOverlap(pBox, box)) {
       state.isGameOver = true;
       state.isRunning = false;

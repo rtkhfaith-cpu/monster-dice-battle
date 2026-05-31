@@ -20,9 +20,9 @@ import {
   togglePauseMonsterRush,
 } from '../../utils/monsterRush/monsterRushEngine';
 import { clampPlayfieldToViewport, getViewportLandscapeSize } from '../../utils/monsterRush/monsterRushArenaSize';
-import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
-import { MONSTER_RUSH_CEILING } from '../../utils/monsterRush/monsterRushConfig';
+import { MONSTER_RUSH_PHYSICS, MONSTER_RUSH_CEILING } from '../../utils/monsterRush/monsterRushConfig';
 import { runnerBoxImageStyle } from '../../utils/monsterRush/monsterRushRunnerImage';
+import { playSound } from '../../utils/sounds';
 
 /** Mobile Safari/Chrome — cap canvas redraw rate to reduce iPad lag. */
 function canvasDrawIntervalMs() {
@@ -37,8 +37,6 @@ function canvasDprCap() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   return isMobile ? 1 : Math.min(1.25, window.devicePixelRatio || 1);
 }
-
-import { playSound } from '../../utils/sounds';
 
 const USE_CANVAS = Platform.OS === 'web' && typeof document !== 'undefined';
 /** React fallback render rate (native / no canvas). */

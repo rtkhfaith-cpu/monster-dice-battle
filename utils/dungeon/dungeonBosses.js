@@ -95,7 +95,7 @@ export const DUNGEON_BOSSES = [
     battleGround: GAME_ASSETS.dungeonBattleGroundRescueArena,
     spawnFrequencyDays: 1,
     recommendedPower: 80000,
-    rewardsText: 'Drops 3 random Epic or Legendary items',
+    rewardsText: 'Drops 3 random Epic or Legendary items + 3 mini-boss chests',
     blurb: 'Physical dark boss. Tests whether your Position 1 can tank stun and cleave.',
     stats: {
       hp: 165000, attack: 4960, magicAttack: 2720, defence: 3200, magicDefence: 2400,
@@ -105,6 +105,7 @@ export const DUNGEON_BOSSES = [
     pattern: DEATH_KNIGHT_PATTERN,
     rewards: {
       dropCount: 3,
+      chestCount: 3,
       dropRarityPool: ['epic', 'legendary'],
       dropCategoryPool: ['equipment', 'skill', 'monster', 'pet', 'gem'],
       gemRarityCap: 'epic',
@@ -119,7 +120,7 @@ export const DUNGEON_BOSSES = [
     battleGround: GAME_ASSETS.dungeonBattleGroundIceQueen,
     spawnFrequencyDays: 2,
     recommendedPower: 140000,
-    rewardsText: 'Drops 1 random Mythic item and 2 random Epic items',
+    rewardsText: 'Drops 1 random Mythic item and 2 random Epic items + 5 mini-boss chests',
     blurb: 'Magic-control boss. Tests Magic Defence, healing, cleanse and freeze resistance.',
     stats: {
       hp: 290000, attack: 3800, magicAttack: 8200, defence: 4000, magicDefence: 5800,
@@ -132,6 +133,7 @@ export const DUNGEON_BOSSES = [
         { rarity: 'mythic', count: 1 },
         { rarity: 'epic', count: 2 },
       ],
+      chestCount: 5,
       dropCategoryPool: ['equipment', 'skill', 'monster', 'pet', 'gem'],
       gemRarityCap: 'epic',
     },
@@ -145,7 +147,7 @@ export const DUNGEON_BOSSES = [
     battleGround: GAME_ASSETS.dungeonBattleGroundRescueArena,
     spawnFrequencyDays: 3,
     recommendedPower: 280000,
-    rewardsText: 'Drops 3 random Mythic items, including possible Mythic Gems',
+    rewardsText: 'Drops 3 random Mythic items (incl. Mythic gems) + 7 mini-boss chests',
     blurb: 'End-game raid boss. Demands a real team: tank, healer/support, damager, pets and gems.',
     stats: {
       hp: 520000, attack: 11000, magicAttack: 11000, defence: 7200, magicDefence: 7200,
@@ -156,6 +158,7 @@ export const DUNGEON_BOSSES = [
     enragedPattern: BLACK_DRAGON_PATTERN_ENRAGED,
     rewards: {
       dropCount: 3,
+      chestCount: 7,
       dropRarityPool: ['mythic'],
       dropCategoryPool: ['equipment', 'skill', 'monster', 'pet', 'gem'],
       gemRarityCap: 'mythic',

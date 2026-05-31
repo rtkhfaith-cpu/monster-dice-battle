@@ -204,6 +204,5 @@ export function hazardHitbox(entity, ceilingThickness = 12) {
 
 /** Cached hitbox from spawn, or compute on the fly. */
 export function resolveHazardHitbox(entity, ceilingThickness = 12) {
-  if (entity.hitbox) return entity.hitbox;
   return hazardHitbox(entity, ceilingThickness);
 }

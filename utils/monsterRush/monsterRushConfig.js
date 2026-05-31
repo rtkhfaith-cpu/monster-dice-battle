@@ -25,7 +25,7 @@ export const MONSTER_RUSH_PHYSICS = {
 };
 
 /** >1 = tighter pattern spacing / recovery (more obstacles per run). */
-export const RUSH_OBSTACLE_DENSITY = 1.3;
+export const RUSH_OBSTACLE_DENSITY = 1.4;
 
 /** Playfield ceiling — top barriers hang from this slab (also part of hazard hitbox). */
 export const MONSTER_RUSH_CEILING = {

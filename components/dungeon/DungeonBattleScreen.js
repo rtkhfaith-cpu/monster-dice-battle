@@ -193,16 +193,27 @@ export default function DungeonBattleScreen({ boss, team, profile, onExit, onCla
                   </Text>
                 ) : null}
                 <ScrollView style={styles.rewardList}>
-                  {(rewards?.drops ?? []).length === 0 ? (
+                  {(rewards?.drops ?? []).length === 0 && (rewards?.chestDrops ?? []).length === 0 ? (
                     <Text style={styles.rewardEmpty}>Rewards granted to your inventory.</Text>
                   ) : (
-                    (rewards?.drops ?? []).map((d, i) => (
-                      <Text key={`${d.name}_${i}`} style={styles.rewardLine}>
-                        {d.emoji ?? '🎁'} {d.name}{' '}
-                        <Text style={styles.rewardRarity}>({d.rarity})</Text>
-                        {d.duplicate ? ' · duplicate' : ''}
-                      </Text>
-                    ))
+                    <>
+                      {(rewards?.drops ?? []).map((d, i) => (
+                        <Text key={`drop_${d.name}_${i}`} style={styles.rewardLine}>
+                          {d.emoji ?? '🎁'} {d.name}{' '}
+                          <Text style={styles.rewardRarity}>({d.rarity})</Text>
+                          {d.duplicate ? ' · duplicate' : ''}
+                        </Text>
+                      ))}
+                      {(rewards?.chestDrops ?? []).map((d, i) => (
+                        <Text key={`chest_${d.name}_${i}`} style={styles.rewardLine}>
+                          {d.emoji ?? '📦'} Chest: {d.name}{' '}
+                          {d.rarity ? (
+                            <Text style={styles.rewardRarity}>({d.rarity})</Text>
+                          ) : null}
+                          {d.duplicate ? ' · duplicate' : ''}
+                        </Text>
+                      ))}
+                    </>
                   )}
                 </ScrollView>
               </>

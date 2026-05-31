@@ -262,7 +262,7 @@ export function patternChainSpacing(scrollPx, phase = 'single', rng = null) {
   const denseBase = base / RUSH_OBSTACLE_DENSITY;
   if (!rng) return Math.floor(denseBase);
   const jitter = 0.88 + rng() * 0.24;
-  return Math.max(140, Math.floor(denseBase * jitter));
+  return Math.max(100, Math.floor(denseBase * jitter));
 }
 
 /** @deprecated — use patternChainSpacing */
