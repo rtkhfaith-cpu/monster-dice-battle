@@ -70,6 +70,11 @@ export default function GemManagerPanel({
                       {GEM_STAT_LABELS[row.gem.stat] ?? row.gem.stat} · Lv {row.gem.level}
                     </Text>
                     <Text style={styles.socketedMeta}>{row.gearName}</Text>
+                    {row.equippedMonsterName ? (
+                      <Text style={styles.socketedMonster}>Equipped on {row.equippedMonsterName}</Text>
+                    ) : (
+                      <Text style={styles.socketedMonsterMuted}>Unassigned gear</Text>
+                    )}
                   </View>
                 </View>
               );
@@ -196,4 +201,6 @@ const styles = StyleSheet.create({
   socketedBody: { flex: 1, minWidth: 0 },
   socketedName: { fontWeight: '900', fontSize: 11 },
   socketedMeta: { color: GEAR_UI.sub, fontSize: 10, fontWeight: '800', marginTop: 2 },
+  socketedMonster: { color: '#fcd34d', fontSize: 10, fontWeight: '900', marginTop: 2 },
+  socketedMonsterMuted: { color: GEAR_UI.muted, fontSize: 10, fontWeight: '800', marginTop: 2, fontStyle: 'italic' },
 });

@@ -30,7 +30,7 @@ import {
   makeGemDef,
   parseGemKey,
 } from './gemDefinitions';
-import { ensureGearInventory, getGearInstance } from '../gear/inventoryGearUtils';
+import { ensureGearInventory, getGearInstance, getMonsterNameForGear } from '../gear/inventoryGearUtils';
 
 function isValidGemKey(key) {
   return !!parseGemKey(key);
@@ -156,6 +156,8 @@ export function listSocketedGems(profile) {
       out.push({
         gearInstanceId: gear.instanceId,
         gearName: gear.name,
+        equippedToMonsterId: gear.equippedToMonsterId ?? null,
+        equippedMonsterName: getMonsterNameForGear(profile, gear.instanceId),
         socketIndex: i,
         gem,
       });
