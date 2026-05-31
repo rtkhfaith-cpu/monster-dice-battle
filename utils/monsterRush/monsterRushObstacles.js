@@ -160,8 +160,24 @@ export function obstacleTypeDef(type) {
 }
 
 /** Shrink hitbox inside visual bounds for fair collisions. */
-export function hazardHitbox(entity) {
+export function hazardHitbox(entity, ceilingThickness = 12) {
   const scale = entity.hitScale ?? 0.85;
+  const isCeilingHazard = entity.anchorCeiling
+    || entity.shape === 'top_barrier'
+    || entity.shape === 'ceiling_spike';
+
+  if (isCeilingHazard) {
+    const w = entity.width * scale;
+    const padX = (entity.width - w) / 2;
+    const bottom = entity.y + entity.height;
+    return {
+      x: entity.x + padX,
+      y: 0,
+      width: w,
+      height: Math.max(ceilingThickness, bottom),
+    };
+  }
+
   let w = entity.width * scale;
   let h = entity.height * scale;
   const padX = (entity.width - w) / 2;
@@ -184,4 +200,10 @@ export function hazardHitbox(entity) {
     width: w,
     height: h,
   };
+}
+
+/** Cached hitbox from spawn, or compute on the fly. */
+export function resolveHazardHitbox(entity, ceilingThickness = 12) {
+  if (entity.hitbox) return entity.hitbox;
+  return hazardHitbox(entity, ceilingThickness);
 }

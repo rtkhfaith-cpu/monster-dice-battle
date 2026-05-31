@@ -24,6 +24,17 @@ export const MONSTER_RUSH_PHYSICS = {
   scrollPxPerSecPerSpeed: 28,
 };
 
+/** >1 = tighter pattern spacing / recovery (more obstacles per run). */
+export const RUSH_OBSTACLE_DENSITY = 1.3;
+
+/** Playfield ceiling — top barriers hang from this slab (also part of hazard hitbox). */
+export const MONSTER_RUSH_CEILING = {
+  thickness: 12,
+  fill: '#44403c',
+  stroke: '#78716c',
+  highlight: '#57534e',
+};
+
 export const MONSTER_RUSH_OBSTACLES = [
   { id: 'spike', name: 'Spike', width: 36, height: 42, emoji: '▲', color: '#94a3b8' },
   { id: 'double_spike', name: 'Double Spike', width: 72, height: 42, emoji: '▲▲', color: '#64748b' },

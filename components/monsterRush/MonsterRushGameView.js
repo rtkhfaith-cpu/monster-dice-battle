@@ -21,7 +21,15 @@ import {
 } from '../../utils/monsterRush/monsterRushEngine';
 import { clampPlayfieldToViewport, getViewportLandscapeSize } from '../../utils/monsterRush/monsterRushArenaSize';
 import { MONSTER_RUSH_PHYSICS } from '../../utils/monsterRush/monsterRushConfig';
+import { MONSTER_RUSH_CEILING } from '../../utils/monsterRush/monsterRushConfig';
 import { runnerBoxImageStyle } from '../../utils/monsterRush/monsterRushRunnerImage';
+
+/** Mobile Safari/Chrome — cap canvas redraw rate to reduce iPad lag. */
+function canvasDrawIntervalMs() {
+  if (typeof window === 'undefined') return 16;
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  return isMobile ? 33 : 16;
+}
 
 /** Mobile Safari/Chrome struggle with high-DPI canvas buffers on long runs. */
 function canvasDprCap() {
@@ -29,6 +37,7 @@ function canvasDprCap() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   return isMobile ? 1 : Math.min(1.25, window.devicePixelRatio || 1);
 }
+
 import { playSound } from '../../utils/sounds';
 
 const USE_CANVAS = Platform.OS === 'web' && typeof document !== 'undefined';
@@ -70,6 +79,7 @@ export default function MonsterRushGameView({
   const canvasRef = useRef(null);
   const canvasCtxRef = useRef(null);
   const isMobileWebRef = useRef(false);
+  const drawIntervalRef = useRef(16);
   const monsterImgRef = useRef(null);
   const hudRefs = useRef({ distance: null, rush: null, coins: null });
   const jumpHeldRef = useRef(false);
@@ -175,6 +185,7 @@ export default function MonsterRushGameView({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       isMobileWebRef.current = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      drawIntervalRef.current = canvasDrawIntervalMs();
     }
   }, []);
 
@@ -267,7 +278,8 @@ export default function MonsterRushGameView({
 
         if (USE_CANVAS) {
           const runActive = !state.awaitingStart && !state.isPaused;
-          const shouldDraw = runActive || state.awaitingStart || state.isPaused || ts - lastDrawTs >= 16;
+          const drawInterval = drawIntervalRef.current;
+          const shouldDraw = runActive || state.awaitingStart || state.isPaused || ts - lastDrawTs >= drawInterval;
           if (shouldDraw) {
             lastDrawTs = ts;
             const ctx = canvasCtxRef.current;
@@ -423,6 +435,7 @@ export default function MonsterRushGameView({
       onPressOut={onJumpPressOut}
     >
       <View style={[styles.sky, styles.skyFill]}>
+        <View style={[styles.ceiling, { height: state.ceilingThickness ?? MONSTER_RUSH_CEILING.thickness }]} />
         <View style={[styles.hills, { bottom: groundH + 8, transform: [{ translateX: -scrollOffset }] }]} />
         <View style={[styles.hills, styles.hills2, { bottom: groundH, transform: [{ translateX: -scrollOffset * 1.4 }] }]} />
 
@@ -561,6 +574,16 @@ const styles = StyleSheet.create({
   },
   skyFill: {
     ...StyleSheet.absoluteFillObject,
+  },
+  ceiling: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: MONSTER_RUSH_CEILING.fill,
+    borderBottomWidth: 2,
+    borderBottomColor: MONSTER_RUSH_CEILING.stroke,
+    zIndex: 2,
   },
   hills: {
     position: 'absolute',

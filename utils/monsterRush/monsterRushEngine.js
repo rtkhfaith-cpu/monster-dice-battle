@@ -1,8 +1,8 @@
 /**
  * Monster Rush endless runner — pattern spawning, platforms, gaps, hazards.
  */
-import { MONSTER_RUSH_PHYSICS, rushSpeedForDistance, rushThemeForDistance } from './monsterRushConfig';
-import { obstacleTypeDef, hazardHitbox } from './monsterRushObstacles';
+import { MONSTER_RUSH_PHYSICS, rushSpeedForDistance, rushThemeForDistance, MONSTER_RUSH_CEILING, RUSH_OBSTACLE_DENSITY } from './monsterRushConfig';
+import { obstacleTypeDef, resolveHazardHitbox } from './monsterRushObstacles';
 import { coinOffsetsForPatternItem } from './monsterRushCoinPatterns';
 import {
   pickValidatedPattern,
@@ -27,7 +27,8 @@ function resolveItemY(state, item, def) {
   const g = state.groundSurfaceY;
   const h = item.height ?? def.height ?? 40;
   const anchor = item.y ?? def.anchor ?? 'ground';
-  if (anchor === 'ceiling') return 0;
+  const ceilingY = state.ceilingThickness ?? MONSTER_RUSH_CEILING.thickness;
+  if (anchor === 'ceiling') return ceilingY;
   if (typeof anchor === 'string' && anchor.startsWith('ground_minus_')) {
     const n = parseInt(anchor.replace('ground_minus_', ''), 10) || 0;
     return g - n - h;
@@ -48,6 +49,7 @@ export function createMonsterRushRun({ gameWidth, gameHeight }) {
     gameWidth,
     gameHeight,
     groundSurfaceY,
+    ceilingThickness: MONSTER_RUSH_CEILING.thickness,
     awaitingStart: true,
     isRunning: false,
     isPaused: false,
@@ -232,7 +234,7 @@ function spawnPattern(state, pattern, phase = 'single') {
         stroke: def.stroke,
       });
     } else if (def.hazard) {
-      state.hazards.push({
+      const hazard = {
         id: nextId('hz'),
         typeId: item.type,
         x,
@@ -243,12 +245,15 @@ function spawnPattern(state, pattern, phase = 'single') {
         color: def.color,
         stroke: def.stroke,
         hitScale: def.hitScale,
-      });
+        anchorCeiling: def.anchor === 'ceiling',
+      };
+      hazard.hitbox = resolveHazardHitbox(hazard, state.ceilingThickness);
+      state.hazards.push(hazard);
     }
   }
 
   state.lastPatternEndX = baseX + pattern.width;
-  state.spawnCooldownPx = pattern.recovery ?? 140;
+  state.spawnCooldownPx = Math.floor((pattern.recovery ?? 140) / RUSH_OBSTACLE_DENSITY);
   state.patternsSpawned = (state.patternsSpawned ?? 0) + 1;
 
   if (state.lastPatternId === pattern.id) {
@@ -348,10 +353,10 @@ function applyGroundAndGaps(state, dtScale) {
   }
 }
 
-const MAX_PARTICLES = 12;
-const MAX_HAZARDS = 18;
+const MAX_PARTICLES = 10;
+const MAX_HAZARDS = 24;
 const MAX_PLATFORMS = 8;
-const MAX_GAPS = 5;
+const MAX_GAPS = 7;
 const MAX_COINS = 10;
 const CULL_BEHIND = 96;
 /** Keep entities this far past the right screen edge (spawn buffer). */
@@ -441,11 +446,14 @@ export function tickMonsterRush(state, dtMs) {
 
   const pBox = playerCollisionBox(state);
   const hazards = state.hazards;
+  const pRight = pBox.x + pBox.width;
   for (let i = 0; i < hazards.length; i += 1) {
     const h = hazards[i];
     if (state.safeMsRemaining > 0) break;
     if (h.x > state.gameWidth + 20) continue;
-    if (rectsOverlap(pBox, hazardHitbox(h))) {
+    if (h.x + h.width < pBox.x - 8) continue;
+    const box = h.hitbox ?? resolveHazardHitbox(h, state.ceilingThickness);
+    if (rectsOverlap(pBox, box)) {
       state.isGameOver = true;
       state.isRunning = false;
       state.shakeMs = 480;
@@ -455,6 +463,7 @@ export function tickMonsterRush(state, dtMs) {
 
   for (let i = state.coins.length - 1; i >= 0; i -= 1) {
     const coin = state.coins[i];
+    if (coin.x > pRight + 40) continue;
     if (rectsOverlap(pBox, coin)) {
       state.coinsCollected += 1;
       state.coinStreak = (state.coinStreak ?? 0) + 1;

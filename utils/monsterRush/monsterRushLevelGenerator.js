@@ -14,7 +14,7 @@ import {
   validatePattern,
   RUSH_LEVEL_RULES,
 } from './monsterRushLevelRules';
-import { rushSpeedForDistance } from './monsterRushConfig';
+import { rushSpeedForDistance, RUSH_OBSTACLE_DENSITY } from './monsterRushConfig';
 
 /** @typedef {() => number} RunRng */
 
@@ -22,30 +22,34 @@ const RECENT_PATTERN_CAP = 6;
 
 const PHASE_WEIGHTS_BY_TIER = {
   tutorial: [
-    ['single', 30],
+    ['single', 26],
     ['combo', 22],
-    ['elevation', 28],
-    ['gap', 20],
+    ['elevation', 24],
+    ['gap', 24],
+    ['ceiling', 4],
   ],
   easy: [
-    ['single', 22],
+    ['single', 18],
     ['combo', 22],
-    ['elevation', 22],
-    ['gap', 18],
-    ['rest', 16],
+    ['elevation', 20],
+    ['gap', 22],
+    ['ceiling', 10],
+    ['rest', 8],
   ],
   medium: [
-    ['single', 18],
+    ['single', 14],
     ['combo', 26],
-    ['elevation', 26],
-    ['gap', 24],
-    ['rest', 6],
+    ['elevation', 24],
+    ['gap', 26],
+    ['ceiling', 14],
+    ['rest', 4],
   ],
   hard: [
-    ['single', 16],
-    ['combo', 28],
-    ['elevation', 28],
+    ['single', 12],
+    ['combo', 26],
+    ['elevation', 26],
     ['gap', 28],
+    ['ceiling', 18],
   ],
 };
 
@@ -87,6 +91,14 @@ function poolForPhase(tier, phase) {
   } else if (tier === 'medium') {
     tierPool = [...EASY_PATTERNS, ...MEDIUM_PATTERNS, ...HARD_PATTERNS.filter((p) => p.minScrollPx < 1800)];
   } else tierPool = [...MEDIUM_PATTERNS, ...HARD_PATTERNS];
+
+  if (phase === 'ceiling') {
+    const ceilingPool = tierPool.filter(
+      (p) => p.tags?.includes('top')
+        || p.items.some((it) => it.type === 'top_barrier' || it.type === 'top_spike' || it.type === 'top_pillar'),
+    );
+    if (ceilingPool.length) return ceilingPool;
+  }
 
   const byRhythm = tierPool.filter((p) => p.rhythm === phase);
   return byRhythm.length ? byRhythm : tierPool;
@@ -198,7 +210,7 @@ export function pickValidatedPattern(scrollPx, ctx = {}) {
     ? [anchor, ...shuffleWithRng(candidates.filter((p) => p.id !== anchor.id), rng)]
     : shuffleWithRng(candidates, rng);
 
-  for (const pattern of ordered) {
+  for (const pattern of ordered.slice(0, 14)) {
     const v = validatePattern(pattern, validationCtx);
     if (v.ok) {
       return {
@@ -247,9 +259,10 @@ export function patternChainSpacing(scrollPx, phase = 'single', rng = null) {
   const tier = distanceTier(scrollPx);
   const tierKey = tier === 'tutorial' ? 'tutorial' : tier;
   const base = chainSpacingForPhase(tierKey, phase);
-  if (!rng) return base;
+  const denseBase = base / RUSH_OBSTACLE_DENSITY;
+  if (!rng) return Math.floor(denseBase);
   const jitter = 0.88 + rng() * 0.24;
-  return Math.max(180, Math.floor(base * jitter));
+  return Math.max(140, Math.floor(denseBase * jitter));
 }
 
 /** @deprecated — use patternChainSpacing */

@@ -1,5 +1,6 @@
 import { MONSTER_RUSH_PHYSICS } from './monsterRushConfig';
-import { MONSTER_RUSH_DEBUG, hazardHitbox } from './monsterRushObstacles';
+import { MONSTER_RUSH_CEILING } from './monsterRushConfig';
+import { MONSTER_RUSH_DEBUG, resolveHazardHitbox } from './monsterRushObstacles';
 import { getJumpMetricsForDebug } from './monsterRushLevelRules';
 import { drawRunnerImageCover } from './monsterRushRunnerImage';
 
@@ -36,6 +37,8 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, w, h);
 
+  drawCeilingRail(ctx, w, state.ceilingThickness ?? MONSTER_RUSH_CEILING.thickness);
+
   const hillY = state.groundSurfaceY - groundH - 8;
   if (simpleBg) {
     ctx.fillStyle = hillA;
@@ -58,8 +61,8 @@ export function drawMonsterRushFrame(ctx, state, opts = {}) {
   for (let i = 0; i < hazards.length; i += 1) {
     const hz = hazards[i];
     if (hz.x + hz.width < -8 || hz.x > w + 40) continue;
-    drawHazard(ctx, hz);
-    if (MONSTER_RUSH_DEBUG) drawHitbox(ctx, hazardHitbox(hz));
+    drawHazard(ctx, hz, state.ceilingThickness ?? MONSTER_RUSH_CEILING.thickness);
+    if (MONSTER_RUSH_DEBUG) drawHitbox(ctx, resolveHazardHitbox(hz, state.ceilingThickness));
   }
 
   const coins = state.coins ?? [];
@@ -185,7 +188,21 @@ function drawPlatform(ctx, plat) {
   ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
 }
 
-function drawHazard(ctx, hz) {
+function drawCeilingRail(ctx, w, thickness) {
+  const t = thickness ?? MONSTER_RUSH_CEILING.thickness;
+  ctx.fillStyle = MONSTER_RUSH_CEILING.fill;
+  ctx.fillRect(0, 0, w, t);
+  ctx.fillStyle = MONSTER_RUSH_CEILING.highlight;
+  ctx.fillRect(0, t - 3, w, 3);
+  ctx.strokeStyle = MONSTER_RUSH_CEILING.stroke;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, t);
+  ctx.lineTo(w, t);
+  ctx.stroke();
+}
+
+function drawHazard(ctx, hz, ceilingThickness = MONSTER_RUSH_CEILING.thickness) {
   if (hz.shape === 'spike' || hz.shape === 'ceiling_spike') {
     drawSpike(ctx, hz);
     return;
@@ -202,6 +219,9 @@ function drawHazard(ctx, hz) {
     return;
   }
   if (hz.shape === 'top_barrier') {
+    const slab = ceilingThickness ?? MONSTER_RUSH_CEILING.thickness;
+    ctx.fillStyle = MONSTER_RUSH_CEILING.fill;
+    ctx.fillRect(hz.x, 0, hz.width, slab);
     ctx.fillStyle = hz.color || '#7f1d1d';
     ctx.fillRect(hz.x, hz.y, hz.width, hz.height);
     ctx.fillStyle = '#fecaca';
@@ -209,6 +229,13 @@ function drawHazard(ctx, hz) {
     ctx.strokeStyle = hz.stroke || '#991b1b';
     ctx.lineWidth = 2;
     ctx.strokeRect(hz.x, hz.y, hz.width, hz.height);
+    return;
+  }
+  if (hz.shape === 'ceiling_spike') {
+    const slab = ceilingThickness ?? MONSTER_RUSH_CEILING.thickness;
+    ctx.fillStyle = MONSTER_RUSH_CEILING.fill;
+    ctx.fillRect(hz.x, 0, hz.width, slab);
+    drawSpike(ctx, hz);
     return;
   }
   ctx.fillStyle = hz.color || '#991b1b';

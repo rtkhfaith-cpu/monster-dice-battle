@@ -163,14 +163,15 @@ export function validatePattern(pattern, ctx = {}) {
     }
   }
 
-  if (pattern.tags?.includes('top_bottom')) {
-    const tops = pattern.items.filter((it) => it.type === 'top_barrier' || it.type === 'top_spike');
+  if (pattern.tags?.includes('top_bottom') || pattern.tags?.includes('top')) {
+    const tops = pattern.items.filter((it) => it.type === 'top_barrier' || it.type === 'top_spike' || it.type === 'top_pillar');
     const grounds = pattern.items.filter((it) =>
       ['spike', 'low_block', 'tall_block', 'double_block', 'rock', 'fire_trap'].includes(it.type),
     );
+    const ceilingY = 12;
     for (const top of tops) {
       const defH = top.height ?? 95;
-      const barrierBottom = top.y === 'ceiling' ? defH : (top.y ?? 0) + defH;
+      const barrierBottom = (top.y === 'ceiling' ? ceilingY : (top.y ?? 0)) + defH;
       const clearance = playerTopOnGround - barrierBottom;
       if (clearance < rules.minTopClearancePx) {
         reasons.push(`top_squeeze:${clearance}`);
