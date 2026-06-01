@@ -242,6 +242,7 @@ export function passiveSlotLimitForRarity(rarity) {
     case 'legendary':
       return 2;
     case 'mythic':
+    case 'ultra_mythic':
       return 3;
     default:
       return 0;

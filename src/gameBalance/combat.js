@@ -137,6 +137,7 @@ const RARITY_MP_BONUS = {
   epic: 10,
   legendary: 16,
   mythic: 22,
+  ultra_mythic: 24,
 };
 
 /**

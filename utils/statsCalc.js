@@ -10,6 +10,7 @@ export const RARITY_FLAT = {
   epic: { hp: 22, mp: 14, atk: 2, mag: 2, def: 2, md: 2, crit: 2, dodge: 1, speed: 1, hit: 1 },
   legendary: { hp: 38, mp: 26, atk: 3, mag: 3, def: 3, md: 3, crit: 3, dodge: 2, speed: 2, hit: 2 },
   mythic: { hp: 58, mp: 42, atk: 5, mag: 5, def: 4, md: 4, crit: 4, dodge: 3, speed: 3, hit: 3 },
+  ultra_mythic: { hp: 64, mp: 46, atk: 6, mag: 6, def: 5, md: 5, crit: 5, dodge: 3, speed: 3, hit: 3 },
 };
 
 const ROLE_SUPER_NEED = {

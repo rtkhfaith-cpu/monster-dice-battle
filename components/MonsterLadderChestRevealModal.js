@@ -130,9 +130,13 @@ export default function MonsterLadderChestRevealModal({
                     : 'Added to your collection.'}
                 </Text>
               )}
-              {(drop.rarity === 'legendary' || drop.rarity === 'mythic') ? (
+              {(drop.rarity === 'legendary' || drop.rarity === 'mythic' || drop.rarity === 'ultra_mythic') ? (
                 <Text style={styles.dramatic}>
-                  {drop.rarity === 'mythic' ? 'MYTHIC SIGNAL LOCKED.' : 'LEGENDARY SIGNAL FOUND.'}
+                  {drop.rarity === 'ultra_mythic'
+                    ? 'ULTRA MYTHIC SIGNAL LOCKED.'
+                    : drop.rarity === 'mythic'
+                      ? 'MYTHIC SIGNAL LOCKED.'
+                      : 'LEGENDARY SIGNAL FOUND.'}
                 </Text>
               ) : null}
               {drop.kind === 'gear_instance' && drop.gear ? (

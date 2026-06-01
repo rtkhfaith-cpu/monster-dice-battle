@@ -39,7 +39,7 @@ export default function MonsterPassivePanel({
       <View style={styles.box}>
         <Text style={styles.title}>Passive Skills</Text>
         <Text style={styles.muted}>
-          {rarity} monsters cannot equip passives. Epic+ unlock slots (Epic 1, Legendary 2, Mythic 3).
+          {rarity} monsters cannot equip passives. Epic+ unlock slots (Epic 1, Legendary 2, Mythic/Ultra Mythic 3).
         </Text>
       </View>
     );

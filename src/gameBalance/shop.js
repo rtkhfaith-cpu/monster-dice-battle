@@ -18,6 +18,7 @@ const MONSTER_PRICE_BY_RARITY = {
   epic: 900,
   legendary: 2800,
   mythic: null,
+  ultra_mythic: null,
 };
 
 const GEAR_PRICE_BY_CATEGORY = {

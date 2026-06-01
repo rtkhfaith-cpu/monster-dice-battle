@@ -510,7 +510,7 @@ export function createPhaserBattleScene(Phaser) {
       const enemy = this.actors.enemy;
       if (!enemy) return null;
       const boss = event.stageKind === 'bigBoss';
-      const mythic = enemy.rarity === 'mythic';
+      const mythic = enemy.rarity === 'mythic' || enemy.rarity === 'ultra_mythic';
       const title = event.title || (boss ? 'BOSS BATTLE!' : 'Mini Boss Appears!');
       enemy.setActiveGlow(true);
       this.showTurnText(title);

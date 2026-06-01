@@ -200,7 +200,8 @@ export function getAllowedCpuRarities(playerLevel) {
   if (lv <= 15) return ['common'];
   if (lv <= 25) return ['common', 'rare'];
   if (lv <= 35) return ['common', 'rare', 'epic'];
-  return [...RARITY_ORDER];
+  // Ultra Mythic (e.g. Goldzilla) is chest-only — not random 1v CPU opponents.
+  return RARITY_ORDER.filter((r) => r !== 'ultra_mythic');
 }
 
 function pickRandomCpuTemplate(playerLevel, excludeTemplateId = null) {
