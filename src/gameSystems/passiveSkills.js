@@ -76,7 +76,10 @@ export const PASSIVE_SKILLS = {
       legendary: { healMaxHpPct: 10 },
       mythic: { healMaxHpPct: 14 },
     },
-    description: (r) => `Recover ${getPassiveEffect(PASSIVE_SKILL_IDS.REGENERATION_AURA, r).healMaxHpPct}% max HP at start of turn.`,
+    description: (r) => {
+      const pct = getPassiveEffect(PASSIVE_SKILL_IDS.REGENERATION_AURA, r).healMaxHpPct;
+      return `Recover ${pct}% max HP and MP at start of turn.`;
+    },
   },
   [PASSIVE_SKILL_IDS.TOXIC_FANG]: {
     id: PASSIVE_SKILL_IDS.TOXIC_FANG,

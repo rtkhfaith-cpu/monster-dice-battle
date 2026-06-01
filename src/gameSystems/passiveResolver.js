@@ -388,14 +388,25 @@ export function resolveStartOfTurnPassives(fighter) {
   const regenPassive = passivesOf(f).find((p) => p.skillId === PASSIVE_SKILL_IDS.REGENERATION_AURA);
   if (regenPassive) {
     const e = getPassiveEffect(regenPassive.skillId, regenPassive.rarity);
+    const regenPct = e.healMaxHpPct ?? 0;
     const maxHp = f.maxHp ?? f.stats?.hp ?? 100;
-    let heal = Math.round((maxHp * (e.healMaxHpPct ?? 0)) / 100);
+    let heal = Math.round((maxHp * regenPct) / 100);
     heal = Math.round(heal * healingMultiplier(f));
     const applied = clampHeal(heal, f);
     if (applied > 0) {
       f = { ...f, hp: f.hp + applied };
       addPopup(popups, 'REGEN');
       battleLogEntries.push(`${f.displayName ?? 'Monster'} recovered ${applied} HP (Regeneration Aura).`);
+    }
+    const maxMp = f.maxMp ?? f.stats?.mp ?? 0;
+    if (maxMp > 0 && regenPct > 0) {
+      const missing = Math.max(0, maxMp - (f.mp ?? 0));
+      const restored = Math.min(missing, Math.max(1, Math.round((maxMp * regenPct) / 100)));
+      if (restored > 0) {
+        f = { ...f, mp: Math.min(maxMp, (f.mp ?? 0) + restored) };
+        addPopup(popups, 'REGEN');
+        battleLogEntries.push(`${f.displayName ?? 'Monster'} recovered ${restored} MP (Regeneration Aura).`);
+      }
     }
   }
 

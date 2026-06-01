@@ -267,11 +267,21 @@ function resolveStartOfTurn(fighter) {
   const regen = passivesOf(f).find((p) => p.skillId === SKILL_IDS.REGENERATION_AURA);
   if (regen) {
     const e = getEffect(regen.skillId, regen.rarity);
-    let heal = Math.round((maxHp * (e.healMaxHpPct ?? 0)) / 100 * healingMultiplier(f));
+    const regenPct = e.healMaxHpPct ?? 0;
+    let heal = Math.round((maxHp * regenPct) / 100 * healingMultiplier(f));
     heal = clampHeal(heal, f);
     if (heal > 0) {
       f = { ...f, hp: f.hp + heal };
       log.push(`Regeneration Aura healed ${heal} HP.`);
+    }
+    const maxMp = f.maxMp ?? f.stats?.mp ?? 0;
+    if (maxMp > 0 && regenPct > 0) {
+      const missing = Math.max(0, maxMp - (f.mp ?? 0));
+      const restored = Math.min(missing, Math.max(1, Math.round((maxMp * regenPct) / 100)));
+      if (restored > 0) {
+        f = { ...f, mp: Math.min(maxMp, (f.mp ?? 0) + restored) };
+        log.push(`Regeneration Aura restored ${restored} MP.`);
+      }
     }
   }
 
