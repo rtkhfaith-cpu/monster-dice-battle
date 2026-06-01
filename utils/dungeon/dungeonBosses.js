@@ -191,8 +191,7 @@ export function getDaysSinceGameStart(currentDate = new Date()) {
 /** @param {object} boss @param {Date} currentDate @param {{ unlockAll?: boolean }} [opts] */
 export function isDungeonBossAvailable(boss, currentDate = new Date(), opts = {}) {
   if (!boss) return false;
-  if (opts.unlockAll) return true;
-  return boss.id === 'death_knight';
+  return true;
 }
 
 /** Whole days until the boss is next available (0 if available now, null = coming soon). */

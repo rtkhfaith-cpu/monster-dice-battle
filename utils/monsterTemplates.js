@@ -480,8 +480,8 @@ export const MONSTER_CATALOG = [
     name: 'Tablet Wizard',
     price: 250,
     rarity: 'legendary',
-    role: 'healer',
-    description: 'Legendary healer — buy in the Monster Mart. Wellness apps heal the team; Restore Ritual revives fallen allies.',
+    role: 'support',
+    description: 'Legendary support — buy in the Monster Mart. Wellness apps heal the team; Restore Ritual revives fallen allies.',
     baseStats: {
       hp: 182,
       mp: 108,

@@ -885,13 +885,7 @@ export default function App() {
     return !!profile;
   }, [gameData, setupP1ProfileId]);
 
-  /** Beta: unlock all dungeon bosses on schedule bypass (Charming test profile). */
-  const unlockAllDungeonBosses = useMemo(() => {
-    if (!gameData || !setupP1ProfileId) return false;
-    const profile = getPlayerProfile(gameData, setupP1ProfileId);
-    if (!profile) return false;
-    return String(profile.name ?? '').trim().toLowerCase() === 'charming';
-  }, [gameData, setupP1ProfileId]);
+  const unlockAllDungeonBosses = true;
 
   function markProfileUnlocked(profileId) {
     if (profileId) unlockedProfileIdsRef.current.add(profileId);
