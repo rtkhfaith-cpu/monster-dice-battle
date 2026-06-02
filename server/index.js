@@ -13,6 +13,8 @@ const {
   endTurnAfterResolve,
 } = require('./battleEngine');
 const { registerSyncProfileHandler } = require('./syncProfileHandler');
+const { bindSocketHandler, registerUnknownEventGuard, logSocketError } = require('./socketLog');
+const { promisifyJoin } = require('./joinRoomAsync');
 
 const PORT = Number(process.env.PORT) || 3000;
 const RESOLVE_MS = 2200;
@@ -318,134 +320,121 @@ io.on('connection', (socket) => {
   console.log('[socket] connected', socket.id);
   socket.emit('serverStatus', { ok: true, t: Date.now() });
 
-  socket.on('rejoinRoom', (payload = {}, ack) => {
+  bindSocketHandler(socket, 'rejoinRoom', async ({ socket: sock, payload, ack }) => {
     const roomCode = normalizeCode(payload.roomCode);
     const room = rooms[roomCode];
     if (!room) {
-      if (typeof ack === 'function') ack({ error: 'Room not found' });
+      ack({ ok: false, error: 'Room not found', errorName: 'ROOM_NOT_FOUND' });
       return;
     }
 
-    let slot = playerSlot(room, socket.id);
+    let slot = playerSlot(room, sock.id);
     if (!slot) {
       const want = payload.playerSlot === 'p2' ? 'p2' : 'p1';
       if (room.players[want] && !room.players[want].socketId) {
-        ensurePlayerRecord(room, want, socket);
+        ensurePlayerRecord(room, want, sock);
         slot = want;
       } else {
-        slot = assignJoinSlot(room, socket);
+        slot = assignJoinSlot(room, sock);
       }
     }
 
     if (!slot) {
-      if (typeof ack === 'function') ack({ error: 'Room is full' });
+      ack({ ok: false, error: 'Room is full', errorName: 'ROOM_FULL' });
       return;
     }
 
-    ensurePlayerRecord(room, slot, socket);
-    joinSocketToRoom(socket, roomCode, () => {
-      console.log('[room] rejoined', roomCode, slot, socket.id);
-      const state = emitRoomUpdate(roomCode);
-      if (typeof ack === 'function') ack({ roomCode, playerSlot: slot, room: state });
-      tryAutoStartBattle(roomCode);
-    });
+    ensurePlayerRecord(room, slot, sock);
+    await promisifyJoin(joinSocketToRoom, sock, roomCode);
+    console.log('[room] rejoined', roomCode, slot, sock.id);
+    const state = emitRoomUpdate(roomCode);
+    ack({ ok: true, roomCode, playerSlot: slot, room: state });
+    tryAutoStartBattle(roomCode);
   });
 
-  socket.on('requestRoomState', (payload = {}, ack) => {
+  bindSocketHandler(socket, 'requestRoomState', async ({ payload, ack }) => {
     const roomCode = normalizeCode(payload.roomCode);
     const room = rooms[roomCode];
     if (!room) {
-      if (typeof ack === 'function') ack({ error: 'Room not found' });
+      ack({ ok: false, error: 'Room not found', errorName: 'ROOM_NOT_FOUND' });
       return;
     }
     const state = emitRoomUpdate(roomCode);
-    if (typeof ack === 'function') ack({ room: state });
+    ack({ ok: true, room: state });
   });
 
-  socket.on('createRoom', (_payload, ack) => {
-    const requestId = String(_payload?.requestId || '').slice(0, 80);
+  bindSocketHandler(socket, 'createRoom', async ({ socket: sock, payload, ack }) => {
+    const requestId = String(payload?.requestId || '').slice(0, 80);
     if (requestId && createRequests[requestId] && rooms[createRequests[requestId].roomCode]) {
       const existing = createRequests[requestId];
       const room = rooms[existing.roomCode];
-      ensurePlayerRecord(room, existing.playerSlot, socket);
-      joinSocketToRoom(socket, existing.roomCode, (err) => {
-        if (typeof ack !== 'function') return;
-        if (err) {
-          ack({ error: err.message || String(err) || 'Failed to create room' });
-          return;
-        }
-        const state = emitRoomUpdate(existing.roomCode);
-        ack({ roomCode: existing.roomCode, playerSlot: existing.playerSlot, room: state });
+      ensurePlayerRecord(room, existing.playerSlot, sock);
+      await promisifyJoin(joinSocketToRoom, sock, existing.roomCode);
+      const state = emitRoomUpdate(existing.roomCode);
+      ack({
+        ok: true,
+        roomCode: existing.roomCode,
+        playerSlot: existing.playerSlot,
+        room: state,
       });
       return;
     }
 
-    leaveSocketFromAllRooms(socket);
+    leaveSocketFromAllRooms(sock);
     let roomCode = randomRoomCode();
     while (rooms[roomCode]) roomCode = randomRoomCode();
 
     const room = createEmptyRoom(roomCode);
-    ensurePlayerRecord(room, 'p1', socket);
+    ensurePlayerRecord(room, 'p1', sock);
     rooms[roomCode] = room;
 
-    const sendAck = (err) => {
-      if (typeof ack !== 'function') return;
-      if (err) {
-        ack({ error: err.message || String(err) || 'Failed to create room' });
-        return;
-      }
-      console.log('[room] created', roomCode, 'host', socket.id);
+    try {
+      await promisifyJoin(joinSocketToRoom, sock, roomCode);
+      console.log('[room] created', roomCode, 'host', sock.id);
       if (requestId) createRequests[requestId] = { roomCode, playerSlot: 'p1', t: Date.now() };
       const state = emitRoomUpdate(roomCode);
-      ack({ roomCode, playerSlot: 'p1', room: state });
-    };
-
-    joinSocketToRoom(socket, roomCode, (err) => {
-      if (err) {
-        delete rooms[roomCode];
-        sendAck(err);
-        return;
-      }
-      sendAck(null);
-    });
+      ack({ ok: true, roomCode, playerSlot: 'p1', room: state });
+    } catch (err) {
+      delete rooms[roomCode];
+      throw err;
+    }
   });
 
-  socket.on('joinRoom', (payload = {}, ack) => {
-    leaveSocketFromAllRooms(socket);
+  bindSocketHandler(socket, 'joinRoom', async ({ socket: sock, payload, ack }) => {
+    leaveSocketFromAllRooms(sock);
     const roomCode = normalizeCode(payload.roomCode);
     const room = rooms[roomCode];
 
     if (!room) {
       const err = 'Room not found — check the code and server URL';
-      if (typeof ack === 'function') ack({ error: err });
-      socket.emit('errorMessage', err);
+      ack({ ok: false, error: err, errorName: 'ROOM_NOT_FOUND' });
+      sock.emit('errorMessage', err);
       return;
     }
 
-    let slot = playerSlot(room, socket.id);
+    let slot = playerSlot(room, sock.id);
     if (!slot) {
-      slot = assignJoinSlot(room, socket);
+      slot = assignJoinSlot(room, sock);
     }
     if (!slot) {
       const err = 'Room is full';
-      if (typeof ack === 'function') ack({ error: err });
-      socket.emit('errorMessage', err);
+      ack({ ok: false, error: err, errorName: 'ROOM_FULL' });
+      sock.emit('errorMessage', err);
       return;
     }
 
-    ensurePlayerRecord(room, slot, socket);
+    ensurePlayerRecord(room, slot, sock);
     room.opponentLeftMessage = null;
 
-    joinSocketToRoom(socket, roomCode, () => {
-      console.log('[room] joined', roomCode, slot, socket.id);
+    await promisifyJoin(joinSocketToRoom, sock, roomCode);
+    console.log('[room] joined', roomCode, slot, sock.id);
 
-      const state = emitRoomUpdate(roomCode);
-      io.to(roomCode).emit('opponentJoined', { roomCode, slot });
-      if (typeof ack === 'function') ack({ roomCode, playerSlot: slot, room: state });
+    const state = emitRoomUpdate(roomCode);
+    io.to(roomCode).emit('opponentJoined', { roomCode, slot });
+    ack({ ok: true, roomCode, playerSlot: slot, room: state });
 
-      const started = tryAutoStartBattle(roomCode);
-      if (started) console.log('[battle] auto-start after join', roomCode);
-    });
+    const started = tryAutoStartBattle(roomCode);
+    if (started) console.log('[battle] auto-start after join', roomCode);
   });
 
   registerSyncProfileHandler({
@@ -456,24 +445,24 @@ io.on('connection', (socket) => {
     tryAutoStartBattle,
   });
 
-  socket.on('battleAction', (payload = {}, ack) => {
-    const { code, room } = findRoomForSocket(socket.id, payload.roomCode);
+  bindSocketHandler(socket, 'battleAction', async ({ socket: sock, payload, ack, profileId }) => {
+    const { code, room } = findRoomForSocket(sock.id, payload.roomCode);
     if (!code || !room || room.status !== 'battle' || !room.battle) {
-      if (typeof ack === 'function') ack({ error: 'No active battle' });
+      ack({ ok: false, error: 'No active battle', errorName: 'NO_BATTLE' });
       return;
     }
-    const slot = playerSlot(room, socket.id);
+    const slot = playerSlot(room, sock.id);
     if (!slot) {
-      if (typeof ack === 'function') ack({ error: 'Not in room' });
+      ack({ ok: false, error: 'Not in room', errorName: 'NO_SLOT' });
       return;
     }
 
     const action = payload.action;
-    console.log('[battle] action', code, slot, action, payload.skillId || '');
+    console.log('[battle] action', code, slot, profileId, action, payload.skillId || '');
     const res = applyBattleAction(room.battle, slot, action, payload);
     if (res.error) {
       console.log('[battle] action rejected', code, slot, res.error);
-      if (typeof ack === 'function') ack({ error: res.error });
+      ack({ ok: false, error: res.error, errorName: 'ACTION_REJECTED' });
       return;
     }
 
@@ -505,19 +494,22 @@ io.on('connection', (socket) => {
       }, 12000);
     }
 
-    if (typeof ack === 'function') ack({ ok: true });
+    ack({ ok: true });
   });
 
-  socket.on('leaveRoom', (payload = {}) => {
+  bindSocketHandler(socket, 'leaveRoom', async ({ socket: sock, payload, ack, profileId }) => {
     const roomCode = normalizeCode(payload.roomCode);
     const room = rooms[roomCode];
-    if (!room) return;
+    if (!room) {
+      ack({ ok: true, skipped: true, details: 'Room already gone' });
+      return;
+    }
 
-    const slot = playerSlot(room, socket.id);
+    const slot = playerSlot(room, sock.id);
     clearBattleTimer(room);
     if (slot) removePlayerSlot(room, slot);
-    socket.leave(roomCode);
-    console.log('[room] leave', roomCode, socket.id);
+    sock.leave(roomCode);
+    console.log('[room] leave', roomCode, sock.id, profileId);
 
     if (isRoomEmpty(room)) {
       delete rooms[roomCode];
@@ -530,25 +522,32 @@ io.on('connection', (socket) => {
       io.to(roomCode).emit('opponentDisconnected', { roomCode, message: room.opponentLeftMessage });
       emitRoomUpdate(roomCode);
     }
+    ack({ ok: true });
   });
 
+  registerUnknownEventGuard(socket);
+
   socket.on('disconnect', () => {
-    console.log('[socket] disconnected', socket.id);
-    const { code, room } = findRoomBySocket(socket.id);
-    if (!code || !room) return;
+    try {
+      console.log('[socket] disconnected', socket.id);
+      const { code, room } = findRoomBySocket(socket.id);
+      if (!code || !room) return;
 
-    const slot = playerSlot(room, socket.id);
-    if (slot) {
-      room.players[slot].socketId = null;
-    }
+      const slot = playerSlot(room, socket.id);
+      if (slot) {
+        room.players[slot].socketId = null;
+      }
 
-    if (isRoomEmpty(room)) {
-      clearBattleTimer(room);
-      delete rooms[code];
-    } else {
-      room.opponentLeftMessage = 'Opponent left the room.';
-      io.to(code).emit('opponentDisconnected', { roomCode: code, message: room.opponentLeftMessage });
-      emitRoomUpdate(code);
+      if (isRoomEmpty(room)) {
+        clearBattleTimer(room);
+        delete rooms[code];
+      } else {
+        room.opponentLeftMessage = 'Opponent left the room.';
+        io.to(code).emit('opponentDisconnected', { roomCode: code, message: room.opponentLeftMessage });
+        emitRoomUpdate(code);
+      }
+    } catch (err) {
+      logSocketError('disconnect', socket, err);
     }
   });
 });

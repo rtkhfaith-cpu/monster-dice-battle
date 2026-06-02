@@ -320,7 +320,18 @@ function emitWithAck(sock, event, payload) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve(res || {});
+      const body = res || {};
+      if (body.ok === false || body.error) {
+        console.error('[online-socket] ack failure', {
+          event,
+          error: body.error,
+          details: body.details,
+          errorName: body.errorName,
+          code: body.code,
+          awsMetadata: body.awsMetadata,
+        });
+      }
+      resolve(body);
     });
   });
 }

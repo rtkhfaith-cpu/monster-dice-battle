@@ -7,6 +7,26 @@ const path = require('path');
 const TABLE_NAME = process.env.TABLE_NAME || process.env.DYNAMODB_TABLE || 'MonsterBattleSaves';
 const SAVE_API_BASE = String(process.env.SAVE_API_URL || '').trim().replace(/\/+$/, '');
 
+function getCloudStoreConfig() {
+  const useApi = SAVE_API_BASE.length >= 8;
+  return {
+    tableName: TABLE_NAME,
+    saveApiBase: SAVE_API_BASE || null,
+    mode: useApi ? 'save_api' : 'dynamodb',
+  };
+}
+
+function logAwsError(phase, err, extra = {}) {
+  console.error(`[syncProfile] ${phase}`, {
+    table: TABLE_NAME,
+    errorName: err?.name,
+    errorMessage: err?.message,
+    awsMetadata: err?.$metadata,
+    stack: err?.stack,
+    ...extra,
+  });
+}
+
 /** @type {import('@aws-sdk/lib-dynamodb').DynamoDBDocumentClient | null} */
 let docClient = null;
 /** @type {ReturnType<import('../lambda/monster-battle-save-api/profileLookup').createProfileLookup> | null} */
@@ -152,20 +172,33 @@ async function saveViaDynamo(cloudDocument, playerKey) {
   }
 
   console.log('[syncProfile] DynamoDB Put started', {
+    table: TABLE_NAME,
+    operation: 'PutItem',
     profileID: canonicalProfileID,
     bytesEstimate,
     fixes: fixes.length ? fixes : undefined,
   });
 
-  await doc.send(
-    new PutCommand({
-      TableName: TABLE_NAME,
-      Item: item,
-    }),
-  );
+  try {
+    await doc.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: item,
+      }),
+    );
+  } catch (err) {
+    logAwsError('DynamoDB Put failed', err, { profileID: canonicalProfileID, operation: 'PutItem' });
+    return {
+      ok: false,
+      error: err?.name || 'DynamoDB Put failed',
+      details: err?.message || String(err),
+      errorName: err?.name,
+      awsMetadata: err?.$metadata,
+    };
+  }
 
-  console.log('[syncProfile] DynamoDB Put success', { profileID: canonicalProfileID });
-  return { ok: true, profileID: canonicalProfileID, via: 'dynamodb', fixes };
+  console.log('[syncProfile] DynamoDB Put success', { table: TABLE_NAME, profileID: canonicalProfileID });
+  return { ok: true, profileID: canonicalProfileID, via: 'dynamodb', table: TABLE_NAME, fixes };
 }
 
 /**
@@ -178,20 +211,19 @@ async function persistCloudProfile(cloudDocument, playerKey) {
 
   try {
     if (SAVE_API_BASE.length >= 8) {
+      console.log('[syncProfile] using save API', { base: `${SAVE_API_BASE.slice(0, 40)}…`, profileID });
       return saveViaSaveApi(cloudDocument, playerKey);
     }
+    console.log('[syncProfile] using direct DynamoDB', { table: TABLE_NAME, profileID });
     return saveViaDynamo(cloudDocument, playerKey);
   } catch (err) {
-    console.error('[syncProfile] cloud persist failed', {
-      profileID,
-      name: err?.name,
-      message: err?.message,
-      stack: err?.stack,
-    });
+    logAwsError('cloud persist failed', err, { profileID });
     return {
       ok: false,
-      error: 'Cloud save failed',
+      error: err?.name || 'Cloud save failed',
       details: err?.message || String(err),
+      errorName: err?.name,
+      awsMetadata: err?.$metadata,
     };
   }
 }
@@ -211,4 +243,6 @@ module.exports = {
   persistCloudProfile,
   hasCloudSavePayload,
   redactCloudPayloadForLog,
+  getCloudStoreConfig,
+  TABLE_NAME,
 };

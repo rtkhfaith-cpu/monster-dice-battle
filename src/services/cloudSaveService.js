@@ -278,6 +278,8 @@ export async function listCloudPlayers() {
         status: res.status,
         error: errText,
         url,
+        transport: 'https_fetch',
+        hint: 'Not socket.io — check API Gateway/Lambda CloudWatch, not PM2 socket logs',
       });
       return { ok: false, error: errText, status: res.status };
     }

@@ -1,42 +1,66 @@
-# Socket.io event map (client ↔ `server/index.js`)
+# Socket.io event map
 
-Online multiplayer uses **Socket.io only for rooms and battles**. Cloud player list, login, load, save, and delete use **HTTPS** (`src/services/cloudSaveService.js` → API Gateway Lambda → DynamoDB). Do not add those routes to the socket server unless you intentionally duplicate the API.
+## Important: “Could not fetch cloud players” is **not** Socket.io
 
-## Client → server (`socket.emit`)
+That message comes from **`fetch(GET …/players)`** via `listCloudPlayers()` in `src/services/cloudSaveService.js` → API Gateway → Lambda. It will **never** appear in Nginx `/socket.io` logs or PM2 socket connect lines.
 
-| Event | Handler | Ack? | Purpose |
-|--------|---------|------|---------|
-| `rejoinRoom` | `socket.on('rejoinRoom')` | Yes | Reconnect to an existing room |
-| `requestRoomState` | `socket.on('requestRoomState')` | Yes | Refresh lobby snapshot |
-| `createRoom` | `socket.on('createRoom')` | Yes | Host a new room |
-| `joinRoom` | `socket.on('joinRoom')` | Yes | Join by room code |
-| `syncProfile` | `registerSyncProfileHandler` | **Yes** | Lobby fighter display; optional `cloudDocument` + `playerKey` → DynamoDB |
-| `battleAction` | `socket.on('battleAction')` | Yes | Online battle turn |
-| `leaveRoom` | `socket.on('leaveRoom')` | No | Leave room (fire-and-forget) |
+`{"message":"Internal Server Error"}` on `/players` is an **HTTP API Gateway** response, not a socket ack.
 
-## Cloud save (REST, not socket)
+---
 
-| App API | HTTP | Lambda route |
-|---------|------|----------------|
-| `listCloudPlayers()` | `GET /players` | `handleListPlayers` |
-| `loginCloudProfile()` | `POST /login` | `handleLogin` |
-| `loadCloudProfile()` / recall | `GET /save/{profileID}` | `handleGetSave` |
-| `saveCloudProfile()` / `syncProfileToCloud()` | `POST /save` | `handlePostSave` |
-| `deleteCloudProfile()` | `DELETE /save/{profileID}` or `POST /save/delete` | `handleDeleteSave` |
+## Client → server (`socket.emit` from `utils/onlineSocketManager.js`)
 
-Configure the web app with `VITE_SAVE_API_URL` / `public/save-config.json`.
+| Event | Handler | Ack | Notes |
+|--------|---------|-----|--------|
+| `rejoinRoom` | `bindSocketHandler` in `index.js` | Yes `{ ok, roomCode, room }` | |
+| `requestRoomState` | `bindSocketHandler` | Yes `{ ok, room }` | |
+| `createRoom` | `bindSocketHandler` | Yes `{ ok, roomCode, room }` | |
+| `joinRoom` | `bindSocketHandler` | Yes `{ ok, roomCode, room }` | |
+| `syncProfile` | `registerSyncProfileHandler` | Yes `{ ok, cloud?, error?, details? }` | Lobby + optional cloud save |
+| `battleAction` | `bindSocketHandler` | Yes `{ ok }` or `{ ok: false, error }` | |
+| `leaveRoom` | `bindSocketHandler` | Yes `{ ok }` | |
 
-## `syncProfile` payload
+**Not implemented on socket (use HTTPS):**
 
-**Lobby (always):** `name`, `profileId`, `ownedMonsterId`, `monsterName`, `fighter`, `roomCode`
+| App need | Client | Transport |
+|----------|--------|-----------|
+| List cloud players | `listCloudPlayers()` | `GET /players` |
+| Login | `loginCloudProfile()` | `POST /login` |
+| Load profile | `GET /save/{id}` | fetch |
+| Save profile | `saveCloudProfile()` / `syncProfileToCloud()` | `POST /save` |
+| Delete player | `deleteCloudProfile()` | `DELETE` or `POST /save/delete` |
 
-**Optional cloud persist:** `cloudDocument` (from `toCloudProfile`) + `playerKey` (4 digits, never logged on server)
+If the client emits unknown events (e.g. `listCloudPlayers`), `registerUnknownEventGuard` logs a warning and acks with `UNKNOWN_SOCKET_EVENT`.
 
-Server env for cloud persist on socket host:
+---
 
-- `SAVE_API_URL` — preferred; proxies to `POST /save` on API Gateway
-- Or AWS credentials + `TABLE_NAME` — direct DynamoDB Put (same sanitizer as Lambda)
+## Server logging (PM2)
 
-## Server → client (`io.emit` / `socket.emit`)
+Every handled event logs:
+
+- `[socket] <event> received` — `socketId`, `profileId`, `roomCode`
+- `[socket] <event> error` — `errorName`, `errorMessage`, `stack`, `awsMetadata` (DynamoDB)
+- `[syncProfile] DynamoDB Put started/success` — `table`, `operation`, `profileID` (no PIN)
+
+---
+
+## `syncProfile` cloud persist
+
+When payload includes `cloudDocument` + 4-digit `playerKey`:
+
+1. `SAVE_API_URL` set → `POST {SAVE_API_URL}/save`
+2. Else → DynamoDB `PutItem` on `TABLE_NAME` (default `MonsterBattleSaves`)
+
+Env on socket host: see `server/deploy/DEPLOY-UBUNTU.md`.
+
+---
+
+## Server → client
 
 `serverStatus`, `roomUpdate`, `opponentJoined`, `opponentDisconnected`, `battleStarted`, `battle_started`, `battleUpdate`, `battle_state_updated`, `turn_changed`, `action_result`, `battleEnded`, `errorMessage`
+
+---
+
+## Frontend ack failures
+
+Browser console: `[online-socket] ack failure` with `event`, `error`, `details`, `errorName`, `awsMetadata`.
