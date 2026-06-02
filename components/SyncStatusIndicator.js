@@ -15,13 +15,17 @@ const LABELS = {
   cloud_list_failed: 'Could not fetch cloud players',
 };
 
-export default function SyncStatusIndicator({ suppressRoutine = false }) {
+export default function SyncStatusIndicator({ suppressRoutine = false, detail = null }) {
   const [status, setStatus] = useState('idle');
 
   useEffect(() => subscribeSaveStatus(setStatus), []);
 
-  const label = LABELS[status];
+  let label = LABELS[status];
   if (!label) return null;
+  if (status === 'cloud_list_failed' && detail) {
+    const short = String(detail).length > 72 ? `${String(detail).slice(0, 69)}…` : String(detail);
+    label = short;
+  }
   if (
     suppressRoutine
     && (status === 'local_saved' || status === 'cloud_synced')

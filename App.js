@@ -1100,7 +1100,7 @@ export default function App() {
     if (!res.ok) {
       const msg = res.skipped
         ? 'Cloud save is not configured.'
-        : 'Could not fetch cloud players. Please try again.';
+        : res.error || 'Could not fetch cloud players. Please try again.';
       setCloudFetchError(msg);
       if (!res.skipped) emitSaveStatus('cloud_list_failed');
       return;
@@ -2604,7 +2604,10 @@ export default function App() {
     >
       <StatusBar style="dark" />
       {phase !== 'monsterRush' ? (
-        <SyncStatusIndicator suppressRoutine={phase === 'battle' || phase === 'gameOver' || phase === 'ladder'} />
+        <SyncStatusIndicator
+          suppressRoutine={phase === 'battle' || phase === 'gameOver' || phase === 'ladder'}
+          detail={cloudFetchError}
+        />
       ) : null}
       <PlayerKeyModal
         visible={!!keyModal}

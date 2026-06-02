@@ -92,6 +92,8 @@ function normalizePath(event) {
   path = path.replace(/^\/(prod|default|dev|stage|test)(?=\/|$)/i, '');
   if (!path || path === '') path = '/';
   if (!path.startsWith('/')) path = `/${path}`;
+  const q = path.indexOf('?');
+  if (q >= 0) path = path.slice(0, q);
   if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
   return path;
 }
@@ -166,6 +168,9 @@ function resolvePlayerKey(event, body = {}) {
 }
 
 function pickLevel(item) {
+  if (typeof item?.peakMonsterLevel === 'number' && item.peakMonsterLevel > 0) {
+    return Math.max(1, Math.floor(item.peakMonsterLevel));
+  }
   const monsters = Array.isArray(item.monsters) ? item.monsters : [];
   const sel = item.selectedMonsterId;
   const om = monsters.find((m) => m.id === sel) || monsters[0];
@@ -186,7 +191,10 @@ function toPublicListItem(item) {
     profileID,
     playerName: String(item.playerName || 'Player').slice(0, 24),
     selectedMonsterId: item.selectedMonsterId ?? null,
-    monsterTemplateId: om?.templateId ?? null,
+    monsterTemplateId:
+      item.peakMonsterTemplateId ?? item.monsterTemplateId ?? om?.templateId ?? null,
+    peakMonsterLevel: item.peakMonsterLevel ?? pickLevel(item),
+    peakMonsterTemplateId: item.peakMonsterTemplateId ?? om?.templateId ?? null,
     level: pickLevel(item),
     coins: typeof item.coins === 'number' ? item.coins : 0,
     updatedAt: item.updatedAt || item.createdAt || null,
@@ -206,19 +214,35 @@ function stripSecrets(item) {
   return profileID ? { ...safe, profileID } : safe;
 }
 
+const LIST_PROJECTION =
+  'profileID, id, playerName, selectedMonsterId, coins, updatedAt, createdAt, playerKey, peakMonsterLevel, peakMonsterTemplateId, peakMonsterNickname, monsterTemplateId';
+
 async function handleListPlayers(event) {
-  const scan = await client.send(
-    new ScanCommand({
-      TableName: TABLE_NAME,
-      Limit: 200,
-    }),
-  );
-  const players = (scan.Items || [])
-    .map(toPublicListItem)
-    .filter(Boolean)
-    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-    .slice(0, MAX_LIST);
-  return respond(event, 200, { players });
+  try {
+    const scan = await client.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        Limit: 200,
+        ProjectionExpression: LIST_PROJECTION,
+      }),
+    );
+    const players = (scan.Items || [])
+      .map(toPublicListItem)
+      .filter(Boolean)
+      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+      .slice(0, MAX_LIST);
+    return respond(event, 200, { players });
+  } catch (err) {
+    console.error('[save-api] GET /players failed', {
+      name: err?.name,
+      message: err?.message,
+      stack: err?.stack,
+    });
+    return respond(event, 500, {
+      error: 'Could not list players',
+      code: 'LIST_PLAYERS_FAILED',
+    });
+  }
 }
 
 async function handleLogin(event) {

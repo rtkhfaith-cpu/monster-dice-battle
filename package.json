@@ -16,7 +16,8 @@
     "server": "npm run start --prefix server",
     "dev:all": "concurrently \"npm run web:local\" \"npm run server\"",
     "crop:monsters": "powershell -ExecutionPolicy Bypass -File scripts/crop-monster-sheet.ps1",
-    "crop:ladder-monsters": "powershell -ExecutionPolicy Bypass -File scripts/crop-ladder-monster-sheet.ps1"
+    "crop:ladder-monsters": "powershell -ExecutionPolicy Bypass -File scripts/crop-ladder-monster-sheet.ps1",
+    "package:save-api": "node scripts/package-save-api-lambda.js"
   },
   "engines": {
     "node": ">=20"

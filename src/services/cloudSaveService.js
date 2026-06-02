@@ -267,11 +267,19 @@ export async function listCloudPlayers() {
   }
 
   try {
-    const res = await apiRequest(base, `/players?_=${Date.now()}`, { method: 'GET' });
+    const url = `${base}/players`;
+    const res = await apiRequest(base, '/players', {
+      method: 'GET',
+      cache: 'no-store',
+    });
     if (!res.ok) {
       const errText = await readApiError(res);
-      if (DEV) console.warn('[cloud-save] GET /players failed', res.status, errText);
-      return { ok: false, error: errText };
+      logCloudSync('list_players_failed', {
+        status: res.status,
+        error: errText,
+        url,
+      });
+      return { ok: false, error: errText, status: res.status };
     }
     const body = await res.json();
     const raw = Array.isArray(body?.players) ? body.players : Array.isArray(body) ? body : [];
@@ -297,8 +305,9 @@ export async function listCloudPlayers() {
       });
     return { ok: true, players };
   } catch (err) {
-    if (DEV) console.warn('[cloud-save] GET /players error', base, err?.message || err);
-    return { ok: false, error: formatFetchError(err, base) };
+    const error = formatFetchError(err, base);
+    logCloudSync('list_players_error', { error, base: apiHostLabel(base) });
+    return { ok: false, error };
   }
 }
 
