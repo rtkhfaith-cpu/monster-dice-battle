@@ -5,7 +5,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const url = String(process.env.VITE_SOCKET_SERVER_URL || '').trim().replace(/\/+$/, '');
+const CANONICAL = 'https://monster-dice.rtkhfaith.com';
+const url = String(process.env.VITE_SOCKET_SERVER_URL || CANONICAL).trim().replace(/\/+$/, '');
 const outDir = path.join(__dirname, '..', 'public');
 const outFile = path.join(outDir, 'socket-config.json');
 

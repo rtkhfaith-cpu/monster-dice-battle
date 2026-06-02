@@ -160,6 +160,8 @@ import SaveConflictModal from './components/SaveConflictModal';
 import { loadSaveApiConfig } from './utils/saveApiConfig';
 import { toCloudProfile } from './src/services/cloudSaveMapper';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
+import SyncDebugIndicator from './components/SyncDebugIndicator';
+import { refreshSyncDebugUrls } from './src/services/syncDebugBus';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
 import { playSound } from './utils/sounds';
 import { applyAudioSettings, loadAudioSettings } from './utils/audioSettings';
@@ -273,6 +275,8 @@ export default function App() {
   const [saveConflict, setSaveConflict] = useState(null);
   const [saveConflictBusy, setSaveConflictBusy] = useState(false);
   const cloudRefreshInFlightRef = useRef(false);
+  const cloudRefreshDebounceRef = useRef(null);
+  const cloudListDebounceRef = useRef(null);
   const persistSaveSeqRef = useRef(0);
   /** Skip redundant cloud polls on the same device (e.g. mart sync then battle start). */
   const lastCloudFreshAtRef = useRef(new Map());
@@ -695,7 +699,7 @@ export default function App() {
     loadGameFonts();
     applyAudioSettings();
     initAudio();
-    void loadSaveApiConfig();
+    void loadSaveApiConfig().then(() => refreshSyncDebugUrls());
     loadGameSave()
       .then(async (gd) => {
         const activeId = gd.session?.activeProfileId ?? gd.players?.[0]?.id ?? null;
@@ -760,16 +764,24 @@ export default function App() {
         if (next && next !== gameData) setGameData(next);
       });
     };
+    const scheduleRefresh = () => {
+      if (cloudRefreshDebounceRef.current) clearTimeout(cloudRefreshDebounceRef.current);
+      cloudRefreshDebounceRef.current = setTimeout(() => {
+        cloudRefreshDebounceRef.current = null;
+        refreshActiveProfile();
+      }, 2000);
+    };
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      refreshActiveProfile();
+      scheduleRefresh();
     };
     const onPageShow = (event) => {
-      if (event?.persisted) refreshActiveProfile();
+      if (event?.persisted) scheduleRefresh();
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('pageshow', onPageShow);
     return () => {
+      if (cloudRefreshDebounceRef.current) clearTimeout(cloudRefreshDebounceRef.current);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('pageshow', onPageShow);
     };
@@ -813,7 +825,7 @@ export default function App() {
       if (res?.cloudBlocked && res.cloudBlockPayload) {
         await applyCloudBlockPayload(res.cloudBlockPayload, res.gameData || nextGd);
       }
-      if (res?.cloudFailed && res.cloudErrors?.length) {
+      if (res?.cloudFailed && !res?.cloudSynced && res.cloudErrors?.length) {
         for (const err of res.cloudErrors) {
           console.error('[cloud-sync] save failed', {
             reason,
@@ -1093,12 +1105,13 @@ export default function App() {
     });
   }
 
-  const handleFetchCloudPlayers = useCallback(async () => {
+  const runFetchCloudPlayers = useCallback(async () => {
     const seq = cloudFetchSeqRef.current + 1;
     cloudFetchSeqRef.current = seq;
     setCloudFetchLoading(true);
     setCloudFetchError(null);
     await loadSaveApiConfig();
+    refreshSyncDebugUrls();
     const res = await listCloudPlayers();
     if (cloudFetchSeqRef.current !== seq) return;
     setCloudFetchLoading(false);
@@ -1113,8 +1126,19 @@ export default function App() {
     setCloudPlayers(res.players || []);
   }, []);
 
+  const handleFetchCloudPlayers = useCallback(() => {
+    if (cloudListDebounceRef.current) clearTimeout(cloudListDebounceRef.current);
+    cloudListDebounceRef.current = setTimeout(() => {
+      cloudListDebounceRef.current = null;
+      void runFetchCloudPlayers();
+    }, 1200);
+  }, [runFetchCloudPlayers]);
+
   useEffect(() => {
-    void loadSaveApiConfig().then(() => handleFetchCloudPlayers());
+    void loadSaveApiConfig().then(() => {
+      refreshSyncDebugUrls();
+      handleFetchCloudPlayers();
+    });
   }, [handleFetchCloudPlayers]);
 
   const forceLogoutActiveProfile = useCallback(async () => {
@@ -1141,7 +1165,7 @@ export default function App() {
 
   useEffect(() => {
     return subscribeSaveStatus((status) => {
-      if (status === 'cloud_synced') void handleFetchCloudPlayers();
+      if (status === 'cloud_synced') handleFetchCloudPlayers();
       if (status === 'session_superseded') void forceLogoutActiveProfile();
     });
   }, [handleFetchCloudPlayers, forceLogoutActiveProfile]);
@@ -2613,6 +2637,7 @@ export default function App() {
           suppressRoutine={phase === 'battle' || phase === 'gameOver' || phase === 'ladder'}
           detail={cloudFetchError}
         />
+        <SyncDebugIndicator />
       ) : null}
       <PlayerKeyModal
         visible={!!keyModal}

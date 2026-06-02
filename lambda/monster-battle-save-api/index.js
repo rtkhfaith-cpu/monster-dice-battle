@@ -19,12 +19,21 @@ const {
 } = require('./playerKeyHash');
 const { sanitizeProfileItem } = require('./sanitizeProfileItem');
 const { createProfileLookup } = require('./profileLookup');
+const {
+  getRequestId,
+  profileIdFromBody,
+  logInbound,
+  logApiError,
+  logDynamoOp,
+  logDynamoError,
+} = require('./requestLog');
 
 const TABLE_NAME = process.env.TABLE_NAME || 'MonsterBattleSaves';
 const MAX_LIST = 50;
 const API_SECURITY_VERSION = 'pin-plain-v1';
 
 const ALLOWED_ORIGINS = new Set([
+  'https://monster-dice.rtkhfaith.com',
   'https://monster-dice-battle.rtkhfaith.com',
   'http://localhost:5173',
   'http://localhost:8081',
@@ -217,8 +226,9 @@ function stripSecrets(item) {
 const LIST_PROJECTION =
   'profileID, id, playerName, selectedMonsterId, coins, updatedAt, createdAt, playerKey, peakMonsterLevel, peakMonsterTemplateId, peakMonsterNickname, monsterTemplateId';
 
-async function handleListPlayers(event) {
+async function handleListPlayers(event, requestId) {
   try {
+    logDynamoOp('Scan', requestId, { table: TABLE_NAME, route: 'GET /players' });
     const scan = await client.send(
       new ScanCommand({
         TableName: TABLE_NAME,
@@ -233,14 +243,12 @@ async function handleListPlayers(event) {
       .slice(0, MAX_LIST);
     return respond(event, 200, { players });
   } catch (err) {
-    console.error('[save-api] GET /players failed', {
-      name: err?.name,
-      message: err?.message,
-      stack: err?.stack,
-    });
+    logDynamoError('Scan', requestId, err, { table: TABLE_NAME, route: 'GET /players' });
     return respond(event, 500, {
       error: 'Could not list players',
       code: 'LIST_PLAYERS_FAILED',
+      requestId,
+      details: err?.message,
     });
   }
 }
@@ -391,23 +399,39 @@ async function handlePostSave(event) {
     });
   }
 
+  const requestId = getRequestId(event);
   try {
+    logDynamoOp('PutItem', requestId, {
+      table: TABLE_NAME,
+      profileID: canonicalProfileID,
+      route: 'POST /save',
+      bytesEstimate,
+    });
     await client.send(
       new PutCommand({
         TableName: TABLE_NAME,
         Item: item,
       }),
     );
-    console.log('[save-api] DynamoDB Put OK', { profileID: canonicalProfileID, bytesEstimate });
+    console.log('[save-api] DynamoDB Put OK', {
+      requestId,
+      profileID: canonicalProfileID,
+      table: TABLE_NAME,
+      bytesEstimate,
+    });
     return respond(event, 200, { ok: true, profileID: canonicalProfileID, sanitized: fixes.length > 0 });
   } catch (err) {
-    console.error('[save-api] DynamoDB Put failed', {
+    logDynamoError('PutItem', requestId, err, {
+      table: TABLE_NAME,
       profileID: canonicalProfileID,
-      name: err?.name,
-      message: err?.message,
-      stack: err?.stack,
+      route: 'POST /save',
     });
-    return respond(event, 500, { error: 'Cloud save failed', code: 'DYNAMODB_PUT_FAILED' });
+    return respond(event, 500, {
+      error: 'Cloud save failed',
+      code: 'DYNAMODB_PUT_FAILED',
+      requestId,
+      details: err?.message,
+    });
   }
 }
 
@@ -440,6 +464,8 @@ async function handleDeleteSave(event, profileID) {
 exports.handler = async (event) => {
   const method = getHttpMethod(event);
   const path = normalizePath(event);
+  const requestId = logInbound(event, method, path);
+  const route = `${method} ${path}`;
 
   if (method === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders(event), body: '' };
@@ -447,7 +473,7 @@ exports.handler = async (event) => {
 
   try {
     if (method === 'GET' && isPlayersListPath(path)) {
-      return await handleListPlayers(event);
+      return await handleListPlayers(event, requestId);
     }
 
     if (method === 'POST' && path === '/login') {
@@ -461,7 +487,7 @@ exports.handler = async (event) => {
     if (method === 'POST' && path === '/save/delete') {
       const body = parseBody(event);
       const profileID = String(body.profileID || body.profileId || '').trim();
-      if (!profileID) return respond(event, 400, { error: 'Missing profileID' });
+      if (!profileID) return respond(event, 400, { error: 'Missing profileID', requestId });
       return await handleDeleteSave(event, profileID);
     }
 
@@ -471,9 +497,18 @@ exports.handler = async (event) => {
       if (method === 'DELETE') return await handleDeleteSave(event, profileID);
     }
 
-    return respond(event, 404, { error: 'Not found', path, method });
+    return respond(event, 404, { error: 'Not found', path, method, requestId });
   } catch (err) {
-    console.error('[save-api]', err?.message || err, { path, method });
-    return respond(event, 500, { error: 'Internal server error' });
+    const body = parseBody(event);
+    logApiError(route, requestId, err, {
+      profileId: profileIdFromBody(body) || profileIdFromEvent(event, path),
+      statusCode: 500,
+    });
+    return respond(event, 500, {
+      error: 'Internal server error',
+      code: 'UNHANDLED_EXCEPTION',
+      requestId,
+      details: err?.message || String(err),
+    });
   }
 };

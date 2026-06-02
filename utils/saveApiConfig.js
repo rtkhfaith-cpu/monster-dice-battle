@@ -1,29 +1,40 @@
 /**
  * Cloud save API base URL — build-time (VITE_SAVE_API_URL) + runtime (/save-config.json).
  */
+import { CANONICAL_API_BASE, resolveServiceBaseUrl } from './apiHosts';
 
 /** @type {unknown} — replaced at build by babel-plugin-transform-define */
 const SAVE_API_URL = import.meta.env.VITE_SAVE_API_URL;
 
-const BUILD_URL =
-  typeof SAVE_API_URL === 'string' ? SAVE_API_URL.trim().replace(/\/+$/, '') : '';
+const BUILD_URL = resolveServiceBaseUrl(
+  typeof SAVE_API_URL === 'string' ? SAVE_API_URL : '',
+  'save',
+);
 
 let runtimeUrl = '';
 let loadPromise = null;
 
-export { SAVE_API_URL, BUILD_URL };
+export { SAVE_API_URL, BUILD_URL, CANONICAL_API_BASE };
 
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 
 function normalizeUrl(raw) {
-  return String(raw || '')
-    .trim()
-    .replace(/\/+$/, '');
+  return resolveServiceBaseUrl(raw, 'save');
 }
 
 export function getSaveApiBaseUrl() {
   const url = normalizeUrl(BUILD_URL || runtimeUrl);
-  return url.length > 5 ? url : '';
+  if (url.length > 5) return url;
+  if (typeof window !== 'undefined' && !pageIsLocal()) {
+    return CANONICAL_API_BASE;
+  }
+  return '';
+}
+
+function pageIsLocal() {
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hostname;
+  return h === 'localhost' || h === '127.0.0.1';
 }
 
 export function loadSaveApiConfig() {

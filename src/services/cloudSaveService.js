@@ -18,6 +18,28 @@ import {
   SESSION_SUPERSEDED_CODE,
   SESSION_SUPERSEDED_MESSAGE,
 } from '../../utils/playerDeviceSession';
+import { classifyCloudHttpError } from './cloudApiErrors';
+import { recordSyncDebug, refreshSyncDebugUrls } from './syncDebugBus';
+
+function makeRequestId() {
+  return `cs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * @param {number} status
+ * @param {string} message
+ */
+function cloudErrorResult(status, message, extra = {}) {
+  const classified = classifyCloudHttpError(status, message);
+  return {
+    ok: false,
+    error: classified.raw,
+    userMessage: classified.userMessage,
+    kind: classified.kind,
+    status: classified.status,
+    ...extra,
+  };
+}
 
 function apiHostLabel(base) {
   if (!base) return '';
@@ -40,8 +62,8 @@ function formatFetchError(err, base = '') {
     const target = host ? ` (${host})` : '';
     return (
       `Could not reach the cloud save API${target}. ` +
-      'Check: (1) VITE_SAVE_API_URL in Amplify matches API Gateway invoke URL, ' +
-      '(2) GET /players works in the browser, (3) HTTP API CORS allows your Amplify domain, ' +
+      'Check: (1) VITE_SAVE_API_URL=https://monster-dice.rtkhfaith.com (not the Amplify frontend host), ' +
+      '(2) GET /players works in Network tab, (3) nginx proxies /players and /save to Lambda, ' +
       '(4) redeploy Amplify after changing env vars.'
     );
   }
@@ -116,7 +138,18 @@ async function readApiError(res) {
   }
 }
 
-async function apiRequest(base, path, init = {}) {
+async function apiRequest(base, path, init = {}, meta = {}) {
+  const requestId = makeRequestId();
+  const route = meta.route || path.split('?')[0];
+  recordSyncDebug({
+    requestId,
+    route,
+    status: 'requesting',
+    profileId: meta.profileId || '',
+    apiBase: base,
+  });
+  refreshSyncDebugUrls();
+
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), REQUEST_MS) : null;
   try {
@@ -125,10 +158,29 @@ async function apiRequest(base, path, init = {}) {
       signal: ctrl?.signal,
       headers: {
         Accept: 'application/json',
+        'X-Request-Id': requestId,
         ...(init.headers || {}),
       },
     });
+    recordSyncDebug({
+      requestId,
+      route,
+      httpStatus: res.status,
+      status: res.ok ? 'http_ok' : 'http_error',
+      profileId: meta.profileId || '',
+    });
     return res;
+  } catch (err) {
+    const classified = classifyCloudHttpError(0, err?.message || String(err));
+    recordSyncDebug({
+      requestId,
+      route,
+      httpStatus: 0,
+      status: 'fetch_error',
+      kind: classified.kind,
+      profileId: meta.profileId || '',
+    });
+    throw err;
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -153,11 +205,16 @@ export async function saveCloudProfile(profile, opts = {}) {
   delete payload.pin;
 
   try {
-    const res = await apiRequest(base, '/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const res = await apiRequest(
+      base,
+      '/save',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      { route: 'POST /save', profileId: profile.profileID },
+    );
     if (!res.ok) {
       const errText = await readApiError(res);
       if (DEV) console.warn('[cloud-save] POST /save failed', res.status, errText);
@@ -170,12 +227,13 @@ export async function saveCloudProfile(profile, opts = {}) {
           code: SESSION_SUPERSEDED_CODE,
         };
       }
-      return { ok: false, error: errText, status: res.status };
+      return cloudErrorResult(res.status, errText);
     }
+    recordSyncDebug({ status: 'saved', route: 'POST /save', httpStatus: 200 });
     return { ok: true };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] POST /save error', err?.message || err);
-    return { ok: false, error: err?.message || 'Network error' };
+    return cloudErrorResult(0, formatFetchError(err, base));
   }
 }
 
@@ -268,20 +326,35 @@ export async function listCloudPlayers() {
 
   try {
     const url = `${base}/players`;
-    const res = await apiRequest(base, '/players', {
-      method: 'GET',
-      cache: 'no-store',
-    });
+    const res = await apiRequest(
+      base,
+      '/players',
+      { method: 'GET', cache: 'no-store' },
+      { route: 'GET /players' },
+    );
     if (!res.ok) {
       const errText = await readApiError(res);
+      const classified = classifyCloudHttpError(res.status, errText);
       logCloudSync('list_players_failed', {
         status: res.status,
         error: errText,
+        kind: classified.kind,
         url,
         transport: 'https_fetch',
-        hint: 'Not socket.io — check API Gateway/Lambda CloudWatch, not PM2 socket logs',
+        hint: 'HTTPS API at monster-dice.rtkhfaith.com — not Socket.io / PM2',
       });
-      return { ok: false, error: errText, status: res.status };
+      recordSyncDebug({
+        status: 'list_failed',
+        kind: classified.kind,
+        httpStatus: res.status,
+        route: 'GET /players',
+      });
+      return {
+        ok: false,
+        error: classified.userMessage,
+        status: res.status,
+        kind: classified.kind,
+      };
     }
     const body = await res.json();
     const raw = Array.isArray(body?.players) ? body.players : Array.isArray(body) ? body : [];
@@ -305,11 +378,13 @@ export async function listCloudPlayers() {
           requiresKey: row.requiresKey !== false,
         };
       });
+    recordSyncDebug({ status: 'list_ok', route: 'GET /players', httpStatus: 200 });
     return { ok: true, players };
   } catch (err) {
     const error = formatFetchError(err, base);
-    logCloudSync('list_players_error', { error, base: apiHostLabel(base) });
-    return { ok: false, error };
+    const classified = classifyCloudHttpError(0, error);
+    logCloudSync('list_players_error', { error, kind: classified.kind, base: apiHostLabel(base) });
+    return { ok: false, error: classified.userMessage, kind: classified.kind };
   }
 }
 
@@ -327,19 +402,24 @@ export async function loginCloudProfile(profileID, playerKey, session = null, op
   const login = String(opts.login ?? profileID).trim();
 
   try {
-    const res = await apiRequest(base, '/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        profileID: String(profileID),
-        login,
-        playerKey: normalizePlayerKey(playerKey),
-        deviceId,
-        sessionToken,
-      }),
-    });
+    const res = await apiRequest(
+      base,
+      '/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileID: String(profileID),
+          login,
+          playerKey: normalizePlayerKey(playerKey),
+          deviceId,
+          sessionToken,
+        }),
+      },
+      { route: 'POST /login', profileId: String(profileID) },
+    );
     if (res.status === 401) {
-      return { ok: false, status: 401, error: 'Incorrect key' };
+      return cloudErrorResult(401, 'Incorrect key');
     }
     if (res.status === 404) {
       const { body } = await readResponse(res);
@@ -351,16 +431,14 @@ export async function loginCloudProfile(profileID, playerKey, session = null, op
         ...debug,
       });
       return {
-        ok: false,
-        status: 404,
-        error: body?.error || 'Profile not found',
+        ...cloudErrorResult(404, body?.error || 'Player not found'),
         debug,
       };
     }
     if (!res.ok) {
       const errText = await readApiError(res);
       if (DEV) console.warn('[cloud-save] POST /login failed', res.status, errText);
-      return { ok: false, status: res.status, error: errText };
+      return cloudErrorResult(res.status, errText);
     }
     const body = await res.json();
     const data = extractCloudRecord(body);
@@ -383,7 +461,7 @@ export async function loginCloudProfile(profileID, playerKey, session = null, op
     return { ok: true, data, session };
   } catch (err) {
     if (DEV) console.warn('[cloud-save] POST /login error', err?.message || err);
-    return { ok: false, error: formatFetchError(err) };
+    return cloudErrorResult(0, formatFetchError(err, base));
   }
 }
 
@@ -651,12 +729,20 @@ export async function syncProfileToCloud(profileID, gameData = null, opts = {}) 
       profileID,
       status: saved.status,
       error: saved.error,
+      kind: saved.kind,
       code: saved.code,
       coins: uploadCloud.coins,
       coinsType: typeof uploadCloud.coins,
     });
     return { ...saved, observedCloudAt };
   }
+  recordSyncDebug({
+    status: 'synced',
+    route: 'POST /save',
+    httpStatus: 200,
+    profileId: profileID,
+    kind: 'synced',
+  });
   return { ok: true, syncedAt: uploadCloud.updatedAt, observedCloudAt: uploadCloud.updatedAt };
 }
 

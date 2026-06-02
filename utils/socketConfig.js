@@ -1,24 +1,25 @@
 /**
  * Multiplayer server URL — build-time (VITE_SOCKET_SERVER_URL) + runtime (/socket-config.json).
  */
+import { CANONICAL_SOCKET_BASE, resolveServiceBaseUrl } from './apiHosts';
 
 /** @type {unknown} — replaced at build by babel-plugin-transform-define */
 const SOCKET_URL = import.meta.env.VITE_SOCKET_SERVER_URL;
 
-const BUILD_URL =
-  typeof SOCKET_URL === 'string' ? SOCKET_URL.trim().replace(/\/+$/, '') : '';
+const BUILD_URL = resolveServiceBaseUrl(
+  typeof SOCKET_URL === 'string' ? SOCKET_URL : '',
+  'socket',
+);
 
 let runtimeUrl = '';
 let loadPromise = null;
 
-export { SOCKET_URL, BUILD_URL };
+export { SOCKET_URL, BUILD_URL, CANONICAL_SOCKET_BASE };
 
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 
 function normalizeUrl(raw) {
-  return String(raw || '')
-    .trim()
-    .replace(/\/+$/, '');
+  return resolveServiceBaseUrl(raw, 'socket');
 }
 
 function isLocalhostUrl(url) {
@@ -35,7 +36,6 @@ function pageIsLocal() {
   return h === 'localhost' || h === '127.0.0.1';
 }
 
-/** Dev-only: socket on same machine as Expo web (port 3000) */
 function devSocketUrlGuess() {
   if (!DEV || typeof window === 'undefined') return '';
   const host = pageHostname();
@@ -45,12 +45,13 @@ function devSocketUrlGuess() {
 
 export function getSocketServerUrl() {
   const url = normalizeUrl(BUILD_URL || runtimeUrl);
-  return url.length > 5 ? url : '';
+  if (url.length > 5) return url;
+  if (typeof window !== 'undefined' && !pageIsLocal()) {
+    return CANONICAL_SOCKET_BASE;
+  }
+  return '';
 }
 
-/**
- * Load URL from /socket-config.json (Amplify build) or dev guess.
- */
 export function loadSocketConfig() {
   if (getSocketServerUrl()) {
     return Promise.resolve(getSocketServerUrl());
@@ -88,17 +89,16 @@ export function loadSocketConfig() {
   return loadPromise;
 }
 
-/** Player-safe validation before connecting */
 export function validateSocketUrl(url) {
   const u = normalizeUrl(url);
   if (!u || u.length <= 5) {
-    return 'Multiplayer server is not configured. Set VITE_SOCKET_SERVER_URL on Amplify and redeploy, or run npm run server locally.';
+    return 'Multiplayer server is not configured. Set VITE_SOCKET_SERVER_URL to https://monster-dice.rtkhfaith.com and redeploy.';
   }
   if (u.includes('your-socket-server') || u.includes('example.com') || u.includes('YOUR_')) {
-    return 'Multiplayer server URL is still a placeholder. Set VITE_SOCKET_SERVER_URL in Amplify.';
+    return 'Multiplayer server URL is still a placeholder.';
   }
   if (isLocalhostUrl(u) && !pageIsLocal()) {
-    return 'Server URL is set to localhost but the game is hosted online. Update VITE_SOCKET_SERVER_URL to your public API URL.';
+    return 'Server URL is localhost but the game is hosted online. Use https://monster-dice.rtkhfaith.com';
   }
   if (typeof window !== 'undefined' && window.location?.protocol === 'https:' && u.startsWith('http:')) {
     return 'Multiplayer server must use HTTPS (your game page is HTTPS).';
@@ -106,7 +106,6 @@ export function validateSocketUrl(url) {
   return null;
 }
 
-/** Quick health check — server must expose GET /health */
 export async function pingSocketServer(url) {
   const base = normalizeUrl(url);
   if (!base) return { ok: false, error: 'No server URL' };
@@ -127,7 +126,6 @@ export async function pingSocketServer(url) {
   }
 }
 
-/** For lobby debug (dev console only) */
 export function getSocketConfigDebug() {
   return {
     buildUrl: BUILD_URL || '(empty)',

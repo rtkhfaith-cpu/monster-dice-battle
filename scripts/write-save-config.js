@@ -7,7 +7,8 @@ const path = require('path');
 
 const outDir = path.join(__dirname, '..', 'public');
 const outFile = path.join(outDir, 'save-config.json');
-const envUrl = String(process.env.VITE_SAVE_API_URL || '').trim().replace(/\/+$/, '');
+const CANONICAL = 'https://monster-dice.rtkhfaith.com';
+const envUrl = String(process.env.VITE_SAVE_API_URL || CANONICAL).trim().replace(/\/+$/, '');
 let existingUrl = '';
 
 try {

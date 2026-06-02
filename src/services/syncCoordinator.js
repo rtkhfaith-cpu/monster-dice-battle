@@ -1,12 +1,24 @@
 /**
- * Local-first save, then best-effort cloud sync.
+ * Local-first save, then best-effort cloud sync (one in-flight sync per profile).
  */
 import { autosaveGame, saveGameSave } from './saveService';
 import { syncProfileToCloud, deleteCloudProfile } from './cloudSaveService';
 import { emitSaveStatus } from './saveStatusBus';
+import { recordSyncDebug } from './syncDebugBus';
 
 /** @type {string|null} */
 let activeProfileIDForSync = null;
+
+/** @type {number} */
+let commitSeq = 0;
+
+/** profileID → chained promise */
+const profileSyncChains = new Map();
+
+/** debounce key → timer */
+const scheduleTimers = new Map();
+
+const SCHEDULE_DEBOUNCE_MS = 700;
 
 /** @param {string|null} profileID */
 export function setCloudSyncProfileID(profileID) {
@@ -23,12 +35,30 @@ function normalizeProfileIDs(profileIDs) {
 }
 
 /**
- * @param {{ reason: string, gameData: object, profileIDs?: string|string[]|null, skipCloud?: boolean }} opts
+ * @param {string} profileID
+ * @param {() => Promise<T>} fn
+ * @returns {Promise<T>}
  */
+async function withProfileSyncLock(profileID, fn) {
+  const prev = profileSyncChains.get(profileID) || Promise.resolve();
+  const run = prev
+    .catch(() => {})
+    .then(() => fn());
+  profileSyncChains.set(profileID, run);
+  try {
+    return await run;
+  } finally {
+    if (profileSyncChains.get(profileID) === run) {
+      profileSyncChains.delete(profileID);
+    }
+  }
+}
+
 /**
- * @returns {Promise<{ localOk: boolean, cloudSynced: boolean, cloudFailed: boolean, cloudNeedsKey: boolean }|undefined>}
+ * @param {{ reason: string, gameData: object, profileIDs?: string|string[]|null, skipCloud?: boolean, forceCloud?: boolean }} opts
  */
 export async function commitSave(opts) {
+  const seq = ++commitSeq;
   const { reason, gameData, profileIDs, skipCloud = false, forceCloud = false } = opts;
   if (!gameData) return undefined;
 
@@ -48,7 +78,6 @@ export async function commitSave(opts) {
     gd = applySyncActivityForSave(gd, profileID, { includeSaveAction: true });
   }
 
-  /** Snapshots after sync-activity bump — used for cloud conflict checks. */
   const compareSnapshots = {};
   for (const profileID of targets) {
     const profile = getPlayerProfile(gd, profileID);
@@ -56,7 +85,9 @@ export async function commitSave(opts) {
   }
 
   await saveGameSave(gd);
-  emitSaveStatus('local_saved');
+  if (seq === commitSeq) {
+    emitSaveStatus('local_saved');
+  }
 
   const result = {
     localOk: true,
@@ -67,25 +98,42 @@ export async function commitSave(opts) {
     cloudBlocked: false,
     cloudBlockPayload: null,
     cloudErrors: [],
+    commitSeq: seq,
   };
 
-  if (skipCloud) return result;
+  if (skipCloud || targets.length === 0) return result;
 
-  if (targets.length === 0) return result;
+  recordSyncDebug({ status: 'syncing', route: 'POST /save', profileId: targets.join(',') });
 
   for (const profileID of targets) {
-    const res = await syncProfileToCloud(profileID, gd, {
-      force: forceCloud,
-      compareProfile: compareSnapshots[profileID] ?? null,
-    });
+    if (seq !== commitSeq) break;
+
+    const res = await withProfileSyncLock(profileID, () =>
+      syncProfileToCloud(profileID, gd, {
+        force: forceCloud,
+        compareProfile: compareSnapshots[profileID] ?? null,
+      }),
+    );
+
+    if (seq !== commitSeq) {
+      recordSyncDebug({ status: 'stale_ignored', profileId: profileID });
+      return result;
+    }
+
     if (res.observedCloudAt) {
       gd = markProfileCloudObserved(gd, profileID, res.observedCloudAt);
     }
     if (res.ok) {
       result.cloudSynced = true;
       gd = markProfileCloudSynced(gd, profileID, res.syncedAt);
+      recordSyncDebug({
+        status: 'ok',
+        httpStatus: 200,
+        profileId: profileID,
+        kind: 'synced',
+      });
     } else if (res.skipped) {
-      /* API not configured — local only */
+      /* API not configured */
     } else if (res.sessionSuperseded) {
       result.sessionSuperseded = true;
     } else if (res.cloudNewer) {
@@ -107,13 +155,21 @@ export async function commitSave(opts) {
       result.cloudFailed = true;
       result.cloudErrors.push({
         profileID,
-        error: res.error || 'Cloud sync failed',
-        kind: 'failed',
+        error: res.userMessage || res.error || 'Cloud sync failed',
+        kind: res.kind || 'failed',
         status: res.status,
         issues: res.issues,
       });
+      recordSyncDebug({
+        status: 'error',
+        httpStatus: res.status || 0,
+        profileId: profileID,
+        kind: res.kind || 'failed',
+      });
     }
   }
+
+  if (seq !== commitSeq) return result;
 
   if (result.cloudSynced && gd !== gameData) {
     await saveGameSave(gd);
@@ -135,22 +191,26 @@ export async function commitSave(opts) {
 }
 
 /**
- * Debounced local write + cloud attempt (for high-frequency state).
- * @param {string} reason
- * @param {object} gameData
- * @param {string|string[]|null} profileIDs
+ * Debounced local write + cloud attempt.
  */
 export function scheduleCommitSave(reason, gameData, profileIDs) {
   autosaveGame(reason, gameData);
-  void commitSave({ reason, gameData, profileIDs });
+  const key = JSON.stringify(
+    normalizeProfileIDs(
+      Array.isArray(profileIDs) ? profileIDs : profileIDs ? [profileIDs] : [],
+    ),
+  );
+  const prev = scheduleTimers.get(key);
+  if (prev) clearTimeout(prev);
+  scheduleTimers.set(
+    key,
+    setTimeout(() => {
+      scheduleTimers.delete(key);
+      void commitSave({ reason, gameData, profileIDs });
+    }, SCHEDULE_DEBOUNCE_MS),
+  );
 }
 
-/**
- * Delete cloud first (key verified on server), then update local cache.
- * @param {string} profileID
- * @param {string} playerKey
- * @param {object} gameData
- */
 export async function commitProfileDeleted(profileID, playerKey, gameData, opts = {}) {
   const { getPlayerProfile } = await import('../../utils/gameStorage');
   const { verifyPlayerKeyForProfile } = await import('../../utils/playerKey');
@@ -165,7 +225,7 @@ export async function commitProfileDeleted(profileID, playerKey, gameData, opts 
     if (!del.ok) {
       return {
         ok: false,
-        error: del.error || 'Delete failed.',
+        error: del.userMessage || del.error || 'Delete failed.',
       };
     }
   } else if (localProfile) {
@@ -187,10 +247,6 @@ export async function commitProfileDeleted(profileID, playerKey, gameData, opts 
   return { ok: true, gameData: next };
 }
 
-/**
- * Audio settings changed — sync active profile if known.
- * @param {string|null} profileID
- */
 export async function commitAudioSettingsSave(profileID = activeProfileIDForSync) {
   if (!profileID) return;
   const { loadGameSave } = await import('./saveService');
