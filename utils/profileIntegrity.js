@@ -5,17 +5,21 @@
  */
 import { ensureGearInventory } from '../src/gameSystems/gear/inventoryGearUtils';
 import { migrateProfileToNewGear } from '../src/gameSystems/gear/gearMigration';
+import { ensureGemInventory } from '../src/gameSystems/gems/gemInventory';
 import { MONSTER_LEVEL_MAX, reconcileMonsterLevelExp } from './expLevel';
 import { getMonsterTemplate } from './monsterTemplates';
 import { getLadderMonsterTemplate } from './monsterLadder/ladderMonsterCatalog';
 import { defaultBattleMonsterId, resolveBattleMonsterId } from './rosterInventory';
 import { ensurePassiveInventory } from '../src/gameSystems/passiveInventory';
 import { getPassiveSkillDef } from '../src/gameSystems/passiveSkills';
+import { ensurePetInventory } from '../src/gameSystems/petInventory';
+import { normalizeMonsterLadder } from './monsterLadder/ladderProgress';
+import { PROFILE_CAPS, sanitizeFiniteInt } from './profileCaps';
 
-/** Soft cap — legitimate play should stay far below this. */
-export const PROFILE_COINS_SOFT_CAP = 250_000;
+/** @deprecated Use PROFILE_CAPS.coins */
+export const PROFILE_COINS_SOFT_CAP = PROFILE_CAPS.coins;
 export const PROFILE_LEVEL_MAX = MONSTER_LEVEL_MAX;
-export const PROFILE_MONSTER_CAP = 200;
+export const PROFILE_MONSTER_CAP = PROFILE_CAPS.ownedMonsters;
 export const PROFILE_NICKNAME_MAX = 24;
 export const PROFILE_NAME_MAX = 24;
 
@@ -64,6 +68,13 @@ export function isKnownMonsterTemplateId(templateId) {
   return !!(getMonsterTemplate(templateId) || getLadderMonsterTemplate(templateId));
 }
 
+function applyIntField(target, key, raw, caps, issues, issuePrefix) {
+  const res = sanitizeFiniteInt(raw, caps);
+  target[key] = res.value;
+  if (res.invalid) issues.push(`${issuePrefix}_invalid`);
+  else if (res.capped) issues.push(`${issuePrefix}_capped`);
+}
+
 /**
  * Clamp and strip unknown IDs. Returns issue codes for logging / cloud rejection.
  * @param {object} profile
@@ -77,17 +88,11 @@ export function sanitizePlayerProfile(profile, opts = {}) {
 
   profile.name = String(profile.name || 'Player').slice(0, PROFILE_NAME_MAX);
 
-  if (typeof profile.coins !== 'number' || !Number.isFinite(profile.coins) || profile.coins < 0) {
-    profile.coins = 0;
-    issues.push('coins_invalid');
-  } else if (profile.coins > PROFILE_COINS_SOFT_CAP) {
-    issues.push('coins_over_cap');
-    if (!opts.forCloud) profile.coins = PROFILE_COINS_SOFT_CAP;
-  }
+  applyIntField(profile, 'coins', profile.coins, { max: PROFILE_CAPS.coins }, issues, 'coins');
 
   if (!Array.isArray(profile.ownedMonsters)) profile.ownedMonsters = [];
-  if (profile.ownedMonsters.length > PROFILE_MONSTER_CAP) {
-    profile.ownedMonsters = profile.ownedMonsters.slice(0, PROFILE_MONSTER_CAP);
+  if (profile.ownedMonsters.length > PROFILE_CAPS.ownedMonsters) {
+    profile.ownedMonsters = profile.ownedMonsters.slice(0, PROFILE_CAPS.ownedMonsters);
     issues.push('monsters_truncated');
   }
 
@@ -106,7 +111,12 @@ export function sanitizePlayerProfile(profile, opts = {}) {
       exp: Math.floor(Number(om.exp) || 0),
     });
     om.level = reconciled.level;
-    om.exp = reconciled.exp;
+    const expRes = sanitizeFiniteInt(reconciled.exp, {
+      min: 0,
+      max: PROFILE_CAPS.monsterExp,
+    });
+    om.exp = expRes.value;
+    if (expRes.capped) issues.push('monster_exp_capped');
     return true;
   });
 
@@ -124,6 +134,48 @@ export function sanitizePlayerProfile(profile, opts = {}) {
 
   migrateProfileToNewGear(profile);
   ensureGearInventory(profile);
+  ensureGemInventory(profile);
+
+  if (Array.isArray(profile.gemInventory)) {
+    profile.gemInventory = profile.gemInventory
+      .map((g) => {
+        if (!g || typeof g !== 'object') return null;
+        const countRes = sanitizeFiniteInt(g.count, {
+          min: 0,
+          max: PROFILE_CAPS.gemStackCount,
+        });
+        if (countRes.invalid || countRes.capped) issues.push('gem_count_capped');
+        return { ...g, count: countRes.value };
+      })
+      .filter((g) => g && g.count > 0);
+  }
+
+  applyIntField(
+    profile,
+    'petExpDust',
+    profile.petExpDust,
+    { max: PROFILE_CAPS.petExpDust },
+    issues,
+    'pet_exp_dust',
+  );
+
+  ensurePetInventory(profile);
+  if (Array.isArray(profile.ownedPets) && profile.ownedPets.length > PROFILE_CAPS.ownedPets) {
+    profile.ownedPets = profile.ownedPets.slice(0, PROFILE_CAPS.ownedPets);
+    issues.push('pets_truncated');
+  }
+
+  if (profile.battleProgress && typeof profile.battleProgress === 'object') {
+    const bp = profile.battleProgress;
+    for (const key of ['totalBattles', 'winStreak', 'lossStreak']) {
+      applyIntField(bp, key, bp[key], { max: PROFILE_CAPS.winsLosses }, issues, `battle_${key}`);
+    }
+  }
+
+  if (profile.monsterLadder) {
+    profile.monsterLadder = normalizeMonsterLadder(profile.monsterLadder, profile.ladderProgress);
+    delete profile.ladderProgress;
+  }
 
   return { profile, issues };
 }
@@ -131,7 +183,6 @@ export function sanitizePlayerProfile(profile, opts = {}) {
 /** True when cloud upload should be refused (keeps hacked saves local-only). */
 export function profileBlockedForCloudSync(profile) {
   const { issues } = sanitizePlayerProfile(profile, { forCloud: true });
-  if (issues.includes('coins_over_cap')) return true;
   const severe = issues.filter((c) =>
     c === 'monster_unknown_template' || c === 'invalid_profile',
   );

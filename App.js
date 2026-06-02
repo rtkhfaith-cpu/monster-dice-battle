@@ -804,6 +804,17 @@ export default function App() {
       if (res?.cloudBlocked && res.cloudBlockPayload) {
         await applyCloudBlockPayload(res.cloudBlockPayload, res.gameData || nextGd);
       }
+      if (res?.cloudFailed && res.cloudErrors?.length) {
+        for (const err of res.cloudErrors) {
+          console.error('[cloud-sync] save failed', {
+            reason,
+            profileID: err.profileID,
+            error: err.error,
+            status: err.status,
+            issues: err.issues,
+          });
+        }
+      }
     });
   }
   const slotProfileId =

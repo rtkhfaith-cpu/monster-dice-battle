@@ -6,6 +6,7 @@ import { grantPetExp, reconcilePetLevelExp, PET_MAX_LEVEL } from './petExp';
 import { describePetSkill, getPetSkillEffect } from './petSkills';
 import { petDuplicateShardsForRarity } from '../gameBalance/gearShards';
 import { getMonsterLadderState, setMonsterLadderState } from '../../utils/monsterLadder/ladderProfile';
+import { PROFILE_CAPS } from '../../utils/profileCaps';
 
 function newInstanceId() {
   return `pet_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
@@ -39,6 +40,10 @@ export function ensurePetInventory(profile) {
   if (!Array.isArray(profile.ownedPets)) profile.ownedPets = [];
 
   // Normalize in place so existing row references remain valid across calls.
+  if (profile.ownedPets.length > PROFILE_CAPS.ownedPets) {
+    profile.ownedPets = profile.ownedPets.slice(0, PROFILE_CAPS.ownedPets);
+  }
+
   for (let i = profile.ownedPets.length - 1; i >= 0; i--) {
     const cur = profile.ownedPets[i];
     const norm = normalizeOwnedPetRow(cur);

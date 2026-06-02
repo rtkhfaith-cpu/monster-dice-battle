@@ -31,6 +31,7 @@ import {
   parseGemKey,
 } from './gemDefinitions';
 import { ensureGearInventory, getGearInstance, getMonsterNameForGear } from '../gear/inventoryGearUtils';
+import { PROFILE_CAPS, sanitizeFiniteInt } from '../../../utils/profileCaps';
 
 function isValidGemKey(key) {
   return !!parseGemKey(key);
@@ -70,7 +71,10 @@ function inventoryRowToGroups(row) {
   const level = clampGemLevel(row.level);
   const out = [];
   if (Object.prototype.hasOwnProperty.call(row, 'count')) {
-    const count = Math.max(0, Math.floor(row.count || 0));
+    const count = sanitizeFiniteInt(row.count, {
+      min: 0,
+      max: PROFILE_CAPS.gemStackCount,
+    }).value;
     if (count > 0) out.push({ key, rarity: parsed.rarity, stat: parsed.stat, level, count });
   } else {
     out.push({ key, rarity: parsed.rarity, stat: parsed.stat, level, count: 1 });

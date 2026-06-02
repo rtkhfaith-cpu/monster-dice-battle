@@ -2,6 +2,7 @@ import { LADDER_MAIN_LEVELS, LADDER_SUB_LEVELS, LADDER_TOTAL_STAGES } from './la
 import { applyLadderBiweeklyResetIfNeeded } from './ladderBiweeklyReset';
 import { applyLadderDailyResetIfNeeded, getLadderRewardDayKey } from './ladderDailyReset';
 import { MONSTER_LEVEL_MAX, reconcileMonsterLevelExp } from '../expLevel';
+import { PROFILE_CAPS } from '../profileCaps';
 import { decodeStage, encodeStage, getStageKind } from './stages';
 
 /**
@@ -95,18 +96,28 @@ export function normalizeMonsterLadder(raw, legacyLadderProgress) {
 
   const pity = r.pity && typeof r.pity === 'object' ? r.pity : {};
   base.pity = {
-    gearChestsOpened: clampInt(/** @type {any} */ (pity).gearChestsOpened, 0, 999999, 0),
-    monsterChestsOpened: clampInt(/** @type {any} */ (pity).monsterChestsOpened, 0, 999999, 0),
+    gearChestsOpened: clampInt(
+      /** @type {any} */ (pity).gearChestsOpened,
+      0,
+      PROFILE_CAPS.itemQuantity,
+      0,
+    ),
+    monsterChestsOpened: clampInt(
+      /** @type {any} */ (pity).monsterChestsOpened,
+      0,
+      PROFILE_CAPS.itemQuantity,
+      0,
+    ),
   };
 
-  base.ladderGold = clampInt(r.ladderGold, 0, 999999999, 0);
-  base.ladderShards = clampInt(r.ladderShards, 0, 999999999, 0);
+  base.ladderGold = clampInt(r.ladderGold, 0, PROFILE_CAPS.ladderGold, 0);
+  base.ladderShards = clampInt(r.ladderShards, 0, PROFILE_CAPS.ladderShards, 0);
   const inv = r.chestInventory && typeof r.chestInventory === 'object' ? r.chestInventory : {};
   base.chestInventory = {
-    gear: clampInt(/** @type {any} */ (inv).gear, 0, 999999, 0),
-    monster: clampInt(/** @type {any} */ (inv).monster, 0, 999999, 0),
+    gear: clampInt(/** @type {any} */ (inv).gear, 0, PROFILE_CAPS.itemQuantity, 0),
+    monster: clampInt(/** @type {any} */ (inv).monster, 0, PROFILE_CAPS.itemQuantity, 0),
   };
-  base.expDust = clampInt(r.expDust, 0, 999999999, 0);
+  base.expDust = clampInt(r.expDust, 0, PROFILE_CAPS.ladderExpDust, 0);
   base.ownedMonsters = Array.isArray(r.ownedMonsters) ? r.ownedMonsters.map(normalizeOwnedRow).filter(Boolean) : [];
   base.ownedGear = Array.isArray(r.ownedGear) ? r.ownedGear.filter((x) => typeof x === 'string') : [];
   base.activeMonsterId = typeof r.activeMonsterId === 'string' ? r.activeMonsterId : null;
@@ -114,12 +125,12 @@ export function normalizeMonsterLadder(raw, legacyLadderProgress) {
 
   const st = r.stats && typeof r.stats === 'object' ? r.stats : {};
   base.stats = {
-    totalBattles: clampInt(/** @type {any} */ (st).totalBattles, 0, 9999999, 0),
-    wins: clampInt(/** @type {any} */ (st).wins, 0, 9999999, 0),
-    losses: clampInt(/** @type {any} */ (st).losses, 0, 9999999, 0),
+    totalBattles: clampInt(/** @type {any} */ (st).totalBattles, 0, PROFILE_CAPS.winsLosses, 0),
+    wins: clampInt(/** @type {any} */ (st).wins, 0, PROFILE_CAPS.winsLosses, 0),
+    losses: clampInt(/** @type {any} */ (st).losses, 0, PROFILE_CAPS.winsLosses, 0),
     highestStageReached: clampInt(/** @type {any} */ (st).highestStageReached, 1, LADDER_TOTAL_STAGES, 1),
-    gearChestsOpened: clampInt(/** @type {any} */ (st).gearChestsOpened, 0, 9999999, 0),
-    monsterChestsOpened: clampInt(/** @type {any} */ (st).monsterChestsOpened, 0, 9999999, 0),
+    gearChestsOpened: clampInt(/** @type {any} */ (st).gearChestsOpened, 0, PROFILE_CAPS.winsLosses, 0),
+    monsterChestsOpened: clampInt(/** @type {any} */ (st).monsterChestsOpened, 0, PROFILE_CAPS.winsLosses, 0),
   };
 
   const as = r.assist && typeof r.assist === 'object' ? r.assist : {};
@@ -127,7 +138,7 @@ export function normalizeMonsterLadder(raw, legacyLadderProgress) {
     enabled: !!/** @type {any} */ (as).enabled,
     borrowedFriendMonsterId: /** @type {any} */ (as).borrowedFriendMonsterId ?? null,
     mercenaryId: /** @type {any} */ (as).mercenaryId ?? null,
-    helperFame: clampInt(/** @type {any} */ (as).helperFame, 0, 9999999, 0),
+    helperFame: clampInt(/** @type {any} */ (as).helperFame, 0, PROFILE_CAPS.winsLosses, 0),
   };
 
   return applyLadderDailyResetIfNeeded(applyLadderBiweeklyResetIfNeeded(base));
@@ -145,7 +156,7 @@ function normalizeOwnedRow(om) {
   if (typeof o.templateId !== 'string' || typeof o.id !== 'string') return null;
   const { level, exp } = reconcileMonsterLevelExp({
     level: clampInt(o.level, 1, MONSTER_LEVEL_MAX, 1),
-    exp: clampInt(o.exp, 0, 99999999, 0),
+    exp: clampInt(o.exp, 0, PROFILE_CAPS.monsterExp, 0),
   });
   return {
     id: o.id,

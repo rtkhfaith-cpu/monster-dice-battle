@@ -4,7 +4,7 @@
 import { getSaveApiBaseUrl, loadSaveApiConfig } from '../../utils/saveApiConfig';
 import { normalizePlayerKey } from '../../utils/playerKey';
 import { loadGameSave, saveGameSave } from './saveService';
-import { profileBlockedForCloudSync } from '../../utils/profileIntegrity';
+import { profileBlockedForCloudSync, sanitizePlayerProfile } from '../../utils/profileIntegrity';
 import { getPlayerProfile } from '../../utils/gameStorage';
 import { isCloudUploadBlocked, compareLocalAndCloudSave } from './saveConflict';
 import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
@@ -72,6 +72,17 @@ async function readResponse(res) {
 
 const DEV = typeof __DEV__ !== 'undefined' && __DEV__;
 const REQUEST_MS = 12000;
+
+/**
+ * @param {string} phase
+ * @param {object} detail — never include PIN / playerKey
+ */
+export function logCloudSync(phase, detail = {}) {
+  const payload = { phase, ...detail };
+  if (payload.playerKey) delete payload.playerKey;
+  if (payload.pin) delete payload.pin;
+  console.error('[cloud-sync]', payload);
+}
 
 /** @param {object|null|undefined} data */
 function hasFullCloudPayload(data) {
@@ -506,11 +517,29 @@ export async function pushLoginSessionToCloud(profileID, gameData, session) {
 export async function syncProfileToCloud(profileID, gameData = null, opts = {}) {
   const gd = gameData || (await loadGameSave());
   const profile = getPlayerProfile(gd, profileID);
+  if (profile) {
+    const { issues } = sanitizePlayerProfile(profile);
+    if (issues.length > 0) {
+      logCloudSync('profile_sanitized', {
+        profileID,
+        issues,
+        coins: profile.coins,
+        coinsType: typeof profile.coins,
+      });
+    }
+  }
   if (profile && profileBlockedForCloudSync(profile)) {
-    if (DEV) console.warn('[cloud-save] sync blocked — profile failed integrity checks', profileID);
+    const { issues } = sanitizePlayerProfile(profile, { forCloud: true });
+    logCloudSync('sync_blocked', {
+      profileID,
+      issues,
+      coins: profile?.coins,
+      coinsType: typeof profile?.coins,
+    });
     return {
       ok: false,
       error: 'Save could not sync: profile data looks invalid. Play normally or contact support.',
+      issues,
     };
   }
   const localSession = await getProfileSession(profileID);
@@ -567,7 +596,17 @@ export async function syncProfileToCloud(profileID, gameData = null, opts = {}) 
   );
   if (!uploadCloud) return { ok: false, error: 'Profile not found locally' };
   const saved = await saveCloudProfile(uploadCloud);
-  if (!saved.ok) return { ...saved, observedCloudAt };
+  if (!saved.ok) {
+    logCloudSync('upload_failed', {
+      profileID,
+      status: saved.status,
+      error: saved.error,
+      code: saved.code,
+      coins: uploadCloud.coins,
+      coinsType: typeof uploadCloud.coins,
+    });
+    return { ...saved, observedCloudAt };
+  }
   return { ok: true, syncedAt: uploadCloud.updatedAt, observedCloudAt: uploadCloud.updatedAt };
 }
 

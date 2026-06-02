@@ -66,6 +66,7 @@ export async function commitSave(opts) {
     cloudNeedsKey: false,
     cloudBlocked: false,
     cloudBlockPayload: null,
+    cloudErrors: [],
   };
 
   if (skipCloud) return result;
@@ -95,13 +96,22 @@ export async function commitSave(opts) {
         comparison: res.comparison,
         error: res.error,
       };
+      result.cloudErrors.push({ profileID, error: res.error, kind: 'cloud_blocked' });
     } else if (
       typeof res.error === 'string' &&
       res.error.toLowerCase().includes('player key')
     ) {
       result.cloudNeedsKey = true;
+      result.cloudErrors.push({ profileID, error: res.error, kind: 'needs_key' });
     } else {
       result.cloudFailed = true;
+      result.cloudErrors.push({
+        profileID,
+        error: res.error || 'Cloud sync failed',
+        kind: 'failed',
+        status: res.status,
+        issues: res.issues,
+      });
     }
   }
 

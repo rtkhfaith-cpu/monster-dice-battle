@@ -12,6 +12,7 @@ import {
 import { ensureMonsterEquipment } from './equipmentSystem';
 import { getGearInstance } from './inventoryGearUtils';
 import { sumGearSocketGemStats } from '../gems/gemInventory';
+import { clampBattleStats } from '../../../utils/profileCaps';
 
 function sumGearFlatStats(gearInstances) {
   const flat = {
@@ -159,8 +160,8 @@ export function computeFinalBattleStats(baseStats, profile, ownedMonster, equipp
   }
 
   return {
-    stats,
-    baseStats,
+    stats: clampBattleStats(stats),
+    baseStats: clampBattleStats(baseStats),
     gearBonuses: flat,
     gearModifiers,
     activeSetBonus: setBonus,

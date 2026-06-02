@@ -12,6 +12,8 @@ import { normalizeDailyLoginSpin } from '../../utils/dailyLoginSpin';
 import { clampMergeTier } from '../../utils/mergeSystem';
 import { peakMonsterLevelFromRoster } from '../../utils/trainerRankings';
 import { normalizeSyncActivity } from '../../utils/syncActivityLevel';
+import { sanitizePlayerProfile } from '../../utils/profileIntegrity';
+import { PROFILE_CAPS, sanitizeFiniteInt } from '../../utils/profileCaps';
 
 /**
  * @param {object} gameData
@@ -23,6 +25,7 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
 
   normalizeDailyLoginSpin(p);
   repairPlayerProfileInventory(p);
+  sanitizePlayerProfile(p);
 
   const monsters = (p.ownedMonsters || []).map((om) => ({
     id: om.id,
@@ -45,7 +48,7 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
   const row = {
     profileID: String(profileID),
     playerName: String(p.name || 'Player').slice(0, 24),
-    coins: typeof p.coins === 'number' ? p.coins : 0,
+    coins: sanitizeFiniteInt(p.coins, { max: PROFILE_CAPS.coins }).value,
     selectedMonsterId: p.selectedMonsterId ?? null,
     monsters,
     peakMonsterLevel: peak.level,

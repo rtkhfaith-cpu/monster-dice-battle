@@ -17,6 +17,7 @@ const {
   authorizeSaveAccess,
   profileIsProtected,
 } = require('./playerKeyHash');
+const { sanitizeProfileItem } = require('./sanitizeProfileItem');
 
 const TABLE_NAME = process.env.TABLE_NAME || 'MonsterBattleSaves';
 const MAX_LIST = 50;
@@ -292,7 +293,7 @@ async function handlePostSave(event) {
   }
 
   const now = new Date().toISOString();
-  const item = {
+  const rawItem = {
     ...body,
     profileID,
     playerKey,
@@ -300,18 +301,52 @@ async function handlePostSave(event) {
     createdAt: body.createdAt || existing?.createdAt || now,
   };
 
-  delete item.playerKeyHash;
-  delete item.pinHash;
-  delete item.pin;
-  delete item.id;
+  delete rawItem.playerKeyHash;
+  delete rawItem.pinHash;
+  delete rawItem.pin;
+  delete rawItem.id;
 
-  await client.send(
-    new PutCommand({
-      TableName: TABLE_NAME,
-      Item: item,
-    }),
-  );
-  return respond(event, 200, { ok: true, profileID });
+  const { item, fixes, bytesEstimate } = sanitizeProfileItem(rawItem);
+  if (bytesEstimate > 380000) {
+    console.error('[save-api] profile payload too large', {
+      profileID,
+      bytesEstimate,
+      coins: item.coins,
+      coinsType: typeof item.coins,
+    });
+    return respond(event, 413, {
+      error: 'Save too large for cloud storage. Reduce inventory size or contact support.',
+      code: 'ITEM_TOO_LARGE',
+    });
+  }
+
+  if (fixes.length > 0) {
+    console.warn('[save-api] sanitized profile fields', {
+      profileID,
+      fixes,
+      coins: item.coins,
+      coinsType: typeof item.coins,
+    });
+  }
+
+  try {
+    await client.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: item,
+      }),
+    );
+    console.log('[save-api] DynamoDB Put OK', { profileID, bytesEstimate });
+    return respond(event, 200, { ok: true, profileID, sanitized: fixes.length > 0 });
+  } catch (err) {
+    console.error('[save-api] DynamoDB Put failed', {
+      profileID,
+      name: err?.name,
+      message: err?.message,
+      stack: err?.stack,
+    });
+    return respond(event, 500, { error: 'Cloud save failed', code: 'DYNAMODB_PUT_FAILED' });
+  }
 }
 
 async function handleDeleteSave(event, profileID) {
