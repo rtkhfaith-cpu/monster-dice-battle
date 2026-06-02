@@ -18,6 +18,16 @@ npm ci --omit=dev
 PORT=3000 node index.js
 ```
 
+Optional — `syncProfile` can persist cloud saves when the client sends `cloudDocument` + `playerKey`:
+
+```bash
+# Preferred: proxy to API Gateway (same URL as VITE_SAVE_API_URL)
+SAVE_API_URL=https://YOUR_API_GATEWAY/prod node index.js
+
+# Or direct DynamoDB (Lambda IAM role / AWS credentials on the host)
+TABLE_NAME=MonsterBattleSaves node index.js
+```
+
 You should see: `Server listening on 3000`
 
 ## 2. Run Node as a service (recommended)

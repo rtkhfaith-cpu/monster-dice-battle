@@ -627,8 +627,14 @@ export function leaveOnlineRoom() {
   notify();
 }
 
+/**
+ * Sync lobby profile to the socket server (and optional cloud save if cloudDocument + playerKey).
+ * @returns {Promise<{ ok?: boolean, error?: string, details?: string, cloud?: object }>}
+ */
 export function syncOnlineProfile(profilePayload) {
-  if (!socket?.connected) return;
+  if (!socket?.connected) {
+    return Promise.resolve({ ok: false, error: 'Not connected' });
+  }
   const session = loadOnlineSession();
   if (session) {
     saveOnlineSession({
@@ -637,8 +643,20 @@ export function syncOnlineProfile(profilePayload) {
       playerName: profilePayload.name,
     });
   }
-  socket.emit('syncProfile', profilePayload);
-  devLog('profile synced', profilePayload.name);
+  const code = roomState?.roomCode || loadOnlineSession()?.roomCode || '';
+  const payload = { ...profilePayload, roomCode: profilePayload.roomCode || code };
+  return emitWithAck(socket, 'syncProfile', payload).then((res) => {
+    if (res?.ok === false || res?.error) {
+      devLog('syncProfile failed', res.error, res.details || '');
+      console.warn('[online] syncProfile failed', res.error, res.details || '');
+    } else if (res?.cloud && res.cloud.ok === false && !res.cloud.skipped) {
+      devLog('syncProfile cloud save failed', res.cloud.error, res.cloud.details || '');
+      console.warn('[online] syncProfile cloud save failed', res.cloud.error);
+    } else {
+      devLog('profile synced', profilePayload.name);
+    }
+    return res || { ok: false, error: 'Empty server response' };
+  });
 }
 
 /** Resolve local slot from session or profile id match in room state. */

@@ -158,6 +158,7 @@ import {
 import PlayerKeyModal from './components/PlayerKeyModal';
 import SaveConflictModal from './components/SaveConflictModal';
 import { loadSaveApiConfig } from './utils/saveApiConfig';
+import { toCloudProfile } from './src/services/cloudSaveMapper';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { getMonsterTemplate, RARITY_UI, ROLE_LABELS } from './utils/monsterTemplates';
 import { playSound } from './utils/sounds';
@@ -476,12 +477,16 @@ export default function App() {
     if (!gameData || !setupP1ProfileId) return null;
     const prof = gameData.players.find((p) => p.id === setupP1ProfileId);
     const f = setupP1Id ? fighterFromSetupId(setupP1Id, setupP1ProfileId) : null;
+    const playerKey = normalizePlayerKey(prof?.pin || prof?.playerKey || '');
+    const cloudDocument =
+      playerKey.length === 4 ? toCloudProfile(gameData, setupP1ProfileId) : null;
     return {
       name: prof?.name ?? 'Player',
       profileId: setupP1ProfileId,
       ownedMonsterId: setupP1Id,
       monsterName: f?.displayName ?? 'Monster',
       fighter: f,
+      ...(cloudDocument ? { cloudDocument, playerKey } : {}),
     };
   }, [gameData, setupP1ProfileId, setupP1Id]);
 

@@ -12,6 +12,7 @@ const {
   activeTurnFromPhase,
   endTurnAfterResolve,
 } = require('./battleEngine');
+const { registerSyncProfileHandler } = require('./syncProfileHandler');
 
 const PORT = Number(process.env.PORT) || 3000;
 const RESOLVE_MS = 2200;
@@ -447,31 +448,12 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('syncProfile', (payload = {}) => {
-    const { code, room } = findRoomForSocket(socket.id, payload.roomCode);
-    if (!code || !room) return;
-    const slot = playerSlot(room, socket.id);
-    if (!slot) return;
-
-    const fighter = payload.fighter || null;
-    const p = room.players[slot];
-    p.profile = {
-      name: String(payload.name || 'Player').slice(0, 24),
-      profileId: payload.profileId || null,
-      ownedMonsterId: payload.ownedMonsterId || null,
-      monsterName: payload.monsterName || fighter?.displayName || 'Monster',
-      level: fighter?.level ?? 1,
-      hp: fighter?.stats?.hp ?? 0,
-      maxHp: fighter?.stats?.hp ?? 0,
-      mp: fighter?.stats?.mp ?? 0,
-      maxMp: fighter?.stats?.mp ?? 0,
-      templateId: fighter?.monsterTemplateId || null,
-      fighter,
-    };
-    console.log('[profile] synced', code, slot, p.profile.name);
-    emitRoomUpdate(code);
-    const started = tryAutoStartBattle(code);
-    if (started) console.log('[battle] auto-start after profile sync', code);
+  registerSyncProfileHandler({
+    socket,
+    findRoomForSocket,
+    playerSlot,
+    emitRoomUpdate,
+    tryAutoStartBattle,
   });
 
   socket.on('battleAction', (payload = {}, ack) => {
