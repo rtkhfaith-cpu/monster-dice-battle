@@ -28,7 +28,7 @@ import { ensureProfileCloudFresh } from './cloudSyncGuard';
  * @param {string} profileId
  * @param {string} playerKey
  */
-export async function resolveProfileLoginWithCloud(gameData, profileId, playerKey) {
+export async function resolveProfileLoginWithCloud(gameData, profileId, playerKey, opts = {}) {
   const pin = normalizePlayerKey(playerKey);
   if (pin.length !== 4) {
     return { ok: false, error: 'Enter your 4-digit Player Key.' };
@@ -37,7 +37,10 @@ export async function resolveProfileLoginWithCloud(gameData, profileId, playerKe
   const baseGd = gameData || cloneGameData({ players: [], session: {} });
   const localProfile = getPlayerProfile(baseGd, profileId);
   const session = await registerProfileLoginSession(profileId);
-  const login = await recallCloudProfile(profileId, pin, { session });
+  const login = await recallCloudProfile(profileId, pin, {
+    session,
+    login: opts.loginInput ?? profileId,
+  });
 
   if (!login.ok) {
     if (login.skipped && localProfile) {
@@ -57,6 +60,7 @@ export async function resolveProfileLoginWithCloud(gameData, profileId, playerKe
       ok: false,
       error: login.error || 'Could not load cloud save.',
       status: login.status,
+      debug: login.debug,
     };
   }
 
@@ -76,6 +80,9 @@ export async function resolveProfileLoginWithCloud(gameData, profileId, playerKe
   }
 
   const resolvedId = String(cloudData?.profileID || cloudData?.id || profileId).trim();
+  if (!resolvedId) {
+    return { ok: false, error: 'Cloud save missing profile ID.', debug: login.debug };
+  }
   let next = baseGd;
   let usedCloud = false;
 

@@ -5,6 +5,7 @@ import { getSaveApiBaseUrl, loadSaveApiConfig } from '../../utils/saveApiConfig'
 import { normalizePlayerKey } from '../../utils/playerKey';
 import { loadGameSave, saveGameSave } from './saveService';
 import { profileBlockedForCloudSync, sanitizePlayerProfile } from '../../utils/profileIntegrity';
+import { cloudNotFoundDebugFromBody } from '../../utils/cloudProfileLookup';
 import { getPlayerProfile } from '../../utils/gameStorage';
 import { isCloudUploadBlocked, compareLocalAndCloudSave } from './saveConflict';
 import { applyCloudProfile, normalizeCloudRecord, toCloudProfile } from './cloudSaveMapper';
@@ -197,11 +198,12 @@ function extractCloudRecord(body) {
  * @param {string} profileID
  * @param {string} playerKey
  */
-export async function loadCloudProfileWithKey(profileID, playerKey) {
+export async function loadCloudProfileWithKey(profileID, playerKey, opts = {}) {
   const base = await ensureBaseUrl();
   if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
   const id = encodeURIComponent(String(profileID));
   const key = normalizePlayerKey(playerKey);
+  const login = String(opts.login ?? profileID);
 
   try {
     const res = await apiRequest(base, `/save/${id}?playerKey=${encodeURIComponent(key)}`, {
@@ -210,7 +212,22 @@ export async function loadCloudProfileWithKey(profileID, playerKey) {
     if (res.status === 401) {
       return { ok: false, status: 401, error: 'Incorrect key' };
     }
-    if (res.status === 404) return { ok: false, status: 404, error: 'Profile not found' };
+    if (res.status === 404) {
+      const { body } = await readResponse(res);
+      const debug = cloudNotFoundDebugFromBody(body);
+      logCloudSync('load_not_found', {
+        profileID: String(profileID),
+        login,
+        path: `/save/${id}`,
+        ...debug,
+      });
+      return {
+        ok: false,
+        status: 404,
+        error: body?.error || 'Profile not found',
+        debug,
+      };
+    }
     if (!res.ok) {
       const errText = await readApiError(res);
       if (DEV) console.warn('[cloud-save] GET /save failed', res.status, errText);
@@ -290,12 +307,13 @@ export async function listCloudPlayers() {
  * @param {string} playerKey
  * @returns {Promise<{ ok: boolean, data?: object, skipped?: boolean, error?: string, status?: number }>}
  */
-export async function loginCloudProfile(profileID, playerKey, session = null) {
+export async function loginCloudProfile(profileID, playerKey, session = null, opts = {}) {
   const base = await ensureBaseUrl();
   if (!base) return { ok: false, skipped: true, error: 'Cloud save not configured' };
 
   const deviceId = session?.deviceId || (await getDeviceId());
   const sessionToken = session?.sessionToken || null;
+  const login = String(opts.login ?? profileID).trim();
 
   try {
     const res = await apiRequest(base, '/login', {
@@ -303,6 +321,7 @@ export async function loginCloudProfile(profileID, playerKey, session = null) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         profileID: String(profileID),
+        login,
         playerKey: normalizePlayerKey(playerKey),
         deviceId,
         sessionToken,
@@ -312,7 +331,20 @@ export async function loginCloudProfile(profileID, playerKey, session = null) {
       return { ok: false, status: 401, error: 'Incorrect key' };
     }
     if (res.status === 404) {
-      return { ok: false, status: 404, error: 'Profile not found' };
+      const { body } = await readResponse(res);
+      const debug = cloudNotFoundDebugFromBody(body);
+      logCloudSync('login_not_found', {
+        event: 'POST /login',
+        profileID: String(profileID),
+        login,
+        ...debug,
+      });
+      return {
+        ok: false,
+        status: 404,
+        error: body?.error || 'Profile not found',
+        debug,
+      };
     }
     if (!res.ok) {
       const errText = await readApiError(res);
@@ -356,7 +388,9 @@ export async function recallCloudProfile(profileID, playerKey, opts = {}) {
     return { ok: false, status: 400, error: 'Enter your 4-digit Player Key.' };
   }
 
-  const login = await loginCloudProfile(profileID, key, opts.session ?? null);
+  const login = await loginCloudProfile(profileID, key, opts.session ?? null, {
+    login: opts.login ?? profileID,
+  });
   if (login.status === 401) {
     const msg = login.error || 'Incorrect key. Please try again.';
     return { ok: false, status: 401, error: msg };
@@ -372,7 +406,7 @@ export async function recallCloudProfile(profileID, playerKey, opts = {}) {
     !/profile/i.test(String(login.error || ''));
 
   if (loginRouteMissing) {
-    const loaded = await loadCloudProfileWithKey(profileID, key);
+    const loaded = await loadCloudProfileWithKey(profileID, key, { login: opts.login ?? profileID });
     if (loaded.status === 401) {
       return { ok: false, status: 401, error: 'Incorrect key. Please try again.' };
     }
@@ -398,7 +432,12 @@ export async function recallCloudProfile(profileID, playerKey, opts = {}) {
   }
 
   if (login.status === 404) {
-    return { ok: false, status: 404, error: login.error || 'Profile not found' };
+    return {
+      ok: false,
+      status: 404,
+      error: login.error || 'Profile not found',
+      debug: login.debug,
+    };
   }
 
   if (login.ok && !hasFullCloudPayload(login.data)) {

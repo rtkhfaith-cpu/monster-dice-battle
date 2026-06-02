@@ -123,6 +123,10 @@ import { normalizeProfileGear } from './utils/gearStorage';
 import { loadGameSave, saveGameSave } from './src/services/saveService';
 import { listCloudPlayers } from './src/services/cloudSaveService';
 import {
+  normalizeLoginIdentifier,
+  resolveCloudProfileIdForLogin,
+} from './utils/cloudProfileLookup';
+import {
   applyCloudSaveChoice,
   applyLocalSaveChoice,
   refreshProfileFromCloudIfBehind,
@@ -1001,9 +1005,11 @@ export default function App() {
     tryOfferDailySpin(profileId, 'login');
   }
 
-  async function completeProfileEntry(profileId, playerKey, { fromCloudList = false } = {}) {
+  async function completeProfileEntry(profileId, playerKey, { fromCloudList = false, loginInput = null } = {}) {
     if (!gameData || !profileId) return { ok: false };
-    const res = await resolveProfileLoginWithCloud(gameData, profileId, playerKey);
+    const res = await resolveProfileLoginWithCloud(gameData, profileId, playerKey, {
+      loginInput: loginInput ?? profileId,
+    });
     if (!res.ok) {
       if (res.saveConflict) {
         setSaveConflict({
@@ -1014,7 +1020,14 @@ export default function App() {
         });
         return { ok: false, saveConflict: true };
       }
-      return { ok: false, error: res.error };
+      if (res.debug) {
+        console.error('[cloud-sync] profile login failed', {
+          profileId,
+          loginInput: loginInput ?? profileId,
+          ...res.debug,
+        });
+      }
+      return { ok: false, error: res.error, debug: res.debug };
     }
 
     setGameData(res.gameData);
@@ -1189,14 +1202,17 @@ export default function App() {
     }
   }
 
-  async function finalizeCloudLogin(profileId, playerKey, { showModalOnFail = true } = {}) {
+  async function finalizeCloudLogin(profileId, playerKey, { showModalOnFail = true, loginInput = null } = {}) {
     if (keyModalBusy) return { ok: false, error: 'Login already in progress.' };
     if (!playerKey || playerKey.length !== 4) {
       setKeyModalError('Enter your 4-digit Player Key.');
       return { ok: false, error: 'Enter your 4-digit Player Key.' };
     }
     setKeyModalError('');
-    const res = await completeProfileEntry(profileId, playerKey, { fromCloudList: true });
+    const res = await completeProfileEntry(profileId, playerKey, {
+      fromCloudList: true,
+      loginInput: loginInput ?? profileId,
+    });
     if (!res.ok && !res.needsConflict) {
       const msg = res.error || 'Could not load player from cloud.';
       if (showModalOnFail) {
@@ -1268,14 +1284,29 @@ export default function App() {
   }
 
   async function handleMainMenuLogin(profileId, playerKey) {
-    const id = String(profileId || '').trim();
+    const loginInput = normalizeLoginIdentifier(profileId);
     const pin = normalizePlayerKey(playerKey);
-    if (!id || pin.length !== 4) return { ok: false, error: 'Enter ID and 4-digit PIN.' };
-    const query = id.toLowerCase();
-    const localProfile = gameData?.players?.find((p) => (
-      String(p.id || '').toLowerCase() === query ||
-      String(p.name || '').toLowerCase() === query
-    )) ?? null;
+    if (!loginInput || pin.length !== 4) {
+      return { ok: false, error: 'Enter ID and 4-digit PIN.' };
+    }
+
+    let playersForLookup = cloudPlayers;
+    let resolved = resolveCloudProfileIdForLogin(loginInput, { gameData, cloudPlayers: playersForLookup });
+
+    if (resolved.source === 'server_resolve' || resolved.source === 'profileId_guess') {
+      await loadSaveApiConfig();
+      const listRes = await listCloudPlayers();
+      if (listRes.ok && Array.isArray(listRes.players)) {
+        playersForLookup = listRes.players;
+        setCloudPlayers(listRes.players);
+        resolved = resolveCloudProfileIdForLogin(loginInput, {
+          gameData,
+          cloudPlayers: playersForLookup,
+        });
+      }
+    }
+
+    const localProfile = gameData?.players?.find((p) => p.id === resolved.profileID) ?? null;
     if (localProfile) {
       const localId = localProfile.id;
       if (profileNeedsPlayerKeyMigration(localProfile)) {
@@ -1288,13 +1319,25 @@ export default function App() {
       if (!verifyPlayerKeyForProfile(localProfile, pin)) {
         return { ok: false, error: 'Incorrect PIN.' };
       }
-      return completeProfileEntry(localId, pin);
+      return completeProfileEntry(localId, pin, { loginInput });
     }
-    const cloudProfile = cloudPlayers.find((p) => (
-      String(p.profileID || '').toLowerCase() === query ||
-      String(p.playerName || '').toLowerCase() === query
-    ));
-    return finalizeCloudLogin(cloudProfile?.profileID || id, pin, { showModalOnFail: false });
+
+    if (!resolved.profileID) {
+      return { ok: false, error: 'Enter a valid trainer name or profile ID.' };
+    }
+
+    console.log('[cloud-sync] login resolve', {
+      loginInput,
+      profileID: resolved.profileID,
+      lookupKey: resolved.lookupKey,
+      lookupValue: resolved.lookupValue,
+      source: resolved.source,
+    });
+
+    return finalizeCloudLogin(resolved.profileID, pin, {
+      showModalOnFail: false,
+      loginInput,
+    });
   }
 
   async function handleMainMenuCreate(name, playerKey) {

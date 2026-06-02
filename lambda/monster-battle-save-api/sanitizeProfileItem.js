@@ -124,9 +124,25 @@ function sanitizeLadder(ml, fixes) {
  * @param {object} raw
  * @returns {{ item: object, fixes: string[], bytesEstimate: number }}
  */
-function sanitizeProfileItem(raw) {
+/**
+ * @param {object} raw
+ * @param {{ profileID?: string, playerName?: string, createdAt?: string, playerKey?: string, pinHash?: string, playerKeyHash?: string }} [identity]
+ */
+function sanitizeProfileItem(raw, identity = {}) {
   const fixes = [];
   const item = raw && typeof raw === 'object' ? { ...raw } : {};
+
+  const identityPk = String(identity.profileID || item.profileID || item.id || '').trim();
+  if (identityPk) item.profileID = identityPk;
+  if (identity.playerName != null) {
+    item.playerName = String(identity.playerName || 'Player').slice(0, 24);
+  } else if (item.playerName != null) {
+    item.playerName = String(item.playerName || 'Player').slice(0, 24);
+  }
+  if (identity.createdAt) item.createdAt = identity.createdAt;
+  if (identity.playerKey != null) item.playerKey = identity.playerKey;
+  if (identity.pinHash != null) item.pinHash = identity.pinHash;
+  if (identity.playerKeyHash != null) item.playerKeyHash = identity.playerKeyHash;
 
   const coins = sanitizeFiniteInt(item.coins, { max: CAP.coins, field: 'coins' });
   pushFix(fixes, coins.fix);
@@ -177,6 +193,16 @@ function sanitizeProfileItem(raw) {
   }
 
   const clean = stripUndefinedDeep(item);
+  if (identityPk) clean.profileID = identityPk;
+  if (identity.createdAt) clean.createdAt = identity.createdAt;
+  if (identity.playerName != null) {
+    clean.playerName = String(identity.playerName || 'Player').slice(0, 24);
+  }
+  if (identity.playerKey != null) clean.playerKey = identity.playerKey;
+  if (identity.pinHash != null) clean.pinHash = identity.pinHash;
+  if (identity.playerKeyHash != null) clean.playerKeyHash = identity.playerKeyHash;
+  delete clean.id;
+
   let bytesEstimate = 0;
   try {
     bytesEstimate = Buffer.byteLength(JSON.stringify(clean), 'utf8');

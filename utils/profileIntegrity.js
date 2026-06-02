@@ -86,7 +86,8 @@ export function sanitizePlayerProfile(profile, opts = {}) {
     return { profile, issues: ['invalid_profile'] };
   }
 
-  profile.name = String(profile.name || 'Player').slice(0, PROFILE_NAME_MAX);
+  profile.name = String(profile.name || 'Player').trim().slice(0, PROFILE_NAME_MAX) || 'Player';
+  if (profile.id != null) profile.id = String(profile.id).trim();
 
   applyIntField(profile, 'coins', profile.coins, { max: PROFILE_CAPS.coins }, issues, 'coins');
 

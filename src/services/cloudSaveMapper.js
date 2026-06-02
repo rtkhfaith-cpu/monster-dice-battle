@@ -47,7 +47,7 @@ export function toCloudProfile(gameData, profileID, sessionOverride = null) {
 
   const row = {
     profileID: String(profileID),
-    playerName: String(p.name || 'Player').slice(0, 24),
+    playerName: String(p.name || 'Player').trim().slice(0, 24),
     coins: sanitizeFiniteInt(p.coins, { max: PROFILE_CAPS.coins }).value,
     selectedMonsterId: p.selectedMonsterId ?? null,
     monsters,

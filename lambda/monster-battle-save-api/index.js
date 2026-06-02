@@ -18,6 +18,7 @@ const {
   profileIsProtected,
 } = require('./playerKeyHash');
 const { sanitizeProfileItem } = require('./sanitizeProfileItem');
+const { createProfileLookup } = require('./profileLookup');
 
 const TABLE_NAME = process.env.TABLE_NAME || 'MonsterBattleSaves';
 const MAX_LIST = 50;
@@ -32,6 +33,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const profileLookup = createProfileLookup(client);
 
 function isAllowedOrigin(origin) {
   if (!origin || typeof origin !== 'string') return false;
@@ -193,31 +195,8 @@ function toPublicListItem(item) {
 }
 
 async function getProfile(profileID) {
-  const id = String(profileID || '').trim();
-  if (!id) return null;
-
-  const byPk = await client.send(
-    new GetCommand({
-      TableName: TABLE_NAME,
-      Key: { profileID: id },
-    }),
-  );
-  if (byPk.Item) return byPk.Item;
-
-  const scan = await client.send(
-    new ScanCommand({
-      TableName: TABLE_NAME,
-      FilterExpression: 'profileID = :id OR #idAttr = :id',
-      ExpressionAttributeNames: { '#idAttr': 'id' },
-      ExpressionAttributeValues: { ':id': id },
-      Limit: 25,
-    }),
-  );
-  const hit = (scan.Items || []).find(
-    (row) => String(row.profileID || row.id || '').trim() === id,
-  );
-  if (!hit) return null;
-  return { ...hit, profileID: String(hit.profileID || hit.id || id) };
+  const resolved = await profileLookup.resolveProfileLookup(profileID);
+  return resolved.item;
 }
 
 /** Never return PIN in API responses. */
@@ -244,72 +223,131 @@ async function handleListPlayers(event) {
 
 async function handleLogin(event) {
   const body = parseBody(event);
-  const profileID = String(body.profileID || '').trim();
+  const loginInput = profileLookup.normalizeLoginIdentifier(
+    body.login || body.profileID || body.playerName || body.name || '',
+  );
   const playerKey = normalizePlayerKey(body.playerKey);
 
-  if (!profileID) return respond(event, 400, { error: 'Missing profileID' });
+  if (!loginInput) return respond(event, 400, { error: 'Missing profileID' });
   if (playerKey.length !== 4) return respond(event, 401, { error: 'Missing key' });
 
-  const item = await getProfile(profileID);
-  if (!item) return respond(event, 404, { error: 'Player not found' });
+  const lookup = await profileLookup.resolveProfileLookup(loginInput);
+  profileLookup.logLookup('POST /login', 'lookup', {
+    lookup_key_used: lookup.lookupKey,
+    lookup_value_used: lookup.lookupValue,
+    found: lookup.found,
+    resolved_profile_id: lookup.resolvedProfileID,
+    dynamodb_returned_item: lookup.found,
+  });
 
-  const auth = authorizeProfileAccess(profileID, playerKey, item);
+  if (!lookup.found || !lookup.item) {
+    return respond(event, 404, {
+      error: 'Player not found',
+      not_found: true,
+      lookup_key_used: lookup.lookupKey,
+      lookup_value_used: lookup.lookupValue,
+    });
+  }
+
+  const profileID = profileLookup.canonicalProfileId(lookup.item);
+  const auth = authorizeProfileAccess(profileID, playerKey, lookup.item);
   if (!auth.ok) {
     return respond(event, auth.status || 401, { error: auth.error || 'Incorrect key' });
   }
 
-  return respond(event, 200, { profile: stripSecrets(auth.item) });
+  return respond(event, 200, {
+    profile: stripSecrets(auth.item),
+    resolvedProfileID: profileID,
+  });
 }
 
 async function handleGetSave(event, profileID) {
-  const item = await getProfile(profileID);
-  if (!item) return respond(event, 404, { error: 'Player not found' });
+  const lookup = await profileLookup.resolveProfileLookup(profileID);
+  profileLookup.logLookup('GET /save', 'lookup', {
+    lookup_key_used: lookup.lookupKey,
+    lookup_value_used: lookup.lookupValue,
+    found: lookup.found,
+    resolved_profile_id: lookup.resolvedProfileID,
+    dynamodb_returned_item: lookup.found,
+  });
+  const item = lookup.item;
+  if (!item) {
+    return respond(event, 404, {
+      error: 'Player not found',
+      not_found: true,
+      lookup_key_used: lookup.lookupKey,
+      lookup_value_used: lookup.lookupValue,
+    });
+  }
+  const resolvedId = profileLookup.canonicalProfileId(item);
 
   const playerKey = resolvePlayerKey(event, {});
   if (playerKey.length !== 4) {
     return respond(event, 401, { error: 'Missing key' });
   }
 
-  const auth = authorizeProfileAccess(profileID, playerKey, item);
+  const auth = authorizeProfileAccess(resolvedId, playerKey, item);
   if (!auth.ok) {
     return respond(event, auth.status || 401, { error: auth.error || 'Incorrect key' });
   }
 
-  return respond(event, 200, { profile: stripSecrets(auth.item) });
+  return respond(event, 200, { profile: stripSecrets(auth.item), resolvedProfileID: resolvedId });
 }
 
 async function handlePostSave(event) {
   const body = parseBody(event);
-  const profileID = String(body.profileID || body.id || '').trim();
+  const loginInput = profileLookup.normalizeLoginIdentifier(
+    body.profileID || body.id || body.login || '',
+  );
   const playerKey = normalizePlayerKey(body.playerKey);
 
-  if (!profileID) return respond(event, 400, { error: 'Missing profileID' });
+  if (!loginInput) return respond(event, 400, { error: 'Missing profileID' });
   if (playerKey.length !== 4) return respond(event, 400, { error: 'Missing key' });
 
-  const existing = await getProfile(profileID);
+  const lookup = await profileLookup.resolveProfileLookup(loginInput);
+  const existing = lookup.item;
+  profileLookup.logLookup('POST /save', 'lookup', {
+    lookup_key_used: lookup.lookupKey,
+    lookup_value_used: lookup.lookupValue,
+    found: lookup.found,
+    resolved_profile_id: lookup.resolvedProfileID,
+    dynamodb_returned_item: lookup.found,
+  });
+
   const auth = authorizeSaveAccess(playerKey, existing);
   if (!auth.ok) {
     return respond(event, auth.status || 401, { error: auth.error || 'Incorrect key' });
   }
 
+  const canonicalProfileID = existing
+    ? profileLookup.canonicalProfileId(existing)
+    : loginInput;
+
   const now = new Date().toISOString();
   const rawItem = {
     ...body,
-    profileID,
+    profileID: canonicalProfileID,
+    playerName: body.playerName ?? existing?.playerName,
     playerKey,
     updatedAt: body.updatedAt || now,
     createdAt: body.createdAt || existing?.createdAt || now,
   };
 
-  delete rawItem.playerKeyHash;
-  delete rawItem.pinHash;
   delete rawItem.pin;
-  delete rawItem.id;
 
-  const { item, fixes, bytesEstimate } = sanitizeProfileItem(rawItem);
+  const identity = {
+    profileID: canonicalProfileID,
+    playerName: existing?.playerName ?? body.playerName,
+    createdAt: rawItem.createdAt,
+    playerKey,
+    pinHash: existing?.pinHash,
+    playerKeyHash: existing?.playerKeyHash,
+  };
+
+  const { item, fixes, bytesEstimate } = sanitizeProfileItem(rawItem, identity);
   if (bytesEstimate > 380000) {
     console.error('[save-api] profile payload too large', {
-      profileID,
+      profileID: canonicalProfileID,
       bytesEstimate,
       coins: item.coins,
       coinsType: typeof item.coins,
@@ -322,7 +360,7 @@ async function handlePostSave(event) {
 
   if (fixes.length > 0) {
     console.warn('[save-api] sanitized profile fields', {
-      profileID,
+      profileID: canonicalProfileID,
       fixes,
       coins: item.coins,
       coinsType: typeof item.coins,
@@ -336,11 +374,11 @@ async function handlePostSave(event) {
         Item: item,
       }),
     );
-    console.log('[save-api] DynamoDB Put OK', { profileID, bytesEstimate });
-    return respond(event, 200, { ok: true, profileID, sanitized: fixes.length > 0 });
+    console.log('[save-api] DynamoDB Put OK', { profileID: canonicalProfileID, bytesEstimate });
+    return respond(event, 200, { ok: true, profileID: canonicalProfileID, sanitized: fixes.length > 0 });
   } catch (err) {
     console.error('[save-api] DynamoDB Put failed', {
-      profileID,
+      profileID: canonicalProfileID,
       name: err?.name,
       message: err?.message,
       stack: err?.stack,
