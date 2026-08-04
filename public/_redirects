@@ -2,4 +2,4 @@
 # A blanket "/* -> /index.html 200" makes the browser load HTML for phaser-*.js
 # chunks and dynamic import fails with "Loading module ... failed".
 
-</^[^.]+$|\.(?!(css|gif|ico|jpg|jpeg|js|json|mp3|png|svg|wav|webp|woff|woff2)$)/>  /index.html  200
+</^[^.]+$|\.(?!(css|gif|ico|jpg|jpeg|js|json|mp3|png|svg|txt|wav|webp|woff|woff2)$)/>  /index.html  200

@@ -44,3 +44,7 @@ public/save-config.json
 # generated native folders
 /ios
 /android
+
+# Local Basic Auth credentials for CloudFront edge auth (never commit)
+infra/robots-public/.basic-auth-credentials.txt
+

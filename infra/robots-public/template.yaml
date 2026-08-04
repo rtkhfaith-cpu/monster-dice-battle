@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Public /robots.txt (Disallow: /) for rtkhfaith.com and monster-dice-battle.rtkhfaith.com.
+  CloudFront Function short-circuits /robots.txt (no auth). Other monster-dice-battle
+  paths proxy to Amplify where branch Basic Auth remains enabled.
+
+Parameters:
+  HostedZoneId:
+    Type: String
+    Default: Z01185181EM3J2CKIGUZU
+  AmplifyOriginDomain:
+    Type: String
+    Default: master.d4ud0u4vg91jy.amplifyapp.com
+    Description: Amplify branch domain (Basic Auth remains enabled on master)
+
+Resources:
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: rtkhfaith.com
+      SubjectAlternativeNames:
+        - www.rtkhfaith.com
+        - monster-dice-battle.rtkhfaith.com
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: rtkhfaith.com
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: www.rtkhfaith.com
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: monster-dice-battle.rtkhfaith.com
+          HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Purpose
+          Value: robots-public-bypass
+
+  RobotsPublicFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: rtkhfaith-robots-public-bypass
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Serve public Disallow robots.txt; keep Amplify Basic Auth for app paths
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri || '/';
+          var q = uri.indexOf('?');
+          if (q >= 0) {
+            uri = uri.substring(0, q);
+          }
+          var host = '';
+          if (request.headers && request.headers.host && request.headers.host.value) {
+            host = request.headers.host.value.toLowerCase();
+          }
+          if (uri === '/robots.txt') {
+            return {
+              statusCode: 200,
+              statusDescription: 'OK',
+              headers: {
+                'content-type': { value: 'text/plain; charset=utf-8' },
+                'cache-control': { value: 'public, max-age=300' },
+                'x-content-type-options': { value: 'nosniff' },
+                'x-robots-tag': { value: 'noindex, nofollow' }
+              },
+              body: 'User-agent: *\nDisallow: /\n'
+            };
+          }
+          if (host === 'rtkhfaith.com' || host === 'www.rtkhfaith.com') {
+            return {
+              statusCode: 404,
+              statusDescription: 'Not Found',
+              headers: {
+                'content-type': { value: 'text/plain; charset=utf-8' },
+                'x-content-type-options': { value: 'nosniff' },
+                'x-robots-tag': { value: 'noindex, nofollow' }
+              },
+              body: 'Not Found\n'
+            };
+          }
+          return request;
+        }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: Certificate
+    Properties:
+      DistributionConfig:
+        Comment: rtkhfaith robots public bypass + Amplify origin for monster-dice-battle
+        Enabled: true
+        HttpVersion: http2
+        IPV6Enabled: true
+        Aliases:
+          - rtkhfaith.com
+          - www.rtkhfaith.com
+          - monster-dice-battle.rtkhfaith.com
+        ViewerCertificate:
+          AcmCertificateArn: !Ref Certificate
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: AmplifyOrigin
+            DomainName: !Ref AmplifyOriginDomain
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: AmplifyOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          # CachingDisabled — auth responses and SPA must not be cached anonymously
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          # Forward viewer headers except Host (Host becomes Amplify origin domain)
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt RobotsPublicFunction.FunctionMetadata.FunctionARN
+        PriceClass: PriceClass_200
+
+  ApexARecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: rtkhfaith.com
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+        EvaluateTargetHealth: false
+
+  ApexAAAARecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: rtkhfaith.com
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+        EvaluateTargetHealth: false
+
+  WwwARecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: www.rtkhfaith.com
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+        EvaluateTargetHealth: false
+
+  MonsterDiceBattleARecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: monster-dice-battle.rtkhfaith.com
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+        EvaluateTargetHealth: false
+
+  MonsterDiceBattleAAAARecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: monster-dice-battle.rtkhfaith.com
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+        EvaluateTargetHealth: false
+
+Outputs:
+  DistributionId:
+    Value: !Ref Distribution
+  DistributionDomainName:
+    Value: !GetAtt Distribution.DomainName
+  CertificateArn:
+    Value: !Ref Certificate

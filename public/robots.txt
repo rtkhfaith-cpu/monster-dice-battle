@@ -1,0 +1,3 @@
+# Private / internal app — do not index.
+User-agent: *
+Disallow: /
